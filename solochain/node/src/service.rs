@@ -63,7 +63,10 @@ pub(crate) type FullClient = sc_service::TFullClient<Block, RuntimeApi, RuntimeE
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
+/// The drand swarm
 pub const DRAND_SWARM_ADDR: &str = "/dnsaddr/api.drand.sh";
+
+/// The quicknet pubsub topic
 pub const DRAND_QUICKNET_PUBSUB_TOPIC: &str =
 	"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
 
@@ -84,7 +87,10 @@ pub type Service = sc_service::PartialComponents<
 	),
 >;
 
-pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
+pub fn new_partial(
+	config: &Configuration,
+	shared_state: Option<SharedState>,
+) -> Result<Service, ServiceError> {
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -129,13 +135,15 @@ pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 	)?;
 
 	let cidp_client = client.clone();
-	let import_queue =
-		sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _>(ImportQueueParams {
+	let shared_state = shared_state.clone().expect("i");
+	let import_queue = sc_consensus_aura::import_queue::<AuraPair, _, _, _, _, _>(
+		ImportQueueParams {
 			block_import: grandpa_block_import.clone(),
 			justification_import: Some(Box::new(grandpa_block_import.clone())),
 			client: client.clone(),
 			create_inherent_data_providers: move |parent_hash, _| {
 				let cidp_client = cidp_client.clone();
+				let shared_state = shared_state.clone();
 				async move {
 					let slot_duration = sc_consensus_aura::standalone::slot_duration_at(
 						&*cidp_client,
@@ -149,7 +157,22 @@ pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 							slot_duration,
 						);
 
-					Ok((slot, timestamp))
+					// let mut beacon_data = vec![];
+					// let shared = shared_state.clone();
+					// Access Gossipsub data
+					// if let Some(shared_data) = shared_state {
+					let beacon_data = {
+						let data_lock = shared_state.lock().unwrap();
+						data_lock.clone().pulses
+					};
+					// }
+
+					let beacon = sp_consensus_randomness_beacon::inherents::InherentDataProvider::from_signatures_and_rounds(
+						beacon_data,
+						vec![],
+					);
+
+					Ok((slot, timestamp, beacon))
 				}
 			},
 			spawner: &task_manager.spawn_essential_handle(),
@@ -157,7 +180,8 @@ pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 			check_for_equivocation: Default::default(),
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 			compatibility_mode: Default::default(),
-		})?;
+		},
+	)?;
 
 	Ok(sc_service::PartialComponents {
 		client,
@@ -177,6 +201,8 @@ pub fn new_full<
 >(
 	config: Configuration,
 ) -> Result<TaskManager, ServiceError> {
+	let shared_state = Arc::new(Mutex::new(GossipsubState { pulses: Vec::new() }));
+
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -186,7 +212,7 @@ pub fn new_full<
 		select_chain,
 		transaction_pool,
 		other: (block_import, grandpa_link, mut telemetry),
-	} = new_partial(&config)?;
+	} = new_partial(&config, Some(shared_state.clone()))?;
 
 	let mut net_config = sc_network::config::FullNetworkConfiguration::<
 		Block,
@@ -265,7 +291,7 @@ pub fn new_full<
 
 		let local_identity: Keypair = local_identity.into();
 		// TODO: handle error
-		let mut gossipsub = GossipsubNetwork::new(&local_identity).unwrap();
+		let mut gossipsub = GossipsubNetwork::new(&local_identity, shared_state).unwrap();
 
 		// Spawn the gossipsub network task
 		task_manager.spawn_handle().spawn(
@@ -279,6 +305,30 @@ pub fn new_full<
 			.boxed(),
 		);
 	}
+
+	// // configure gossipsub for the libp2p network
+	// let local_identity: sc_network_types::ed25519::Keypair =
+	// 	config.network.node_key.clone().into_keypair()?;
+	// let local_public = local_identity.public().to_peer_id();
+	// let local_identity: libp2p::identity::ed25519::Keypair = local_identity.into();
+
+	// let local_identity: Keypair = local_identity.into();
+	// // TODO: handle error
+	// let mut gossipsub = GossipsubNetwork::new(&local_identity).unwrap();
+
+	// // Spawn the gossipsub network task
+	// task_manager.spawn_handle().spawn(
+	// 	"gossipsub-network",
+	// 	None,
+	// 	async move {
+	// 		if let Err(e) = gossipsub.subscribe(DRAND_QUICKNET_PUBSUB_TOPIC).await {
+	// 			log::error!("Failed to run gossipsub network: {:?}", e);
+	// 		}
+	// 	}
+	// 	.boxed(),
+	// );
+
+	// we also want to create a notification task so that we can read pulses when writing to the inherent?
 
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
@@ -438,12 +488,23 @@ fn multiaddress_resolve(address: &str) -> Result<Vec<Multiaddr>, Box<dyn std::er
 	Ok(resolved_addresses)
 }
 
+// A struct representing the data you want to share
+#[derive(Debug, Clone)]
+pub struct GossipsubState {
+	// This could be a list of pulses, or any other data you fetch
+	pub pulses: Vec<Vec<u8>>,
+}
+
+// Shared state wrapped in an Arc<Mutex> for safe mutation across tasks
+type SharedState = Arc<Mutex<GossipsubState>>;
+
 pub struct GossipsubNetwork {
 	swarm: Swarm<GossipsubBehaviour>,
+	state: SharedState,
 }
 
 impl GossipsubNetwork {
-	pub fn new(local_key: &Keypair) -> Result<Self, Box<dyn std::error::Error>> {
+	pub fn new(local_key: &Keypair, state: SharedState) -> Result<Self, Box<dyn std::error::Error>> {
 		// Set the message authenticity - How we expect to publish messages
 		// Here we expect the publisher to sign the message with their key.
 		let message_authenticity = MessageAuthenticity::Signed(local_key.clone());
@@ -476,7 +537,7 @@ impl GossipsubNetwork {
 		let maddr2: libp2p::Multiaddr = "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y".parse().unwrap();
 		swarm.dial(maddr1)?;
 		swarm.dial(maddr2)?;
-		Ok(Self { swarm })
+		Ok(Self { swarm, state })
 	}
 
 	pub async fn subscribe(&mut self, topic_str: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -494,13 +555,18 @@ impl GossipsubNetwork {
 					message_id,
 					message,
 				})) => {
-					let res = PublicRandResponse::decode(&*message.data).unwrap();
-					log::info!(
-						"Received pulse for round {:?} with message id: {} from peer: {:?}",
-						res.round,
-						message_id,
-						propagation_source
-					);
+					log::info!("RAW PROTOBUF FROM GOSSIPSUB {:?}", &message.data);
+					// Updating the shared state
+					let mut state = self.state.lock().unwrap();
+					state.pulses.push(message.data);
+					log::info!("New pulse: {:?}", state.pulses);
+					// let res = PublicRandResponse::decode(&*message.data).unwrap();
+					// log::info!(
+					// 	"Received pulse for round {:?} with message id: {} from peer: {:?}",
+					// 	res.round,
+					// 	message_id,
+					// 	propagation_source
+					// );
 				},
 				Some(SwarmEvent::NewListenAddr { address, .. }) => {
 					log::info!(" Listening on {:?}", address);

@@ -1971,6 +1971,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus-aura",
  "sp-consensus-grandpa",
+ "sp-consensus-randomness-beacon",
  "sp-core",
  "sp-crypto-ec-utils 0.14.0",
  "sp-inherents",
@@ -9013,6 +9014,15 @@ dependencies = [
  "sp-core",
  "sp-keystore",
  "sp-runtime",
+]
+
+[[package]]
+name = "sp-consensus-randomness-beacon"
+version = "1.0.0-dev"
+dependencies = [
+ "async-trait",
+ "parity-scale-codec",
+ "sp-inherents",
 ]
 
 [[package]]

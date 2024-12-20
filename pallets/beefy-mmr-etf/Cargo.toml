@@ -1,4 +1,4 @@
-b[package]
+[package]
 name = "pallet-beefy-mmr-etf"
 version = "28.0.0"
 authors.workspace = true
