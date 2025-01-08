@@ -296,10 +296,7 @@ impl pallet_drand::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_drand::weights::SubstrateWeight<Runtime>;
 	type AuthorityId = pallet_drand::crypto::TestAuthId;
-	type UnsignedPriority = UnsignedPriority;
-	type HttpFetchTimeout = HttpFetchTimeout;
 	type Verifier = pallet_drand::verifier::QuicknetVerifier;
-	type ApiEndpoint = ApiEndpoint;
 }
 
 parameter_types! {

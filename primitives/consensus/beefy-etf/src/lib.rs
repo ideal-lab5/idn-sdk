@@ -154,7 +154,7 @@ pub mod bls_crypto {
 	impl<MsgHash: Hash> BeefyAuthorityId<MsgHash> for AuthorityId
 	where
 		<MsgHash as Hash>::Output: Into<[u8; 32]>,
-	{
+	{ 
 		fn verify(&self, signature: &<Self as RuntimeAppPublic>::Signature, msg: &[u8]) -> bool {
 			// `w3f-bls` library uses IETF hashing standard and as such does not expose
 			// a choice of hash-to-field function.

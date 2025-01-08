@@ -7,7 +7,6 @@ mod cli;
 mod command;
 mod rpc;
 mod service;
-mod drand;
 
 fn main() -> sc_cli::Result<()> {
 	command::run()

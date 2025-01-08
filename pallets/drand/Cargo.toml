@@ -47,6 +47,7 @@ ark-scale = { version = "0.0.11", default-features = false, features = ["hazmat"
 w3f-bls = { version = "0.1.4", default-features = false }
 sp-keyring = { version = "39.0.0",  default-features = false }
 timelock = { version = "0.0.1", default-features = false }
+sp-consensus-randomness-beacon = { path = "../../primitives/consensus/randomness-beacon", default-features = false }
 
 [dev-dependencies]
 sp-keystore = { version = "0.40.0",  default-features = false }
@@ -78,7 +79,8 @@ std = [
 	"ark-crypto-primitives/std",
 	"ark-scale/std",
 	"w3f-bls/std",
-	"timelock/std"
+	"timelock/std",
+	"sp-consensus-randomness-beacon/std"
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

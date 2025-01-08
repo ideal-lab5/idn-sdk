@@ -136,7 +136,7 @@ sc-basic-authorship = "0.45.0"
 sc-utils = "14.0.0"
 
 # libp2p (uses same version as substrate)
-libp2p = { version = "0.52.4", features = ["gossipsub"] }
+libp2p = { version = "0.52.4", features = ["gossipsub", "noise", "tcp", "yamux"] }
 
 # Local Dependencies
 drand-example-runtime = { path = "runtime" }

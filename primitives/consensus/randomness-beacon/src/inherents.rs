@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 by Ideal Labs, LLC
+ * Copyright 2025 by Ideal Labs, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,15 @@
  */
 
 use codec::Decode;
+
+use crate::types::OpaquePulse;
 use sp_inherents::{Error, InherentData, InherentIdentifier};
+use alloc::vec::Vec;
 
 pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"rngpulse";
 
 // TODO
-pub type InherentType = (Vec<Vec<u8>>, Vec<u64>);
+pub type InherentType = Vec<OpaquePulse>;
 
 pub trait BeaconInherentData {
 	// get beacon data for the inherent
@@ -48,11 +51,6 @@ pub struct InherentDataProvider {
 impl InherentDataProvider {
 	pub fn new(data: InherentType) -> Self {
 		Self { data }
-	}
-
-	pub fn from_signatures_and_rounds(signatures: Vec<Vec<u8>>, rounds: Vec<u64>) -> Self {
-		// TODO
-		Self { data: (signatures, rounds) }
 	}
 }
 

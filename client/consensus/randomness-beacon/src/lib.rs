@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 by Ideal Labs, LLC
+ * Copyright 2025 by Ideal Labs, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,9 +13,5 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#![cfg_attr(not(feature = "std"), no_std)]
-
-extern crate alloc;
-
-pub mod inherents;
-pub mod types;
+ 
+pub mod gossipsub;

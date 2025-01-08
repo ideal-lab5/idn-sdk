@@ -67,9 +67,8 @@ frame-benchmarking.workspace = true
 frame-benchmarking-cli.workspace = true
 
 libp2p.workspace = true
-prost = "0.13.4"
-prost-types = "0.13.4"
 sp-consensus-randomness-beacon.workspace = true
+sc-consensus-randomness-beacon.workspace = true
 
 # Local Dependencies
 drand-example-runtime.workspace = true
