@@ -23,7 +23,7 @@ use alloc::vec::Vec;
 pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"rngpulse";
 
 // TODO
-pub type InherentType = Vec<OpaquePulse>;
+pub type InherentType = Vec<Vec<u8>>;
 
 pub trait BeaconInherentData {
 	// get beacon data for the inherent

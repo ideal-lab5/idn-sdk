@@ -63,8 +63,8 @@ use sp_runtime::{
 	transaction_validity::{InvalidTransaction, TransactionValidity, ValidTransaction},
 	KeyTypeId,
 };
-// use sp_consensus_randomness_beacon::types::OpaquePulse;
-type OpaquePulse = Vec<u8>;
+use sp_consensus_randomness_beacon::types::OpaquePulse;
+// type OpaquePulse = Vec<u8>;
 
 pub mod bls12_381;
 pub mod types;
@@ -96,8 +96,6 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: CreateSignedTransaction<Call<Self>> + frame_system::Config {
-		/// The identifier type for an offchain worker.
-		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
@@ -110,15 +108,20 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type BeaconConfig<T: Config> = StorageValue<_, BeaconConfiguration, OptionQuery>;
 
-	// /// map block number to round number of pulse authored during that block
-	// #[pallet::storage]
-	// pub type Pulses<T: Config> =
-	// 	StorageMap<_, Blake2_128Concat, BlockNumberFor<T>, BoundedVec<OpaquePulse, ConstU32<10>>, OptionQuery>;
+	/// map block number to round number of pulse authored during that block
+	#[pallet::storage]
+	pub type Pulses<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		BlockNumberFor<T>,
+		BoundedVec<OpaquePulse, ConstU32<10>>,
+		OptionQuery,
+	>;
 
 	/// Defines the block when next unsigned transaction will be accepted.
 	///
 	/// To prevent spam of unsigned (and unpaid!) transactions on the network,
-	/// we only allow one transaction per block.
+	/// we only allow one transaction per block.d
 	/// This storage entry defines when new transaction is going to be accepted.
 	#[pallet::storage]
 	pub(super) type NextUnsignedAt<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
@@ -164,8 +167,11 @@ pub mod pallet {
 			let data: Option<Vec<Vec<u8>>> = data
 				.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 				.expect("The inherent data should be well formatted.");
-			log::info!("IN INHERENT ********* {:?}", data);
-			Some(Call::write_pulse { data })
+
+			if let Some(pulses) = data {
+				return Some(Call::write_pulse { data: pulses });
+			}
+			None
 		}
 
 		fn check_inherent(_call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
@@ -205,8 +211,18 @@ pub mod pallet {
 
 		#[pallet::call_index(1)]
 		#[pallet::weight(1_000)]
-		pub fn write_pulse(origin: OriginFor<T>, data: Option<Vec<Vec<u8>>>) -> DispatchResult {
-			log::info!("THE INHERENT WORKED, WE GOT THE DATA! {:?}", data);
+		pub fn write_pulse(origin: OriginFor<T>, data: Vec<Vec<u8>>) -> DispatchResult {
+			// ensure_signed(origin)?;
+			let pulses: Vec<OpaquePulse> =
+				data.iter().map(|d| {
+					let pulse = OpaquePulse::deserialize_from_vec(&d);
+					pulse
+				}).collect::<Vec<_>>();
+			let current_block_number = <frame_system::Pallet<T>>::block_number();
+			log::info!("At Block: {:?}, Discovered new pulses {:?}", current_block_number, pulses);
+
+			// let bounded_pulses = BoundedVec::<u8, ConstU32<10>::truncate_from(pulses); r6t555555
+
 			Ok(())
 		}
 	}

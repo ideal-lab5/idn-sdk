@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use prost::Message;
 use serde::{Deserialize, Serialize};
@@ -32,19 +33,36 @@ pub struct Pulse {
 
 #[derive(Clone, Debug, PartialEq, codec::MaxEncodedLen, scale_info::TypeInfo, Encode, Decode)]
 pub struct OpaquePulse {
-    pub round: u64,
-    pub signature: [u8;48],
+	// The round of the beacon protocol
+	pub round: u64,
+	// A compressed BLS signature
+	pub signature: [u8; 48],
 }
 
 impl Pulse {
-    pub fn into_opaque(&self) -> OpaquePulse {
-        OpaquePulse {
-            round: self.round,
-            signature: self.signature.clone().try_into().unwrap(), // TODO: handle error
-        }
-    }
+	pub fn into_opaque(&self) -> OpaquePulse {
+		OpaquePulse {
+			round: self.round,
+			signature: self.signature.clone().try_into().unwrap(), // TODO: handle error
+		}
+	}
 }
 
+impl OpaquePulse {
+	pub fn serialize_to_vec(&self) -> Vec<u8> {
+		let mut vec = Vec::new();
+        vec.extend_from_slice(&self.round.to_le_bytes());
+        vec.extend_from_slice(&self.signature);
+        vec
+	}
+
+	pub fn deserialize_from_vec(data: &[u8]) -> Self {
+        let round = u64::from_le_bytes(data[0..8].try_into().unwrap());
+        let signature: [u8; 48] = data[8..56].try_into().unwrap();
+        
+        OpaquePulse { round, signature }
+    }
+}
 // impl Pulse {
 
 //     /// Compute randomness from a pulse using a cryptographic hash function

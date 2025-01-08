@@ -1944,6 +1944,7 @@ dependencies = [
  "log",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
+ "parity-scale-codec",
  "prost-build 0.13.4",
  "quote",
  "sc-basic-authorship",

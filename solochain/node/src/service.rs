@@ -16,6 +16,7 @@ use sc_network_types::{
 	multihash,
 	multihash::{Code, Multihash},
 };
+use codec::Encode;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncConfig};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
@@ -224,13 +225,13 @@ pub fn new_full<
 		})?;
 
 	if config.offchain_worker.enabled {
-		// For testing purposes only: insert OCW key for Alice
-		sp_keystore::Keystore::sr25519_generate_new(
-			&*keystore_container.keystore(),
-			drand_example_runtime::pallet_drand::KEY_TYPE,
-			Some("//Alice"),
-		)
-		.expect("Creating key with account Alice should succeed.");
+		// // For testing purposes only: insert OCW key for Alice
+		// sp_keystore::Keystore::sr25519_generate_new(
+		// 	&*keystore_container.keystore(),
+		// 	drand_example_runtime::pallet_drand::KEY_TYPE,
+		// 	Some("//Alice"),
+		// )
+		// .expect("Creating key with account Alice should succeed.");
 
 		task_manager.spawn_handle().spawn(
 			"offchain-workers-runner",
@@ -341,9 +342,13 @@ pub fn new_full<
 
 						let pulses: Vec<OpaquePulse> = data_lock.clone().pulses;
 						log::info!("Found pulses {:?}", pulses.clone());
+
+						let data: Vec<Vec<u8>> =
+							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect::<Vec<_>>();
+
 						let beacon =
 							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
-								pulses,
+								data,
 							);
 
 						data_lock.pulses.clear();
