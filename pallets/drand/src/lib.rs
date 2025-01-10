@@ -42,6 +42,7 @@ use alloc::{
 	vec,
 	vec::Vec,
 };
+use ark_serialize::CanonicalDeserialize;
 use codec::Encode;
 use frame_support::{
 	pallet_prelude::*,
@@ -57,14 +58,14 @@ use frame_system::{
 };
 use log;
 use sha2::{Digest, Sha256};
+use sp_consensus_randomness_beacon::types::OpaquePulse;
 use sp_runtime::{
 	offchain::{http, Duration},
 	traits::{Hash, One, Zero},
 	transaction_validity::{InvalidTransaction, TransactionValidity, ValidTransaction},
 	KeyTypeId,
 };
-use sp_consensus_randomness_beacon::types::OpaquePulse;
-// type OpaquePulse = Vec<u8>;
+use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
 
 pub mod bls12_381;
 pub mod types;
@@ -73,7 +74,10 @@ pub mod verifier;
 use types::*;
 use verifier::Verifier;
 
+use crate::types::{BoundedStorage, Metadata, OpaquePublicKey, RoundNumber};
+
 pub type RandomValue = [u8; 32];
+pub type OpaqueSignature = [u8; 48];
 
 #[cfg(test)]
 mod mock;
@@ -95,7 +99,7 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: CreateSignedTransaction<Call<Self>> + frame_system::Config {
+	pub trait Config: frame_system::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
@@ -108,32 +112,22 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type BeaconConfig<T: Config> = StorageValue<_, BeaconConfiguration, OptionQuery>;
 
-	/// map block number to round number of pulse authored during that block
+	/// A map of round number to pulses from the randomness beacon
 	#[pallet::storage]
-	pub type Pulses<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		BlockNumberFor<T>,
-		BoundedVec<OpaquePulse, ConstU32<10>>,
-		OptionQuery,
-	>;
+	pub type Pulses<T: Config> =
+		StorageMap<_, Blake2_128Concat, RoundNumber, OpaqueSignature, OptionQuery>;
 
-	/// Defines the block when next unsigned transaction will be accepted.
-	///
-	/// To prevent spam of unsigned (and unpaid!) transactions on the network,
-	/// we only allow one transaction per block.d
-	/// This storage entry defines when new transaction is going to be accepted.
 	#[pallet::storage]
-	pub(super) type NextUnsignedAt<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
+	pub type LatestRound<T: Config> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		BeaconConfigChanged,
 		/// A user has successfully set a new value.
-		NewPulse {
+		PulseVerificationSuccess {
 			/// The new value set.
-			round: RoundNumber,
+			rounds: Vec<RoundNumber>,
 		},
 	}
 
@@ -141,16 +135,14 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// The value retrieved was `None` as no value was previously set.
 		NoneValue,
+		/// There is no valid beacon config
+		MissingBeaconConfig,
 		/// There was an attempt to increment the value in storage over `u32::MAX`.
 		StorageOverflow,
-		/// failed to connect to the
-		DrandConnectionFailure,
-		/// the pulse is invalid
-		UnverifiedPulse,
-		/// the round number did not increment
-		InvalidRoundNumber,
+		/// The input data could not be decoded or was empty
+		InvalidInput,
 		/// the pulse could not be verified
-		PulseVerificationError,
+		VerificationFailed,
 	}
 
 	/// Allows the pallet to provide some inherent. See [`frame_support::inherent::ProvideInherent`]
@@ -169,17 +161,55 @@ pub mod pallet {
 				.expect("The inherent data should be well formatted.");
 
 			if let Some(pulses) = data {
-				return Some(Call::write_pulse { data: pulses });
+				return Some(Call::write_pulses { data: pulses });
 			}
+
 			None
 		}
 
 		fn check_inherent(_call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
+			// TODO: it should be signed by the expected block author
 			Ok(())
 		}
 
 		fn is_inherent(call: &Self::Call) -> bool {
-			matches!(call, Call::write_pulse { .. })
+			matches!(call, Call::write_pulses { .. })
+		}
+	}
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig<T: Config> {
+		/// The randomness beacon config
+		pub config: BeaconConfiguration,
+		/// Phantom config
+		#[serde(skip)]
+		pub _phantom: core::marker::PhantomData<T>,
+	}
+
+	impl<T: Config> Default for GenesisConfig<T> {
+		/// The default configuration is Drand Quicknet
+		/// https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info
+		fn default() -> Self {
+			Self {
+				config: build_beacon_configuration(
+					"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",
+					3,
+					1692803367,
+					"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+					"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e",
+					"bls-unchained-g1-rfc9380",
+					"quicknet"
+				),
+				_phantom: Default::default(),
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			Pallet::<T>::initialize(self.config.clone())
+				.expect("The genesis config should be correct.");
 		}
 	}
 
@@ -195,33 +225,42 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::set_beacon_config())]
 		pub fn set_beacon_config(
 			origin: OriginFor<T>,
-			config_payload: BeaconConfigurationPayload<T::Public, BlockNumberFor<T>>,
-			_signature: Option<T::Signature>,
+			config: BeaconConfiguration,
 		) -> DispatchResult {
-			ensure_none(origin)?;
-			BeaconConfig::<T>::put(config_payload.config);
-
-			// now increment the block number at which we expect next unsigned transaction.
-			let current_block = frame_system::Pallet::<T>::block_number();
-			<NextUnsignedAt<T>>::put(current_block + One::one());
-
+			ensure_root(origin)?;
+			BeaconConfig::<T>::put(config);
 			Self::deposit_event(Event::BeaconConfigChanged {});
 			Ok(())
 		}
 
 		#[pallet::call_index(1)]
 		#[pallet::weight(1_000)]
-		pub fn write_pulse(origin: OriginFor<T>, data: Vec<Vec<u8>>) -> DispatchResult {
-			// ensure_signed(origin)?;
-			let pulses: Vec<OpaquePulse> =
-				data.iter().map(|d| {
-					let pulse = OpaquePulse::deserialize_from_vec(&d);
-					pulse
-				}).collect::<Vec<_>>();
-			let current_block_number = <frame_system::Pallet<T>>::block_number();
-			log::info!("At Block: {:?}, Discovered new pulses {:?}", current_block_number, pulses);
+		pub fn write_pulses(origin: OriginFor<T>, data: Vec<Vec<u8>>) -> DispatchResult {
+			ensure_none(origin)?;
 
-			// let bounded_pulses = BoundedVec::<u8, ConstU32<10>::truncate_from(pulses); r6t555555
+			let config = BeaconConfig::<T>::get();
+			ensure!(config.is_some(), Error::<T>::MissingBeaconConfig);
+			// .expect("The beacon configuration exists.")
+			let config = config.unwrap();
+
+			let mut rounds = vec![];
+			let pulses: Vec<OpaquePulse> = data
+				.iter()
+				.map(|d| {
+					let pulse = OpaquePulse::deserialize_from_vec(&d);
+					rounds.push(pulse.round);
+					pulse
+				})
+				.collect::<Vec<_>>();
+
+			let validity =
+				T::Verifier::verify(config, pulses).map_err(|reason| Error::<T>::InvalidInput)?;
+
+			frame_support::ensure!(validity, Error::<T>::VerificationFailed);
+
+			LatestRound::<T>::set(*rounds.get(rounds.len() - 1).unwrap());
+
+			Self::deposit_event(Event::PulseVerificationSuccess { rounds });
 
 			Ok(())
 		}
@@ -229,6 +268,11 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+	fn initialize(config: BeaconConfiguration) -> Result<(), ()> {
+		BeaconConfig::<T>::set(Some(config));
+		Ok(())
+	}
+
 	/// get the randomness at a specific block height
 	/// returns None if it is invalid or does not exist
 	pub fn random_at(block_number: BlockNumberFor<T>) -> Option<RandomValue> {
@@ -247,6 +291,45 @@ pub fn message(current_round: RoundNumber, prev_sig: &[u8]) -> Vec<u8> {
 	hasher.update(prev_sig);
 	hasher.update(current_round.to_be_bytes());
 	hasher.finalize().to_vec()
+}
+
+pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
+	build_beacon_configuration(
+		"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",
+		3,
+		1692803367,
+		"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+		"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e",
+		"bls-unchained-g1-rfc9380",
+		"quicknet"
+	)
+}
+
+fn build_beacon_configuration(
+	pk_hex: &str,
+	period: u32,
+	genesis_time: u32,
+	hash_hex: &str,
+	group_hash_hex: &str,
+	scheme_id: &str,
+	beacon_id: &str,
+) -> BeaconConfiguration {
+	let pk = hex::decode(pk_hex).expect("Valid hex");
+	let hash = hex::decode(hash_hex).expect("Valid hex");
+	let group_hash = hex::decode(group_hash_hex).expect("Valid hex");
+
+	let public_key: OpaquePublicKey = BoundedVec::try_from(pk).expect("Public key within bounds");
+	let hash: BoundedStorage = BoundedVec::try_from(hash).expect("Hash within bounds");
+	let group_hash: BoundedStorage =
+		BoundedVec::try_from(group_hash).expect("Group hash within bounds");
+	let scheme_id: BoundedStorage =
+		BoundedVec::try_from(scheme_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
+	let beacon_id: BoundedStorage =
+		BoundedVec::try_from(beacon_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
+
+	let metadata = Metadata { beacon_id };
+
+	BeaconConfiguration { public_key, period, genesis_time, hash, group_hash, scheme_id, metadata }
 }
 
 impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T> {

@@ -11,6 +11,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentifyAccount, IdentityLookup, Verify},
 	BuildStorage,
 };
+use crate::types::{BoundedStorage, Metadata, OpaquePublicKey, RoundNumber};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -58,65 +59,97 @@ impl frame_system::offchain::SigningTypes for Test {
 	type Signature = Signature;
 }
 
-impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
-where
-	RuntimeCall: From<LocalCall>,
-{
-	type OverarchingCall = RuntimeCall;
-	type Extrinsic = Extrinsic;
-}
+// impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
+// where
+// 	RuntimeCall: From<LocalCall>,
+// {
+// 	type OverarchingCall = RuntimeCall;
+// 	type Extrinsic = Extrinsic;
+// }
 
-impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test
-where
-	RuntimeCall: From<LocalCall>,
-{
-	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
-		call: RuntimeCall,
-		_public: <Signature as Verify>::Signer,
-		_account: AccountId,
-		nonce: u64,
-	) -> Option<(RuntimeCall, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
-		Some((call, (nonce, ())))
-	}
-}
+// impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test
+// where
+// 	RuntimeCall: From<LocalCall>,
+// {
+// 	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+// 		call: RuntimeCall,
+// 		_public: <Signature as Verify>::Signer,
+// 		_account: AccountId,
+// 		nonce: u64,
+// 	) -> Option<(RuntimeCall, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+// 		Some((call, (nonce, ())))
+// 	}
+// }
 
-parameter_types! {
-	pub const UnsignedPriority: u64 = 1 << 20;
-	pub const ApiEndpoint: &'static str = "http://api";
-	pub const HttpFetchTimeout: u64 = 1_000;
-}
+// parameter_types! {
+// 	pub const UnsignedPriority: u64 = 1 << 20;
+// 	pub const ApiEndpoint: &'static str = "http://api";
+// 	pub const HttpFetchTimeout: u64 = 1_000;
+// }
 
 impl pallet_drand_bridge::Config for Test {
-	type AuthorityId = crypto::TestAuthId;
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_drand_bridge::weights::SubstrateWeight<Test>;
 	type Verifier = QuicknetVerifier;
-	type UnsignedPriority = UnsignedPriority;
-	type HttpFetchTimeout = HttpFetchTimeout;
-	type ApiEndpoint = ApiEndpoint;
 }
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
+	let mut t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
+
+	pallet_drand_bridge::GenesisConfig::<Test> {
+		..Default::default()
+	}
+		.assimilate_storage(&mut t)
+		.unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	let keystore = MemoryKeystore::new();
 	ext.register_extension(KeystoreExt::new(keystore.clone()));
-	sp_keystore::Keystore::sr25519_generate_new(
-		&keystore,
-		pallet_drand_bridge::KEY_TYPE,
-		Some("//Alice"),
-	)
-	.expect("Creating key with account Alice should succeed.");
+
 	ext
 }
 
-pub fn mock_pulse(randomness: Vec<u8>) -> Pulse {
-	Pulse {
-		round: 1,
-		randomness: BoundedVec::try_from(randomness).expect("Randomness should fit in BoundedVec"),
-		signature: BoundedVec::try_from(vec![0u8; 144])
-			.expect("Signature should fit in BoundedVec"),
-	}
-}
+// pub fn drand_quicknet_config() -> BeaconConfiguration {
+// 	build_beacon_configuration(
+// 		"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",
+// 		3,
+// 		1692803367,
+// 		"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+// 		"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e",
+// 		"bls-unchained-g1-rfc9380",
+// 		"quicknet"
+// 	)
+// }
+
+// fn build_beacon_configuration(
+// 	pk_hex: &str,
+// 	period: u32,
+// 	genesis_time: u32,
+// 	hash_hex: &str,
+// 	group_hash_hex: &str,
+// 	scheme_id: &str,
+// 	beacon_id: &str,
+// ) -> BeaconConfiguration {
+// 	let pk = hex::decode(pk_hex).expect("Valid hex");
+// 	let hash = hex::decode(hash_hex).expect("Valid hex");
+// 	let group_hash = hex::decode(group_hash_hex).expect("Valid hex");
+
+// 	let public_key: OpaquePublicKey = BoundedVec::try_from(pk).expect("Public key within bounds");
+// 	let hash: BoundedStorage = BoundedVec::try_from(hash).expect("Hash within bounds");
+// 	let group_hash: BoundedStorage = BoundedVec::try_from(group_hash).expect("Group hash within bounds");
+// 	let scheme_id: BoundedStorage = BoundedVec::try_from(scheme_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
+// 	let beacon_id: BoundedStorage = BoundedVec::try_from(beacon_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
+
+// 	let metadata = Metadata { beacon_id };
+
+// 	BeaconConfiguration {
+// 		public_key,
+// 		period,
+// 		genesis_time,
+// 		hash,
+// 		group_hash,
+// 		scheme_id,
+// 		metadata,
+// 	}
+// }

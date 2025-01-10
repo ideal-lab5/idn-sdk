@@ -41,28 +41,29 @@ where
 	T: pallet_beefy::Config,
 {
 	fn on_new_root(root: &sp_consensus_beefy::MmrRootHash) {
-		let digest = sp_runtime::generic::DigestItem::Consensus(
-			sp_consensus_beefy::BEEFY_ENGINE_ID,
-			codec::Encode::encode(&sp_consensus_beefy::ConsensusLog::<
-				<T as pallet_beefy::Config>::BeefyId,
-			>::MmrRoot(*root)),
-		);
-		frame_system::Pallet::<T>::deposit_log(digest);
+		// let digest = sp_runtime::generic::DigestItem::Consensus(
+		// 	sp_consensus_beefy::BEEFY_ENGINE_ID,
+		// 	codec::Encode::encode(&sp_consensus_beefy::ConsensusLog::<
+		// 		<T as pallet_beefy::Config>::BeefyId,
+		// 	>::MmrRoot(*root)),
+		// );
+		// frame_system::Pallet::<T>::deposit_log(digest);
+		// here we would want to dispatch the XCM?
 	}
 }
 
-/// Convert BEEFY secp256k1 public keys into Ethereum addresses
-pub struct BeefyEcdsaToEthereum;
-impl Convert<sp_consensus_beefy::ecdsa_crypto::AuthorityId, Vec<u8>> for BeefyEcdsaToEthereum {
-	fn convert(beefy_id: sp_consensus_beefy::ecdsa_crypto::AuthorityId) -> Vec<u8> {
-		sp_core::ecdsa::Public::from(beefy_id)
-			.to_eth_address()
-			.map(|v| v.to_vec())
-			.map_err(|_| {
-				log::debug!(target: "runtime::beefy", "Failed to convert BEEFY PublicKey to ETH address!");
-			})
-			.unwrap_or_default()
-	}
+// /// Convert BEEFY secp256k1 public keys into Ethereum addresses
+// pub struct BeefyEcdsaToEthereum;
+// impl Convert<sp_consensus_beefy::ecdsa_crypto::AuthorityId, Vec<u8>> for BeefyEcdsaToEthereum {
+// 	fn convert(beefy_id: sp_consensus_beefy::ecdsa_crypto::AuthorityId) -> Vec<u8> {
+// 		sp_core::ecdsa::Public::from(beefy_id)
+// 			.to_eth_address()
+// 			.map(|v| v.to_vec())
+// 			.map_err(|_| {
+// 				log::debug!(target: "runtime::beefy", "Failed to convert BEEFY PublicKey to ETH address!");
+// 			})
+// 			.unwrap_or_default()
+// 	}
 }
 
 type MerkleRootOf<T> = <<T as pallet_mmr::Config>::Hashing as sp_runtime::traits::Hash>::Output;

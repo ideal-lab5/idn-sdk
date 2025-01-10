@@ -258,6 +258,7 @@ pub fn new_full<
 	let backoff_authoring_blocks: Option<()> = None;
 	let name = config.network.node_name.clone();
 	let enable_grandpa = !config.disable_grandpa;
+	let enable_mmr = config.offchain_worker.indexing_enabled;
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let rpc_extensions_builder = {
@@ -300,7 +301,7 @@ pub fn new_full<
 		task_manager: &mut task_manager,
 		transaction_pool: transaction_pool.clone(),
 		rpc_builder: rpc_extensions_builder,
-		backend,
+		backend: backend.clone(),
 		system_rpc_tx,
 		tx_handler_controller,
 		sync_service: sync_service.clone(),
@@ -322,7 +323,7 @@ pub fn new_full<
 		let aura = sc_consensus_aura::start_aura::<AuraPair, _, _, _, _, _, _, _, _, _, _>(
 			StartAuraParams {
 				slot_duration,
-				client,
+				client: client.clone(),
 				select_chain,
 				block_import,
 				proposer_factory,
@@ -341,16 +342,12 @@ pub fn new_full<
 							shared_state.lock().expect("Shared state lock poisoned");
 
 						let pulses: Vec<OpaquePulse> = data_lock.clone().pulses;
-						log::info!("Found pulses {:?}", pulses.clone());
-
 						let data: Vec<Vec<u8>> =
 							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect::<Vec<_>>();
-
 						let beacon =
 							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
 								data,
 							);
-
 						data_lock.pulses.clear();
 
 						Ok((slot, timestamp, beacon))
@@ -418,6 +415,20 @@ pub fn new_full<
 			None,
 			sc_consensus_grandpa::run_grandpa_voter(grandpa_config)?,
 		);
+
+		// When offchain indexing is enabled, MMR gadget should also run.
+		if enable_mmr {
+			task_manager.spawn_essential_handle().spawn_blocking(
+				"mmr-gadget",
+				None,
+				mmr_gadget::MmrGadget::start(
+					client.clone(),
+					backend.clone(),
+					sp_mmr_primitives::INDEXING_PREFIX.to_vec(),
+				),
+			);
+		}
+
 	}
 
 	network_starter.start_network();

@@ -11,7 +11,7 @@ use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, One, Verify,
+		AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, One, Verify, Keccak256,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, DispatchError, MultiSignature, SaturatedConversion,
@@ -21,6 +21,7 @@ use sp_std::prelude::*;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
+// use sp_mmr_primitives;
 use frame_support::PalletId;
 use frame_system::{EnsureRoot, EnsureSigned};
 
@@ -367,6 +368,46 @@ impl pallet_contracts::Config for Runtime {
 	type MaxTransientStorageSize = ConstU32<{ 1 * 1024 * 1024 }>;
 }
 
+// A dummy on new root handler
+
+/// A BEEFY consensus digest item with MMR root hash.
+pub struct DummyOnNewRoot { }
+
+impl pallet_mmr::primitives::OnNewRoot<sp_core::H256> for DummyOnNewRoot
+{
+	fn on_new_root(root: &sp_core::H256) {
+		// TODO: this doesn't do anything yet
+		// let digest = sp_runtime::generic::DigestItem::Consensus(
+		// 	sp_consensus_beefy::BEEFY_ENGINE_ID,
+		// 	codec::Encode::encode(&sp_consensus_beefy::ConsensusLog::<
+		// 		<T as pallet_beefy::Config>::BeefyId,
+		// 	>::MmrRoot(*root)),
+		// );
+		// frame_system::Pallet::<T>::deposit_log(digest);
+	}
+}
+
+impl pallet_mmr::Config for Runtime {
+	const INDEXING_PREFIX: &'static [u8] = b"randmmr";
+	type Hashing = Keccak256;
+	type LeafData = pallet_mmr::ParentNumberAndHash<Self>; // TODO
+	type OnNewRoot = DummyOnNewRoot;
+	type BlockHashProvider = pallet_mmr::DefaultBlockHashProvider<Runtime>;
+	type WeightInfo = ();
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = ();
+}
+
+/// MMR helper types.
+mod mmr {
+	use super::*;
+	pub use pallet_mmr::primitives::*;
+
+	pub type Leaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
+	pub type Hash = <Hashing as sp_runtime::traits::Hash>::Output;
+	pub type Hashing = <Runtime as pallet_mmr::Config>::Hashing;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[frame_support::runtime]
 mod runtime {
@@ -414,6 +455,11 @@ mod runtime {
 
 	#[runtime::pallet_index(9)]
 	pub type Contracts = pallet_contracts;
+
+	// MMR leaf construction must be after session in order to have a leaf's next_auth_set
+	// refer to block<N>. See issue polkadot-fellows/runtimes#160 for details.
+	#[runtime::pallet_index(10)]
+	pub type Mmr = pallet_mmr::Pallet<Runtime>;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -829,6 +875,53 @@ impl_runtime_apis! {
 
 		fn preset_names() -> Vec<sp_genesis_builder::PresetId> {
 			vec![]
+		}
+	}
+
+	#[api_version(2)]
+	impl mmr::MmrApi<Block, mmr::Hash, BlockNumber> for Runtime {
+		fn mmr_root() -> Result<mmr::Hash, mmr::Error> {
+			Ok(pallet_mmr::RootHash::<Runtime>::get())
+		}
+
+		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
+			Ok(pallet_mmr::NumberOfLeaves::<Runtime>::get())
+		}
+
+		fn generate_proof(
+			block_numbers: Vec<BlockNumber>,
+			best_known_block_number: Option<BlockNumber>,
+		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::LeafProof<mmr::Hash>), mmr::Error> {
+			Mmr::generate_proof(block_numbers, best_known_block_number).map(
+				|(leaves, proof)| {
+					(
+						leaves
+							.into_iter()
+							.map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf))
+							.collect(),
+						proof,
+					)
+				},
+			)
+		}
+
+		fn verify_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::LeafProof<mmr::Hash>)
+			-> Result<(), mmr::Error>
+		{
+			let leaves = leaves.into_iter().map(|leaf|
+				leaf.into_opaque_leaf()
+				.try_decode()
+				.ok_or(mmr::Error::Verify)).collect::<Result<Vec<mmr::Leaf>, mmr::Error>>()?;
+			Mmr::verify_leaves(leaves, proof)
+		}
+
+		fn verify_proof_stateless(
+			root: mmr::Hash,
+			leaves: Vec<mmr::EncodableOpaqueLeaf>,
+			proof: mmr::LeafProof<mmr::Hash>
+		) -> Result<(), mmr::Error> {
+			let nodes = leaves.into_iter().map(|leaf|mmr::DataOrHash::Data(leaf.into_opaque_leaf())).collect();
+			pallet_mmr::verify_leaves_proof::<mmr::Hashing, _>(root, nodes, proof)
 		}
 	}
 }

@@ -19,3 +19,12 @@ extern crate alloc;
 
 pub mod inherents;
 pub mod types;
+
+// /// provides timelock encryption using the current slot
+// pub trait TimelockEncryptionProvider<BN> {
+// 	/// attempt to decrypt the ciphertext with the current slot secret
+// 	fn decrypt_at(ciphertext: &[u8], block_number: BN) -> Result<DecryptionResult, TimelockError>;
+
+// 	/// get the latest block number for which randomness is known
+// 	fn latest() -> BN;
+// }

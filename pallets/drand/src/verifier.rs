@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-//! A collection of verifiers
+//! A collection of verifiers for randomness beacon pulses
 use crate::{
 	bls12_381,
-	types::{BeaconConfiguration, Pulse, RoundNumber},
+	types::{BeaconConfiguration, RoundNumber},
 };
 use alloc::{format, string::String, vec::Vec};
 use ark_ec::{hashing::HashToCurve, AffineRepr};
 use ark_serialize::CanonicalSerialize;
 use sha2::{Digest, Sha256};
+use sp_consensus_randomness_beacon::types::OpaquePulse;
+use sp_runtime::BoundedVec;
 use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
 
 #[cfg(not(feature = "host-arkworks"))]
@@ -48,10 +50,11 @@ fn message(current_round: RoundNumber, prev_sig: &[u8]) -> Vec<u8> {
 	hasher.finalize().to_vec()
 }
 
-/// something to verify beacon pulses
+/// Something that can verify beacon pulses
 pub trait Verifier {
-	/// verify the given pulse using beacon_config
-	fn verify(beacon_config: BeaconConfiguration, pulse: Pulse) -> Result<bool, String>;
+	/// verify the given set of pulses using the beacon_config
+	fn verify(beacon_config: BeaconConfiguration, pulses: Vec<OpaquePulse>)
+		-> Result<bool, String>;
 }
 
 /// A verifier to check values received from quicknet. It outputs true if valid, false otherwise
@@ -79,62 +82,154 @@ impl Verifier for QuicknetVerifier {
 	/// running a parachain).
 	///
 	/// See see docs/integration.md for more information on how to use the `host-arkworks` feature.
-	fn verify(beacon_config: BeaconConfiguration, pulse: Pulse) -> Result<bool, String> {
+	fn verify(
+		beacon_config: BeaconConfiguration,
+		pulses: Vec<OpaquePulse>,
+	) -> Result<bool, String> {
+		// there must be at least one pulse to verify
+		if pulses.is_empty() {
+			return Err("At least one pulse must be provided.".to_string());
+		}
+
 		// decode public key (pk)
 		#[cfg(feature = "host-arkworks")]
-		let pk = ArkScale::<G2AffineOpt>::decode(&mut beacon_config.public_key.into_inner().as_slice())
+		let pk = ArkScale::<G2AffineOpt>::decode(&mut beacon_config.public_key.as_slice())
 			.map_err(|e| format!("Failed to decode public key: {}", e))?;
+
 		#[cfg(not(feature = "host-arkworks"))]
-		let pk = G2AffineOpt::deserialize_compressed(
-			&mut beacon_config.public_key.into_inner().as_slice(),
-		)
-		.map_err(|e| format!("Failed to decode public key: {}", e))?;
-
-		// decode signature (sigma)
-		#[cfg(feature = "host-arkworks")]
-		let signature = ArkScale::<G1AffineOpt>::decode(&mut pulse.signature.into_inner().as_slice())
-			.map_err(|e| format!("Failed to decode signature: {}", e))?;
-		#[cfg(not(feature = "host-arkworks"))]
-		let signature = G1AffineOpt::deserialize_compressed(&mut pulse.signature.into_inner().as_slice())
-			.map_err(|e| format!("Failed to decode signature: {}", e))?;
-
-		// m = sha256({} || {round})
-		let message = message(pulse.round, &[]);
-		let hasher = <TinyBLS381 as EngineBLS>::hash_to_curve_map();
-		// H(m) \in G1
-		let message_hash =
-			hasher.hash(&message).map_err(|e| format!("Failed to hash message: {}", e))?;
-
-		let mut bytes = Vec::new();
-		message_hash
-			.serialize_compressed(&mut bytes)
-			.map_err(|e| format!("Failed to serialize message hash: {}", e))?;
+		let pk = G2AffineOpt::deserialize_compressed(&mut beacon_config.public_key.as_slice())
+			.map_err(|e| format!("Failed to decode public key: {}", e))?;
 
 		#[cfg(feature = "host-arkworks")]
-		let message_on_curve = ArkScale::<G1AffineOpt>::decode(&mut &bytes[..])
-			.map_err(|e| format!("Failed to decode message on curve: {}", e))?;
+		let mut aggr_message_on_curve = ArkScale::<G1AffineOpt>::zero();
 		#[cfg(not(feature = "host-arkworks"))]
-		let message_on_curve = G1AffineOpt::deserialize_compressed(&mut &bytes[..])
-			.map_err(|e| format!("Failed to decode message on curve: {}", e))?;
+		let mut aggr_message_on_curve = G1AffineOpt::zero();
+
+		#[cfg(feature = "host-arkworks")]
+		let zero = ArkScale::<G1AffineOpt>::zero();
+		#[cfg(not(feature = "host-arkworks"))]
+		let zero = G1AffineOpt::zero();
+
+		// now we aggregate the signatures for verification
+		let asig = pulses
+			.iter()
+			.map(|pulse| {
+				// decode signature (sigma)
+				#[cfg(feature = "host-arkworks")]
+				let signature = ArkScale::<G1AffineOpt>::decode(&mut pulse.signature.as_slice()).unwrap();
+				// .map_err(|e| format!("Failed to decode signature: {}", e))?;
+
+				#[cfg(not(feature = "host-arkworks"))]
+				let signature = G1AffineOpt::deserialize_compressed(&mut pulse.signature.as_slice()).unwrap();
+				// .map_err(|e| format!("Failed to decode signature: {}", e))?;
+
+				let round = pulse.round;
+				let message = message(round, &[]);
+				let hasher = <TinyBLS381 as EngineBLS>::hash_to_curve_map();
+				// H(m) \in G1
+				let message_hash = hasher.hash(&message).unwrap();
+				// .map_err(|e| format!("Failed to hash message: {}", e))?;
+
+				let mut bytes = Vec::new();
+				message_hash.serialize_compressed(&mut bytes).unwrap();
+				// .map_err(|e| format!("Failed to serialize message hash: {}", e))?;
+
+				#[cfg(feature = "host-arkworks")]
+				let message_on_curve = ArkScale::<G1AffineOpt>::decode(&mut &bytes[..]).unwrap();
+				// .map_err(|e| format!("Failed to decode message on curve: {}", e))?;
+				#[cfg(not(feature = "host-arkworks"))]
+				let message_on_curve = G1AffineOpt::deserialize_compressed(&mut &bytes[..]).unwrap();
+				// .map_err(|e| format!("Failed to decode message on curve: {}", e))?;
+
+				aggr_message_on_curve = (aggr_message_on_curve + message_on_curve).into();
+
+				signature
+			})
+			.fold(zero, |acc, val| (acc + val).into());
 
 		let g2 = G2AffineOpt::generator();
 
 		#[cfg(feature = "host-arkworks")]
-		let result = bls12_381::fast_pairing_opt(signature.0, g2, message_on_curve.0, pk.0);
+		let result = bls12_381::fast_pairing_opt(asig.0, g2, aggr_message_on_curve.0, pk.0);
 		#[cfg(not(feature = "host-arkworks"))]
-		let result = bls12_381::fast_pairing_opt(signature, g2, message_on_curve, pk);
+		let result = bls12_381::fast_pairing_opt(asig, g2, aggr_message_on_curve, pk);
 
 		Ok(result)
 	}
 }
 
-/// The unsafe skip verifier is just a pass-through verification, always returns true.
-/// Skipping the verification process can be dangerous, as it allows for malicious actors to
-/// inject false pulses into the system. But it speeds up the process significantly.
-/// This is useful for testing purposes or when fully trusting the source of the pulses.
-pub struct UnsafeSkipVerifier;
-impl Verifier for UnsafeSkipVerifier {
-	fn verify(_beacon_config: BeaconConfiguration, _pulse: Pulse) -> Result<bool, String> {
-		Ok(true)
+#[cfg(not(feature = "host-arkworks"))]
+#[cfg(test)]
+pub mod test {
+
+	use super::*;
+	use crate::types::OpaquePublicKey;
+	use ark_bls12_381::{G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
+
+	fn get_beacon_config() -> BeaconConfiguration {
+		let pk_bytes = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+		let decoded = hex::decode(pk_bytes).expect("Decoding failed");
+		let opaque_pk = OpaquePublicKey::try_from(decoded).unwrap();
+
+		let hash = BoundedVec::try_from(vec![0; 32]).unwrap();
+
+		BeaconConfiguration {
+			public_key: opaque_pk,
+			period: 1,
+			genesis_time: 1,
+			hash: hash.clone(),
+			group_hash: hash.clone(),
+			scheme_id: hash.clone(),
+			metadata: crate::Metadata { beacon_id: hash },
+		}
+	}
+
+	#[test]
+	fn can_verify_single_pulse_with_quicknet() {
+		let config = get_beacon_config();
+		let sig1_hex = b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39";
+		let sig1_bytes = hex::decode(sig1_hex).unwrap();
+		let p1 = OpaquePulse { round: 1000, signature: sig1_bytes.try_into().unwrap() };
+		let pulses = vec![p1];
+		let is_verified =
+			QuicknetVerifier::verify(config, pulses).expect("There should be no error.");
+		assert!(is_verified);
+	}
+
+	#[test]
+	fn can_verify_many_pulses_with_quicknet() {
+		let config = get_beacon_config();
+
+		let sig1_hex = b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39";
+		let sig1_bytes = hex::decode(sig1_hex).unwrap();
+		let p1 = OpaquePulse { round: 1000, signature: sig1_bytes.try_into().unwrap() };
+
+		let sig2_hex = b"b33bf3667cbd5a82de3a24b4e0e9fe5513cc1a0e840368c6e31f5fcfa79bea03f73896b25883abf2853d10337fb8fa41";
+		let sig2_bytes = hex::decode(sig2_hex).unwrap();
+		let p2 = OpaquePulse { round: 1001, signature: sig2_bytes.try_into().unwrap() };
+
+		let sig3_hex = b"ab066f9c12dd6de1336fca0f925192fb0c72a771c3e4c82ede1fd362c1a770f9eb05843c6308ce2530b53a99c0281a6e";
+		let sig3_bytes = hex::decode(sig3_hex).unwrap();
+		let p3 = OpaquePulse { round: 1002, signature: sig3_bytes.try_into().unwrap() };
+
+		let pulses = vec![p1, p2, p3];
+		let is_verified =
+			QuicknetVerifier::verify(config, pulses).expect("There should be no error.");
+		assert!(is_verified);
+	}
+
+	#[test]
+	fn can_not_verify_empty_pulse_with_quicknet() {
+		let config = get_beacon_config();
+		let pulses: Vec<OpaquePulse> = vec![];
+		
+		match QuicknetVerifier::verify(config, pulses) {
+			Ok(_) => {
+				panic!("There should be an error.");
+			},
+			Err(e) => {
+				assert_eq!("At least one pulse must be provided.".to_string(), e);
+			}
+		}
 	}
 }

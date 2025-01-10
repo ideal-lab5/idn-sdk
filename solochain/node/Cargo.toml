@@ -58,10 +58,13 @@ sp-keystore.workspace = true
 sp-blockchain.workspace = true
 sp-crypto-ec-utils = { workspace = true,  features = ["bls12-381"]}
 sc-utils.workspace = true
+
+mmr-gadget = { workspace = true }
+sp-mmr-primitives = { workspace = true }
 # frame and pallets
 frame-system.workspace = true
 pallet-transaction-payment.workspace = true
-pallet-transaction-payment-rpc.workspace = true
+pallet-transaction-payment-rpc.workspace = true 
 substrate-frame-rpc-system.workspace = true
 # These dependencies are used for runtime benchmarking
 frame-benchmarking.workspace = true
