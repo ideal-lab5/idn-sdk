@@ -190,18 +190,7 @@ pub mod pallet {
 		/// The default configuration is Drand Quicknet
 		/// https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info
 		fn default() -> Self {
-			Self {
-				config: build_beacon_configuration(
-					"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",
-					3,
-					1692803367,
-					"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
-					"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e",
-					"bls-unchained-g1-rfc9380",
-					"quicknet"
-				),
-				_phantom: Default::default(),
-			}
+			Self { config: drand_quicknet_config(), _phantom: Default::default() }
 		}
 	}
 
@@ -238,12 +227,10 @@ pub mod pallet {
 		pub fn write_pulses(origin: OriginFor<T>, data: Vec<Vec<u8>>) -> DispatchResult {
 			ensure_none(origin)?;
 
-			let config = BeaconConfig::<T>::get();
-			ensure!(config.is_some(), Error::<T>::MissingBeaconConfig);
-			// .expect("The beacon configuration exists.")
-			let config = config.unwrap();
+			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::MissingBeaconConfig)?;
 
 			let mut rounds = vec![];
+
 			let pulses: Vec<OpaquePulse> = data
 				.iter()
 				.map(|d| {
@@ -254,13 +241,20 @@ pub mod pallet {
 				.collect::<Vec<_>>();
 
 			let validity =
-				T::Verifier::verify(config, pulses).map_err(|reason| Error::<T>::InvalidInput)?;
+				T::Verifier::verify(config, pulses.clone()).map_err(|reason| Error::<T>::InvalidInput)?;
 
 			frame_support::ensure!(validity, Error::<T>::VerificationFailed);
 
-			LatestRound::<T>::set(*rounds.get(rounds.len() - 1).unwrap());
-
-			Self::deposit_event(Event::PulseVerificationSuccess { rounds });
+			// if there is not a 'latest' round, then the list is empty
+			// so we should always execute this loop (since validity check fails)
+			if let Some(latest_round) = rounds.last() {
+				LatestRound::<T>::set(*latest_round);
+				// insert pulses to runtime storage
+				pulses
+					.iter()
+					.for_each(|pulse| Pulses::<T>::insert(pulse.round, &pulse.signature));
+				Self::deposit_event(Event::PulseVerificationSuccess { rounds });
+			}
 
 			Ok(())
 		}
@@ -272,27 +266,9 @@ impl<T: Config> Pallet<T> {
 		BeaconConfig::<T>::set(Some(config));
 		Ok(())
 	}
-
-	/// get the randomness at a specific block height
-	/// returns None if it is invalid or does not exist
-	pub fn random_at(block_number: BlockNumberFor<T>) -> Option<RandomValue> {
-		// if let Some(pulse) = Pulses::<T>::get(block_number) {
-		// 	pulse.randomness.into_inner().try_into().ok()
-		// } else {
-		// 	None
-		// }
-		None
-	}
 }
 
-/// construct a message (e.g. signed by drand)
-pub fn message(current_round: RoundNumber, prev_sig: &[u8]) -> Vec<u8> {
-	let mut hasher = Sha256::default();
-	hasher.update(prev_sig);
-	hasher.update(current_round.to_be_bytes());
-	hasher.finalize().to_vec()
-}
-
+/// build a beacon config for drand quicknet
 pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
 	build_beacon_configuration(
 		"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",

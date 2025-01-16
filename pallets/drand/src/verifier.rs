@@ -19,7 +19,7 @@ use crate::{
 	bls12_381,
 	types::{BeaconConfiguration, RoundNumber},
 };
-use alloc::{format, string::String, vec::Vec};
+use alloc::{format, string::String, string::ToString, vec::Vec};
 use ark_ec::{hashing::HashToCurve, AffineRepr};
 use ark_serialize::CanonicalSerialize;
 use sha2::{Digest, Sha256};
@@ -29,26 +29,9 @@ use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
 
 #[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::{G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
-#[cfg(not(feature = "host-arkworks"))]
-use ark_serialize::CanonicalDeserialize;
-
-#[cfg(feature = "host-arkworks")]
-use codec::Decode;
 #[cfg(feature = "host-arkworks")]
 use sp_ark_bls12_381::{G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
 
-#[cfg(feature = "host-arkworks")]
-const USAGE: ark_scale::Usage = ark_scale::WIRE;
-#[cfg(feature = "host-arkworks")]
-type ArkScale<T> = ark_scale::ArkScale<T, USAGE>;
-
-/// Constructs a message (e.g. signed by drand)
-fn message(current_round: RoundNumber, prev_sig: &[u8]) -> Vec<u8> {
-	let mut hasher = Sha256::default();
-	hasher.update(prev_sig);
-	hasher.update(current_round.to_be_bytes());
-	hasher.finalize().to_vec()
-}
 
 /// Something that can verify beacon pulses
 pub trait Verifier {
@@ -91,74 +74,67 @@ impl Verifier for QuicknetVerifier {
 			return Err("At least one pulse must be provided.".to_string());
 		}
 
-		// decode public key (pk)
-		#[cfg(feature = "host-arkworks")]
-		let pk = ArkScale::<G2AffineOpt>::decode(&mut beacon_config.public_key.as_slice())
-			.map_err(|e| format!("Failed to decode public key: {}", e))?;
+		let pk = decode_g2(beacon_config.public_key.as_slice())?;
 
-		#[cfg(not(feature = "host-arkworks"))]
-		let pk = G2AffineOpt::deserialize_compressed(&mut beacon_config.public_key.as_slice())
-			.map_err(|e| format!("Failed to decode public key: {}", e))?;
-
-		#[cfg(feature = "host-arkworks")]
-		let mut aggr_message_on_curve = ArkScale::<G1AffineOpt>::zero();
-		#[cfg(not(feature = "host-arkworks"))]
-		let mut aggr_message_on_curve = G1AffineOpt::zero();
-
-		#[cfg(feature = "host-arkworks")]
-		let zero = ArkScale::<G1AffineOpt>::zero();
-		#[cfg(not(feature = "host-arkworks"))]
-		let zero = G1AffineOpt::zero();
-
+		let mut aggr_message_on_curve = zero_on_g1();
+		let mut asig = zero_on_g1();
 		// now we aggregate the signatures for verification
-		let asig = pulses
-			.iter()
-			.map(|pulse| {
-				// decode signature (sigma)
-				#[cfg(feature = "host-arkworks")]
-				let signature = ArkScale::<G1AffineOpt>::decode(&mut pulse.signature.as_slice()).unwrap();
-				// .map_err(|e| format!("Failed to decode signature: {}", e))?;
+		for pulse in pulses {
+			let round = pulse.round;
+			let signature = decode_g1(pulse.signature.as_slice())?;
+			let message_on_curve = compute_round_on_g1(round)?;
 
-				#[cfg(not(feature = "host-arkworks"))]
-				let signature = G1AffineOpt::deserialize_compressed(&mut pulse.signature.as_slice()).unwrap();
-				// .map_err(|e| format!("Failed to decode signature: {}", e))?;
-
-				let round = pulse.round;
-				let message = message(round, &[]);
-				let hasher = <TinyBLS381 as EngineBLS>::hash_to_curve_map();
-				// H(m) \in G1
-				let message_hash = hasher.hash(&message).unwrap();
-				// .map_err(|e| format!("Failed to hash message: {}", e))?;
-
-				let mut bytes = Vec::new();
-				message_hash.serialize_compressed(&mut bytes).unwrap();
-				// .map_err(|e| format!("Failed to serialize message hash: {}", e))?;
-
-				#[cfg(feature = "host-arkworks")]
-				let message_on_curve = ArkScale::<G1AffineOpt>::decode(&mut &bytes[..]).unwrap();
-				// .map_err(|e| format!("Failed to decode message on curve: {}", e))?;
-				#[cfg(not(feature = "host-arkworks"))]
-				let message_on_curve = G1AffineOpt::deserialize_compressed(&mut &bytes[..]).unwrap();
-				// .map_err(|e| format!("Failed to decode message on curve: {}", e))?;
-
-				aggr_message_on_curve = (aggr_message_on_curve + message_on_curve).into();
-
-				signature
-			})
-			.fold(zero, |acc, val| (acc + val).into());
+			aggr_message_on_curve = (aggr_message_on_curve + message_on_curve).into();
+			asig = (asig + signature).into();
+		}
 
 		let g2 = G2AffineOpt::generator();
-
-		#[cfg(feature = "host-arkworks")]
-		let result = bls12_381::fast_pairing_opt(asig.0, g2, aggr_message_on_curve.0, pk.0);
-		#[cfg(not(feature = "host-arkworks"))]
 		let result = bls12_381::fast_pairing_opt(asig, g2, aggr_message_on_curve, pk);
 
 		Ok(result)
 	}
 }
 
-#[cfg(not(feature = "host-arkworks"))]
+/// Constructs a message (e.g. signed by drand)
+fn message(current_round: RoundNumber, prev_sig: &[u8]) -> Vec<u8> {
+	let mut hasher = Sha256::default();
+	hasher.update(prev_sig);
+	hasher.update(current_round.to_be_bytes());
+	hasher.finalize().to_vec()
+}
+
+/// computes the point on G1 given a round number (for message construction)
+fn compute_round_on_g1(round: u64) -> Result<G1AffineOpt, String> {
+	let message = message(round, &[]);
+	let hasher = <TinyBLS381 as EngineBLS>::hash_to_curve_map();
+	// H(m) \in G1
+	let message_hash = hasher
+		.hash(&message)
+		.map_err(|e| format!("The message could not be hashed: {:?}", e))?;
+	let mut bytes = Vec::new();
+	message_hash
+		.serialize_compressed(&mut bytes)
+		.map_err(|e| format!("The message hash could not be serialized: {:?}", e))?;
+	decode_g1(&bytes)
+}
+
+/// Computes the 0 point in the G1 group
+fn zero_on_g1() -> G1AffineOpt {
+	G1AffineOpt::zero()
+}
+
+/// Attempts to decode the byte array to a point on G1
+fn decode_g1(mut bytes: &[u8]) -> Result<G1AffineOpt, String> {
+	G1AffineOpt::deserialize_compressed(&mut bytes)
+		.map_err(|e| format!("Failed to decode message on curve: {}", e))
+}
+
+/// Attempts to decode the byte array to a point on G2
+fn decode_g2(mut bytes: &[u8]) -> Result<G2AffineOpt, String> {
+	G2AffineOpt::deserialize_compressed(&mut bytes)
+		.map_err(|e| format!("Failed to decode message on curve: {}", e))
+}
+
 #[cfg(test)]
 pub mod test {
 
@@ -219,17 +195,40 @@ pub mod test {
 	}
 
 	#[test]
+	fn can_fail_verification_with_single_invalid_signature_with_quicknet() {
+		let config = get_beacon_config();
+
+		let sig1_hex = b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39";
+		let sig1_bytes = hex::decode(sig1_hex).unwrap();
+		let p1 = OpaquePulse { round: 1000, signature: sig1_bytes.try_into().unwrap() };
+
+		let sig2_hex = b"b33bf3667cbd5a82de3a24b4e0e9fe5513cc1a0e840368c6e31f5fcfa79bea03f73896b25883abf2853d10337fb8fa41";
+		let sig2_bytes = hex::decode(sig2_hex).unwrap();
+		let p2 = OpaquePulse { round: 1001, signature: sig2_bytes.try_into().unwrap() };
+
+		// a copy of sig2_hex
+		let sig3_hex = b"b33bf3667cbd5a82de3a24b4e0e9fe5513cc1a0e840368c6e31f5fcfa79bea03f73896b25883abf2853d10337fb8fa41";
+		let sig3_bytes = hex::decode(sig3_hex).unwrap();
+		let p3 = OpaquePulse { round: 1002, signature: sig3_bytes.try_into().unwrap() };
+
+		let pulses = vec![p1, p2, p3];
+		let is_verified =
+			QuicknetVerifier::verify(config, pulses).expect("There should be no error.");
+		assert!(!is_verified);
+	}
+
+	#[test]
 	fn can_not_verify_empty_pulse_with_quicknet() {
 		let config = get_beacon_config();
 		let pulses: Vec<OpaquePulse> = vec![];
-		
+
 		match QuicknetVerifier::verify(config, pulses) {
 			Ok(_) => {
 				panic!("There should be an error.");
 			},
 			Err(e) => {
 				assert_eq!("At least one pulse must be provided.".to_string(), e);
-			}
+			},
 		}
 	}
 }
