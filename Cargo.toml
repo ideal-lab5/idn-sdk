@@ -4,6 +4,7 @@ members = [
     "primitives/consensus/randomness-beacon",
     "pallets/drand",
     "pallets/idn-manager",
+    "support/traits",
 ]
 resolver = "2"
 

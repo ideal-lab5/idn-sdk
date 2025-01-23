@@ -1,0 +1,15 @@
+[package]
+name = "idn-traits"
+authors = [
+	"Juan Girini <juan@idealabs.network>"
+	]
+version = "0.0.1"
+license = "Apache-2.0"
+edition = "2021"
+homepage = "https://www.idealabs.network"
+repository.workspace = true
+publish = false
+
+[features]
+default = ["std"]
+std = []
