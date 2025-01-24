@@ -49,9 +49,6 @@ pub(crate) type FullClient = sc_service::TFullClient<Block, RuntimeApi, RuntimeE
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
-/// The drand swarm
-pub const DRAND_SWARM_ADDR: &str = "/dnsaddr/api.drand.sh";
-
 /// The quicknet pubsub topic
 pub const DRAND_QUICKNET_PUBSUB_TOPIC: &str =
 	"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
@@ -75,7 +72,6 @@ pub type Service = sc_service::PartialComponents<
 
 pub fn new_partial(
 	config: &Configuration,
-	shared_state: Option<SharedState>,
 ) -> Result<Service, ServiceError> {
 	let telemetry = config
 		.telemetry_endpoints
@@ -170,7 +166,6 @@ pub fn new_full<
 >(
 	config: Configuration,
 ) -> Result<TaskManager, ServiceError> {
-	let shared_state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
 
 	let sc_service::PartialComponents {
 		client,
@@ -181,7 +176,7 @@ pub fn new_full<
 		select_chain,
 		transaction_pool,
 		other: (block_import, grandpa_link, mut telemetry),
-	} = new_partial(&config, Some(shared_state.clone()))?;
+	} = new_partial(&config)?;
 
 	let mut net_config = sc_network::config::FullNetworkConfiguration::<
 		Block,
@@ -271,15 +266,26 @@ pub fn new_full<
 		})
 	};
 
-	// TODO: add feature gate
+	// TODO: add feature gate?
 	// configure gossipsub for the libp2p network
+	let shared_state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
 	let local_identity: sc_network_types::ed25519::Keypair =
 		config.network.node_key.clone().into_keypair()?;
 	let local_identity: libp2p::identity::ed25519::Keypair = local_identity.into();
 
 	let local_identity: libp2p::identity::Keypair = local_identity.into();
 	// TODO: handle error
-	let mut gossipsub = GossipsubNetwork::new(&local_identity, shared_state.clone()).unwrap();
+	// dig TXT _dnsaddr.api.drand.sh
+	let maddr1: libp2p::Multiaddr =
+		"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
+			.parse()
+			.unwrap();
+	let maddr2: libp2p::Multiaddr = "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y".parse().unwrap();
+	let mut gossipsub = GossipsubNetwork::new(
+		&local_identity, 
+		vec![maddr1, maddr2],
+		shared_state.clone(),
+	).unwrap();
 
 	// Spawn the gossipsub network task
 	task_manager.spawn_handle().spawn(

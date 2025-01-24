@@ -48,6 +48,7 @@ w3f-bls = { version = "0.1.4", default-features = false }
 sp-keyring = { version = "39.0.0",  default-features = false }
 timelock = { version = "0.0.1", default-features = false }
 sp-consensus-randomness-beacon = { path = "../../primitives/consensus/randomness-beacon", default-features = false }
+sc-consensus-randomness-beacon = { path = "../../client/consensus/randomness-beacon", default-features = false }
 
 [dev-dependencies]
 sp-keystore = { version = "0.40.0",  default-features = false }

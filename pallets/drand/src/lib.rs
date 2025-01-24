@@ -17,7 +17,7 @@
 //! # Drand Bridge Pallet
 //!
 //! A pallet to bridge to [drand](drand.love)'s Quicknet, injecting publicly verifiable randomness
-//! into the runtime
+//! into the runtime.
 //!
 //! ## Overview
 //!
@@ -42,7 +42,7 @@ use alloc::{
 	vec,
 	vec::Vec,
 };
-use ark_serialize::CanonicalDeserialize;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use codec::Encode;
 use frame_support::{
 	pallet_prelude::*,
@@ -57,6 +57,8 @@ use frame_system::{
 	pallet_prelude::BlockNumberFor,
 };
 use log;
+// use sc_consensus_randomness_beacon::timelock::{TimelockEncryptionProvider, TimelockError};
+use ark_ec::AffineRepr;
 use sha2::{Digest, Sha256};
 use sp_consensus_randomness_beacon::types::OpaquePulse;
 use sp_runtime::{
@@ -65,7 +67,10 @@ use sp_runtime::{
 	transaction_validity::{InvalidTransaction, TransactionValidity, ValidTransaction},
 	KeyTypeId,
 };
-use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
+use timelock::{
+	curves::drand::TinyBLS381,
+	tlock::{tld, EngineBLS, TLECiphertext},
+};
 
 pub mod bls12_381;
 pub mod types;
@@ -74,10 +79,14 @@ pub mod verifier;
 use types::*;
 use verifier::Verifier;
 
-use crate::types::{BoundedStorage, Metadata, OpaquePublicKey, RoundNumber};
+#[cfg(not(feature = "host-arkworks"))]
+use ark_bls12_381::G1Affine as G1AffineOpt;
+#[cfg(feature = "host-arkworks")]
+use sp_ark_bls12_381::G1Affine as G1AffineOpt;
+
+use crate::types::{BoundedStorage, Metadata, OpaquePublicKey, OpaqueSignature, RoundNumber};
 
 pub type RandomValue = [u8; 32];
-pub type OpaqueSignature = [u8; 48];
 
 #[cfg(test)]
 mod mock;
@@ -114,11 +123,13 @@ pub mod pallet {
 
 	/// A map of round number to pulses from the randomness beacon
 	#[pallet::storage]
-	pub type Pulses<T: Config> =
-		StorageMap<_, Blake2_128Concat, RoundNumber, OpaqueSignature, OptionQuery>;
-
-	#[pallet::storage]
-	pub type LatestRound<T: Config> = StorageValue<_, u64, ValueQuery>;
+	pub type AggregatedSignatures<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		BlockNumberFor<T>,
+		(OpaqueSignature, RoundNumber, RoundNumber), // (asig, init round, height)
+		OptionQuery,
+	>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -143,10 +154,11 @@ pub mod pallet {
 		InvalidInput,
 		/// the pulse could not be verified
 		VerificationFailed,
+		/// The next round number is invalid (either too high or too low)
+		InvalidNextRound,
+		NetworkTooEarly,
 	}
 
-	/// Allows the pallet to provide some inherent. See [`frame_support::inherent::ProvideInherent`]
-	/// for more info.
 	#[pallet::inherent]
 	impl<T: Config> ProvideInherent for Pallet<T> {
 		type Call = Call<T>;
@@ -156,19 +168,42 @@ pub mod pallet {
 			sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+			// the pulse data
 			let data: Option<Vec<Vec<u8>>> = data
 				.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 				.expect("The inherent data should be well formatted.");
 
-			if let Some(pulses) = data {
-				return Some(Call::write_pulses { data: pulses });
+			if let Some(raw_pulses) = data {
+				// convert to pulses and compute asig while extracts rounds
+				let mut start_round = 0;
+				let height = raw_pulses.len();
+				let mut asig = G1AffineOpt::zero();
+				let size = raw_pulses.len();
+				raw_pulses.iter().for_each(|rp| {
+					let pulse = OpaquePulse::deserialize_from_vec(rp);
+					if start_round == 0 {
+						start_round = pulse.round;
+					}
+					// TODO: handle unwrap
+					let sig = pulse.signature_point().unwrap();
+					asig = (asig + sig).into();
+				});
+				// todo: with capacity
+				let mut asig_bytes = Vec::new();
+				asig.serialize_compressed(&mut asig_bytes).unwrap();
+
+				let bounded_asig_bytes = OpaqueSignature::truncate_from(asig_bytes);
+				return Some(Call::write_pulses {
+					asig: bounded_asig_bytes,
+					start_round,
+					height: height as u64,
+				});
 			}
 
 			None
 		}
 
 		fn check_inherent(_call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
-			// TODO: it should be signed by the expected block author
 			Ok(())
 		}
 
@@ -205,11 +240,11 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// allows the root user to set the beacon configuration
-		/// generally this would be called from an offchain worker context.
 		/// there is no verification of configurations, so be careful with this.
 		///
 		/// * `origin`: the root user
 		/// * `config`: the beacon configuration
+		///
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::set_beacon_config())]
 		pub fn set_beacon_config(
@@ -222,39 +257,46 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Write a set of pulses to the runtime
+		///
+		/// * `origin`: A None origin
+		/// * `asig`: An aggregated signature
+		/// * `start_round`: The round that coincides with the first signature added to asig
+		/// * `height`: The number of signature aggregated to get asig. i.e. if asig = a1 + a2 + a3, then height = 3
+		///
 		#[pallet::call_index(1)]
 		#[pallet::weight(1_000)]
-		pub fn write_pulses(origin: OriginFor<T>, data: Vec<Vec<u8>>) -> DispatchResult {
+		pub fn write_pulses(
+			origin: OriginFor<T>,
+			asig: OpaqueSignature,
+			start_round: RoundNumber,
+			height: RoundNumber,
+		) -> DispatchResult {
 			ensure_none(origin)?;
-
 			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::MissingBeaconConfig)?;
+			let latest_block = <frame_system::Pallet<T>>::block_number();
+			// unlikely, but to let's be safe
+			frame_support::ensure!(!latest_block.is_zero(), Error::<T>::NetworkTooEarly);
 
-			let mut rounds = vec![];
+			let prev_block = latest_block - 1u32.into();
+			// fail early on missing beacon config
+			// If start_round <= latest_round => fail
+			if let Some(latest) = AggregatedSignatures::<T>::get(prev_block) {
+				// latest = last init round + #{pulses}
+				let latest_round: RoundNumber = latest.1 + latest.2;
+				frame_support::ensure!(start_round == latest_round + 1, Error::<T>::InvalidNextRound);
+			}
+			// note: if there is not latest round, we can assume it is the genesis round (for now..)
+				
+			let rounds = (start_round..start_round + height).collect::<Vec<_>>();
 
-			let pulses: Vec<OpaquePulse> = data
-				.iter()
-				.map(|d| {
-					let pulse = OpaquePulse::deserialize_from_vec(&d);
-					rounds.push(pulse.round);
-					pulse
-				})
-				.collect::<Vec<_>>();
-
-			let validity =
-				T::Verifier::verify(config, pulses.clone()).map_err(|reason| Error::<T>::InvalidInput)?;
+			let validity = T::Verifier::verify(config.public_key, asig.clone(), &rounds)
+				.map_err(|reason| Error::<T>::InvalidInput)?;
 
 			frame_support::ensure!(validity, Error::<T>::VerificationFailed);
 
-			// if there is not a 'latest' round, then the list is empty
-			// so we should always execute this loop (since validity check fails)
-			if let Some(latest_round) = rounds.last() {
-				LatestRound::<T>::set(*latest_round);
-				// insert pulses to runtime storage
-				pulses
-					.iter()
-					.for_each(|pulse| Pulses::<T>::insert(pulse.round, &pulse.signature));
-				Self::deposit_event(Event::PulseVerificationSuccess { rounds });
-			}
+			AggregatedSignatures::<T>::insert(latest_block, &(asig, start_round, height));
+			Self::deposit_event(Event::PulseVerificationSuccess { rounds });
 
 			Ok(())
 		}
@@ -309,16 +351,44 @@ fn build_beacon_configuration(
 }
 
 impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T> {
-	// this function hashes together the subject with the latest known randomness from quicknet
+	/// This function hashes together the subject with the latest known randomness from quicknet
+	/// we should replace this with the merkle root later on...
 	fn random(subject: &[u8]) -> (T::Hash, BlockNumberFor<T>) {
-		let block_number_minus_one = <frame_system::Pallet<T>>::block_number() - One::one();
-
+		let latest_block = <frame_system::Pallet<T>>::block_number();
 		let mut entropy = T::Hash::default();
-		// if let Some(pulse) = Pulses::<T>::get(block_number_minus_one) {
-		// 	entropy = (subject, block_number_minus_one, pulse.randomness.clone())
-		// 		.using_encoded(T::Hashing::hash);
-		// }
+		if let Some((asig, start_round, height)) = AggregatedSignatures::<T>::get(latest_block) {
+			entropy = (subject, start_round, height, asig).using_encoded(T::Hashing::hash);
+		}
 
-		(entropy, block_number_minus_one)
+		(entropy, latest_block)
 	}
 }
+
+// impl<T: Config> TimelockEncryptionProvider<RoundNumber> for Pallet<T> {
+// 	fn decrypt_at(
+// 		ciphertext_bytes: &[u8],
+// 		round_number: RoundNumber,
+// 	) -> Result<Vec<u8>, TimelockError> {
+// 		if let Some(secret) = Pulses::<T>::get(round_number) {
+// 			// TODO: replace with optimized arkworks types?
+// 			let ciphertext: TLECiphertext<TinyBLS377> =
+// 				TLECiphertext::deserialize_compressed(ciphertext_bytes)
+// 					.map_err(|_| TimelockError::DecodeFailure)?;
+
+// 			let sig: <TinyBLS377 as EngineBLS>::SignatureGroup =
+// 				<TinyBLS377 as EngineBLS>::SignatureGroup::deserialize_compressed(
+// 					&secret.body.signature.to_vec()[..],
+// 				)
+// 				.map_err(|_| TimelockError::DecodeFailure)?;
+
+// 			let plaintext = ciphertext.tld(sig).map_err(|_| TimelockError::DecryptionFailed)?;
+
+// 			return Ok(plaintext);
+// 		}
+// 		Err(TimelockError::MissingSecret)
+// 	}
+
+// 	fn latest() -> BlockNumberFor<T> {
+// 		return Height::<T>::get();
+// 	}
+// }

@@ -1,9 +1,10 @@
-use crate::{mock::*, BeaconConfig, Call, Error, Event, Pulses};
+use crate::{mock::*, BeaconConfig, Call, Error, Event, AggregatedSignatures, OpaqueSignature, RoundNumber};
 use codec::Encode;
 use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::{InvalidTransaction, TransactionSource},
 };
+use sp_consensus_randomness_beacon::types::OpaquePulse;
 use sp_runtime::{
 	offchain::{
 		testing::{PendingRequest, TestOffchainExt},
@@ -11,44 +12,141 @@ use sp_runtime::{
 	},
 	traits::ValidateUnsigned,
 };
-use sp_consensus_randomness_beacon::types::OpaquePulse;
+
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_bls12_381::G1Affine as G1AffineOpt;
 
 #[test]
 fn can_set_pallet_genesis() {
 	new_test_ext().execute_with(|| {
 		let expected_genesis_config = crate::drand_quicknet_config();
-		let actual_genesis_config = BeaconConfig::<Test>::get().expect("It should be set on genesis");
+		let actual_genesis_config =
+			BeaconConfig::<Test>::get().expect("It should be set on genesis");
 		assert_eq!(expected_genesis_config, actual_genesis_config);
 	});
 }
 
 #[test]
+fn can_fail_at_block_zero() {
+	let (round, sig) = get_single_sig();
+	new_test_ext().execute_with(|| {
+		assert_noop!(
+			Drand::write_pulses(RuntimeOrigin::none(), sig, round, 1),
+			Error::<Test>::NetworkTooEarly,
+		);
+	});
+}
+
+#[test]
 fn can_fail_submit_valid_pulse_when_beacon_config_missing() {
-	let mock_pulse = mock_pulse();
+
+	let (round, sig) = get_single_sig();
 
 	new_test_ext().execute_with(|| {
-
 		BeaconConfig::<Test>::set(None);
-
+		System::set_block_number(1);
 		assert_noop!(
-			Drand::write_pulses(RuntimeOrigin::none(), vec![mock_pulse.serialize_to_vec()],),
+			Drand::write_pulses(RuntimeOrigin::none(), sig, round, 1),
 			Error::<Test>::MissingBeaconConfig,
 		);
 	});
 }
 
 #[test]
-fn can_submit_valid_pulse_when_beacon_config_exists() {
-	let mock_pulse = mock_pulse();
+fn can_submit_single_valid_pulse_on_genesis() {
+
+	let (round, sig) = get_single_sig();
+
 	new_test_ext().execute_with(|| {
-		assert_ok!(Drand::write_pulses(RuntimeOrigin::none(), vec![mock_pulse.serialize_to_vec()]));
+		System::set_block_number(1);
+		assert_ok!(Drand::write_pulses(RuntimeOrigin::none(), sig.clone(), round, 1));
+		// the sig is stored in runtime storage
+		let maybe_asig = AggregatedSignatures::<Test>::get(1);
+		assert!(maybe_asig.is_some());
+		let asig = maybe_asig.unwrap();
+		assert_eq!(sig, asig.0);
 	});
 }
 
-fn mock_pulse() -> OpaquePulse {
+#[test]
+fn can_submit_many_pulses_if_in_sequence_on_genesis() {
+	let asigs = get_asig();
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		assert_ok!(Drand::write_pulses(
+			RuntimeOrigin::none(),
+			asigs.0.clone(),
+			asigs.1,
+			asigs.2
+		));
+		// the sig is stored in runtime storage
+		let maybe_asig = AggregatedSignatures::<Test>::get(1);
+		assert!(maybe_asig.is_some());
+		let asig = maybe_asig.unwrap();
+		assert_eq!(asigs.0, asig.0);
+	});
+}
+
+
+#[test]
+fn can_fail_early_if_next_round_too_high_on_non_genesis_sig() {
+	let (round, sig) = get_single_sig();
+	let bad_next_round = round + 100;
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		assert_ok!(Drand::write_pulses(RuntimeOrigin::none(), sig.clone(), round, 1));
+		System::set_block_number(2);
+		assert_noop!(
+			Drand::write_pulses(RuntimeOrigin::none(), sig.clone(), bad_next_round, 1),
+			Error::<Test>::InvalidNextRound,
+		);
+	});
+}
+
+#[test]
+fn can_fail_given_invalid_signature() {
+	let (round, sig) = get_single_sig();
+	let asigs = get_asig();
+	let bad_sig = asigs.0;
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		assert_noop!(
+			Drand::write_pulses(RuntimeOrigin::none(), bad_sig.clone(), round, 1),
+			Error::<Test>::VerificationFailed,
+		);
+	});
+}
+
+fn get_single_sig() -> (RoundNumber, OpaqueSignature) {
+	let sig_hex = b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39";
+	let sig_bytes = hex::decode(sig_hex).unwrap();
+	let sig = OpaqueSignature::truncate_from(sig_bytes);
+	(1000u64, sig)
+}
+
+fn get_asig() -> (OpaqueSignature, RoundNumber, RoundNumber) {
 	let sig1_hex = b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39";
 	let sig1_bytes = hex::decode(sig1_hex).unwrap();
-	OpaquePulse { round: 1000, signature: sig1_bytes.try_into().unwrap() }
+	let sig1 = G1AffineOpt::deserialize_compressed(&mut sig1_bytes.as_slice()).unwrap();
+
+	let sig2_hex = b"b33bf3667cbd5a82de3a24b4e0e9fe5513cc1a0e840368c6e31f5fcfa79bea03f73896b25883abf2853d10337fb8fa41";
+	let sig2_bytes = hex::decode(sig2_hex).unwrap();
+	let sig2 = G1AffineOpt::deserialize_compressed(&mut sig2_bytes.as_slice()).unwrap();
+
+	let sig3_hex = b"ab066f9c12dd6de1336fca0f925192fb0c72a771c3e4c82ede1fd362c1a770f9eb05843c6308ce2530b53a99c0281a6e";
+	let sig3_bytes = hex::decode(sig3_hex).unwrap();
+	let sig3 = G1AffineOpt::deserialize_compressed(&mut sig3_bytes.as_slice()).unwrap();
+
+	let asig = sig1 + sig2 + sig3;
+
+	let mut asig_bytes = vec![];
+	asig.serialize_compressed(&mut asig_bytes).unwrap();
+	let opaque_asig = OpaqueSignature::truncate_from(asig_bytes);
+
+	(opaque_asig, 1000, 3)
 }
 
 // #[test]

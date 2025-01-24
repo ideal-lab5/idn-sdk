@@ -4,7 +4,7 @@ members = [
     "client/consensus/randomness-beacon",
     "primitives/consensus/beefy-etf",
     "primitives/consensus/randomness-beacon",
-    "pallets/beefy-etf",
+    "pallets/beefy-etf", 
     "pallets/beefy-mmr-etf",
     "pallets/drand",
     "pallets/etf",

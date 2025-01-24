@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-use codec::Decode;
-
-use crate::types::OpaquePulse;
 use sp_inherents::{Error, InherentData, InherentIdentifier};
 use alloc::vec::Vec;
 

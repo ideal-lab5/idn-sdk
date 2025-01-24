@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 
 /// Represents an opaque public key used in drand's quicknet
 pub type OpaquePublicKey = BoundedVec<u8, ConstU32<96>>;
+pub type OpaqueSignature = BoundedVec<u8, ConstU32<48>>;
 /// an opaque bounded storage type for Vec<u8>s
 pub type BoundedStorage = BoundedVec<u8, ConstU32<64>>;
 /// the round number to track rounds of the beacon
@@ -65,25 +66,3 @@ pub struct BeaconConfiguration {
 pub struct Metadata {
 	pub beacon_id: BoundedStorage,
 }
-
-// /// A pulse from the drand beacon
-// #[derive(
-// 	Clone,
-// 	Debug,
-// 	Decode,
-// 	Default,
-// 	PartialEq,
-// 	Encode,
-// 	Serialize,
-// 	Deserialize,
-// 	MaxEncodedLen,
-// 	TypeInfo,
-// )]
-// pub struct Pulse {
-// 	/// the randomness round number
-// 	pub round: RoundNumber,
-// 	/// BLS sig for the current round
-// 	// TODO: use Signature (https://github.com/ideal-lab5/pallet-drand/issues/2)
-// 	// maybe add the sig size as a generic?
-// 	pub signature: BoundedVec<u8, ConstU32<144>>,
-// }
