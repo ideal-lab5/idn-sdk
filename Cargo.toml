@@ -1,7 +1,9 @@
 [workspace]
 members = [
     "client/consensus/beefy-etf",
+    "client/consensus/randomness-beacon",
     "primitives/consensus/beefy-etf",
+    "primitives/consensus/randomness-beacon",
     "pallets/beefy-etf",
     "pallets/beefy-mmr-etf",
     "pallets/drand",
@@ -51,6 +53,7 @@ default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
 
 
 [workspace.dependencies]
+async-trait = "0.1.85"
 polkavm = "0.9.3"
 polkavm-linker = "0.9.2"
 polkavm-derive = "0.9.1"
