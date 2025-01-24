@@ -48,8 +48,6 @@ pub use pallet::*;
 pub type BalanceOf<T> =
 	<<T as Config>::Currency as Inspect<<T as frame_system::pallet::Config>::AccountId>>::Balance;
 
-// pub type BlockNumberFor<T> = <T as frame_system::Config>::BlockNumber;
-
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber> {
 	details: SubscriptionDetails<AccountId, BlockNumber>,
