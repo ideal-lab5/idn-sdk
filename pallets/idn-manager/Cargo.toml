@@ -19,6 +19,7 @@ sp-core = { version = "35.0.0",  default-features = false }
 sp-io = { version = "39.0.0",  default-features = false}
 sp-std = { version = "14.0.0",  default-features = false }
 xcm = { version = "16.0.0", default-features = false, package = "staging-xcm" }
+xcm-builder = { version = "19.0.0", default-features = false, package = "staging-xcm-builder" }
 pallet-xcm = { version = "19.0.0", default-features = false }
 # frame deps
 frame-support = { version = "39.0.0",  default-features = false }
@@ -39,6 +40,7 @@ std = [
 	"sp-std/std",
 	"xcm/std",
 	"pallet-xcm/std",
+	"xcm-builder/std",
 	# "sp-externalities/std",
 	# "sp-runtime-interface/std",
 	# "environmental/std"

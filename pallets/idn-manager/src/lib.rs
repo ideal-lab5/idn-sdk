@@ -20,13 +20,13 @@
 
 pub mod traits;
 pub mod weights;
-pub use weights::*;
 
 use codec::{Decode, Encode, MaxEncodedLen};
 use traits::*;
 // use cumulus_primitives_core::ParaId;
 use frame_support::{
 	pallet_prelude::*,
+	sp_runtime::traits::AccountIdConversion,
 	// storage::StorageMap,
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
@@ -41,12 +41,14 @@ use frame_system::{
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
-use xcm::{latest::prelude::*, opaque::v4::Location};
+use xcm::{latest::prelude::*, opaque::v4::Location, VersionedLocation, VersionedXcm};
+use xcm_builder::SendController;
 
 pub use pallet::*;
+pub use weights::*;
 
 pub type BalanceOf<T> =
-	<<T as Config>::Currency as Inspect<<T as frame_system::pallet::Config>::AccountId>>::Balance;
+	<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber> {
@@ -101,7 +103,7 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_xcm::Config {
+	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The currency type for handling subscription payments
@@ -127,8 +129,17 @@ pub mod pallet {
 
 		type WeightInfo: WeightInfo;
 
-		// /// Overarching hold reason.
-		// type RuntimeHoldReason: From<HoldReason>;
+		/// A type that exposes XCM APIs, allowing contracts to interact with other parachains, and
+		/// execute XCM programs.
+		type Xcm: xcm_builder::Controller<
+			OriginFor<Self>,
+			<Self as frame_system::Config>::RuntimeCall,
+			BlockNumberFor<Self>,
+		>;
+
+		/// The IDN Manager pallet id.
+		#[pallet::constant]
+		type PalletId: Get<frame_support::PalletId>;
 	}
 
 	#[pallet::storage]
@@ -136,7 +147,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		SubscriptionId,
-		Subscription<<T as frame_system::pallet::Config>::AccountId, BlockNumberFor<T>>,
+		Subscription<T::AccountId, BlockNumberFor<T>>,
 		OptionQuery,
 	>;
 
@@ -147,7 +158,7 @@ pub mod pallet {
 		SubscriptionCreated {
 			sub_id: SubscriptionId,
 			para_id: ParaId,
-			subscriber: <T as frame_system::pallet::Config>::AccountId,
+			subscriber: T::AccountId,
 			duration: BlockNumberFor<T>,
 			target: Location,
 		},
@@ -221,7 +232,7 @@ pub mod pallet {
 		// To keep this pallet low level `request_single_randomness` is not implemented and rather
 		// let it up to the pallet on the client side to handle the single block subscription
 		#[pallet::call_index(0)]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::create_subscription())]
+		#[pallet::weight(T::WeightInfo::create_subscription())]
 		pub fn create_subscription(
 			origin: OriginFor<T>,
 			para_id: ParaId,
@@ -238,41 +249,12 @@ pub mod pallet {
 			)
 		}
 	}
-
-	// /// Distribute randomness to subscribers
-	// /// Returns a weight based on the number of storage reads and writes performed
-	// fn distribute(rnd: T::Rnd) -> Result<Weight, DispatchError> {
-
-	// }
-
-	// impl<T: Config, R: T::Rnd, O: Result<Weight, DispatchError>> idn_traits::rand::Consumer<R, O>
-	// for Pallet<T> { 	fn consume(rnd: R) -> O {
-	// 		let mut reads = 0u64;
-	// 		let mut writes = 0u64;
-
-	// 		let randomness = T::RandomnessSource::get_randomness();
-
-	// 		// Filter for active subscriptions only
-	// 		for (sub_id, sub) in
-	// 			Subscriptions::<T>::iter().filter(|(_, sub)| sub.status == SubscriptionStatus::Active)
-	// 		{
-	// 			reads += 1;
-
-	// 			if let Ok(msg) = Self::construct_randomness_xcm(sub.details.target, randomness.clone())
-	// 			{
-	// 				let _ = pallet_xcm::Pallet::<T>::send_xcm(Here, sub.details.target, msg);
-	// 				writes += 1;
-
-	// 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
-	// 			}
-	// 		}
-
-	// 		T::DbWeight::get().reads(reads) + T::DbWeight::get().writes(writes)
-	// 	}
-	// }
 }
 
 impl<T: Config> Pallet<T> {
+	fn pallet_account_id() -> T::AccountId {
+		T::PalletId::get().into_account_truncating()
+	}
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
 	fn distribute(rnd: T::Rnd) -> Result<(), DispatchError> {
@@ -288,7 +270,12 @@ impl<T: Config> Pallet<T> {
 			// reads += 1;
 
 			if let Ok(msg) = Self::construct_randomness_xcm(sub.details.target.clone(), &rnd) {
-				let _ = pallet_xcm::Pallet::<T>::send_xcm(Here, sub.details.target, msg);
+				let versioned_target: Box<VersionedLocation> =
+					Box::new(sub.details.target.clone().into());
+				let versioned_msg: Box<VersionedXcm<()>> =
+					Box::new(xcm::VersionedXcm::V4(msg.into()));
+				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
+				let _ = T::Xcm::send(origin.into(), versioned_target, versioned_msg);
 				// writes += 1;
 
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
@@ -308,7 +295,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Internal function to handle subscription creation
 	fn create_subscription_internal(
-		subscriber: <T as frame_system::pallet::Config>::AccountId,
+		subscriber: T::AccountId,
 		para_id: ParaId,
 		duration: BlockNumberFor<T>,
 		target: Location,
@@ -320,7 +307,7 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::InvalidSubscriptionDuration
 		);
 
-		<T as pallet::Config>::Currency::hold(&HoldReason::Fee.into(), &subscriber, fee)
+		T::Currency::hold(&HoldReason::Fee.into(), &subscriber, fee)
 			.map_err(|_| Error::<T>::InsufficientBalance)?;
 
 		let current_block = frame_system::Pallet::<T>::block_number();
