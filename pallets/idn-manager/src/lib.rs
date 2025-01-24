@@ -19,15 +19,17 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod traits;
+pub mod weights;
+pub use weights::*;
 
-use crate::traits::FeeCalculator;
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
+use traits::*;
 // use cumulus_primitives_core::ParaId;
 use frame_support::{
 	pallet_prelude::*,
-	storage::StorageMap,
+	// storage::StorageMap,
 	traits::{
-		fungible::{hold, Inspect, Mutate},
+		fungible::{hold::Mutate as HoldMutate, Inspect},
 		Get,
 	},
 	weights::Weight,
@@ -37,15 +39,14 @@ use frame_system::{
 	pallet_prelude::{BlockNumberFor, OriginFor},
 };
 use scale_info::TypeInfo;
-use sp_core::{MaxEncodedLen, H256};
+use sp_core::H256;
 use sp_io::hashing::blake2_256;
-use sp_std::vec::Vec;
-use xcm::{latest::prelude::*, opaque::v3::MultiLocation};
+use xcm::{latest::prelude::*, opaque::v4::Location};
 
 pub use pallet::*;
 
 pub type BalanceOf<T> =
-	<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
+	<<T as Config>::Currency as Inspect<<T as frame_system::pallet::Config>::AccountId>>::Balance;
 
 // pub type BlockNumberFor<T> = <T as frame_system::Config>::BlockNumber;
 
@@ -54,19 +55,21 @@ pub struct Subscription<AccountId, BlockNumber> {
 	details: SubscriptionDetails<AccountId, BlockNumber>,
 	status: SubscriptionStatus,
 }
+
+#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct SubscriptionDetails<AccountId, BlockNumber> {
 	subscriber: AccountId,
 	para_id: ParaId,
 	start_block: BlockNumber,
 	end_block: BlockNumber,
 	frequency: BlockNumber,
-	target: MultiLocation,
+	target: Location,
 	filter: Option<Filter>, // ?
 }
 
 type ParaId = u32; // todo import type
 
-impl<AccountId, BlockNumber> Subscription<AccountId, BlockNumber> {
+impl<AccountId: Encode, BlockNumber: Encode> Subscription<AccountId, BlockNumber> {
 	pub fn id(&self) -> SubscriptionId {
 		// Encode the struct using SCALE codec
 		let details = self.details.encode();
@@ -76,7 +79,7 @@ impl<AccountId, BlockNumber> Subscription<AccountId, BlockNumber> {
 }
 
 type SubscriptionId = H256;
-type Filter = Vec<u8>;
+type Filter = u32; // to update
 
 #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
 pub enum SubscriptionStatus {
@@ -84,6 +87,12 @@ pub enum SubscriptionStatus {
 	Active,
 	Paused,
 	Expired,
+}
+
+#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
+pub enum Call {
+	#[codec(index = 1)]
+	DistributeRnd,
 }
 
 #[frame_support::pallet]
@@ -98,17 +107,30 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The currency type for handling subscription payments
-		type Currency: Inspect<Self::AccountId> + Mutate<Self::AccountId>;
+		type Currency: Inspect<<Self as frame_system::pallet::Config>::AccountId>
+			// + Mutate<<Self as frame_system::pallet::Config>::AccountId>
+			+ HoldMutate<
+				<Self as frame_system::pallet::Config>::AccountId,
+				Reason = Self::RuntimeHoldReason,
+			>;
+
+		/// Overarching hold reason.
+		type RuntimeHoldReason: From<HoldReason>;
 
 		/// Maximum subscription duration
 		#[pallet::constant]
 		type MaxSubscriptionDuration: Get<BlockNumberFor<Self>>;
 
 		/// Fee calculator implementation
-		type FeeCalculator: FeeCalculator<BalanceOf<Self>>;
+		type FeeCalculator: FeeCalculator<BalanceOf<Self>, BlockNumberFor<Self>>;
 
 		/// The type for the randomness
 		type Rnd;
+
+		type WeightInfo: WeightInfo;
+
+		// /// Overarching hold reason.
+		// type RuntimeHoldReason: From<HoldReason>;
 	}
 
 	#[pallet::storage]
@@ -116,7 +138,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		SubscriptionId,
-		Subscription<T::AccountId, BlockNumberFor<T>>,
+		Subscription<<T as frame_system::pallet::Config>::AccountId, BlockNumberFor<T>>,
 		OptionQuery,
 	>;
 
@@ -125,10 +147,11 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// A new subscription was created (includes single-block subscriptions)
 		SubscriptionCreated {
+			sub_id: SubscriptionId,
 			para_id: ParaId,
-			subscriber: T::AccountId,
+			subscriber: <T as frame_system::pallet::Config>::AccountId,
 			duration: BlockNumberFor<T>,
-			target: MultiLocation,
+			target: Location,
 		},
 		/// A subscription was deactivated
 		SubscriptionDeactivated { sub_id: SubscriptionId },
@@ -154,30 +177,43 @@ pub mod pallet {
 		XcmExecutionFailed,
 	}
 
+	/// A reason for the IDN Manager Pallet placing a hold on funds.
+	#[pallet::composite_enum]
+	pub enum HoldReason {
+		/// The IDN Manager Pallet holds balance for future charges.
+		#[codec(index = 0)]
+		Fee,
+	}
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(n: BlockNumberFor<T>) -> Weight {
-			let mut reads = 0u64;
-			let mut writes = 0u64;
+		fn on_finalize(n: BlockNumberFor<T>) {
+			// let mut reads = 0u64;
+			// let mut writes = 0u64;
 
 			// Filter active subscriptions that have expired
-			for (sub_id) in Subscriptions::<T>::iter()
-				.filter(|(_, sub)| sub.status == SubscriptionStatus::Active && sub.end_block <= n)
-			{
-				reads += 1;
+			for (sub_id, _sub) in Subscriptions::<T>::iter().filter(|(_, sub)| {
+				sub.status == SubscriptionStatus::Active && sub.details.end_block <= n
+			}) {
+				// reads += 1;
 
 				// Use update instead of insert for atomic operation
-				Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| -> DispatchResult {
-					if let Some(sub) = maybe_sub {
-						sub.status = SubscriptionStatus::Expired;
-						writes += 1;
-						Self::deposit_event(Event::SubscriptionDeactivated { sub_id });
-					}
-					Ok(())
-				})?;
+				let result =
+					Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| -> DispatchResult {
+						if let Some(sub) = maybe_sub {
+							sub.status = SubscriptionStatus::Expired;
+							// writes += 1;
+							Self::deposit_event(Event::SubscriptionDeactivated { sub_id });
+						}
+						Ok(())
+					});
+
+				if let Err(_) = result {
+					// TODO handle error
+				}
 			}
 
-			T::DbWeight::get().reads(reads) + T::DbWeight::get().writes(writes)
+			// T::DbWeight::get().reads(reads) + T::DbWeight::get().writes(writes)
 		}
 	}
 
@@ -187,31 +223,21 @@ pub mod pallet {
 		// To keep this pallet low level `request_single_randomness` is not implemented and rather
 		// let it up to the pallet on the client side to handle the single block subscription
 		#[pallet::call_index(0)]
-		#[pallet::weight(T::BaseWeight::get())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::create_subscription())]
 		pub fn create_subscription(
 			origin: OriginFor<T>,
 			para_id: ParaId,
 			duration: BlockNumberFor<T>,
-			target: MultiLocation,
+			target: Location,
+			frequency: BlockNumberFor<T>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
 			// Calculate and hold the subscription fee
 			let fee = T::FeeCalculator::calculate_subscription_fee(duration);
-
-			Self::create_subscription_internal(subscriber, para_id, duration, target, fee)
-		}
-
-		/// Calculate te subscription fee for a given duration
-		#[pallet::call_index(1)]
-		#[pallet::weight(T::BaseWeight::get())]
-		pub fn calculate_subscription_fee(
-			origin: OriginFor<T>,
-			duration: BlockNumberFor<T>,
-		) -> DispatchResult {
-			let subscriber = ensure_signed(origin)?;
-			let fee = T::FeeCalculator::calculate_subscription_fee(duration);
-
-			Ok(fee)
+			// TODO how to allow for fees preview?
+			Self::create_subscription_internal(
+				subscriber, para_id, duration, target, fee, frequency,
+			)
 		}
 	}
 
@@ -251,85 +277,91 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
-	fn distribute(rnd: T::Rnd) -> Result<Weight, DispatchError> {
-		let mut reads = 0u64;
-		let mut writes = 0u64;
+	fn distribute(rnd: T::Rnd) -> Result<(), DispatchError> {
+		// let mut reads = 0u64;
+		// let mut writes = 0u64;
 
-		let randomness = T::RandomnessSource::get_randomness();
+		// let randomness = T::RandomnessSource::get_randomness();
 
 		// Filter for active subscriptions only
 		for (sub_id, sub) in
 			Subscriptions::<T>::iter().filter(|(_, sub)| sub.status == SubscriptionStatus::Active)
 		{
-			reads += 1;
+			// reads += 1;
 
-			if let Ok(msg) = Self::construct_randomness_xcm(sub.details.target, randomness.clone())
-			{
+			if let Ok(msg) = Self::construct_randomness_xcm(sub.details.target.clone(), &rnd) {
 				let _ = pallet_xcm::Pallet::<T>::send_xcm(Here, sub.details.target, msg);
-				writes += 1;
+				// writes += 1;
 
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			}
 		}
 
-		T::DbWeight::get().reads(reads) + T::DbWeight::get().writes(writes)
+		// T::DbWeight::get().reads(reads) + T::DbWeight::get().writes(writes)
+		Ok(())
 	}
 
 	/// Check if there's an active subscription for the given para_id
-	fn has_active_subscription(para_id: &ParaId) -> bool {
-		Subscriptions::<T>::get(para_id)
+	fn has_active_subscription(sub_id: &SubscriptionId) -> bool {
+		Subscriptions::<T>::get(sub_id)
 			.map(|sub| sub.status == SubscriptionStatus::Active)
 			.unwrap_or(false)
 	}
 
 	/// Internal function to handle subscription creation
 	fn create_subscription_internal(
-		subscriber: T::AccountId,
+		subscriber: <T as frame_system::pallet::Config>::AccountId,
 		para_id: ParaId,
 		duration: BlockNumberFor<T>,
-		target: MultiLocation,
-		fee: Balance,
+		target: Location,
+		fee: BalanceOf<T>,
+		frequency: BlockNumberFor<T>,
 	) -> DispatchResult {
 		ensure!(
 			duration <= T::MaxSubscriptionDuration::get(),
 			Error::<T>::InvalidSubscriptionDuration
 		);
 
-		ensure!(!Self::has_active_subscription(&para_id), Error::<T>::ActiveSubscriptionExists);
-
-		T::Currency::hold(&HoldReason::fee(), &subscriber, fee)
+		<T as pallet::Config>::Currency::hold(&HoldReason::Fee.into(), &subscriber, fee)
 			.map_err(|_| Error::<T>::InsufficientBalance)?;
 
 		let current_block = frame_system::Pallet::<T>::block_number();
-		let subscription = Subscription {
+		let details = SubscriptionDetails {
 			subscriber: subscriber.clone(),
 			para_id,
-			status: SubscriptionStatus::Active,
 			start_block: current_block,
 			end_block: current_block + duration,
 			target: target.clone(),
-			filter: None,
+			frequency,
+			filter: None, // TODO define this
 		};
+		let subscription = Subscription { status: SubscriptionStatus::Active, details };
+		let sub_id = subscription.id();
 
-		Subscriptions::<T>::insert(para_id, subscription);
+		ensure!(!Self::has_active_subscription(&sub_id), Error::<T>::ActiveSubscriptionExists);
 
-		Self::deposit_event(Event::SubscriptionCreated { para_id, subscriber, duration, target });
+		Subscriptions::<T>::insert(&sub_id, subscription);
+
+		Self::deposit_event(Event::SubscriptionCreated {
+			sub_id,
+			para_id,
+			subscriber,
+			duration,
+			target,
+		});
 
 		Ok(())
 	}
 
 	/// Helper function to construct XCM message for randomness distribution
-	fn construct_randomness_xcm(
-		target: MultiLocation,
-		randomness: Vec<u8>,
-	) -> Result<Xcm<()>, Error<T>> {
+	fn construct_randomness_xcm(target: Location, _rnd: &T::Rnd) -> Result<Xcm<()>, Error<T>> {
 		Ok(Xcm(vec![
 			WithdrawAsset((Here, 0u128).into()),
 			BuyExecution { fees: (Here, 0u128).into(), weight_limit: Unlimited },
 			Transact {
 				origin_kind: OriginKind::Native,
-				require_weight_at_most: Weight::from_ref_time(1_000_000),
-				call: randomness.into(),
+				require_weight_at_most: Weight::from_parts(1_000_000, 0),
+				call: Call::DistributeRnd.encode().into(), // TODO
 			},
 			RefundSurplus,
 			DepositAsset { assets: All.into(), beneficiary: target.into() },
@@ -337,13 +369,10 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-impl<T: Config, R: T::Rnd, O: Result<Weight, DispatchError>> idn_traits::rand::Consumer<R, O>
-	for Pallet<T>
-{
-	fn consume(rnd: R) -> O {
+impl<T: Config> idn_traits::rand::Consumer<T::Rnd, Result<(), DispatchError>> for Pallet<T> {
+	fn consume(rnd: T::Rnd) -> Result<(), DispatchError> {
 		// look for active subscriptions
 		// deliver rand to them
-		Pallet::<T>::distribute(rnd);
-		Ok(())
+		Pallet::<T>::distribute(rnd)
 	}
 }

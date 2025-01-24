@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-use frame_system::pallet_prelude::BlockNumberFor;
-
 /// Trait for fee calculation implementations
-pub trait FeeCalculator<Balance> {
-	/// Calculate the total fee for a subscription of given duration
-	fn calculate_subscription_fee(duration: BlockNumberFor<Self>) -> Balance;
+pub trait FeeCalculator<Fee, Duration> {
+	fn calculate_subscription_fee(duration: Duration) -> Fee;
 }
