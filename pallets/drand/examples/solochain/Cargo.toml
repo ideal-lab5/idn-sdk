@@ -5,7 +5,7 @@ authors = [
 ]
 edition = "2021"
 repository = "https://github.com/ideal-lab5/idn-sdk/"
-license = "MIT-0"
+license = "Apache-2.0"
 homepage = "https://idealabs.network"
 
 [workspace]

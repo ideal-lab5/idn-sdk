@@ -1,33 +1,18 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 use drand_example_runtime::{self, opaque::Block, RuntimeApi};
-use frame_system::BlockHash;
-use futures::{FutureExt, StreamExt};
+use futures::FutureExt;
 use log;
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_consensus_grandpa::SharedVoterState;
 use sc_consensus_randomness_beacon::gossipsub::*;
-use sc_network::{
-	config::notification_service, config::MultiaddrWithPeerId, multiaddr::Protocol,
-	service::NetworkWorker, types::ProtocolName, Multiaddr, PeerId,
-};
-use sc_network_types::{
-	multihash,
-	multihash::{Code, Multihash},
-};
-use codec::Encode;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncConfig};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
-use sp_runtime::traits::Block as BlockT;
-use std::hash::DefaultHasher;
-use std::net::ToSocketAddrs;
 use std::sync::Mutex;
 use std::{sync::Arc, time::Duration};
-
-use sp_consensus_randomness_beacon::types::{OpaquePulse, Pulse};
 
 /// Host runctions required for Substrate and Arkworks
 #[cfg(not(feature = "runtime-benchmarks"))]
@@ -70,9 +55,7 @@ pub type Service = sc_service::PartialComponents<
 	),
 >;
 
-pub fn new_partial(
-	config: &Configuration,
-) -> Result<Service, ServiceError> {
+pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -166,7 +149,6 @@ pub fn new_full<
 >(
 	config: Configuration,
 ) -> Result<TaskManager, ServiceError> {
-
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -220,14 +202,6 @@ pub fn new_full<
 		})?;
 
 	if config.offchain_worker.enabled {
-		// // For testing purposes only: insert OCW key for Alice
-		// sp_keystore::Keystore::sr25519_generate_new(
-		// 	&*keystore_container.keystore(),
-		// 	drand_example_runtime::pallet_drand::KEY_TYPE,
-		// 	Some("//Alice"),
-		// )
-		// .expect("Creating key with account Alice should succeed.");
-
 		task_manager.spawn_handle().spawn(
 			"offchain-workers-runner",
 			"offchain-worker",
@@ -253,7 +227,6 @@ pub fn new_full<
 	let backoff_authoring_blocks: Option<()> = None;
 	let name = config.network.node_name.clone();
 	let enable_grandpa = !config.disable_grandpa;
-	let enable_mmr = config.offchain_worker.indexing_enabled;
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let rpc_extensions_builder = {
@@ -272,20 +245,20 @@ pub fn new_full<
 	let local_identity: sc_network_types::ed25519::Keypair =
 		config.network.node_key.clone().into_keypair()?;
 	let local_identity: libp2p::identity::ed25519::Keypair = local_identity.into();
-
 	let local_identity: libp2p::identity::Keypair = local_identity.into();
-	// TODO: handle error
 	// dig TXT _dnsaddr.api.drand.sh
 	let maddr1: libp2p::Multiaddr =
 		"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
 			.parse()
+			.expect("The string is a well-formatted multiaddress. qed.");
+	let maddr2: libp2p::Multiaddr =
+		"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
+			.parse()
+			.expect("The string is a well-formatted multiaddress. qed.");
+
+	let mut gossipsub =
+		GossipsubNetwork::new(&local_identity, vec![&maddr1, &maddr2], shared_state.clone(), None)
 			.unwrap();
-	let maddr2: libp2p::Multiaddr = "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y".parse().unwrap();
-	let mut gossipsub = GossipsubNetwork::new(
-		&local_identity, 
-		vec![maddr1, maddr2],
-		shared_state.clone(),
-	).unwrap();
 
 	// Spawn the gossipsub network task
 	task_manager.spawn_handle().spawn(
@@ -333,31 +306,15 @@ pub fn new_full<
 				select_chain,
 				block_import,
 				proposer_factory,
-				create_inherent_data_providers: move |_, ()| {
-					let shared_state = shared_state.clone();
+				create_inherent_data_providers: move |_, ()| async move {
+					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-					async move {
-						let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-						let slot = sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+					let slot = sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							*timestamp,
 							slot_duration,
 						);
 
-						let mut data_lock =
-							shared_state.lock().expect("Shared state lock poisoned");
-
-						let pulses: Vec<OpaquePulse> = data_lock.clone().pulses;
-						let data: Vec<Vec<u8>> =
-							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect::<Vec<_>>();
-						let beacon =
-							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
-								data,
-							);
-						data_lock.pulses.clear();
-
-						Ok((slot, timestamp, beacon))
-					}
+					Ok((slot, timestamp))
 				},
 				force_authoring,
 				backoff_authoring_blocks,
@@ -421,20 +378,6 @@ pub fn new_full<
 			None,
 			sc_consensus_grandpa::run_grandpa_voter(grandpa_config)?,
 		);
-
-		// When offchain indexing is enabled, MMR gadget should also run.
-		if enable_mmr {
-			task_manager.spawn_essential_handle().spawn_blocking(
-				"mmr-gadget",
-				None,
-				mmr_gadget::MmrGadget::start(
-					client.clone(),
-					backend.clone(),
-					sp_mmr_primitives::INDEXING_PREFIX.to_vec(),
-				),
-			);
-		}
-
 	}
 
 	network_starter.start_network();

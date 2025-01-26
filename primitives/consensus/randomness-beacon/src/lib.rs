@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 by Ideal Labs, LLC
+ * Copyright 2025 by Ideal Labs, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,4 @@
 
 extern crate alloc;
 
-pub mod inherents;
 pub mod types;
-
-// /// provides timelock encryption using the current slot
-// pub trait TimelockEncryptionProvider<BN> {
-// 	/// attempt to decrypt the ciphertext with the current slot secret
-// 	fn decrypt_at(ciphertext: &[u8], block_number: BN) -> Result<DecryptionResult, TimelockError>;
-
-// 	/// get the latest block number for which randomness is known
-// 	fn latest() -> BN;
-// }

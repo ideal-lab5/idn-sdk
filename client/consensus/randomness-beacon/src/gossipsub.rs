@@ -14,24 +14,19 @@
  * limitations under the License.
  */
 
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use libp2p::{
 	gossipsub,
 	gossipsub::{
-		Behaviour as GossipsubBehaviour, Config as GossipsubConfig,
-		ConfigBuilder as GossipsubConfigBuilder, Event as GossipsubEvent, IdentTopic,
-		Message as GossipsubMessage, MessageAuthenticity, MessageId, PublishError,
-		SubscriptionError, Topic, TopicHash,
+		Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
 	},
 	identity::Keypair,
-	swarm::{NetworkBehaviour, Swarm, SwarmEvent},
-	tcp::Config,
-	Multiaddr, SwarmBuilder, Transport,
+	swarm::{Swarm, SwarmEvent},
+	Multiaddr, SwarmBuilder,
 };
 use prost::Message;
 use sp_consensus_randomness_beacon::types::{OpaquePulse, Pulse};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 /// The Gossipsub State tracks the pulses ingested from a randomness beacon
 /// during some given block's lifetime (i.e. the new pulses observed)
@@ -85,9 +80,8 @@ impl GossipsubNetwork {
 	/// * `local_key`: A local libp2p keypair
 	/// * `peers`: A list of peers to dial.
 	/// * `state`: A shared state
-	/// * `listen_addr`: An (optional) address to attempt to listen on.
-	///                  If None, then it attempts to listen on a random port on localhost
-	///
+	/// * `listen_addr`: An (optional) address to attempt to listen on. If None, then it attempts to
+	///   listen on a random port on localhost
 	pub fn new(
 		local_key: &Keypair,
 		peers: Vec<&Multiaddr>,
@@ -133,7 +127,6 @@ impl GossipsubNetwork {
 	/// It writes new messages to the SharedState whenever received.
 	///
 	/// * `topic_str`: The gossipsub topic to subscribe to
-	///
 	pub async fn subscribe(&mut self, topic_str: &str) -> Result<(), Error> {
 		let topic = IdentTopic::new(topic_str);
 		self.swarm
@@ -186,11 +179,7 @@ impl GossipsubNetwork {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use rand::{Rng, SeedableRng};
 	use std::sync::{Arc, Mutex};
-	use std::time::Duration;
-	use tokio::task;
-	use tokio::time::timeout;
 
 	fn build_node(
 		peers: Vec<&Multiaddr>,
@@ -205,8 +194,8 @@ mod tests {
 		)
 	}
 
-	#[test]
-	fn can_create_new_gossipsub_network_with_empty_peers() {
+	#[tokio::test]
+	async fn can_create_new_gossipsub_network_with_empty_peers() {
 		let (gossipsub, _s) = build_node(vec![], None);
 		let data_lock = gossipsub.state.lock().unwrap();
 		assert!(data_lock.pulses.is_empty());
@@ -220,8 +209,8 @@ mod tests {
 		assert_eq!(state.pulses.len(), 1);
 	}
 
-	#[test]
-	fn can_not_publish_message_to_gossipsub_topic_when_no_peers() {
+	#[tokio::test]
+	async fn can_not_publish_message_to_gossipsub_topic_when_no_peers() {
 		let (mut gossipsub, _s) = build_node(vec![], None);
 		let topic = "test-topic";
 		let data = b"test-message".to_vec();

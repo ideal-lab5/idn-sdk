@@ -11,19 +11,15 @@ use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, One, Verify, Keccak256,
+		AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, One, Verify,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, DispatchError, MultiSignature, SaturatedConversion,
+	ApplyExtrinsicResult, MultiSignature, SaturatedConversion,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-
-// use sp_mmr_primitives;
-use frame_support::PalletId;
-use frame_system::{EnsureRoot, EnsureSigned};
 
 pub use frame_support::{
 	construct_runtime, derive_impl,
@@ -52,13 +48,6 @@ use pallet_transaction_payment::{ConstFeeMultiplier, FungibleAdapter, Multiplier
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
-
-use sp_core::crypto::UncheckedFrom;
-
-use pallet_contracts::{
-	chain_extension::{ChainExtension, Environment, Ext, InitState, RetVal, SysConfig},
-	DebugInfo,
-};
 
 // /// Import the template pallet.
 // pub use pallet_template;
@@ -146,15 +135,6 @@ pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 pub const HOURS: BlockNumber = MINUTES * 60;
 pub const DAYS: BlockNumber = HOURS * 24;
 
-// Prints debug output of the `contracts` pallet to stdout if the node is
-// started with `-lruntime::contracts=debug`.
-pub const CONTRACTS_DEBUG_OUTPUT: DebugInfo = DebugInfo::UnsafeDebug;
-
-type EventRecord = frame_system::EventRecord<
-	<Runtime as frame_system::Config>::RuntimeEvent,
-	<Runtime as frame_system::Config>::Hash,
->;
-
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
 pub fn native_version() -> NativeVersion {
@@ -167,10 +147,6 @@ const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 pub const MILLICENTS: Balance = 1_000_000;
 pub const CENTS: Balance = 1_000 * MILLICENTS;
 pub const DOLLARS: Balance = 100 * CENTS;
-
-const fn deposit(items: u32, bytes: u32) -> Balance {
-	(items as Balance * CENTS + (bytes as Balance) * (5 * MILLICENTS / 100)) / 100
-}
 
 parameter_types! {
 	pub const BlockHashCount: BlockNumber = 2400;
@@ -293,121 +269,6 @@ parameter_types! {
 	pub const HttpFetchTimeout: u64 = 1_000;
 }
 
-impl pallet_drand::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = pallet_drand::weights::SubstrateWeight<Runtime>;
-	type Verifier = pallet_drand::verifier::QuicknetVerifier;
-}
-
-parameter_types! {
-	pub const LotteryPalletId: PalletId = PalletId(*b"py/lotto");
-	pub const MaxCalls: u32 = 10;
-	pub const MaxGenerateRandom: u32 = 10;
-}
-
-impl pallet_lottery::Config for Runtime {
-	type PalletId = LotteryPalletId;
-	type RuntimeCall = RuntimeCall;
-	type Currency = Balances;
-	type Randomness = Drand;
-	type RuntimeEvent = RuntimeEvent;
-	type ManagerOrigin = EnsureRoot<AccountId>;
-	type MaxCalls = MaxCalls;
-	type ValidateCall = Lottery;
-	type MaxGenerateRandom = MaxGenerateRandom;
-	type WeightInfo = pallet_lottery::weights::SubstrateWeight<Runtime>;
-}
-
-parameter_types! {
-	pub const DepositPerItem: Balance = deposit(0, 0);
-	pub const DepositPerByte: Balance = deposit(0, 0);
-	pub const DefaultDepositLimit: Balance = deposit(1024, 1024 * 1024);
-	pub Schedule: pallet_contracts::Schedule<Runtime> = Default::default();
-	pub CodeHashLockupDepositPercent: Perbill = Perbill::from_percent(30);
-}
-
-impl pallet_contracts::Config for Runtime {
-	type Time = Timestamp;
-	type Randomness = Drand;
-	type Currency = Balances;
-	type RuntimeEvent = RuntimeEvent;
-	type RuntimeCall = RuntimeCall;
-	/// The safest default is to allow no calls at all.
-	///
-	/// Runtimes should whitelist dispatchables that are allowed to be called from contracts
-	/// and make sure they are stable. Dispatchables exposed to contracts are not allowed to
-	/// change because that would break already deployed contracts. The `Call` structure itself
-	/// is not allowed to change the indices of existing pallets, too.
-	type CallFilter = Nothing;
-	type DepositPerItem = DepositPerItem;
-	type DepositPerByte = DepositPerByte;
-	type DefaultDepositLimit = DefaultDepositLimit;
-	type CallStack = [pallet_contracts::Frame<Self>; 5];
-	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
-	type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
-	type ChainExtension = DrandExtension;
-	type Schedule = Schedule;
-	type AddressGenerator = pallet_contracts::DefaultAddressGenerator;
-	type MaxCodeLen = ConstU32<{ 123 * 1024 }>;
-	type MaxStorageKeyLen = ConstU32<128>;
-	type UnsafeUnstableInterface = ConstBool<false>;
-	type UploadOrigin = EnsureSigned<Self::AccountId>;
-	type InstantiateOrigin = EnsureSigned<Self::AccountId>;
-	type MaxDebugBufferLen = ConstU32<{ 2 * 1024 * 1024 }>;
-	type RuntimeHoldReason = RuntimeHoldReason;
-	#[cfg(not(feature = "runtime-benchmarks"))]
-	type Migrations = ();
-	#[cfg(feature = "runtime-benchmarks")]
-	type Migrations = pallet_contracts::migration::codegen::BenchMigrations;
-	type MaxDelegateDependencies = ConstU32<32>;
-	type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
-	type Debug = ();
-	type Environment = ();
-	type ApiVersion = ();
-	type Xcm = ();
-	type MaxTransientStorageSize = ConstU32<{ 1 * 1024 * 1024 }>;
-}
-
-// A dummy on new root handler
-
-/// A BEEFY consensus digest item with MMR root hash.
-pub struct DummyOnNewRoot { }
-
-impl pallet_mmr::primitives::OnNewRoot<sp_core::H256> for DummyOnNewRoot
-{
-	fn on_new_root(root: &sp_core::H256) {
-		// TODO: this doesn't do anything yet
-		// let digest = sp_runtime::generic::DigestItem::Consensus(
-		// 	sp_consensus_beefy::BEEFY_ENGINE_ID,
-		// 	codec::Encode::encode(&sp_consensus_beefy::ConsensusLog::<
-		// 		<T as pallet_beefy::Config>::BeefyId,
-		// 	>::MmrRoot(*root)),
-		// );
-		// frame_system::Pallet::<T>::deposit_log(digest);
-	}
-}
-
-impl pallet_mmr::Config for Runtime {
-	const INDEXING_PREFIX: &'static [u8] = b"randmmr";
-	type Hashing = Keccak256;
-	type LeafData = pallet_mmr::ParentNumberAndHash<Self>; // TODO
-	type OnNewRoot = DummyOnNewRoot;
-	type BlockHashProvider = pallet_mmr::DefaultBlockHashProvider<Runtime>;
-	type WeightInfo = ();
-	#[cfg(feature = "runtime-benchmarks")]
-	type BenchmarkHelper = ();
-}
-
-/// MMR helper types.
-mod mmr {
-	use super::*;
-	pub use pallet_mmr::primitives::*;
-
-	pub type Leaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
-	pub type Hash = <Hashing as sp_runtime::traits::Hash>::Output;
-	pub type Hashing = <Runtime as pallet_mmr::Config>::Hashing;
-}
-
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[frame_support::runtime]
 mod runtime {
@@ -445,21 +306,6 @@ mod runtime {
 
 	#[runtime::pallet_index(6)]
 	pub type Sudo = pallet_sudo;
-
-	// // Include the custom logic from the pallet-template in the runtime.
-	#[runtime::pallet_index(7)]
-	pub type Drand = pallet_drand;
-
-	#[runtime::pallet_index(8)]
-	pub type Lottery = pallet_lottery;
-
-	#[runtime::pallet_index(9)]
-	pub type Contracts = pallet_contracts;
-
-	// MMR leaf construction must be after session in order to have a leaf's next_auth_set
-	// refer to block<N>. See issue polkadot-fellows/runtimes#160 for details.
-	#[runtime::pallet_index(10)]
-	pub type Mmr = pallet_mmr::Pallet<Runtime>;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -774,74 +620,6 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_contracts::ContractsApi<Block, AccountId, Balance, BlockNumber, Hash, EventRecord> for Runtime {
-		fn call(
-			origin: AccountId,
-			dest: AccountId,
-			value: Balance,
-			gas_limit: Option<Weight>,
-			storage_deposit_limit: Option<Balance>,
-			input_data: Vec<u8>,
-		) -> pallet_contracts::ContractExecResult<Balance, EventRecord> {
-			let gas_limit = gas_limit.unwrap_or(BlockWeights::get().max_block);
-			Contracts::bare_call(
-				origin,
-				dest,
-				value,
-				gas_limit,
-				storage_deposit_limit,
-				input_data,
-				CONTRACTS_DEBUG_OUTPUT,
-				pallet_contracts::CollectEvents::UnsafeCollect,
-				pallet_contracts::Determinism::Enforced,
-			)
-		}
-
-		fn instantiate(
-			origin: AccountId,
-			value: Balance,
-			gas_limit: Option<Weight>,
-			storage_deposit_limit: Option<Balance>,
-			code: pallet_contracts::Code<Hash>,
-			data: Vec<u8>,
-			salt: Vec<u8>,
-		) -> pallet_contracts::ContractInstantiateResult<AccountId, Balance, EventRecord> {
-			let gas_limit = gas_limit.unwrap_or(BlockWeights::get().max_block);
-			Contracts::bare_instantiate(
-				origin,
-				value,
-				gas_limit,
-				storage_deposit_limit,
-				code,
-				data,
-				salt,
-				CONTRACTS_DEBUG_OUTPUT,
-				pallet_contracts::CollectEvents::UnsafeCollect,
-			)
-		}
-
-		fn upload_code(
-			origin: AccountId,
-			code: Vec<u8>,
-			storage_deposit_limit: Option<Balance>,
-			determinism: pallet_contracts::Determinism,
-		) -> pallet_contracts::CodeUploadResult<Hash, Balance> {
-			Contracts::bare_upload_code(
-				origin,
-				code,
-				storage_deposit_limit,
-				determinism,
-			)
-		}
-
-		fn get_storage(
-			address: AccountId,
-			key: Vec<u8>,
-		) -> pallet_contracts::GetStorageResult {
-			Contracts::get_storage(address, key)
-		}
-	}
-
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
 		fn on_runtime_upgrade(checks: frame_try_runtime::UpgradeCheckSelect) -> (Weight, Weight) {
@@ -877,60 +655,13 @@ impl_runtime_apis! {
 			vec![]
 		}
 	}
-
-	#[api_version(2)]
-	impl mmr::MmrApi<Block, mmr::Hash, BlockNumber> for Runtime {
-		fn mmr_root() -> Result<mmr::Hash, mmr::Error> {
-			Ok(pallet_mmr::RootHash::<Runtime>::get())
-		}
-
-		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
-			Ok(pallet_mmr::NumberOfLeaves::<Runtime>::get())
-		}
-
-		fn generate_proof(
-			block_numbers: Vec<BlockNumber>,
-			best_known_block_number: Option<BlockNumber>,
-		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::LeafProof<mmr::Hash>), mmr::Error> {
-			Mmr::generate_proof(block_numbers, best_known_block_number).map(
-				|(leaves, proof)| {
-					(
-						leaves
-							.into_iter()
-							.map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf))
-							.collect(),
-						proof,
-					)
-				},
-			)
-		}
-
-		fn verify_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::LeafProof<mmr::Hash>)
-			-> Result<(), mmr::Error>
-		{
-			let leaves = leaves.into_iter().map(|leaf|
-				leaf.into_opaque_leaf()
-				.try_decode()
-				.ok_or(mmr::Error::Verify)).collect::<Result<Vec<mmr::Leaf>, mmr::Error>>()?;
-			Mmr::verify_leaves(leaves, proof)
-		}
-
-		fn verify_proof_stateless(
-			root: mmr::Hash,
-			leaves: Vec<mmr::EncodableOpaqueLeaf>,
-			proof: mmr::LeafProof<mmr::Hash>
-		) -> Result<(), mmr::Error> {
-			let nodes = leaves.into_iter().map(|leaf|mmr::DataOrHash::Data(leaf.into_opaque_leaf())).collect();
-			pallet_mmr::verify_leaves_proof::<mmr::Hashing, _>(root, nodes, proof)
-		}
-	}
 }
 
-/// Some re-exports that the node side code needs to know. Some are useful in this context as well.
-///
-/// Other types should preferably be private.
-// TODO: this should be standardized in some way, see:
-// https://github.com/paritytech/substrate/issues/10579#issuecomment-1600537558
+// /// Some re-exports that the node side code needs to know. Some are useful in this context as well.
+// ///
+// /// Other types should preferably be private.
+// // TODO: this should be standardized in some way, see:
+// // https://github.com/paritytech/substrate/issues/10579#issuecomment-1600537558
 pub mod interface {
 	use super::Runtime;
 	use frame::deps::frame_system;
@@ -944,37 +675,37 @@ pub mod interface {
 	pub type MinimumBalance = <Runtime as pallet_balances::Config>::ExistentialDeposit;
 }
 
-#[derive(Default)]
-pub struct DrandExtension;
+// #[derive(Default)]
+// pub struct DrandExtension;
 
-impl ChainExtension<Runtime> for DrandExtension {
-	fn call<E: Ext>(&mut self, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
-	where
-		<E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
-	{
-		let func_id = env.func_id();
-		log::trace!(
-			target: "runtime",
-			"[ChainExtension]|call|func_id:{:}",
-			func_id
-		);
-		match func_id {
-			1101 => {
-				let mut env = env.buf_in_buf_out();
-				let rand = Drand::random(&[]);
-				env.write(&rand.encode(), false, None)
-					.map_err(|_| DispatchError::Other("Failed to write output randomness"))?;
+// impl ChainExtension<Runtime> for DrandExtension {
+// 	fn call<E: Ext>(&mut self, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
+// 	where
+// 		<E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+// 	{
+// 		let func_id = env.func_id();
+// 		log::trace!(
+// 			target: "runtime",
+// 			"[ChainExtension]|call|func_id:{:}",
+// 			func_id
+// 		);
+// 		match func_id {
+// 			1101 => {
+// 				let mut env = env.buf_in_buf_out();
+// 				let rand = Drand::random(&[]);
+// 				env.write(&rand.encode(), false, None)
+// 					.map_err(|_| DispatchError::Other("Failed to write output randomness"))?;
 
-				Ok(RetVal::Converging(0))
-			},
-			_ => {
-				log::error!("Called an unregistered `func_id`: {:}", func_id);
-				Err(DispatchError::Other("Unimplemented func_id"))
-			},
-		}
-	}
+// 				Ok(RetVal::Converging(0))
+// 			},
+// 			_ => {
+// 				log::error!("Called an unregistered `func_id`: {:}", func_id);
+// 				Err(DispatchError::Other("Unimplemented func_id"))
+// 			},
+// 		}
+// 	}
 
-	fn enabled() -> bool {
-		true
-	}
-}
+// 	fn enabled() -> bool {
+// 		true
+// 	}
+// }

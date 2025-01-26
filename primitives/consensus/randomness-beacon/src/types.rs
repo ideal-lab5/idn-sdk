@@ -16,11 +16,11 @@
 
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
-use prost::Message;
 use serde::{Deserialize, Serialize};
 
 #[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::G1Affine as G1AffineOpt;
+
 #[cfg(feature = "host-arkworks")]
 use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 

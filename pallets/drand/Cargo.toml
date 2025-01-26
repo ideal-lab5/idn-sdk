@@ -6,7 +6,7 @@ authors = [
 	"Juan Girini <juan@idealabs.network>"
 	]
 version = "0.0.1"
-license = "MIT-0"
+license = "Apache-2.0"
 edition = "2021"
 homepage = "https://www.idealabs.network"
 repository.workspace = true
