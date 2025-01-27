@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-use alloc::{string::String, vec::Vec};
 use codec::{Decode, Encode};
 use frame_support::pallet_prelude::*;
 use serde::{Deserialize, Serialize};

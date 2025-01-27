@@ -17,7 +17,7 @@
 //! A collection of verifiers for randomness beacon pulses
 use crate::{
 	bls12_381,
-	types::{BeaconConfiguration, OpaquePublicKey, OpaqueSignature, RoundNumber},
+	types::{OpaquePublicKey, OpaqueSignature, RoundNumber},
 };
 use alloc::{format, string::String, string::ToString, vec::Vec};
 use ark_ec::{hashing::HashToCurve, AffineRepr};

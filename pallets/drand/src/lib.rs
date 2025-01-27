@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 by Ideal Labs, LLC
+ * Copyright 2025 by Ideal Labs, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,41 +36,21 @@ pub use pallet::*;
 
 extern crate alloc;
 
-use alloc::{
-	format,
-	string::{String, ToString},
-	vec,
-	vec::Vec,
-};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use codec::Encode;
-use frame_support::{
-	pallet_prelude::*,
-	storage::bounded_vec::BoundedVec,
-	traits::{ConstU32, Randomness},
-};
-use frame_system::{
-	offchain::{
-		AppCrypto, CreateSignedTransaction, SendUnsignedTransaction, SignedPayload, Signer,
-		SigningTypes,
-	},
-	pallet_prelude::BlockNumberFor,
-};
-use log;
-// use sc_consensus_randomness_beacon::timelock::{TimelockEncryptionProvider, TimelockError};
+use alloc::{vec, vec::Vec};
 use ark_ec::AffineRepr;
+use ark_serialize::CanonicalSerialize;
+use codec::Encode;
+use frame_support::{pallet_prelude::*, storage::bounded_vec::BoundedVec, traits::Randomness};
+use frame_system::pallet_prelude::BlockNumberFor;
+use log;
 use sha2::{Digest, Sha256};
 use sp_consensus_randomness_beacon::types::OpaquePulse;
-use sp_runtime::{
-	offchain::{http, Duration},
-	traits::{Hash, One, Zero},
-	transaction_validity::{InvalidTransaction, TransactionValidity, ValidTransaction},
-	KeyTypeId,
-};
-use timelock::{
-	curves::drand::TinyBLS381,
-	tlock::{tld, EngineBLS, TLECiphertext},
-};
+use sp_runtime::traits::{Hash, Zero};
+
+// use timelock::{
+// 	curves::drand::TinyBLS381,
+// 	tlock::{tld, EngineBLS, TLECiphertext},
+// };
 
 pub mod bls12_381;
 pub mod types;
@@ -157,6 +137,7 @@ pub mod pallet {
 		/// The next round number is invalid (either too high or too low)
 		InvalidNextRound,
 		NetworkTooEarly,
+		NonPositiveHeight
 	}
 
 	#[pallet::inherent]
@@ -168,31 +149,25 @@ pub mod pallet {
 			sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			// the pulse data
-			let data: Option<Vec<Vec<u8>>> = data
-				.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
-				.expect("The inherent data should be well formatted.");
+			// if we do not find any pulse data, then do nothing
+			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
+			{
+				let mut pulse_iter =
+					raw_pulses.iter().map(|rp| OpaquePulse::deserialize_from_vec(rp));
+				// I'm assuming this consumes the pulse, otherwise we add it twice
+				let first = pulse_iter.next().unwrap();
 
-			if let Some(raw_pulses) = data {
-				// convert to pulses and compute asig while extracts rounds
-				let mut start_round = 0;
+				let start_round = first.round;
 				let height = raw_pulses.len();
-				let mut asig = G1AffineOpt::zero();
-				let size = raw_pulses.len();
-				raw_pulses.iter().for_each(|rp| {
-					let pulse = OpaquePulse::deserialize_from_vec(rp);
-					if start_round == 0 {
-						start_round = pulse.round;
-					}
-					// TODO: handle unwrap
-					let sig = pulse.signature_point().unwrap();
-					asig = (asig + sig).into();
-				});
-				// todo: with capacity
+				let mut asig = first.signature_point().unwrap();
+				asig =
+					pulse_iter.fold(asig, |acc, val| (acc + val.signature_point().unwrap()).into());
+				// todo: optimize by using with capacity
 				let mut asig_bytes = Vec::new();
 				asig.serialize_compressed(&mut asig_bytes).unwrap();
 
 				let bounded_asig_bytes = OpaqueSignature::truncate_from(asig_bytes);
+
 				return Some(Call::write_pulses {
 					asig: bounded_asig_bytes,
 					start_round,
@@ -262,7 +237,8 @@ pub mod pallet {
 		/// * `origin`: A None origin
 		/// * `asig`: An aggregated signature
 		/// * `start_round`: The round that coincides with the first signature added to asig
-		/// * `height`: The number of signature aggregated to get asig. i.e. if asig = a1 + a2 + a3, then height = 3
+		/// * `height`: The number of signature aggregated to get asig.
+		///             i.e. if asig = a1 + a2 + a3, then height = 3
 		///
 		#[pallet::call_index(1)]
 		#[pallet::weight(1_000)]
@@ -275,8 +251,9 @@ pub mod pallet {
 			ensure_none(origin)?;
 			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::MissingBeaconConfig)?;
 			let latest_block = <frame_system::Pallet<T>>::block_number();
-			// unlikely, but to let's be safe
+			// unlikely, but let's be safe
 			frame_support::ensure!(!latest_block.is_zero(), Error::<T>::NetworkTooEarly);
+			frame_support::ensure!(height > 0, Error::<T>::NonPositiveHeight);
 
 			let prev_block = latest_block - 1u32.into();
 			// fail early on missing beacon config
@@ -284,14 +261,16 @@ pub mod pallet {
 			if let Some(latest) = AggregatedSignatures::<T>::get(prev_block) {
 				// latest = last init round + #{pulses}
 				let latest_round: RoundNumber = latest.1 + latest.2;
-				frame_support::ensure!(start_round == latest_round + 1, Error::<T>::InvalidNextRound);
+				frame_support::ensure!(
+					start_round == latest_round + 1,
+					Error::<T>::InvalidNextRound
+				);
 			}
-			// note: if there is not latest round, we can assume it is the genesis round (for now..)
-				
+
 			let rounds = (start_round..start_round + height).collect::<Vec<_>>();
 
 			let validity = T::Verifier::verify(config.public_key, asig.clone(), &rounds)
-				.map_err(|reason| Error::<T>::InvalidInput)?;
+				.map_err(|_| Error::<T>::InvalidInput)?;
 
 			frame_support::ensure!(validity, Error::<T>::VerificationFailed);
 

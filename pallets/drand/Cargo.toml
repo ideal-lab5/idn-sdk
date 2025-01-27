@@ -52,6 +52,7 @@ sc-consensus-randomness-beacon = { path = "../../client/consensus/randomness-bea
 
 [dev-dependencies]
 sp-keystore = { version = "0.40.0",  default-features = false }
+sp-inherents = { version = "34.0.0" }
 
 [features]
 default = ["std"]
