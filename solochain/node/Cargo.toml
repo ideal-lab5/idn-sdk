@@ -2,7 +2,7 @@
 name = "drand-example-node"
 description = "An example node implementing the Drand pallet."
 version = "0.0.0"
-license = "Apache-2.0"
+license = "MIT-0"
 authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -59,8 +59,8 @@ sp-blockchain.workspace = true
 sp-crypto-ec-utils = { workspace = true,  features = ["bls12-381"]}
 sc-utils.workspace = true
 
-mmr-gadget = { workspace = true }
-sp-mmr-primitives = { workspace = true }
+# mmr-gadget = { workspace = true }
+# sp-mmr-primitives = { workspace = true }
 # frame and pallets
 frame-system.workspace = true
 pallet-transaction-payment.workspace = true

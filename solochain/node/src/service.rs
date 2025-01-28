@@ -14,6 +14,8 @@ use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::sync::Mutex;
 use std::{sync::Arc, time::Duration};
 
+use sp_consensus_randomness_beacon::types::OpaquePulse;
+
 /// Host runctions required for Substrate and Arkworks
 #[cfg(not(feature = "runtime-benchmarks"))]
 pub type HostFunctions =
@@ -55,7 +57,9 @@ pub type Service = sc_service::PartialComponents<
 	),
 >;
 
-pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
+pub fn new_partial(
+	config: &Configuration,
+) -> Result<Service, ServiceError> {
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -149,6 +153,7 @@ pub fn new_full<
 >(
 	config: Configuration,
 ) -> Result<TaskManager, ServiceError> {
+
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -202,6 +207,14 @@ pub fn new_full<
 		})?;
 
 	if config.offchain_worker.enabled {
+		// // For testing purposes only: insert OCW key for Alice
+		// sp_keystore::Keystore::sr25519_generate_new(
+		// 	&*keystore_container.keystore(),
+		// 	drand_example_runtime::pallet_drand::KEY_TYPE,
+		// 	Some("//Alice"),
+		// )
+		// .expect("Creating key with account Alice should succeed.");
+
 		task_manager.spawn_handle().spawn(
 			"offchain-workers-runner",
 			"offchain-worker",
@@ -227,6 +240,7 @@ pub fn new_full<
 	let backoff_authoring_blocks: Option<()> = None;
 	let name = config.network.node_name.clone();
 	let enable_grandpa = !config.disable_grandpa;
+	// let enable_mmr = config.offchain_worker.indexing_enabled;
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let rpc_extensions_builder = {
@@ -239,7 +253,7 @@ pub fn new_full<
 		})
 	};
 
-	// TODO: add feature gate?
+		// TODO: add feature gate?
 	// configure gossipsub for the libp2p network
 	let shared_state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
 	let local_identity: sc_network_types::ed25519::Keypair =
@@ -306,15 +320,31 @@ pub fn new_full<
 				select_chain,
 				block_import,
 				proposer_factory,
-				create_inherent_data_providers: move |_, ()| async move {
-					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+				create_inherent_data_providers: move |_, ()| {
+					let shared_state = shared_state.clone();
 
-					let slot = sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+					async move {
+						let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+						let slot = sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							*timestamp,
 							slot_duration,
 						);
 
-					Ok((slot, timestamp))
+						let mut data_lock =
+							shared_state.lock().expect("Shared state lock poisoned");
+
+						let pulses: Vec<OpaquePulse> = data_lock.clone().pulses;
+						let data: Vec<Vec<u8>> =
+							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect::<Vec<_>>();
+						let beacon =
+							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
+								data,
+							);
+						data_lock.pulses.clear();
+
+						Ok((slot, timestamp, beacon))
+					}
 				},
 				force_authoring,
 				backoff_authoring_blocks,
@@ -378,6 +408,7 @@ pub fn new_full<
 			None,
 			sc_consensus_grandpa::run_grandpa_voter(grandpa_config)?,
 		);
+
 	}
 
 	network_starter.start_network();

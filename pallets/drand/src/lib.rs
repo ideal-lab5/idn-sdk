@@ -37,20 +37,12 @@ pub use pallet::*;
 extern crate alloc;
 
 use alloc::{vec, vec::Vec};
-use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
 use codec::Encode;
 use frame_support::{pallet_prelude::*, storage::bounded_vec::BoundedVec, traits::Randomness};
 use frame_system::pallet_prelude::BlockNumberFor;
-use log;
-use sha2::{Digest, Sha256};
 use sp_consensus_randomness_beacon::types::OpaquePulse;
 use sp_runtime::traits::{Hash, Zero};
-
-// use timelock::{
-// 	curves::drand::TinyBLS381,
-// 	tlock::{tld, EngineBLS, TLECiphertext},
-// };
 
 pub mod bls12_381;
 pub mod types;
@@ -58,11 +50,6 @@ pub mod verifier;
 
 use types::*;
 use verifier::Verifier;
-
-#[cfg(not(feature = "host-arkworks"))]
-use ark_bls12_381::G1Affine as G1AffineOpt;
-#[cfg(feature = "host-arkworks")]
-use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 use crate::types::{BoundedStorage, Metadata, OpaquePublicKey, OpaqueSignature, RoundNumber};
 
@@ -117,7 +104,7 @@ pub mod pallet {
 		BeaconConfigChanged,
 		/// A user has successfully set a new value.
 		PulseVerificationSuccess {
-			/// The new value set.
+			/// The new value set
 			rounds: Vec<RoundNumber>,
 		},
 	}
@@ -136,8 +123,10 @@ pub mod pallet {
 		VerificationFailed,
 		/// The next round number is invalid (either too high or too low)
 		InvalidNextRound,
+		/// The network is at block 0.
 		NetworkTooEarly,
-		NonPositiveHeight
+		/// There must be at least one pulse provided.
+		NonPositiveHeight,
 	}
 
 	#[pallet::inherent]
@@ -154,25 +143,26 @@ pub mod pallet {
 			{
 				let mut pulse_iter =
 					raw_pulses.iter().map(|rp| OpaquePulse::deserialize_from_vec(rp));
-				// I'm assuming this consumes the pulse, otherwise we add it twice
-				let first = pulse_iter.next().unwrap();
+				// only continue if we can get the initial pulse
+				if let Some(first) = pulse_iter.next() {
+					let start_round = first.round;
+					let height = raw_pulses.len();
+					let mut asig = first.signature_point().unwrap();
+					asig = pulse_iter
+						.fold(asig, |acc, val| (acc + val.signature_point().unwrap()).into());
+					let mut asig_bytes = Vec::with_capacity(48);
+					asig.serialize_compressed(&mut asig_bytes).unwrap();
 
-				let start_round = first.round;
-				let height = raw_pulses.len();
-				let mut asig = first.signature_point().unwrap();
-				asig =
-					pulse_iter.fold(asig, |acc, val| (acc + val.signature_point().unwrap()).into());
-				// todo: optimize by using with capacity
-				let mut asig_bytes = Vec::new();
-				asig.serialize_compressed(&mut asig_bytes).unwrap();
+					let bounded_asig_bytes = OpaqueSignature::truncate_from(asig_bytes);
 
-				let bounded_asig_bytes = OpaqueSignature::truncate_from(asig_bytes);
-
-				return Some(Call::write_pulses {
-					asig: bounded_asig_bytes,
-					start_round,
-					height: height as u64,
-				});
+					return Some(Call::write_pulses {
+						asig: bounded_asig_bytes,
+						start_round,
+						height: height as u64,
+					});
+				} else {
+					log::info!("The node provided empty pulse data to the inherent!");
+				}
 			}
 
 			None
@@ -249,18 +239,19 @@ pub mod pallet {
 			height: RoundNumber,
 		) -> DispatchResult {
 			ensure_none(origin)?;
+			// fail early on missing beacon config
 			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::MissingBeaconConfig)?;
 			let latest_block = <frame_system::Pallet<T>>::block_number();
-			// unlikely, but let's be safe
+			// the network must be beyond block 0 (otherwise no config can be available anyway)
 			frame_support::ensure!(!latest_block.is_zero(), Error::<T>::NetworkTooEarly);
 			frame_support::ensure!(height > 0, Error::<T>::NonPositiveHeight);
 
 			let prev_block = latest_block - 1u32.into();
-			// fail early on missing beacon config
 			// If start_round <= latest_round => fail
 			if let Some(latest) = AggregatedSignatures::<T>::get(prev_block) {
 				// latest = last init round + #{pulses}
 				let latest_round: RoundNumber = latest.1 + latest.2;
+				// the next round *must* be in sequence
 				frame_support::ensure!(
 					start_round == latest_round + 1,
 					Error::<T>::InvalidNextRound
@@ -342,32 +333,3 @@ impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T> {
 		(entropy, latest_block)
 	}
 }
-
-// impl<T: Config> TimelockEncryptionProvider<RoundNumber> for Pallet<T> {
-// 	fn decrypt_at(
-// 		ciphertext_bytes: &[u8],
-// 		round_number: RoundNumber,
-// 	) -> Result<Vec<u8>, TimelockError> {
-// 		if let Some(secret) = Pulses::<T>::get(round_number) {
-// 			// TODO: replace with optimized arkworks types?
-// 			let ciphertext: TLECiphertext<TinyBLS377> =
-// 				TLECiphertext::deserialize_compressed(ciphertext_bytes)
-// 					.map_err(|_| TimelockError::DecodeFailure)?;
-
-// 			let sig: <TinyBLS377 as EngineBLS>::SignatureGroup =
-// 				<TinyBLS377 as EngineBLS>::SignatureGroup::deserialize_compressed(
-// 					&secret.body.signature.to_vec()[..],
-// 				)
-// 				.map_err(|_| TimelockError::DecodeFailure)?;
-
-// 			let plaintext = ciphertext.tld(sig).map_err(|_| TimelockError::DecryptionFailed)?;
-
-// 			return Ok(plaintext);
-// 		}
-// 		Err(TimelockError::MissingSecret)
-// 	}
-
-// 	fn latest() -> BlockNumberFor<T> {
-// 		return Height::<T>::get();
-// 	}
-// }

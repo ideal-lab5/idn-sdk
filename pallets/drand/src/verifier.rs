@@ -19,12 +19,10 @@ use crate::{
 	bls12_381,
 	types::{OpaquePublicKey, OpaqueSignature, RoundNumber},
 };
-use alloc::{format, string::String, string::ToString, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 use ark_ec::{hashing::HashToCurve, AffineRepr};
 use ark_serialize::CanonicalSerialize;
 use sha2::{Digest, Sha256};
-use sp_consensus_randomness_beacon::types::OpaquePulse;
-use sp_runtime::BoundedVec;
 use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
 
 #[cfg(not(feature = "host-arkworks"))]

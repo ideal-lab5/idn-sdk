@@ -1,14 +1,13 @@
 use crate as pallet_drand_bridge;
 use crate::{verifier::QuicknetVerifier, *};
 use frame_support::{
-	derive_impl, parameter_types,
+	derive_impl,
 	traits::{ConstU16, ConstU64},
 };
 use sp_core::{sr25519::Signature, H256};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
-	testing::TestXt,
-	traits::{BlakeTwo256, IdentifyAccount, IdentityLookup, Verify},
+	traits::{BlakeTwo256, IdentityLookup, Verify},
 	BuildStorage,
 };
 

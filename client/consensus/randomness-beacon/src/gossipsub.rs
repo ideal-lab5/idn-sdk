@@ -61,6 +61,7 @@ pub enum Error {
 	GossipsubSubscriptionFailed,
 	StateLocked,
 	InvalidSwarmConfig,
+	PublishFailed,
 }
 
 /// A shared Gossipsub state between threads
@@ -164,14 +165,14 @@ impl GossipsubNetwork {
 	}
 
 	/// Publish a new message to a gossipsub topic
-	/// Currently unused
 	pub fn publish(
 		&mut self,
 		topic_str: &str,
 		data: Vec<u8>,
-	) -> Result<(), Box<dyn std::error::Error>> {
+	) -> Result<(), Error> {
 		let topic = IdentTopic::new(topic_str);
-		self.swarm.behaviour_mut().publish(topic, data)?;
+		self.swarm.behaviour_mut().publish(topic, data)
+			.map_err(|_| Error::PublishFailed)?;
 		Ok(())
 	}
 }

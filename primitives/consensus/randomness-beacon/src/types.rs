@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use alloc::vec::Vec;
+use alloc::{format, string::String, vec::Vec};
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
@@ -81,6 +81,7 @@ impl OpaquePulse {
 mod test {
 
 	use super::*;
+	use prost::Message;
 
 	pub const RAW: &[u8] = &[
 		8, 234, 187, 242, 6, 18, 48, 146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242,
