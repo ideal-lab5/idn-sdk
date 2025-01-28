@@ -48,19 +48,20 @@ impl GossipsubState {
 pub enum Error {
 	/// The provided gossipsub behaviour is invalid
 	InvalidGossipsubNetworkBehaviour,
-	/// The provided local key is invalid
-	InvalidLocalKey,
-	/// The message could not be decoded.
-	NondecodableMessage,
 	/// The peer could not be dialed.
-	PeerUnreachable {
-		who: Multiaddr,
-	},
+	PeerUnreachable { who: Multiaddr },
 	/// The swarm could not listen on the given port
 	SwarmListenFailure,
+	/// The swarm could not subscribe to the topic.
 	GossipsubSubscriptionFailed,
+	/// The Mutex is locked and can not be accessed.
 	StateLocked,
+	/// The swarm config is invalid.
 	InvalidSwarmConfig,
+	/// It failed to publish a message to the gossipsub topic.
+	PublishFailed,
+	/// The message could not be decoded
+	NondecodableMessage,
 }
 
 /// A shared Gossipsub state between threads
@@ -80,7 +81,7 @@ impl GossipsubNetwork {
 	/// * `local_key`: A local libp2p keypair
 	/// * `peers`: A list of peers to dial.
 	/// * `state`: A shared state
-	/// * `listen_addr`: An (optional) address to attempt to listen on. If None, then it attempts to
+	/// * `listen_addr`: An (optional) address to attempt to list en on. If None, then it attempts to
 	///   listen on a random port on localhost
 	pub fn new(
 		local_key: &Keypair,
@@ -126,7 +127,9 @@ impl GossipsubNetwork {
 	/// Create a subscription to a gossipsub topic.
 	/// It writes new messages to the SharedState whenever received.
 	///
-	/// * `topic_str`: The gossipsub topic to subscribe to
+	/// * `topic_str`: The gossipsub topic to subscribe to.
+	/// * `message_handler`: Something that handles incoming messages to the topic
+	///
 	pub async fn subscribe(&mut self, topic_str: &str) -> Result<(), Error> {
 		let topic = IdentTopic::new(topic_str);
 		self.swarm
@@ -164,14 +167,12 @@ impl GossipsubNetwork {
 	}
 
 	/// Publish a new message to a gossipsub topic
-	/// Currently unused
-	pub fn publish(
-		&mut self,
-		topic_str: &str,
-		data: Vec<u8>,
-	) -> Result<(), Box<dyn std::error::Error>> {
+	pub fn publish(&mut self, topic_str: &str, data: Vec<u8>) -> Result<(), Error> {
 		let topic = IdentTopic::new(topic_str);
-		self.swarm.behaviour_mut().publish(topic, data)?;
+		self.swarm
+			.behaviour_mut()
+			.publish(topic, data)
+			.map_err(|_| Error::PublishFailed)?;
 		Ok(())
 	}
 }
