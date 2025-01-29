@@ -529,7 +529,7 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_sudo, Sudo]
-		// [pallet_drand, Drand]
+		[pallet_drand, Drand]
 	);
 }
 

@@ -101,7 +101,7 @@ fn message(current_round: RoundNumber, prev_sig: &[u8]) -> Vec<u8> {
 }
 
 /// computes the point on G1 given a round number (for message construction)
-fn compute_round_on_g1(round: u64) -> Result<G1AffineOpt, String> {
+pub(crate) fn compute_round_on_g1(round: u64) -> Result<G1AffineOpt, String> {
 	let message = message(round, &[]);
 	let hasher = <TinyBLS381 as EngineBLS>::hash_to_curve_map();
 	// H(m) \in G1
@@ -116,7 +116,7 @@ fn compute_round_on_g1(round: u64) -> Result<G1AffineOpt, String> {
 }
 
 /// Computes the 0 point in the G1 group
-fn zero_on_g1() -> G1AffineOpt {
+pub (crate) fn zero_on_g1() -> G1AffineOpt {
 	G1AffineOpt::zero()
 }
 

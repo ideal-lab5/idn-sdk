@@ -2,51 +2,64 @@
 use super::*;
 
 #[allow(unused)]
-use crate::Pallet as Drand;
+use crate::{pallet as pallet_drand, Pallet as Drand};
 use frame_benchmarking::v2::*;
+use frame_support::BoundedVec;
 use frame_system::RawOrigin;
+use ark_ec::Group;
+use ark_std::{ops::Mul, UniformRand};
+use timelock::{
+	curves::drand::TinyBLS381,
+	tlock::EngineBLS,
+};
 
-pub const DRAND_RESPONSE: &str = "{\"round\":9683710,\"randomness\":\"87f03ef5f62885390defedf60d5b8132b4dc2115b1efc6e99d166a37ab2f3a02\",\"signature\":\"b0a8b04e009cf72534321aca0f50048da596a3feec1172a0244d9a4a623a3123d0402da79854d4c705e94bc73224c342\"}";
-pub const QUICKNET_INFO_RESPONSE: &str = "{\"public_key\":\"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a\",\"period\":3,\"genesis_time\":1692803367,\"hash\":\"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971\",\"groupHash\":\"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e\",\"schemeID\":\"bls-unchained-g1-rfc9380\",\"metadata\":{\"beaconID\":\"quicknet\"}}";
-
-#[benchmarks(
-	where
-		T::Public: From<sp_core::sr25519::Public>,
-)]
+#[benchmarks]
 mod benchmarks {
 	use super::*;
+	use ark_std::test_rng;
+	// use rand::rngs::OsRng;
 
 	#[benchmark]
 	fn set_beacon_config() {
-		let info: BeaconInfoResponse = serde_json::from_str(QUICKNET_INFO_RESPONSE).unwrap();
-		let config = info.try_into_beacon_config().unwrap();
-
-		let alice = sp_keyring::Sr25519Keyring::Alice.public();
-
-		let config_payload = BeaconConfigurationPayload {
-			block_number: 1u32.into(),
-			config: config.clone(),
-			public: alice.into(),
-		};
+		let config = drand_quicknet_config();
 
 		#[extrinsic_call]
-		set_beacon_config(RawOrigin::None, config_payload.clone(), None);
+		_(RawOrigin::Root, config.clone());
+
 		assert_eq!(BeaconConfig::<T>::get(), Some(config));
 	}
 
 	#[benchmark]
-	fn write_pulse() {
-		// TODO: bechmkark the longest `write_pulse` branch https://github.com/ideal-lab5/idn-sdk/issues/8
+	fn write_pulses() {
+		// we mock drand here
+		let sk = <TinyBLS381 as EngineBLS>::Scalar::rand(&mut test_rng());
+		let pk = <TinyBLS381 as EngineBLS>::PublicKeyGroup::generator().mul(sk);
+		let mut pk_bytes = Vec::new();
+		pk.serialize_compressed(&mut pk_bytes).unwrap();
 
-		let u_p: DrandResponseBody = serde_json::from_str(DRAND_RESPONSE).unwrap();
-		let p: Pulse = u_p.try_into_pulse().unwrap();
-		let block_number = 1u32.into();
-		let alice = sp_keyring::Sr25519Keyring::Alice.public();
-		let pulse_payload = PulsePayload { block_number, pulse: p.clone(), public: alice.into() };
+		let mut config = drand_quicknet_config();
+		config.public_key = BoundedVec::truncate_from(pk_bytes);
+
+		pallet_drand::BeaconConfig::<T>::set(Some(config));
+
+		let block_number: BlockNumberFor<T> = 1u32.into();
+		let start = 1;
+		let num_rounds = 10;
+		
+		let mut asig = crate::verifier::zero_on_g1();
+		for round in start..start + num_rounds {
+			let q_id = crate::verifier::compute_round_on_g1(round).unwrap();
+			asig = (asig + (q_id.mul(sk))).into();
+		}
+
+		let mut asig_bytes = Vec::new();
+		asig.serialize_compressed(&mut asig_bytes).unwrap();
+		let bounded_asig = BoundedVec::truncate_from(asig_bytes);
 
 		#[extrinsic_call]
-		write_pulse(RawOrigin::None, pulse_payload.clone(), None);
-		assert_eq!(Pulses::<T>::get(block_number), None);
+		_(RawOrigin::None, bounded_asig.clone(), start.clone(), num_rounds.clone());
+
+		assert_eq!(AggregatedSignatures::<T>::get(block_number), Some((bounded_asig, start, num_rounds)));
 	}
 
 	impl_benchmark_test_suite!(Drand, crate::mock::new_test_ext(), crate::mock::Test);
