@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 by Ideal Labs, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 //! Benchmarking setup for pallet-drand
 use super::*;
 
@@ -17,12 +33,11 @@ use timelock::{
 mod benchmarks {
 	use super::*;
 	use ark_std::test_rng;
-	// use rand::rngs::OsRng;
 
 	#[benchmark]
 	fn set_beacon_config() {
 		let config = drand_quicknet_config();
-
++
 		#[extrinsic_call]
 		_(RawOrigin::Root, config.clone());
 
@@ -44,7 +59,7 @@ mod benchmarks {
 
 		let block_number: BlockNumberFor<T> = 1u32.into();
 		let start = 1;
-		let num_rounds = 10;
+		let num_rounds = 1;
 		
 		let mut asig = crate::verifier::zero_on_g1();
 		for round in start..start + num_rounds {

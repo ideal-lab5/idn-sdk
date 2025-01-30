@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 by Ideal Labs, LLC
+ * Copyright 2025 by Ideal Labs, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,6 +80,7 @@ impl Verifier for QuicknetVerifier {
 
 		// construct the point on G1 for the rounds
 		let mut aggr_message_on_curve = zero_on_g1();
+		
 		for r in rounds {
 			let q = compute_round_on_g1(*r)?;
 			aggr_message_on_curve = (aggr_message_on_curve +  q).into()
