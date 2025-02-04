@@ -18,21 +18,27 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(test)]
+mod mock;
 pub mod traits;
 pub mod weights;
+
+#[cfg(test)]
+mod tests;
 
 use codec::{Decode, Encode, MaxEncodedLen};
 use traits::*;
 // use cumulus_primitives_core::ParaId;
 use frame_support::{
-	pallet_prelude::*,
+	pallet_prelude::{
+		ensure, Blake2_128Concat, DispatchError, DispatchResult, Hooks, IsType, OptionQuery,
+		StorageMap,
+	},
 	sp_runtime::traits::AccountIdConversion,
-	// storage::StorageMap,
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
 		Get,
 	},
-	weights::Weight,
 };
 use frame_system::{
 	ensure_signed,
@@ -41,11 +47,14 @@ use frame_system::{
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
-use xcm::{latest::prelude::*, opaque::v4::Location, VersionedLocation, VersionedXcm};
+use xcm::{
+	v5::{prelude::*, Location},
+	VersionedLocation, VersionedXcm,
+};
 use xcm_builder::SendController;
 
 pub use pallet::*;
-pub use weights::*;
+pub use weights::WeightInfo;
 
 pub type BalanceOf<T> =
 	<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
@@ -121,8 +130,8 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxSubscriptionDuration: Get<BlockNumberFor<Self>>;
 
-		/// Fee calculator implementation
-		type FeeCalculator: FeeCalculator<BalanceOf<Self>, BlockNumberFor<Self>>;
+		/// Fees calculator implementation
+		type FeesCalculator: FeesCalculator<BalanceOf<Self>, BlockNumberFor<Self>>;
 
 		/// The type for the randomness
 		type Rnd;
@@ -191,7 +200,7 @@ pub mod pallet {
 	pub enum HoldReason {
 		/// The IDN Manager Pallet holds balance for future charges.
 		#[codec(index = 0)]
-		Fee,
+		Fees,
 	}
 
 	#[pallet::hooks]
@@ -241,11 +250,11 @@ pub mod pallet {
 			frequency: BlockNumberFor<T>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
-			// Calculate and hold the subscription fee
-			let fee = T::FeeCalculator::calculate_subscription_fee(duration);
+			// Calculate and hold the subscription fees
+			let fees = T::FeesCalculator::calculate_subscription_fees(duration);
 			// TODO how to allow for fees preview?
 			Self::create_subscription_internal(
-				subscriber, para_id, duration, target, fee, frequency,
+				subscriber, para_id, duration, target, fees, frequency,
 			)
 		}
 	}
@@ -273,7 +282,7 @@ impl<T: Config> Pallet<T> {
 				let versioned_target: Box<VersionedLocation> =
 					Box::new(sub.details.target.clone().into());
 				let versioned_msg: Box<VersionedXcm<()>> =
-					Box::new(xcm::VersionedXcm::V4(msg.into()));
+					Box::new(xcm::VersionedXcm::V5(msg.into()));
 				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
 				let _ = T::Xcm::send(origin.into(), versioned_target, versioned_msg);
 				// writes += 1;
@@ -299,7 +308,7 @@ impl<T: Config> Pallet<T> {
 		para_id: ParaId,
 		duration: BlockNumberFor<T>,
 		target: Location,
-		fee: BalanceOf<T>,
+		fees: BalanceOf<T>,
 		frequency: BlockNumberFor<T>,
 	) -> DispatchResult {
 		ensure!(
@@ -307,7 +316,7 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::InvalidSubscriptionDuration
 		);
 
-		T::Currency::hold(&HoldReason::Fee.into(), &subscriber, fee)
+		T::Currency::hold(&HoldReason::Fees.into(), &subscriber, fees)
 			.map_err(|_| Error::<T>::InsufficientBalance)?;
 
 		let current_block = frame_system::Pallet::<T>::block_number();
@@ -345,7 +354,7 @@ impl<T: Config> Pallet<T> {
 			BuyExecution { fees: (Here, 0u128).into(), weight_limit: Unlimited },
 			Transact {
 				origin_kind: OriginKind::Native,
-				require_weight_at_most: Weight::from_parts(1_000_000, 0),
+				fallback_max_weight: None,
 				call: Call::DistributeRnd.encode().into(), // TODO
 			},
 			RefundSurplus,

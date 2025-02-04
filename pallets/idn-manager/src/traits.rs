@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-/// Trait for fee calculation implementations
-pub trait FeeCalculator<Fee, Duration> {
-	fn calculate_subscription_fee(duration: Duration) -> Fee;
+/// Trait for fees calculation implementations
+pub trait FeesCalculator<Fees, Duration> {
+	fn calculate_subscription_fees(duration: Duration) -> Fees;
 }

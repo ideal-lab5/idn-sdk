@@ -14,23 +14,61 @@
  * limitations under the License.
  */
 
-/// Calculate the subscription fee for a given duration, applying duration-based discounts
-fn calculate_subscription_fee(duration: BlockNumberFor<T>) -> BalanceOf<T> {
-	let base_fee = T::BaseSubscriptionFeePerBlock::get();
-	let duration_num: u32 = duration.saturated_into();
+use crate as pallet_idn_manager;
+use frame_support::{construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage};
+use frame_system as system;
 
-	// Calculate discount percentage (in basis points)
-	// The longer the duration, the higher the discount
-	let discount = duration_num.saturating_mul(T::DiscountRatePerBlock::get());
+type Block = frame_system::mocking::MockBlock<Test>;
+type BlockNumber = frame_system::pallet_prelude::BlockNumberFor<Test>;
 
-	// Convert basis points to a multiplier (10000 basis points = 100%)
-	let discount_multiplier = (10000u32.saturating_sub(discount)) as u128;
+construct_runtime!(
+	pub enum Test
+	{
+		System: frame_system,
+		IdnManager: pallet_idn_manager,
+		Balances: pallet_balances,
+	}
+);
 
-	// Apply discount to base fee
-	let discounted_fee_per_block = base_fee
-		.saturating_mul(discount_multiplier.into())
-		.saturating_div(10000u32.into());
+#[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
+impl frame_system::Config for Test {
+	type Block = Block;
+	type AccountData = pallet_balances::AccountData<u64>;
+}
 
-	// Calculate total fee for the duration
-	discounted_fee_per_block.saturating_mul(duration.saturated_into())
+#[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
+impl pallet_balances::Config for Test {
+	type AccountStore = System;
+}
+
+parameter_types! {
+	pub const MaxSubscriptionDuration: u64 = 100;
+	// pub const BaseSubscriptionFeePerBlock: u64 = 10;
+	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
+}
+
+impl pallet_idn_manager::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type MaxSubscriptionDuration = MaxSubscriptionDuration;
+	type FeesCalculator = FeesCalculatorImpl;
+	type PalletId = PalletId;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type Rnd = ();
+	type WeightInfo = ();
+	type Xcm = ();
+}
+
+pub struct FeesCalculatorImpl;
+
+impl pallet_idn_manager::FeesCalculator<u64, BlockNumber> for FeesCalculatorImpl {
+	fn calculate_subscription_fees(duration: BlockNumber) -> u64 {
+		let base_fee = 10u64;
+		base_fee.saturating_mul(duration.into())
+	}
+}
+
+pub fn new_test_ext() -> sp_io::TestExternalities {
+	let t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
+	t.into()
 }
