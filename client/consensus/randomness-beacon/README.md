@@ -15,5 +15,5 @@ To run integration tests, use the `e2e` feature: `cargo test --features "e2e"`
 
 ## License
 
-MIT-0
+Apache-2.0
 

@@ -1,6 +1,6 @@
 [package]
 name = "drand-example-runtime"
-description = "An example runtime implementing the Drand pallet."
+description = "An example runtime supporting the trustless Drand bridge."
 license = "Apache-2.0"
 authors.workspace = true
 homepage.workspace = true

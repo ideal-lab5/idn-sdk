@@ -106,9 +106,7 @@ fn testnet_genesis(
 		"grandpa": {
 			"authorities": initial_authorities.iter().map(|x| (x.1.clone(), 1)).collect::<Vec<_>>(),
 		},
-		"sudo": {
-			// Assign network admin rights.
-			"key": Some(root_key),
+		"sudo": {p
 		},
 	})
 }
