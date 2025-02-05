@@ -180,26 +180,19 @@ impl GossipsubNetwork {
 					message,
 				})) => {
 					// ignore non-decodable messages
-					if let Ok(res) = Pulse::decode(&*message.data) {
-						// the state could be locked here: https://github.com/ideal-lab5/idn-sdk/issues/59
+					if let Ok(pulse) = Pulse::decode(&*message.data) {
+						// The state could be locked here: https://github.com/ideal-lab5/idn-sdk/issues/59
 						if let Ok(mut state) = self.state.lock() {
-							// the only case this fails: the pulse round number is valid, but the signature is too long
-							// this will be captured in: https://github.com/ideal-lab5/idn-sdk/issues/60
-							match state.add_pulse(res.clone()) {
-								Ok(_) => {
-									log::info!(
-										"Received pulse for round {:?} with message id: {} from peer: {:?}",
-										res.round,
-										message_id,
-										propagation_source
-									);
-								},
-								Err(_) => {
-									log::error!("Received pulse for round {:?}, but the signature was too long.", res.round);
-								},
-							}
+							state.add_pulse(pulse.clone())?;
+							log::info!(
+								"Received pulse for round {:?} with message id: {} from peer: {:?}",
+								pulse.round,
+								message_id,
+								propagation_source
+							);
 						}
 					}
+					// handle non-decodable messages: https://github.com/ideal-lab5/idn-sdk/issues/60
 				},
 				_ => {
 					// ignore all other events
@@ -209,6 +202,51 @@ impl GossipsubNetwork {
 	}
 }
 
+#[cfg(feature = "e2e")]
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::sync::{Arc, Mutex};
+	use tokio::time::{sleep, Duration};
+
+	fn build_node() -> (GossipsubNetwork, SharedState) {
+		let local_identity: Keypair = Keypair::generate_ed25519();
+		let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
+		let gossipsub_config = GossipsubConfig::default();
+		(GossipsubNetwork::new(&local_identity, state.clone(), gossipsub_config).unwrap(), state)
+	}
+
+	#[tokio::test]
+	async fn can_subscribe_to_topic_and_deserialize_pulses_when_peers_connected() {
+		let topic_str: &str =
+			"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
+
+		let maddr1: libp2p::Multiaddr =
+			"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
+				.parse()
+				.expect("The string is a well-formatted multiaddress. qed.");
+
+		let maddr2: libp2p::Multiaddr =
+        "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
+            .parse()
+            .expect("The string is a well-formatted multiaddress. qed.");
+
+		let (mut gossipsub, state) = build_node();
+		tokio::spawn(async move {
+			if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
+				log::error!("Failed to run gossipsub network: {:?}", e);
+			}
+		});
+
+		// Sleep for 6 secs
+		sleep(Duration::from_millis(6000)).await;
+		let data_lock = state.lock().unwrap();
+		let pulses = &data_lock.pulses;
+		assert!(pulses.len() >= 1);
+	}
+}
+
+#[cfg(not(feature = "e2e"))]
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -278,40 +316,7 @@ mod tests {
 
 		let res = gossipsub.run("test", vec![], Some(&fake_listen_addr)).await;
 		assert!(res.is_err());
-		assert!(
-			matches!(res, Err(Error::SwarmListenFailure)),
-			"Expected SwarmListenFailure error"
-		);
-	}
-
-	#[tokio::test]
-	async fn can_subscribe_to_topic_and_deserialize_pulses_when_peers_connected() {
-		let topic_str: &str =
-			"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
-
-		let maddr1: libp2p::Multiaddr =
-			"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
-				.parse()
-				.expect("The string is a well-formatted multiaddress. qed.");
-
-		let maddr2: libp2p::Multiaddr =
-        "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
-            .parse()
-            .expect("The string is a well-formatted multiaddress. qed.");
-
-		let (mut gossipsub, state) = build_node();
-		tokio::spawn(async move {
-			if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
-				log::error!("Failed to run gossipsub network: {:?}", e);
-			}
-		});
-
-		// Sleep for 6 secs
-		sleep(Duration::from_millis(6000)).await;
-
-		let data_lock = state.lock().unwrap();
-		let pulses = &data_lock.pulses;
-		assert!(pulses.len() >= 1);
+		assert!(matches!(res, Err(Error::SwarmListenFailure)), "Expected SwarmListenFailure error");
 	}
 
 	#[tokio::test]
@@ -330,7 +335,7 @@ mod tests {
             .expect("The string is a well-formatted multiaddress. qed.");
 
 		let (mut gossipsub, state) = build_node();
-		// lock the state
+		// prematurely lock the state
 		let data_lock = state.lock().unwrap();
 
 		tokio::spawn(async move {
