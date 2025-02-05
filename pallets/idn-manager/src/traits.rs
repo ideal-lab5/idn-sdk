@@ -17,6 +17,9 @@
 //! # Traits
 
 /// Trait for fees calculation implementations
-pub trait FeesCalculator<Fees, Duration> {
-	fn calculate_subscription_fees(duration: Duration) -> Fees;
+///
+/// This trait is used to calculate the fees for a subscription based on the amount of random values
+/// required by the subscription.
+pub trait FeesCalculator<Fees, Amount> {
+	fn calculate_subscription_fees(amount: Amount) -> Fees;
 }

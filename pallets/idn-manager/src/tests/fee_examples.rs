@@ -25,9 +25,9 @@ use frame_support::sp_runtime::traits::Saturating;
 pub struct LinearFeeCalculator;
 
 impl FeesCalculator<u32, u32> for LinearFeeCalculator {
-	fn calculate_subscription_fees(duration: u32) -> u32 {
+	fn calculate_subscription_fees(amount: u32) -> u32 {
 		let base_fee = 100u32;
-		base_fee.saturating_mul(duration.into())
+		base_fee.saturating_mul(amount.into())
 	}
 }
 
@@ -35,9 +35,9 @@ impl FeesCalculator<u32, u32> for LinearFeeCalculator {
 pub struct TieredFeeCalculator;
 
 impl FeesCalculator<u32, u32> for TieredFeeCalculator {
-	fn calculate_subscription_fees(duration: u32) -> u32 {
+	fn calculate_subscription_fees(amount: u32) -> u32 {
 		let base_fee = 100;
-		let discount = match duration {
+		let discount = match amount {
 			0..=10 => 0,
 			11..=100 => 500,
 			101..=1_000 => 1_000,
@@ -49,7 +49,7 @@ impl FeesCalculator<u32, u32> for TieredFeeCalculator {
 			.saturating_mul((10_000.saturating_sub(discount)) as u128)
 			.saturating_div(10_000);
 
-		discounted_fee.saturating_mul(duration.into()).try_into().unwrap()
+		discounted_fee.saturating_mul(amount.into()).try_into().unwrap()
 	}
 }
 

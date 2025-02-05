@@ -24,10 +24,12 @@ mod tests;
 pub mod traits;
 pub mod weights;
 
+use core::f64::consts::E;
+
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
-		ensure, Blake2_128Concat, DispatchError, DispatchResult, Hooks, IsType, OptionQuery,
+		ensure, Blake2_128Concat, CheckedDiv, DispatchResult, Hooks, IsType, OptionQuery,
 		StorageMap,
 	},
 	sp_runtime::traits::AccountIdConversion,
@@ -59,6 +61,7 @@ pub type BalanceOf<T> =
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber> {
 	details: SubscriptionDetails<AccountId, BlockNumber>,
+	credits_left: BlockNumber,
 	status: SubscriptionStatus,
 }
 
@@ -183,6 +186,8 @@ pub mod pallet {
 		ActiveSubscriptionExists,
 		/// The subscription duration is invalid
 		InvalidSubscriptionDuration,
+		/// The subscription frequency is invalid
+		InvalidSubscriptionFrequency,
 		/// The parachain ID is invalid
 		InvalidParaId,
 		/// Insufficient balance for subscription
@@ -246,12 +251,8 @@ pub mod pallet {
 			frequency: BlockNumberFor<T>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
-			// Calculate and hold the subscription fees
-			let fees = T::FeesCalculator::calculate_subscription_fees(duration);
 			// TODO how to allow for fees preview?
-			Self::create_subscription_internal(
-				subscriber, para_id, duration, target, fees, frequency,
-			)
+			Self::create_subscription_internal(subscriber, para_id, duration, target, frequency)
 		}
 	}
 }
@@ -283,6 +284,8 @@ impl<T: Config> Pallet<T> {
 				let _ = T::Xcm::send(origin.into(), versioned_target, versioned_msg);
 				// writes += 1;
 
+				// TODO: decrease credits left !!!!
+
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			}
 		}
@@ -304,13 +307,19 @@ impl<T: Config> Pallet<T> {
 		para_id: ParaId,
 		duration: BlockNumberFor<T>,
 		target: Location,
-		fees: BalanceOf<T>,
 		frequency: BlockNumberFor<T>,
 	) -> DispatchResult {
 		ensure!(
 			duration <= T::MaxSubscriptionDuration::get(),
 			Error::<T>::InvalidSubscriptionDuration
 		);
+
+		let amount = duration
+			.checked_div(&frequency)
+			.ok_or(Error::<T>::InvalidSubscriptionDuration)?;
+
+		// Calculate and hold the subscription fees
+		let fees = T::FeesCalculator::calculate_subscription_fees(amount);
 
 		T::Currency::hold(&HoldReason::Fees.into(), &subscriber, fees)
 			.map_err(|_| Error::<T>::InsufficientBalance)?;
@@ -325,7 +334,8 @@ impl<T: Config> Pallet<T> {
 			frequency,
 			filter: None, // TODO define this
 		};
-		let subscription = Subscription { status: SubscriptionStatus::Active, details };
+		let subscription =
+			Subscription { status: SubscriptionStatus::Active, credits_left: amount, details };
 		let sub_id = subscription.id();
 
 		ensure!(!Self::has_active_subscription(&sub_id), Error::<T>::ActiveSubscriptionExists);

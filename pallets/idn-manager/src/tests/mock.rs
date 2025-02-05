@@ -66,9 +66,9 @@ impl pallet_idn_manager::Config for Test {
 pub struct FeesCalculatorImpl;
 
 impl pallet_idn_manager::FeesCalculator<u64, BlockNumber> for FeesCalculatorImpl {
-	fn calculate_subscription_fees(duration: BlockNumber) -> u64 {
+	fn calculate_subscription_fees(amount: BlockNumber) -> u64 {
 		let base_fee = 10u64;
-		base_fee.saturating_mul(duration.into())
+		base_fee.saturating_mul(amount.into())
 	}
 }
 
