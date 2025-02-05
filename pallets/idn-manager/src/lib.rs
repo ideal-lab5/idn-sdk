@@ -19,16 +19,12 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
-mod mock;
+mod tests;
+
 pub mod traits;
 pub mod weights;
 
-#[cfg(test)]
-mod tests;
-
 use codec::{Decode, Encode, MaxEncodedLen};
-use traits::*;
-// use cumulus_primitives_core::ParaId;
 use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, DispatchError, DispatchResult, Hooks, IsType, OptionQuery,
@@ -47,6 +43,7 @@ use frame_system::{
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
+use traits::*;
 use xcm::{
 	v5::{prelude::*, Location},
 	VersionedLocation, VersionedXcm,
@@ -117,7 +114,6 @@ pub mod pallet {
 
 		/// The currency type for handling subscription payments
 		type Currency: Inspect<<Self as frame_system::pallet::Config>::AccountId>
-			// + Mutate<<Self as frame_system::pallet::Config>::AccountId>
 			+ HoldMutate<
 				<Self as frame_system::pallet::Config>::AccountId,
 				Reason = Self::RuntimeHoldReason,
@@ -266,7 +262,7 @@ impl<T: Config> Pallet<T> {
 	}
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
-	fn distribute(rnd: T::Rnd) -> Result<(), DispatchError> {
+	fn distribute(rnd: T::Rnd) -> DispatchResult {
 		// let mut reads = 0u64;
 		// let mut writes = 0u64;
 
@@ -363,8 +359,8 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-impl<T: Config> idn_traits::rand::Consumer<T::Rnd, Result<(), DispatchError>> for Pallet<T> {
-	fn consume(rnd: T::Rnd) -> Result<(), DispatchError> {
+impl<T: Config> idn_traits::rand::Consumer<T::Rnd, DispatchResult> for Pallet<T> {
+	fn consume(rnd: T::Rnd) -> DispatchResult {
 		// look for active subscriptions
 		// deliver rand to them
 		Pallet::<T>::distribute(rnd)

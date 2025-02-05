@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+//! # Mock runtime
+//!
+//! This file is a mock runtime for the pallet. It is used to test the pallet in a test environment.
+//! It does not contain any tests.
+
 use crate as pallet_idn_manager;
 use frame_support::{construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage};
 use frame_system as system;
@@ -43,7 +48,6 @@ impl pallet_balances::Config for Test {
 
 parameter_types! {
 	pub const MaxSubscriptionDuration: u64 = 100;
-	// pub const BaseSubscriptionFeePerBlock: u64 = 10;
 	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
 }
 
@@ -54,7 +58,7 @@ impl pallet_idn_manager::Config for Test {
 	type FeesCalculator = FeesCalculatorImpl;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Rnd = ();
+	type Rnd = [u8; 32];
 	type WeightInfo = ();
 	type Xcm = ();
 }
