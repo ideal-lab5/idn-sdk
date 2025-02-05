@@ -13,6 +13,7 @@ use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::sync::Mutex;
 use std::{sync::Arc, time::Duration};
+use libp2p::gossipsub::Config as GossipsubConfig;
 
 /// Host runctions required for Substrate and Arkworks
 #[cfg(not(feature = "runtime-benchmarks"))]
@@ -239,9 +240,8 @@ pub fn new_full<
 		})
 	};
 
-	// TODO: add feature gate?
 	// configure gossipsub for the libp2p network
-	let shared_state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
+	let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
 	let local_identity: sc_network_types::ed25519::Keypair =
 		config.network.node_key.clone().into_keypair()?;
 	let local_identity: libp2p::identity::ed25519::Keypair = local_identity.into();
@@ -256,21 +256,21 @@ pub fn new_full<
 			.parse()
 			.expect("The string is a well-formatted multiaddress. qed.");
 
-	let mut gossipsub =
-		GossipsubNetwork::new(&local_identity, vec![&maddr1, &maddr2], shared_state.clone(), None)
-			.unwrap();
-
-	// Spawn the gossipsub network task
-	task_manager.spawn_handle().spawn(
-		"gossipsub-network",
-		None,
-		async move {
-			if let Err(e) = gossipsub.subscribe(DRAND_QUICKNET_PUBSUB_TOPIC).await {
-				log::error!("Failed to run gossipsub network: {:?}", e);
+	if let Ok(mut gossipsub) = GossipsubNetwork::new(&local_identity, state, GossipsubConfig::default()) {
+		// Spawn the gossipsub network task
+		task_manager.spawn_handle().spawn(
+			"gossipsub-network",
+			None,
+			async move {
+				if let Err(e) =
+					gossipsub.run(DRAND_QUICKNET_PUBSUB_TOPIC, vec![&maddr1, &maddr2], None).await
+				{
+					log::error!("Failed to run gossipsub network: {:?}", e);
+				}
 			}
-		}
-		.boxed(),
-	);
+			.boxed(),
+		);
+	}
 	// END GOSSIPSUB CONFIG
 
 	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {

@@ -657,11 +657,11 @@ impl_runtime_apis! {
 	}
 }
 
-// /// Some re-exports that the node side code needs to know. Some are useful in this context as well.
-// ///
-// /// Other types should preferably be private.
-// // TODO: this should be standardized in some way, see:
-// // https://github.com/paritytech/substrate/issues/10579#issuecomment-1600537558
+/// Some re-exports that the node side code needs to know. Some are useful in this context as well.
+///
+/// Other types should preferably be private.
+// TODO: this should be standardized in some way, see:
+// https://github.com/paritytech/substrate/issues/10579#issuecomment-1600537558
 pub mod interface {
 	use super::Runtime;
 	use frame::deps::frame_system;
@@ -674,38 +674,3 @@ pub mod interface {
 	pub type Balance = <Runtime as pallet_balances::Config>::Balance;
 	pub type MinimumBalance = <Runtime as pallet_balances::Config>::ExistentialDeposit;
 }
-
-// #[derive(Default)]
-// pub struct DrandExtension;
-
-// impl ChainExtension<Runtime> for DrandExtension {
-// 	fn call<E: Ext>(&mut self, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
-// 	where
-// 		<E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
-// 	{
-// 		let func_id = env.func_id();
-// 		log::trace!(
-// 			target: "runtime",
-// 			"[ChainExtension]|call|func_id:{:}",
-// 			func_id
-// 		);
-// 		match func_id {
-// 			1101 => {
-// 				let mut env = env.buf_in_buf_out();
-// 				let rand = Drand::random(&[]);
-// 				env.write(&rand.encode(), false, None)
-// 					.map_err(|_| DispatchError::Other("Failed to write output randomness"))?;
-
-// 				Ok(RetVal::Converging(0))
-// 			},
-// 			_ => {
-// 				log::error!("Called an unregistered `func_id`: {:}", func_id);
-// 				Err(DispatchError::Other("Unimplemented func_id"))
-// 			},
-// 		}
-// 	}
-
-// 	fn enabled() -> bool {
-// 		true
-// 	}
-// }

@@ -5,15 +5,24 @@ authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
 repository.workspace = true
-description = "Randomness-Beacon Listener consensus client"
+description = "Randomness-Beacon consensus client"
 homepage = "https://idealabs.network"
 
 [lints]
 workspace = true
 
 [dependencies]
-# libp2p (uses same version as substrate)
-libp2p = { version = "0.55.0", features = ["gossipsub", "noise", "tcp", "ping", "dns", "async-std", "tokio", "websocket", "yamux"] }
+libp2p = { version = "0.55.0", features = [
+    "gossipsub",
+    "noise",
+    "tcp",
+    "ping",
+    "dns",
+    "async-std",
+    "tokio",
+    "websocket",
+    "yamux",
+] }
 prost = "0.13.4"
 prost-types = "0.13.4"
 sp-consensus-randomness-beacon = { path = "../../../primitives/consensus/randomness-beacon" }
@@ -25,5 +34,3 @@ async-std = "1.13.0"
 futures-timer = "3.0.3"
 rand = "0.8.5"
 tokio = { version = "1.43.0", features = ["full"] }
-quickcheck = "1.0.3"
-mockall = "0.13.1"

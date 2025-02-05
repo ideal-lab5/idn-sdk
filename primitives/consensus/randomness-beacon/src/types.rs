@@ -38,24 +38,32 @@ pub struct Pulse {
 	pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 
+/// An `OpaquePulse` represents a pulse from a beacon using primitive types
+/// This struct is used to encode pulses in the runtime, where we obtain an OpaquePulse by converting a Pulse
 #[derive(Clone, Debug, PartialEq, codec::MaxEncodedLen, scale_info::TypeInfo, Encode, Decode)]
 pub struct OpaquePulse {
-	// The round of the beacon protocol
+	/// The round of the beacon protocol
 	pub round: u64,
-	// A compressed BLS signature
+	/// A compressed BLS signature
 	pub signature: [u8; 48],
 }
 
-impl Pulse {
-	pub fn into_opaque(&self) -> OpaquePulse {
-		OpaquePulse {
-			round: self.round,
-			signature: self.signature.clone().try_into().unwrap(), // TODO: handle error
-		}
+impl TryInto<OpaquePulse> for Pulse {
+	type Error = String;
+	/// Converts a Pulse into an OpaquePulse
+	fn try_into(self) -> Result<OpaquePulse, Self::Error> {
+		let signature: [u8; 48] = self
+			.signature
+			.clone()
+			.try_into()
+			.map_err(|e| format!("The signature must be 48 bytes: {:?}", e))?;
+
+		Ok(OpaquePulse { round: self.round, signature })
 	}
 }
 
 impl OpaquePulse {
+	/// Serialize the opaque pulse as a vector
 	pub fn serialize_to_vec(&self) -> Vec<u8> {
 		let mut vec = Vec::new();
 		vec.extend_from_slice(&self.round.to_le_bytes());
@@ -63,6 +71,7 @@ impl OpaquePulse {
 		vec
 	}
 
+	/// Deserialize from a slice
 	pub fn deserialize_from_vec(data: &[u8]) -> Self {
 		let round = u64::from_le_bytes(data[0..8].try_into().unwrap());
 
@@ -70,6 +79,7 @@ impl OpaquePulse {
 		OpaquePulse { round, signature }
 	}
 
+	/// Compute the signature as a group element
 	pub fn signature_point(&self) -> Result<G1AffineOpt, String> {
 		G1AffineOpt::deserialize_compressed(&mut self.signature.as_slice()).map_err(|e| {
 			format!("Failed to deserialize the signature bytes to a point on the G1 curve: {:?}", e)
@@ -112,7 +122,7 @@ mod test {
 		let expected_opaque =
 			OpaquePulse { round: 14458346, signature: DECODED.try_into().unwrap() };
 
-		let actual_opaque = pulse.into_opaque();
+		let actual_opaque = pulse.try_into().unwrap();
 		assert_eq!(expected_opaque, actual_opaque);
 	}
 
