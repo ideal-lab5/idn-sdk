@@ -1,6 +1,6 @@
 [package]
 name = "drand-example-node"
-description = "An example node implementing the Drand pallet."
+description = "A test-bed and demonstration node for the trustless Drand bridge"
 version = "0.0.0"
 license = "Apache-2.0"
 authors.workspace = true
