@@ -38,24 +38,32 @@ pub struct Pulse {
 	pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 
+/// An `OpaquePulse` represents a pulse from a beacon using primitive types
+/// This struct is used to encode pulses in the runtime, where we obtain an OpaquePulse by converting a Pulse
 #[derive(Clone, Debug, PartialEq, codec::MaxEncodedLen, scale_info::TypeInfo, Encode, Decode)]
 pub struct OpaquePulse {
-	// The round of the beacon protocol
+	/// The round of the beacon protocol
 	pub round: u64,
-	// A compressed BLS signature
+	/// A compressed BLS signature
 	pub signature: [u8; 48],
 }
 
-impl Pulse {
-	pub fn into_opaque(&self) -> OpaquePulse {
-		OpaquePulse {
-			round: self.round,
-			signature: self.signature.clone().try_into().unwrap(), // TODO: handle error
-		}
+impl TryInto<OpaquePulse> for Pulse {
+	type Error = String;
+	/// Converts a Pulse into an OpaquePulse
+	fn try_into(self) -> Result<OpaquePulse, Self::Error> {
+		let signature: [u8; 48] = self
+			.signature
+			.clone()
+			.try_into()
+			.map_err(|e| format!("The signature must be 48 bytes: {:?}", e))?;
+
+		Ok(OpaquePulse { round: self.round, signature })
 	}
 }
 
 impl OpaquePulse {
+	/// Serialize the opaque pulse as a vector
 	pub fn serialize_to_vec(&self) -> Vec<u8> {
 		let mut vec = Vec::new();
 		vec.extend_from_slice(&self.round.to_le_bytes());
@@ -63,13 +71,28 @@ impl OpaquePulse {
 		vec
 	}
 
-	pub fn deserialize_from_vec(data: &[u8]) -> Self {
-		let round = u64::from_le_bytes(data[0..8].try_into().unwrap());
+	/// Deserialize from a slice
+	///
+	/// * `data`: The data to attempt to deserialize
+	///
+	pub fn deserialize_from_vec(data: &[u8]) -> Result<Self, String> {
+		if data.len() != 56 {
+			return Err(format!(
+				"Invalid buffer size, expected 56 bytes but received {}",
+				data.len()
+			));
+		}
 
-		let signature: [u8; 48] = data[8..56].try_into().unwrap();
-		OpaquePulse { round, signature }
+		let bytes = data[0..8].try_into().map_err(|_| "Failed to parse round".to_string())?;
+		let round = u64::from_le_bytes(bytes);
+
+		let signature: [u8; 48] =
+			data[8..56].try_into().map_err(|_| "Failed to parse signature".to_string())?;
+
+		Ok(OpaquePulse { round, signature })
 	}
 
+	/// Compute the signature as a group element
 	pub fn signature_point(&self) -> Result<G1AffineOpt, String> {
 		G1AffineOpt::deserialize_compressed(&mut self.signature.as_slice()).map_err(|e| {
 			format!("Failed to deserialize the signature bytes to a point on the G1 curve: {:?}", e)
@@ -78,52 +101,95 @@ impl OpaquePulse {
 }
 
 #[cfg(test)]
-mod test {
-
+mod tests {
 	use super::*;
-	use prost::Message;
 
-	pub const RAW: &[u8] = &[
-		8, 234, 187, 242, 6, 18, 48, 146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242,
+	fn valid_pulse() -> Pulse {
+		Pulse { round: 14475418, signature: VALID_SIG.to_vec() }
+	}
+
+	fn invalid_pulse() -> Pulse {
+		Pulse {
+			round: 14475418,
+			signature: vec![
+				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
+				95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49,
+				223, 95, 22, 186, 113, 163, 202, 195, 230,
+			],
+		}
+	}
+
+	pub const SERIALIZED_VALID: &[u8] = &[
+		154, 224, 220, 0, 0, 0, 0, 0, 146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242,
 		43, 61, 28, 75, 93, 37, 95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104,
-		76, 235, 84, 49, 223, 95, 22, 186, 113, 163, 202, 195, 230, 117, 34, 32, 154, 188, 168, 7,
-		253, 66, 136, 87, 11, 43, 47, 168, 209, 75, 145, 187, 71, 34, 9, 58, 84, 139, 84, 133, 77,
-		196, 10, 137, 142, 45, 57, 89,
+		76, 235, 84, 49, 223, 95, 22, 186, 113, 163, 202, 195, 230, 117,
 	];
 
-	pub const DECODED: &[u8] = &[
-		146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37, 95,
-		131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49, 223, 95,
-		22, 186, 113, 163, 202, 195, 230, 117,
+
+	pub const VALID_SIG: &[u8] = &[
+		146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242,
+		43, 61, 28, 75, 93, 37, 95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104,
+		76, 235, 84, 49, 223, 95, 22, 186, 113, 163, 202, 195, 230, 117,
 	];
 
 	#[test]
-	pub fn test_can_decode_from_protobuf() {
-		// the raw protobuf
-		let res = crate::types::Pulse::decode(RAW);
-		assert!(res.is_ok());
-		let res = res.unwrap();
-		assert_eq!(res.round, 14458346);
-		assert_eq!(res.signature, DECODED);
+	fn test_pulse_to_opaque_pulse_conversion() {
+		let valid_pulse = valid_pulse();
+		let result: Result<OpaquePulse, _> = valid_pulse.clone().try_into();
+		assert!(result.is_ok(), "Valid pulse should convert to OpaquePulse");
+		let opaque_pulse = result.unwrap();
+		assert_eq!(opaque_pulse.round, valid_pulse.round);
+		assert_eq!(opaque_pulse.signature, valid_pulse.signature[..]);
 	}
 
 	#[test]
-	pub fn test_can_convert_into_opaque() {
-		let pulse = crate::types::Pulse::decode(RAW).unwrap();
-		let expected_opaque =
-			OpaquePulse { round: 14458346, signature: DECODED.try_into().unwrap() };
-
-		let actual_opaque = pulse.into_opaque();
-		assert_eq!(expected_opaque, actual_opaque);
+	fn test_pulse_with_invalid_signature_fails() {
+		let result: Result<OpaquePulse, _> = invalid_pulse().try_into();
+		assert!(result.is_err(), "Pulse with invalid signature should not convert");
 	}
 
 	#[test]
-	pub fn test_can_encode_decode() {
-		let pulse = crate::types::Pulse::decode(RAW).unwrap();
-		let original = pulse.into_opaque();
-		let bytes = original.serialize_to_vec();
-		let recovered = OpaquePulse::deserialize_from_vec(&bytes);
+	fn test_serialize_to_vec() {
+		let valid_pulse = valid_pulse();
+		let opaque_pulse: OpaquePulse = valid_pulse.clone().try_into().unwrap();
+		let serialized = opaque_pulse.serialize_to_vec();
+		assert_eq!(serialized, SERIALIZED_VALID, "Serialization should match expected byte output");
+	}
 
-		assert_eq!(original, recovered);
+	#[test]
+	fn test_deserialize_from_valid_vec() {
+		let valid_pulse = valid_pulse();
+		let result = OpaquePulse::deserialize_from_vec(SERIALIZED_VALID);
+		assert!(result.is_ok(), "Deserialization should succeed for valid input");
+		let opaque_pulse = result.unwrap();
+		assert_eq!(opaque_pulse.round, valid_pulse.round);
+		assert_eq!(opaque_pulse.signature, valid_pulse.signature[..]);
+	}
+
+	#[test]
+	fn test_deserialize_from_invalid_length() {
+		let invalid_data = &[0; 50]; // Less than 56 bytes
+		let result = OpaquePulse::deserialize_from_vec(invalid_data);
+		assert!(result.is_err(), "Deserialization should fail for short input");
+	}
+
+	#[test]
+	fn test_deserialize_from_excess_length() {
+		let invalid_data = &[0; 60]; // More than 56 bytes
+		let result = OpaquePulse::deserialize_from_vec(invalid_data);
+		assert!(result.is_err(), "Deserialization should fail for long input");
+	}
+
+	#[test]
+	fn test_signature_point_invalid() {
+		let valid_pulse = valid_pulse();
+		let mut opaque_pulse: OpaquePulse = valid_pulse.clone().try_into().unwrap();
+		// corrup the signature
+		opaque_pulse.signature = [1;48];
+		let result = opaque_pulse.signature_point();
+		assert!(
+			result.is_err(),
+			"Signature should not deserialize to a valid G1 point with random bytes"
+		);
 	}
 }

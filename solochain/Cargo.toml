@@ -92,9 +92,9 @@ pallet-transaction-payment-rpc-runtime-api = { version = "38.0.0",  default-feat
 pallet-transaction-payment-rpc = "41.0.0"
 pallet-mmr = { version = "38.0.0", default-features = false }
 # drand-bridge
-pallet-drand = { path = "../pallets/drand", default-features = false }
-sp-consensus-randomness-beacon = { path = "../primitives/consensus/randomness-beacon", default-features = false }
-sc-consensus-randomness-beacon = { path = "../client/consensus/randomness-beacon",  default-features = false }
+pallet-drand = { path = "../pallets/drand", default-features = false, features = ["host-arkworks"]}
+sp-consensus-randomness-beacon = { path = "../primitives/consensus/randomness-beacon" }
+sc-consensus-randomness-beacon = { path = "../client/consensus/randomness-beacon" }
 
 # primitives
 sp-api = { version = "34.0.0",  default-features = false }
@@ -143,7 +143,7 @@ sc-basic-authorship = "0.45.0"
 sc-utils = "14.0.0"
 
 # libp2p (uses same version as substrate)
-libp2p = { version = "0.52.4", features = ["gossipsub", "noise", "tcp", "yamux"] }
+libp2p = { version = "0.55.0", features = ["gossipsub", "noise", "tcp", "yamux"] }
 
 # Local Dependencies
 drand-example-runtime = { path = "runtime" }

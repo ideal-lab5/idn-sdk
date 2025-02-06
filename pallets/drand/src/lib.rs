@@ -144,12 +144,12 @@ pub mod pallet {
 				let mut pulse_iter =
 					raw_pulses.iter().map(|rp| OpaquePulse::deserialize_from_vec(rp));
 				// only continue if we can get the initial pulse
-				if let Some(first) = pulse_iter.next() {
+				if let Some(Ok(first)) = pulse_iter.next() {
 					let start_round = first.round;
 					let height = raw_pulses.len();
 					let mut asig = first.signature_point().unwrap();
 					asig = pulse_iter
-						.fold(asig, |acc, val| (acc + val.signature_point().unwrap()).into());
+						.fold(asig, |acc, val| (acc + val.unwrap().signature_point().unwrap()).into());
 					let mut asig_bytes = Vec::with_capacity(48);
 					asig.serialize_compressed(&mut asig_bytes).unwrap();
 

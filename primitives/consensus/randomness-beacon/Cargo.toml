@@ -4,9 +4,9 @@ version = "1.0.0-dev"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
-homepage = "https://idealabs,network"
+homepage = "https://idealabs.network"
 repository.workspace = true
-description = "Primitives for BEEFY protocol."
+description = "Primitives for the trustless randomness beacon bridge"
 
 [lints]
 workspace = true

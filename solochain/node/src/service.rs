@@ -15,6 +15,7 @@ use std::sync::Mutex;
 use std::{sync::Arc, time::Duration};
 
 use sp_consensus_randomness_beacon::types::OpaquePulse;
+use libp2p::gossipsub::Config as GossipsubConfig;
 
 /// Host runctions required for Substrate and Arkworks
 #[cfg(not(feature = "runtime-benchmarks"))]
@@ -57,9 +58,7 @@ pub type Service = sc_service::PartialComponents<
 	),
 >;
 
-pub fn new_partial(
-	config: &Configuration,
-) -> Result<Service, ServiceError> {
+pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -153,7 +152,6 @@ pub fn new_full<
 >(
 	config: Configuration,
 ) -> Result<TaskManager, ServiceError> {
-
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -207,14 +205,6 @@ pub fn new_full<
 		})?;
 
 	if config.offchain_worker.enabled {
-		// // For testing purposes only: insert OCW key for Alice
-		// sp_keystore::Keystore::sr25519_generate_new(
-		// 	&*keystore_container.keystore(),
-		// 	drand_example_runtime::pallet_drand::KEY_TYPE,
-		// 	Some("//Alice"),
-		// )
-		// .expect("Creating key with account Alice should succeed.");
-
 		task_manager.spawn_handle().spawn(
 			"offchain-workers-runner",
 			"offchain-worker",
@@ -240,7 +230,6 @@ pub fn new_full<
 	let backoff_authoring_blocks: Option<()> = None;
 	let name = config.network.node_name.clone();
 	let enable_grandpa = !config.disable_grandpa;
-	// let enable_mmr = config.offchain_worker.indexing_enabled;
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let rpc_extensions_builder = {
@@ -253,9 +242,8 @@ pub fn new_full<
 		})
 	};
 
-		// TODO: add feature gate?
 	// configure gossipsub for the libp2p network
-	let shared_state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
+	let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
 	let local_identity: sc_network_types::ed25519::Keypair =
 		config.network.node_key.clone().into_keypair()?;
 	let local_identity: libp2p::identity::ed25519::Keypair = local_identity.into();
@@ -270,21 +258,21 @@ pub fn new_full<
 			.parse()
 			.expect("The string is a well-formatted multiaddress. qed.");
 
-	let mut gossipsub =
-		GossipsubNetwork::new(&local_identity, vec![&maddr1, &maddr2], shared_state.clone(), None)
-			.unwrap();
-
-	// Spawn the gossipsub network task
-	task_manager.spawn_handle().spawn(
-		"gossipsub-network",
-		None,
-		async move {
-			if let Err(e) = gossipsub.subscribe(DRAND_QUICKNET_PUBSUB_TOPIC).await {
-				log::error!("Failed to run gossipsub network: {:?}", e);
+	if let Ok(mut gossipsub) = GossipsubNetwork::new(&local_identity, state, GossipsubConfig::default()) {
+		// Spawn the gossipsub network task
+		task_manager.spawn_handle().spawn(
+			"gossipsub-network",
+			None,
+			async move {
+				if let Err(e) =
+					gossipsub.run(DRAND_QUICKNET_PUBSUB_TOPIC, vec![&maddr1, &maddr2], None).await
+				{
+					log::error!("Failed to run gossipsub network: {:?}", e);
+				}
 			}
-		}
-		.boxed(),
-	);
+			.boxed(),
+		);
+	}
 	// END GOSSIPSUB CONFIG
 
 	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
@@ -408,7 +396,6 @@ pub fn new_full<
 			None,
 			sc_consensus_grandpa::run_grandpa_voter(grandpa_config)?,
 		);
-
 	}
 
 	network_starter.start_network();
