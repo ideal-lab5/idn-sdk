@@ -1,6 +1,6 @@
 [package]
 name = "drand-example-runtime"
-description = "An example runtime implementing the Drand pallet."
+description = "An example runtime supporting the trustless Drand bridge."
 license = "Apache-2.0"
 authors.workspace = true
 homepage.workspace = true
@@ -54,8 +54,10 @@ pallet-transaction-payment-rpc-runtime-api.workspace = true
 # Used for runtime benchmarking
 frame-benchmarking = { workspace = true, optional = true }
 frame-system-benchmarking = { workspace = true, optional = true }
-# The pallet in this template.
+# pallets for the drand bridge 
 pallet-drand.workspace = true
+sp-mmr-primitives.workspace = true
+pallet-mmr.workspace = true
 
 [build-dependencies]
 substrate-wasm-builder = { version = "24.0.1",  optional = true }
@@ -82,11 +84,14 @@ std = [
 	"pallet-contracts/std",
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
-	"pallet-drand/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
 	"pallet-lottery/std",
+
+	"pallet-drand/std",
+	"pallet-mmr/std",
+	"sp-mmr-primitives/std",
 
 	"sp-api/std",
 	"sp-block-builder/std",

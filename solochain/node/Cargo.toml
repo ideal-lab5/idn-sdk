@@ -1,6 +1,6 @@
 [package]
 name = "drand-example-node"
-description = "An example node implementing the Drand pallet."
+description = "A test-bed and demonstration node for the trustless Drand bridge"
 version = "0.0.0"
 license = "Apache-2.0"
 authors.workspace = true
@@ -18,15 +18,19 @@ workspace = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+codec.workspace = true
 clap = { workspace = true, features = ["derive"] }
 quote.workspace = true
 futures = { workspace = true, features = ["thread-pool"] }
 serde_json.workspace = true
 jsonrpsee = { workspace = true, features = ["server"] }
+log = { workspace = true }
+serde.workspace = true
 # substrate client
 sc-cli.workspace = true
 sc-executor.workspace = true
 sc-network.workspace = true
+sc-network-types.workspace = true
 sc-service.workspace = true
 sc-telemetry.workspace = true
 sc-transaction-pool.workspace = true
@@ -53,19 +57,29 @@ sp-keyring.workspace = true
 sp-keystore.workspace = true
 sp-blockchain.workspace = true
 sp-crypto-ec-utils = { workspace = true,  features = ["bls12-381"]}
+sc-utils.workspace = true
+
+mmr-gadget = { workspace = true }
+sp-mmr-primitives = { workspace = true }
 # frame and pallets
 frame-system.workspace = true
 pallet-transaction-payment.workspace = true
-pallet-transaction-payment-rpc.workspace = true
+pallet-transaction-payment-rpc.workspace = true 
 substrate-frame-rpc-system.workspace = true
 # These dependencies are used for runtime benchmarking
 frame-benchmarking.workspace = true
 frame-benchmarking-cli.workspace = true
+
+libp2p.workspace = true
+sp-consensus-randomness-beacon.workspace = true
+sc-consensus-randomness-beacon.workspace = true
+
 # Local Dependencies
 drand-example-runtime.workspace = true
 
 [build-dependencies]
 substrate-build-script-utils = "11.0.0"
+prost-build = "0.13.4"
 
 [features]
 default = ["std"]

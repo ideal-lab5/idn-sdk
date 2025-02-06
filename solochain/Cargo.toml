@@ -58,6 +58,7 @@ log = { version = "0.4.21", default-features = false }
 clap = "4.5.23"
 quote = "1.0.37"
 futures = "0.3.31"
+serde = "1.0.133"
 serde_json = { version = "1.0.133", default-features = true }
 jsonrpsee = "0.24.7"
 
@@ -89,8 +90,11 @@ pallet-timestamp = { version = "37.0.0",  default-features = false }
 pallet-transaction-payment = { version = "38.0.0",  default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { version = "38.0.0",  default-features = false }
 pallet-transaction-payment-rpc = "41.0.0"
-# The pallet in this template.
-pallet-drand = { path = "../../", default-features = false, features = ["host-arkworks"]}
+pallet-mmr = { version = "38.0.0", default-features = false }
+# drand-bridge
+pallet-drand = { path = "../pallets/drand", default-features = false, features = ["host-arkworks"]}
+sp-consensus-randomness-beacon = { path = "../primitives/consensus/randomness-beacon" }
+sc-consensus-randomness-beacon = { path = "../client/consensus/randomness-beacon" }
 
 # primitives
 sp-api = { version = "34.0.0",  default-features = false }
@@ -117,10 +121,14 @@ sp-keystore = "0.40.0"
 sp-blockchain = "37.0.1"
 sp-crypto-ec-utils = "0.14.0"
 
+mmr-gadget = "40.0.0"
+sp-mmr-primitives = { version = "35.0.0", default-features = false }
+
 # substrate client
 sc-cli = "0.47.0"
 sc-executor = "0.40.1"
 sc-network = "0.45.1"
+sc-network-types = { version = "0.12.1", default-features = true }
 sc-service = "0.46.0"
 sc-telemetry = "25.0.0"
 sc-transaction-pool = "37.0.0"
@@ -132,6 +140,10 @@ sc-consensus-grandpa = "0.30.0"
 sc-client-api = "37.0.0"
 sc-rpc-api = "0.44.0"
 sc-basic-authorship = "0.45.0"
+sc-utils = "14.0.0"
+
+# libp2p (uses same version as substrate)
+libp2p = { version = "0.55.0", features = ["gossipsub", "noise", "tcp", "yamux"] }
 
 # Local Dependencies
 drand-example-runtime = { path = "runtime" }
