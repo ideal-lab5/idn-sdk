@@ -59,6 +59,7 @@ sp-tracing = { git = "https://github.com/ideal-lab5/polkadot-sdk.git", branch = 
 substrate-test-runtime-client = { git = "https://github.com/ideal-lab5/polkadot-sdk.git", branch = "testing" }
 
 [features]
+default = ["bls-experimental"]
 # This feature adds BLS crypto primitives. It should not be used in production since
 # the BLS implementation and interface may still be subject to significant change.
 bls-experimental = [
@@ -68,4 +69,4 @@ bls-experimental = [
 	"ark-bls12-377",
 	"w3f-bls"
 ]
-
+full_crypto = []

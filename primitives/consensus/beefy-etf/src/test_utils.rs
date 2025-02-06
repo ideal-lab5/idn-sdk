@@ -33,7 +33,7 @@ use ark_serialize::CanonicalSerialize;
 use ark_std::UniformRand;
 use etf_crypto_primitives::{dpss::acss::DoubleSecret, proofs::hashed_el_gamal_sigma::BatchPoK};
 use rand::rngs::OsRng;
-use w3f_bls::{DoublePublicKey, DoublePublicKeyScheme, EngineBLS, SerializableToBytes, TinyBLS377};
+use w3f_bls::{DoublePublicKey, DoublePublicKeyScheme, EngineBLS, SerializableToBytes};
 
 /// Set of test accounts using [`crate::bls_crypto`] types.
 #[allow(missing_docs)]

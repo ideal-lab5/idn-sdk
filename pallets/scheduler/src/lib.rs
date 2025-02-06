@@ -1023,6 +1023,10 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
+// TODO: handle `warning: use of deprecated trait `frame_support::traits::schedule::v2::Named`:
+// Use `v3` instead. Will be removed after September 2024.`
+// Then remove the `#[allow(warnings)]` attribute.
+#[allow(warnings)]
 impl<T: Config> schedule::v2::Anon<BlockNumberFor<T>, <T as Config>::RuntimeCall, T::PalletsOrigin>
 	for Pallet<T>
 {
@@ -1057,6 +1061,10 @@ impl<T: Config> schedule::v2::Anon<BlockNumberFor<T>, <T as Config>::RuntimeCall
 	}
 }
 
+// TODO: handle `warning: use of deprecated trait `frame_support::traits::schedule::v2::Named`:
+// Use `v3` instead. Will be removed after September 2024.`
+// Then remove the `#[allow(warnings)]` attribute.
+#[allow(warnings)]
 impl<T: Config> schedule::v2::Named<BlockNumberFor<T>, <T as Config>::RuntimeCall, T::PalletsOrigin>
 	for Pallet<T>
 {

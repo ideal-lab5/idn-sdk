@@ -22,7 +22,7 @@ use sp_consensus_beefy_etf::{
 };
 use sp_core::ecdsa;
 #[cfg(feature = "bls-experimental")]
-use sp_core::{bls377, crypto::KeyTypeId, ecdsa_bls377};
+use sp_core::{bls377, ecdsa_bls377};
 use sp_crypto_hashing::keccak_256;
 use sp_keystore::KeystorePtr;
 
@@ -77,6 +77,8 @@ impl<AuthorityId: AuthorityIdBound> BeefyKeystore<AuthorityId> {
 	/// Note that `message` usually will be pre-hashed before being signed.
 	///
 	/// Return the message signature or an error in case of failure.
+	// TODO: Remove this lint once the method is used. Or remove the function if it's not needed.
+	#[allow(dead_code)]
 	pub fn sign(
 		&self,
 		public: &AuthorityId,

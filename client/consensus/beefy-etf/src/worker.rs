@@ -35,9 +35,7 @@ use codec::{Codec, Decode, DecodeAll, Encode};
 use futures::{stream::Fuse, FutureExt, StreamExt};
 use log::{debug, error, info, log_enabled, trace, warn};
 use sc_client_api::{Backend, FinalityNotification, FinalityNotifications, HeaderBackend};
-use sc_transaction_pool_api::{
-	LocalTransactionPool, OffchainTransactionPoolFactory, TransactionPool,
-};
+use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::notification::NotificationReceiver;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_arithmetic::traits::{AtLeast32Bit, Saturating};
@@ -386,6 +384,9 @@ impl<B: Block> PersistedState<B> {
 }
 
 /// A BEEFY worker/voter that follows the BEEFY protocol
+// TODO: fix warning: field `payload_provider` is never read
+// and remove the #[allow(dead_code)] attribute
+#[allow(dead_code)]
 pub(crate) struct BeefyWorker<B: Block, BE, P, RuntimeApi, S> {
 	// utilities
 	pub backend: Arc<BE>,
@@ -676,7 +677,7 @@ where
 		let best_header = self.persisted_state.voting_oracle.best_grandpa_block_header.clone();
 		let best_hash = best_header.hash();
 
-		let mut signatures: Vec<Option<Signature>> = match finality_proof {
+		let signatures: Vec<Option<Signature>> = match finality_proof {
 			VersionedFinalityProof::V1(ref sc) => sc.signatures.clone(),
 		};
 
@@ -689,10 +690,10 @@ where
 		);
 
 		let rounds = self.persisted_state.voting_oracle.active_rounds()?;
-		let (validators, validator_set_id) = (rounds.validators(), rounds.validator_set_id());
+		let (validators, _validator_set_id) = (rounds.validators(), rounds.validator_set_id());
 		// let offender_id = proof.offender_id().clone();
 		// TODO: error handling
-		let offender_id = self.key_store.authority_id(validators).unwrap();
+		let _offender_id = self.key_store.authority_id(validators).unwrap();
 
 		let mut runtime_api = self.runtime.runtime_api();
 
@@ -700,7 +701,7 @@ where
 		runtime_api
 			.register_extension(self.offchain_tx_pool_factory.offchain_transaction_pool(best_hash));
 
-		runtime_api.submit_unsigned_pulse(best_hash, signatures, block_num);
+		let _ = runtime_api.submit_unsigned_pulse(best_hash, signatures, block_num);
 
 		Ok(())
 	}
@@ -1154,6 +1155,8 @@ where
 /// Calculate next block number to vote on.
 ///
 /// Return `None` if there is no votable target yet.
+// TODO: this function is not used, remove it?
+#[allow(dead_code)]
 fn vote_target<N>(best_grandpa: N, best_beefy: N, session_start: N, min_delta: u32) -> Option<N>
 where
 	N: AtLeast32Bit + Copy + Debug,

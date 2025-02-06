@@ -39,9 +39,7 @@ use sc_client_api::{Backend, BlockBackend, BlockchainEvents, FinalityNotificatio
 use sc_consensus::BlockImport;
 use sc_network::{NetworkRequest, NotificationService, ProtocolName};
 use sc_network_gossip::{GossipEngine, Network as GossipNetwork, Syncing as GossipSyncing};
-use sc_transaction_pool_api::{
-	LocalTransactionPool, OffchainTransactionPoolFactory, TransactionPool,
-};
+use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::{Backend as BlockchainBackend, HeaderBackend};
 use sp_consensus::{Error as ConsensusError, SyncOracle};
