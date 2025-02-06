@@ -29,6 +29,11 @@ jobs:
         override: false
 
     - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+
+    - name: Install Rust dependencies
       run: cargo fetch
 
     - name: Build
@@ -38,6 +43,7 @@ jobs:
       run: cargo +nightly fmt -- --check
 
     # TODO: Uncomment the following lines to run clippy and tests
+    # https://github.com/ideal-lab5/idn-sdk/issues/64
     # - name: Run cargo clippy
     #   run: cargo clippy -- -D warnings
 

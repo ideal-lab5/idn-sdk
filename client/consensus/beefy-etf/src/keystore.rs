@@ -78,6 +78,7 @@ impl<AuthorityId: AuthorityIdBound> BeefyKeystore<AuthorityId> {
 	///
 	/// Return the message signature or an error in case of failure.
 	// TODO: Remove this lint once the method is used. Or remove the function if it's not needed.
+	// https://github.com/ideal-lab5/idn-sdk/issues/63
 	#[allow(dead_code)]
 	pub fn sign(
 		&self,

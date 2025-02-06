@@ -386,6 +386,7 @@ impl<B: Block> PersistedState<B> {
 /// A BEEFY worker/voter that follows the BEEFY protocol
 // TODO: fix warning: field `payload_provider` is never read
 // and remove the #[allow(dead_code)] attribute
+// https://github.com/ideal-lab5/idn-sdk/issues/63
 #[allow(dead_code)]
 pub(crate) struct BeefyWorker<B: Block, BE, P, RuntimeApi, S> {
 	// utilities
@@ -1156,6 +1157,7 @@ where
 ///
 /// Return `None` if there is no votable target yet.
 // TODO: this function is not used, remove it?
+// https://github.com/ideal-lab5/idn-sdk/issues/63
 #[allow(dead_code)]
 fn vote_target<N>(best_grandpa: N, best_beefy: N, session_start: N, min_delta: u32) -> Option<N>
 where
