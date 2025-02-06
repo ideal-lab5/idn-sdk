@@ -1,6 +1,6 @@
 # Drand example implementation
 
-This example demonstrates how to integrate the Drand pallet into a Substrate blockchain.
+This is a testbed for the trustless drand bridge.
 
 ## Getting Started
 
