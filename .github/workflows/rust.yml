@@ -28,6 +28,9 @@ jobs:
         toolchain: nightly
         override: false
 
+    - name: Install rustfmt for nightly
+      run: rustup component add --toolchain nightly rustfmt
+
     - name: Install dependencies
       run: |
         sudo apt-get update
