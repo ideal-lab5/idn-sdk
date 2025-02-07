@@ -1,0 +1,54 @@
+name: Rust
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Install Rust nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: false
+
+    - name: Install rustfmt for nightly
+      run: rustup component add --toolchain nightly rustfmt
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+
+    - name: Install Rust dependencies
+      run: cargo fetch
+
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Run cargo fmt
+      run: cargo +nightly fmt -- --check
+
+    # TODO: Uncomment the following lines to run clippy and tests
+    # https://github.com/ideal-lab5/idn-sdk/issues/64
+    # - name: Run cargo clippy
+    #   run: cargo clippy -- -D warnings
+
+    # - name: Run cargo test
+    #   run: cargo test --verbose

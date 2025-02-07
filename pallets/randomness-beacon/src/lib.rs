@@ -33,7 +33,7 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use etf_crypto_primitives::{encryption::tlock::TLECiphertext, utils::interpolate_threshold_bls};
+use etf_crypto_primitives::{tlock::tlock::TLECiphertext, utils::interpolate_threshold_bls};
 
 use sp_consensus_beefy_etf::{known_payloads, Commitment, Payload, ValidatorSetId};
 use w3f_bls::{
@@ -140,7 +140,7 @@ impl<BN: core::fmt::Debug> Pulse<BN> {
 	}
 }
 
-#[frame_support::pallet]
+#[frame_support::pallet(dev_mode)]
 pub mod pallet {
 	use super::*;
 
@@ -376,7 +376,7 @@ pub trait TimelockEncryptionProvider<BN> {
 
 // use ark_serialize::CanonicalDeserialize;
 // use w3f_bls::{EngineBLS};
-use etf_crypto_primitives::encryption::tlock::DecryptionResult;
+use etf_crypto_primitives::tlock::tlock::DecryptionResult;
 
 impl<T: Config> TimelockEncryptionProvider<BlockNumberFor<T>> for Pallet<T> {
 	fn decrypt_at(
