@@ -4,7 +4,7 @@ Various runtime module, primitives, and pallets used by the Ideal Network and pr
 
 ## Build
 
-The client and primitives modules should be built with the "bls-experimental" feature flag.
+The client and primitives module should be built with the standard cargo build command.
 
-`cargo build --features "bls-experimental"`
+`cargo build`
 
