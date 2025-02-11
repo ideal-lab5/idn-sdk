@@ -39,7 +39,8 @@ pub struct Pulse {
 }
 
 /// An `OpaquePulse` represents a pulse from a beacon using primitive types
-/// This struct is used to encode pulses in the runtime, where we obtain an OpaquePulse by converting a Pulse
+/// This struct is used to encode pulses in the runtime, where we obtain an OpaquePulse by
+/// converting a Pulse
 #[derive(Clone, Debug, PartialEq, codec::MaxEncodedLen, scale_info::TypeInfo, Encode, Decode)]
 pub struct OpaquePulse {
 	/// The round of the beacon protocol
@@ -74,7 +75,6 @@ impl OpaquePulse {
 	/// Deserialize from a slice
 	///
 	/// * `data`: The data to attempt to deserialize
-	///
 	pub fn deserialize_from_vec(data: &[u8]) -> Result<Self, String> {
 		if data.len() != 56 {
 			return Err(format!(
@@ -125,11 +125,10 @@ mod tests {
 		76, 235, 84, 49, 223, 95, 22, 186, 113, 163, 202, 195, 230, 117,
 	];
 
-
 	pub const VALID_SIG: &[u8] = &[
-		146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242,
-		43, 61, 28, 75, 93, 37, 95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104,
-		76, 235, 84, 49, 223, 95, 22, 186, 113, 163, 202, 195, 230, 117,
+		146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37, 95,
+		131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49, 223, 95,
+		22, 186, 113, 163, 202, 195, 230, 117,
 	];
 
 	#[test]
@@ -184,8 +183,8 @@ mod tests {
 	fn test_signature_point_invalid() {
 		let valid_pulse = valid_pulse();
 		let mut opaque_pulse: OpaquePulse = valid_pulse.clone().try_into().unwrap();
-		// corrup the signature
-		opaque_pulse.signature = [1;48];
+		// corrupt the signature
+		opaque_pulse.signature = [1; 48];
 		let result = opaque_pulse.signature_point();
 		assert!(
 			result.is_err(),
