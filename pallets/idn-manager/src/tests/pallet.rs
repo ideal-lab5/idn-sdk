@@ -16,7 +16,7 @@
 
 //! # Tests for the IDN Manager pallet
 
-use crate::{tests::mock::*, Config, Error, SubscriptionStatus, Subscriptions};
+use crate::{tests::mock::*, Config, Error, SubscriptionState, Subscriptions};
 use frame_support::{assert_noop, assert_ok, traits::fungible::Mutate};
 use idn_traits::rand::Consumer;
 use xcm::v5::Location;
@@ -131,7 +131,7 @@ fn distribute_randomness_works() {
 
 		assert_eq!(
 			subscription.status,
-			SubscriptionStatus::Active,
+			SubscriptionState::Active,
 			"Subscription status is not Active"
 		);
 	});

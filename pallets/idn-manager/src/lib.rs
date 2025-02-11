@@ -62,7 +62,7 @@ pub type BalanceOf<T> =
 pub struct Subscription<AccountId, BlockNumber> {
 	details: SubscriptionDetails<AccountId, BlockNumber>,
 	credits_left: BlockNumber,
-	status: SubscriptionStatus,
+	status: SubscriptionState,
 }
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
@@ -80,6 +80,7 @@ type ParaId = u32; // todo import type
 
 impl<AccountId: Encode, BlockNumber: Encode> Subscription<AccountId, BlockNumber> {
 	pub fn id(&self) -> SubscriptionId {
+		// TODO add block number into the mix, to avoid id collision
 		// Encode the struct using SCALE codec
 		let details = self.details.encode();
 		// Hash the encoded bytes using blake2_256
@@ -91,11 +92,10 @@ type SubscriptionId = H256;
 type Filter = u32; // to update
 
 #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
-pub enum SubscriptionStatus {
-	Inactive,
+pub enum SubscriptionState {
 	Active,
 	Paused,
-	Expired,
+	Finalized,
 }
 
 #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
@@ -113,6 +113,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
+		/// The overarching event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The currency type for handling subscription payments
@@ -135,6 +136,7 @@ pub mod pallet {
 		/// The type for the randomness
 		type Rnd;
 
+		// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
 
 		/// A type that exposes XCM APIs, allowing contracts to interact with other parachains, and
@@ -210,9 +212,9 @@ pub mod pallet {
 			// let mut reads = 0u64;
 			// let mut writes = 0u64;
 
-			// Filter active subscriptions that have expired
+			// Filter active subscriptions that have Finalized
 			for (sub_id, _sub) in Subscriptions::<T>::iter().filter(|(_, sub)| {
-				sub.status == SubscriptionStatus::Active && sub.details.end_block <= n
+				sub.status == SubscriptionState::Active && sub.details.end_block <= n
 			}) {
 				// reads += 1;
 
@@ -220,7 +222,7 @@ pub mod pallet {
 				let result =
 					Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| -> DispatchResult {
 						if let Some(sub) = maybe_sub {
-							sub.status = SubscriptionStatus::Expired;
+							sub.status = SubscriptionState::Finalized;
 							// writes += 1;
 							Self::deposit_event(Event::SubscriptionDeactivated { sub_id });
 						}
@@ -271,7 +273,7 @@ impl<T: Config> Pallet<T> {
 
 		// Filter for active subscriptions only
 		for (sub_id, sub) in
-			Subscriptions::<T>::iter().filter(|(_, sub)| sub.status == SubscriptionStatus::Active)
+			Subscriptions::<T>::iter().filter(|(_, sub)| sub.status == SubscriptionState::Active)
 		{
 			// reads += 1;
 
@@ -297,7 +299,7 @@ impl<T: Config> Pallet<T> {
 	/// Check if there's an active subscription for the given para_id
 	fn has_active_subscription(sub_id: &SubscriptionId) -> bool {
 		Subscriptions::<T>::get(sub_id)
-			.map(|sub| sub.status == SubscriptionStatus::Active)
+			.map(|sub| sub.status == SubscriptionState::Active)
 			.unwrap_or(false)
 	}
 
@@ -320,7 +322,6 @@ impl<T: Config> Pallet<T> {
 
 		// Calculate and hold the subscription fees
 		let fees = T::FeesCalculator::calculate_subscription_fees(amount);
-
 		T::Currency::hold(&HoldReason::Fees.into(), &subscriber, fees)
 			.map_err(|_| Error::<T>::InsufficientBalance)?;
 
@@ -335,7 +336,7 @@ impl<T: Config> Pallet<T> {
 			filter: None, // TODO define this
 		};
 		let subscription =
-			Subscription { status: SubscriptionStatus::Active, credits_left: amount, details };
+			Subscription { status: SubscriptionState::Active, credits_left: amount, details };
 		let sub_id = subscription.id();
 
 		ensure!(!Self::has_active_subscription(&sub_id), Error::<T>::ActiveSubscriptionExists);
