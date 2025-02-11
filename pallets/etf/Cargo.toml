@@ -42,8 +42,6 @@ sp-core = { git = "https://github.com/ideal-lab5/polkadot-sdk.git", branch = "te
 sp-io = { git = "https://github.com/ideal-lab5/polkadot-sdk.git", branch = "testing" }
 sp-staking = { git = "https://github.com/ideal-lab5/polkadot-sdk.git", branch = "testing" }
 sp-state-machine = { git = "https://github.com/ideal-lab5/polkadot-sdk.git", branch = "testing", default-features = false }
-pallet-beefy = { package = "pallet-beefy-etf", path = "../beefy-etf" }
-pallet-beefy-mmr = { package = "pallet-beefy-mmr-etf", path = "../beefy-mmr-etf" }
 pallet-mmr = { git = "https://github.com/ideal-lab5/polkadot-sdk.git", branch = "testing", default-features = false }
 array-bytes = "6.1"
 binary-merkle-tree = { git = "https://github.com/ideal-lab5/polkadot-sdk.git", branch = "testing", default-features = false }
