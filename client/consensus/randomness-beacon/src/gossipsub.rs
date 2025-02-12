@@ -316,37 +316,6 @@ mod tests {
 		assert!(matches!(res, Err(Error::SwarmListenFailure)), "Expected SwarmListenFailure error");
 	}
 
-	// #[tokio::test]
-	// async fn can_fail_to_add_pulses_when_state_locked() {
-	// 	let topic_str: &str =
-	// 		"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
-
-	// 	let maddr1: libp2p::Multiaddr =
-	// 		"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
-	// 			.parse()
-	// 			.expect("The string is a well-formatted multiaddress. qed.");
-
-	// 	let maddr2: libp2p::Multiaddr =
-    //     "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
-    //         .parse()
-    //         .expect("The string is a well-formatted multiaddress. qed.");
-
-	// 	let (mut gossipsub, state) = build_node();
-	// 	// prematurely lock the state
-	// 	let data_lock = state.lock().unwrap();
-
-	// 	tokio::spawn(async move {
-	// 		if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
-	// 			log::error!("Failed to run gossipsub network: {:?}", e);
-	// 		}
-	// 	});
-
-	// 	// Sleep for 6 secs
-	// 	sleep(Duration::from_millis(6000)).await;
-	// 	let pulses = &data_lock.pulses;
-	// 	assert!(pulses.len() == 0);
-	// }
-
 	#[tokio::test]
 	async fn can_fail_to_subscribe_to_topic_with_no_peers() {
 		let topic_str: &str =
