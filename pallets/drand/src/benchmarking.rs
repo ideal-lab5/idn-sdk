@@ -19,15 +19,12 @@ use super::*;
 
 #[allow(unused)]
 use crate::{pallet as pallet_drand, Pallet as Drand};
+use ark_ec::Group;
+use ark_std::{ops::Mul, UniformRand};
 use frame_benchmarking::v2::*;
 use frame_support::BoundedVec;
 use frame_system::RawOrigin;
-use ark_ec::Group;
-use ark_std::{ops::Mul, UniformRand};
-use timelock::{
-	curves::drand::TinyBLS381,
-	tlock::EngineBLS,
-};
+use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
 
 #[benchmarks]
 mod benchmarks {
@@ -37,7 +34,7 @@ mod benchmarks {
 	#[benchmark]
 	fn set_beacon_config() {
 		let config = drand_quicknet_config();
-+
+
 		#[extrinsic_call]
 		_(RawOrigin::Root, config.clone());
 
@@ -60,7 +57,7 @@ mod benchmarks {
 		let block_number: BlockNumberFor<T> = 1u32.into();
 		let start = 1;
 		let num_rounds = 1;
-		
+
 		let mut asig = crate::verifier::zero_on_g1();
 		for round in start..start + num_rounds {
 			let q_id = crate::verifier::compute_round_on_g1(round).unwrap();
@@ -74,7 +71,10 @@ mod benchmarks {
 		#[extrinsic_call]
 		_(RawOrigin::None, bounded_asig.clone(), start.clone(), num_rounds.clone());
 
-		assert_eq!(AggregatedSignatures::<T>::get(block_number), Some((bounded_asig, start, num_rounds)));
+		assert_eq!(
+			AggregatedSignatures::<T>::get(block_number),
+			Some((bounded_asig, start, num_rounds))
+		);
 	}
 
 	impl_benchmark_test_suite!(Drand, crate::mock::new_test_ext(), crate::mock::Test);

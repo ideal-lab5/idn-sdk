@@ -258,7 +258,7 @@ pub fn new_full<
 			.parse()
 			.expect("The string is a well-formatted multiaddress. qed.");
 
-	if let Ok(mut gossipsub) = GossipsubNetwork::new(&local_identity, state, GossipsubConfig::default()) {
+	if let Ok(mut gossipsub) = GossipsubNetwork::new(&local_identity, state.clone(), GossipsubConfig::default()) {
 		// Spawn the gossipsub network task
 		task_manager.spawn_handle().spawn(
 			"gossipsub-network",
@@ -309,7 +309,8 @@ pub fn new_full<
 				block_import,
 				proposer_factory,
 				create_inherent_data_providers: move |_, ()| {
-					let shared_state = shared_state.clone();
+					
+					let shared_state = state.clone();
 
 					async move {
 						let timestamp = sp_timestamp::InherentDataProvider::from_system_time();

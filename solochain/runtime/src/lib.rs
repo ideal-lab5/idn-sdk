@@ -263,10 +263,10 @@ impl pallet_sudo::Config for Runtime {
 	type WeightInfo = pallet_sudo::weights::SubstrateWeight<Runtime>;
 }
 
-parameter_types! {
-	pub const UnsignedPriority: u64 = 1 << 20;
-	pub const ApiEndpoint: &'static str = "https://drand.cloudflare.com";
-	pub const HttpFetchTimeout: u64 = 1_000;
+impl pallet_drand::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = pallet_drand::weights::SubstrateWeight<Runtime>;
+	type Verifier = pallet_drand::verifier::QuicknetVerifier;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -306,6 +306,9 @@ mod runtime {
 
 	#[runtime::pallet_index(6)]
 	pub type Sudo = pallet_sudo;
+
+	#[runtime::pallet_index(7)]
+	pub type Drand = pallet_drand;	
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime

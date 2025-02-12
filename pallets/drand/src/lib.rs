@@ -37,12 +37,13 @@ pub use pallet::*;
 extern crate alloc;
 
 use alloc::{vec, vec::Vec};
-use ark_serialize::CanonicalSerialize;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use codec::Encode;
 use frame_support::{pallet_prelude::*, storage::bounded_vec::BoundedVec, traits::Randomness};
 use frame_system::pallet_prelude::BlockNumberFor;
 use sp_consensus_randomness_beacon::types::OpaquePulse;
 use sp_runtime::traits::{Hash, Zero};
+use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 pub mod bls12_381;
 pub mod types;
@@ -88,13 +89,19 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type BeaconConfig<T: Config> = StorageValue<_, BeaconConfiguration, OptionQuery>;
 
-	/// A map of round number to pulses from the randomness beacon
+	/// A first round number for which a pulse was observed
 	#[pallet::storage]
-	pub type AggregatedSignatures<T: Config> = StorageMap<
+	pub type GenesisRound<T: Config> = StorageValue<_, RoundNumber, ValueQuery>;
+
+	/// The latest round number for which we have verified a pulse of randomness
+	#[pallet::storage]
+	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
+
+	/// The aggregated signature of all observed pulses of randomness
+	#[pallet::storage]
+	pub type AggregatedSignature<T: Config> = StorageValue<
 		_,
-		Blake2_128Concat,
-		BlockNumberFor<T>,
-		(OpaqueSignature, RoundNumber, RoundNumber), // (asig, init round, height)
+		OpaqueSignature,
 		OptionQuery,
 	>;
 
@@ -148,8 +155,9 @@ pub mod pallet {
 					let start_round = first.round;
 					let height = raw_pulses.len();
 					let mut asig = first.signature_point().unwrap();
-					asig = pulse_iter
-						.fold(asig, |acc, val| (acc + val.unwrap().signature_point().unwrap()).into());
+					asig = pulse_iter.fold(asig, |acc, val| {
+						(acc + val.unwrap().signature_point().unwrap()).into()
+					});
 					let mut asig_bytes = Vec::with_capacity(48);
 					asig.serialize_compressed(&mut asig_bytes).unwrap();
 
@@ -209,7 +217,6 @@ pub mod pallet {
 		///
 		/// * `origin`: the root user
 		/// * `config`: the beacon configuration
-		///
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::set_beacon_config())]
 		pub fn set_beacon_config(
@@ -227,9 +234,8 @@ pub mod pallet {
 		/// * `origin`: A None origin
 		/// * `asig`: An aggregated signature
 		/// * `start_round`: The round that coincides with the first signature added to asig
-		/// * `height`: The number of signature aggregated to get asig.
-		///             i.e. if asig = a1 + a2 + a3, then height = 3
-		///
+		/// * `height`: The number of signature aggregated to get asig. i.e. if asig = a1 + a2 + a3,
+		///   then height = 3
 		#[pallet::call_index(1)]
 		#[pallet::weight(1_000)]
 		pub fn write_pulses(
@@ -246,11 +252,7 @@ pub mod pallet {
 			frame_support::ensure!(!latest_block.is_zero(), Error::<T>::NetworkTooEarly);
 			frame_support::ensure!(height > 0, Error::<T>::NonPositiveHeight);
 
-			let prev_block = latest_block - 1u32.into();
-			// If start_round <= latest_round => fail
-			if let Some(latest) = AggregatedSignatures::<T>::get(prev_block) {
-				// latest = last init round + #{pulses}
-				let latest_round: RoundNumber = latest.1 + latest.2;
+			if let Some(latest_round) = LatestRound::<T>::get() {
 				// the next round *must* be in sequence
 				frame_support::ensure!(
 					start_round == latest_round + 1,
@@ -258,14 +260,34 @@ pub mod pallet {
 				);
 			}
 
-			let rounds = (start_round..start_round + height).collect::<Vec<_>>();
-
+			let latest = start_round + height;
+			let rounds = (start_round..latest).collect::<Vec<_>>();
 			let validity = T::Verifier::verify(config.public_key, asig.clone(), &rounds)
 				.map_err(|_| Error::<T>::InvalidInput)?;
-
 			frame_support::ensure!(validity, Error::<T>::VerificationFailed);
 
-			AggregatedSignatures::<T>::insert(latest_block, &(asig, start_round, height));
+			// alternatively, this could be the NextRound we expect... if we remove the -1
+			// which one is more useful?
+			LatestRound::<T>::set(Some(latest - 1));
+			
+			let mut aggr_sig = asig.clone();
+			if let Some(existing) = AggregatedSignature::<T>::get() {
+				// convert both to points in G1
+				let p1 = G1AffineOpt::deserialize_compressed(existing.to_vec().as_slice()).unwrap();
+				let p2 = G1AffineOpt::deserialize_compressed(aggr_sig.to_vec().as_slice()).unwrap();
+				// aggregate 
+				let p = p1 + p2;
+				// serialize compressed
+				let mut out = Vec::new();
+				p.serialize_compressed(&mut out).unwrap();
+				aggr_sig = OpaqueSignature::truncate_from(out);
+			} else {
+				// set the genesis round if no asig exists
+				GenesisRound::<T>::set(start_round);
+			}
+
+			AggregatedSignature::<T>::set(Some(aggr_sig));
+
 			Self::deposit_event(Event::PulseVerificationSuccess { rounds });
 
 			Ok(())
@@ -293,6 +315,7 @@ pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
 	)
 }
 
+/// build a beacon configuration struct
 fn build_beacon_configuration(
 	pk_hex: &str,
 	period: u32,
@@ -320,16 +343,16 @@ fn build_beacon_configuration(
 	BeaconConfiguration { public_key, period, genesis_time, hash, group_hash, scheme_id, metadata }
 }
 
-impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T> {
-	/// This function hashes together the subject with the latest known randomness from quicknet
-	/// we should replace this with the merkle root later on...
-	fn random(subject: &[u8]) -> (T::Hash, BlockNumberFor<T>) {
-		let latest_block = <frame_system::Pallet<T>>::block_number();
-		let mut entropy = T::Hash::default();
-		if let Some((asig, start_round, height)) = AggregatedSignatures::<T>::get(latest_block) {
-			entropy = (subject, start_round, height, asig).using_encoded(T::Hashing::hash);
-		}
+// impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T> {
+// 	/// This function hashes together the subject with the latest known randomness from quicknet
+// 	/// we should replace this with the merkle root later on...
+// 	fn random(subject: &[u8]) -> (T::Hash, BlockNumberFor<T>) {
+// 		let latest_block = <frame_system::Pallet<T>>::block_number();
+// 		let mut entropy = T::Hash::default();
+// 		if let Some((asig, start_round, height)) = AggregatedSignatures::<T>::get(latest_block) {
+// 			entropy = (subject, start_round, height, asig).using_encoded(T::Hashing::hash);
+// 		}
 
-		(entropy, latest_block)
-	}
-}
+// 		(entropy, latest_block)
+// 	}
+// }

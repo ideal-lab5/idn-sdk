@@ -80,12 +80,12 @@ impl Verifier for QuicknetVerifier {
 
 		// construct the point on G1 for the rounds
 		let mut aggr_message_on_curve = zero_on_g1();
-		
+
 		for r in rounds {
 			let q = compute_round_on_g1(*r)?;
-			aggr_message_on_curve = (aggr_message_on_curve +  q).into()
+			aggr_message_on_curve = (aggr_message_on_curve + q).into()
 		}
-		
+
 		let g2 = G2AffineOpt::generator();
 		let result = bls12_381::fast_pairing_opt(signature, g2, aggr_message_on_curve, beacon_pk);
 
@@ -117,7 +117,7 @@ pub(crate) fn compute_round_on_g1(round: u64) -> Result<G1AffineOpt, String> {
 }
 
 /// Computes the 0 point in the G1 group
-pub (crate) fn zero_on_g1() -> G1AffineOpt {
+pub(crate) fn zero_on_g1() -> G1AffineOpt {
 	G1AffineOpt::zero()
 }
 
@@ -153,9 +153,8 @@ pub mod test {
 		let round = 1000u64;
 		let opaque_sig = OpaqueSignature::truncate_from(sig1_bytes);
 
-		
-		let is_verified =
-			QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round]).expect("There should be no error.");
+		let is_verified = QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round])
+			.expect("There should be no error.");
 		assert!(is_verified);
 	}
 
@@ -167,9 +166,8 @@ pub mod test {
 		let round = 10000u64;
 		let opaque_sig = OpaqueSignature::truncate_from(sig1_bytes);
 
-		
-		let is_verified =
-			QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round]).expect("There should be no error.");
+		let is_verified = QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round])
+			.expect("There should be no error.");
 		assert!(!is_verified);
 	}
 
@@ -181,9 +179,8 @@ pub mod test {
 		let round = 1000u64;
 		let opaque_sig = OpaqueSignature::truncate_from(sig1_bytes);
 
-		
-		let is_verified =
-			QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round]).expect("There should be no error.");
+		let is_verified = QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round])
+			.expect("There should be no error.");
 		assert!(!is_verified);
 	}
 
@@ -195,10 +192,13 @@ pub mod test {
 		let round = 1000u64;
 		let opaque_sig = OpaqueSignature::truncate_from(sig1_bytes);
 
-		
 		let res = QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round]);
 		assert!(res.is_err());
-		assert_eq!(res, Err("Failed to decode message on curve: the input buffer contained invalid data".to_string()));
+		assert_eq!(
+			res,
+			Err("Failed to decode message on curve: the input buffer contained invalid data"
+				.to_string())
+		);
 	}
 
 	#[test]
@@ -209,10 +209,12 @@ pub mod test {
 		let round = 1000u64;
 		let opaque_sig = OpaqueSignature::truncate_from(sig1_bytes);
 
-		
 		let res = QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round]);
 		assert!(res.is_err());
-		assert_eq!(res, Err("Failed to decode message on curve: the input buffer contained invalid data".to_string()));
+		assert_eq!(
+			res,
+			Err("Failed to decode message on curve: the input buffer contained invalid data"
+				.to_string())
+		);
 	}
-
 }
