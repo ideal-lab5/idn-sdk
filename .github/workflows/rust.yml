@@ -45,10 +45,8 @@ jobs:
     - name: Run cargo fmt
       run: cargo +nightly fmt -- --check
 
-    # TODO: Uncomment the following lines to run clippy and tests
-    # https://github.com/ideal-lab5/idn-sdk/issues/64
-    # - name: Run cargo clippy
-    #   run: cargo clippy -- -D warnings
+    - name: Run cargo clippy
+      run: cargo clippy -- -D warnings
 
-    # - name: Run cargo test
-    #   run: cargo test --verbose
+    - name: Run cargo test
+      run: cargo test --verbose --no-fail-fast
