@@ -62,3 +62,4 @@ jobs:
         badge: true
         fail_below_min: false
         thresholds: '80 85'
+        output: both
