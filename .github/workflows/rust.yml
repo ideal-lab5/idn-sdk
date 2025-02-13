@@ -50,7 +50,7 @@ jobs:
       run: cargo clippy -- -D warnings
 
     - name: Run tarpaulin
-      run: cargo tarpaulin --no-fail-fast -out xml
+      run: cargo tarpaulin --no-fail-fast --out xml
 
     - name: Code Coverage Summary
       uses: irongut/CodeCoverageSummary@v1.3.0
