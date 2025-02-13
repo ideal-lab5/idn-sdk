@@ -341,11 +341,11 @@ mod tests {
 	// 		}
 	// 	});
 
-		// Sleep for 6 secs
-		sleep(Duration::from_millis(6000)).await;
-		let pulses = &data_lock.pulses;
-		assert!(pulses.len() == 0);
-	}
+	// 	// Sleep for 6 secs
+	// 	sleep(Duration::from_millis(6000)).await;
+	// 	let pulses = &data_lock.pulses;
+	// 	assert!(pulses.len() == 0);
+	// }
 
 	#[tokio::test]
 	async fn can_fail_to_subscribe_to_topic_with_no_peers() {
