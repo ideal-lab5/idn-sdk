@@ -9,11 +9,13 @@ on:
     branches:
       - main
 
+    permissions:
+      pull-requests: write
+      contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
 
     steps:
     - name: Checkout code
