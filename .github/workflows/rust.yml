@@ -68,16 +68,6 @@ jobs:
         thresholds: '80 85'
         output: both
         format: markdown
-    - name: Find Current Pull Request
-      uses: jwalton/gh-find-current-pr@v1.3.3
-      id: finder
 
-    - name: Add Coverage Comment
-      uses: marocchino/sticky-pull-request-comment@v2
-      with:
-        number: ${{ steps.finder.outputs.pr }}
-        header: build
-        recreate: true
-        path: code-coverage-results.md
-    - name: Add markdown
-      run: echo code-coverage-results.md >> $GITHUB_STEP_SUMMARY
+    - name: Add Job Summary
+      run: echo "$(<code-coverage-results.md)" >> $GITHUB_STEP_SUMMARY
