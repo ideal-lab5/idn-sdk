@@ -64,6 +64,10 @@ jobs:
         thresholds: '80 85'
         output: both
         format: markdown
+    - name: Find Current Pull Request
+      uses: jwalton/gh-find-current-pr@v1.3.3
+      id: finder
+
     - name: Add Coverage Comment
       uses: marocchino/sticky-pull-request-comment@v2
       with:
