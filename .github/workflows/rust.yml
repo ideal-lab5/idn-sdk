@@ -12,6 +12,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
 
     steps:
     - name: Checkout code
@@ -66,8 +68,6 @@ jobs:
         format: markdown
     - name: Find Current Pull Request
       uses: jwalton/gh-find-current-pr@v1.3.3
-      permissions:
-        pull-requests: write
       id: finder
 
     - name: Add Coverage Comment
