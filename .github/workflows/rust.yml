@@ -79,3 +79,5 @@ jobs:
         header: build
         recreate: true
         path: code-coverage-results.md
+    - name: Add markdown
+      run: echo code-coverage-results.md >> $GITHUB_STEP_SUMMARY
