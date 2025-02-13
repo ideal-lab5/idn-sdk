@@ -316,7 +316,6 @@ mod tests {
 		assert!(matches!(res, Err(Error::SwarmListenFailure)), "Expected SwarmListenFailure error");
 	}
 
-
 	#[tokio::test]
 	async fn can_fail_to_subscribe_to_topic_with_no_peers() {
 		let topic_str: &str =
