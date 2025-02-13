@@ -63,3 +63,9 @@ jobs:
         fail_below_min: false
         thresholds: '80 85'
         output: both
+        format: markdown
+    - name: Add Coverage Comment
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        recreate: true
+        path: code-coverage-results.md
