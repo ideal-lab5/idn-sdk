@@ -67,5 +67,7 @@ jobs:
     - name: Add Coverage Comment
       uses: marocchino/sticky-pull-request-comment@v2
       with:
+        number: ${{ steps.finder.outputs.pr }}
+        header: build
         recreate: true
         path: code-coverage-results.md
