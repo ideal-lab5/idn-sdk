@@ -59,7 +59,7 @@ jobs:
     - name: Run cargo tarpaulin
       run: cargo tarpaulin --rustflags="-C opt-level=0" --no-fail-fast --out xml
 
-    - name: Code Coverage Summary
+    - name: Generate Code Coverage Summary
       uses: irongut/CodeCoverageSummary@v1.3.0
       with:
         filename: cobertura.xml
@@ -69,5 +69,5 @@ jobs:
         output: both
         format: markdown
 
-    - name: Add Job Summary
+    - name: Export Job Summary
       run: echo "$(<code-coverage-results.md)" >> $GITHUB_STEP_SUMMARY
