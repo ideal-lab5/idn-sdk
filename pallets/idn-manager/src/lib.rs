@@ -24,19 +24,18 @@ mod tests;
 pub mod traits;
 pub mod weights;
 
-use core::f64::consts::E;
-
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, CheckedDiv, DispatchResult, Hooks, IsType, OptionQuery,
-		StorageMap,
+		StorageMap, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
 		Get,
 	},
+	BoundedVec,
 };
 use frame_system::{
 	ensure_signed,
@@ -59,32 +58,54 @@ pub type BalanceOf<T> =
 	<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
-pub struct Subscription<AccountId, BlockNumber> {
-	details: SubscriptionDetails<AccountId, BlockNumber>,
+pub struct Subscription<AccountId, BlockNumber, MetadataLen>
+where
+	AccountId: Encode,
+	BlockNumber: Encode + Copy,
+	MetadataLen: Get<u32>,
+{
+	details: SubscriptionDetails<AccountId, BlockNumber, MetadataLen>,
 	credits_left: BlockNumber,
-	status: SubscriptionState,
+	state: SubscriptionState,
 }
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
-pub struct SubscriptionDetails<AccountId, BlockNumber> {
+pub struct SubscriptionDetails<AccountId, BlockNumber, MetadataLen>
+where
+	AccountId: Encode,
+	BlockNumber: Encode + Copy,
+	MetadataLen: Get<u32>,
+{
 	subscriber: AccountId,
 	para_id: ParaId,
 	start_block: BlockNumber,
-	end_block: BlockNumber,
+	amount: BlockNumber,
 	frequency: BlockNumber,
 	target: Location,
-	filter: Option<Filter>, // ?
+	metadata: BoundedVec<u8, MetadataLen>,
 }
 
 type ParaId = u32; // todo import type
 
-impl<AccountId: Encode, BlockNumber: Encode> Subscription<AccountId, BlockNumber> {
+impl<AccountId, BlockNumber, MetadataLen> Subscription<AccountId, BlockNumber, MetadataLen>
+where
+	AccountId: Encode,
+	BlockNumber: Encode + Copy,
+	MetadataLen: Get<u32>,
+{
 	pub fn id(&self) -> SubscriptionId {
-		// TODO add block number into the mix, to avoid id collision
-		// Encode the struct using SCALE codec
-		let details = self.details.encode();
-		// Hash the encoded bytes using blake2_256
-		H256::from_slice(&blake2_256(&details))
+		// Create a tuple with the fields to include. Adjust fields as necessary.
+		let id_tuple = (
+			&self.details.subscriber,
+			self.details.para_id,
+			self.details.start_block,
+			self.details.target.clone(),
+			self.details.metadata.clone(),
+		);
+		// Encode the tuple using SCALE codec.
+		let encoded = id_tuple.encode();
+		// Hash the encoded bytes using blake2_256.
+		H256::from_slice(&blake2_256(&encoded))
 	}
 }
 
@@ -95,7 +116,6 @@ type Filter = u32; // to update
 pub enum SubscriptionState {
 	Active,
 	Paused,
-	Finalized,
 }
 
 #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
@@ -150,6 +170,8 @@ pub mod pallet {
 		/// The IDN Manager pallet id.
 		#[pallet::constant]
 		type PalletId: Get<frame_support::PalletId>;
+
+		type SubMetadataLen: Get<u32> + TypeInfo;
 	}
 
 	#[pallet::storage]
@@ -157,7 +179,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		SubscriptionId,
-		Subscription<T::AccountId, BlockNumberFor<T>>,
+		Subscription<T::AccountId, BlockNumberFor<T>, T::SubMetadataLen>,
 		OptionQuery,
 	>;
 
@@ -169,17 +191,21 @@ pub mod pallet {
 			sub_id: SubscriptionId,
 			para_id: ParaId,
 			subscriber: T::AccountId,
-			duration: BlockNumberFor<T>,
+			amount: BlockNumberFor<T>,
 			target: Location,
 		},
-		/// A subscription was deactivated
-		SubscriptionDeactivated { sub_id: SubscriptionId },
-		///
+		/// A subscription has naturally finished
+		SubscriptionFinished { sub_id: SubscriptionId },
+		/// A subscription was paused
 		SubscriptionPaused { sub_id: SubscriptionId },
+		/// A subscription has been manually finished
+		SubscriptionKilled { sub_id: SubscriptionId },
 		/// Notify of low budget
 		SubscriptionLowBudget { sub_id: SubscriptionId, budget: BalanceOf<T> },
 		/// Randomness was successfully distributed
 		RandomnessDistributed { sub_id: SubscriptionId },
+		/// WARNING Subscription credit went bellow 0. This should never happen
+		SubscriptionCreditBelowZero { sub_id: SubscriptionId, credits: BlockNumberFor<T> },
 	}
 
 	#[pallet::error]
@@ -208,30 +234,26 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_finalize(n: BlockNumberFor<T>) {
+		fn on_finalize(_n: BlockNumberFor<T>) {
 			// let mut reads = 0u64;
 			// let mut writes = 0u64;
 
-			// Filter active subscriptions that have Finalized
-			for (sub_id, _sub) in Subscriptions::<T>::iter().filter(|(_, sub)| {
-				sub.status == SubscriptionState::Active && sub.details.end_block <= n
-			}) {
-				// reads += 1;
+			// Look for subscriptions that should be finished
+			for (sub_id, sub) in
+				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left <= Zero::zero())
+			{
+				// reads += 1
 
-				// Use update instead of insert for atomic operation
-				let result =
-					Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| -> DispatchResult {
-						if let Some(sub) = maybe_sub {
-							sub.status = SubscriptionState::Finalized;
-							// writes += 1;
-							Self::deposit_event(Event::SubscriptionDeactivated { sub_id });
-						}
-						Ok(())
+				if sub.credits_left < Zero::zero() {
+					// throw  warning
+					Self::deposit_event(Event::SubscriptionCreditBelowZero {
+						sub_id,
+						credits: sub.credits_left,
 					});
-
-				if let Err(_) = result {
-					// TODO handle error
 				}
+
+				Self::finish_subscription(sub_id);
+				// writes += 1;
 			}
 
 			// T::DbWeight::get().reads(reads) + T::DbWeight::get().writes(writes)
@@ -260,9 +282,16 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+	/// Finishes a subscription by removing it from storage and emitting a finish event.
+	pub(crate) fn finish_subscription(sub_id: SubscriptionId) {
+		Subscriptions::<T>::remove(sub_id);
+		Self::deposit_event(Event::SubscriptionFinished { sub_id });
+	}
+
 	fn pallet_account_id() -> T::AccountId {
 		T::PalletId::get().into_account_truncating()
 	}
+
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
 	fn distribute(rnd: T::Rnd) -> DispatchResult {
@@ -273,7 +302,7 @@ impl<T: Config> Pallet<T> {
 
 		// Filter for active subscriptions only
 		for (sub_id, sub) in
-			Subscriptions::<T>::iter().filter(|(_, sub)| sub.status == SubscriptionState::Active)
+			Subscriptions::<T>::iter().filter(|(_, sub)| sub.state == SubscriptionState::Active)
 		{
 			// reads += 1;
 
@@ -299,7 +328,7 @@ impl<T: Config> Pallet<T> {
 	/// Check if there's an active subscription for the given para_id
 	fn has_active_subscription(sub_id: &SubscriptionId) -> bool {
 		Subscriptions::<T>::get(sub_id)
-			.map(|sub| sub.status == SubscriptionState::Active)
+			.map(|sub| sub.state == SubscriptionState::Active)
 			.unwrap_or(false)
 	}
 
@@ -336,7 +365,7 @@ impl<T: Config> Pallet<T> {
 			filter: None, // TODO define this
 		};
 		let subscription =
-			Subscription { status: SubscriptionState::Active, credits_left: amount, details };
+			Subscription { state: SubscriptionState::Active, credits_left: amount, details };
 		let sub_id = subscription.id();
 
 		ensure!(!Self::has_active_subscription(&sub_id), Error::<T>::ActiveSubscriptionExists);

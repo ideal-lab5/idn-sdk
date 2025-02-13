@@ -20,8 +20,14 @@
 //! It does not contain any tests.
 
 use crate as pallet_idn_manager;
-use frame_support::{construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage};
+use codec::{Decode, Encode};
+use frame_support::{
+	construct_runtime, derive_impl, parameter_types,
+	sp_runtime::BuildStorage,
+	traits::{ConstU32, Get},
+};
 use frame_system as system;
+use scale_info::TypeInfo;
 
 type Block = frame_system::mocking::MockBlock<Test>;
 type BlockNumber = frame_system::pallet_prelude::BlockNumberFor<Test>;
@@ -51,6 +57,15 @@ parameter_types! {
 	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo, Default)]
+pub struct SubMetadataLenWrapper;
+
+impl Get<u32> for SubMetadataLenWrapper {
+	fn get() -> u32 {
+		8
+	}
+}
+
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -61,6 +76,7 @@ impl pallet_idn_manager::Config for Test {
 	type Rnd = [u8; 32];
 	type WeightInfo = ();
 	type Xcm = ();
+	type SubMetadataLen = SubMetadataLenWrapper;
 }
 
 pub struct FeesCalculatorImpl;
