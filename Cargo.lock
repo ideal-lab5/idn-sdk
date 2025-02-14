@@ -3873,6 +3873,7 @@ dependencies = [
  "pallet-xcm",
  "parity-scale-codec",
  "scale-info",
+ "sp-api 35.0.0",
  "sp-core 35.0.0",
  "sp-io 39.0.0",
  "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",

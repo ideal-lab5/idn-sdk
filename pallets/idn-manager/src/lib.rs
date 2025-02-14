@@ -15,6 +15,8 @@
  */
 
 //! # IDN Manager Pallet
+//!
+//! This pallet manages subscriptions for random value distribution.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -24,7 +26,7 @@ mod tests;
 pub mod traits;
 pub mod weights;
 
-use codec::{Decode, Encode, MaxEncodedLen};
+use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, DispatchResult, Hooks, IsType, OptionQuery, StorageMap, Zero,
@@ -158,6 +160,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type PalletId: Get<frame_support::PalletId>;
 
+		/// Maximum metadata size
 		type SubMetadataLen: Get<u32> + TypeInfo;
 	}
 
@@ -179,6 +182,10 @@ pub mod pallet {
 		SubscriptionFinished { sub_id: SubscriptionId },
 		/// A subscription was paused
 		SubscriptionPaused { sub_id: SubscriptionId },
+		/// A subscription was updated
+		SubscriptionUpdated { sub_id: SubscriptionId },
+		/// A subscription was reactivated
+		SubscriptionReactivated { sub_id: SubscriptionId },
 		/// A subscription has been manually finished
 		SubscriptionKilled { sub_id: SubscriptionId },
 		/// Randomness was successfully distributed
@@ -189,8 +196,16 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// An active subscription already exists
-		ActiveSubscriptionExists,
+		/// A Subscription already exists
+		SubscriptionAlreadyExists,
+		/// A Subscription does not exist
+		SubscriptionDoesNotExist,
+		/// Subscription is already active
+		SubscriptionAlreadyActive,
+		/// Subscription is already paused
+		SubscriptionAlreadyPaused,
+		/// The origin isn't the subscriber
+		NotSubscriber,
 		// /// The parachain ID is invalid
 		// InvalidParaId,
 		/// Insufficient balance for subscription
@@ -237,17 +252,19 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Create a subscription for one or multiple blocks
-		// To keep this pallet low level `request_single_randomness` is not implemented and rather
-		// let it up to the pallet on the client side to handle the single block subscription
+		/// Creates a subscription for one or multiple blocks
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::create_subscription())]
 		pub fn create_subscription(
 			origin: OriginFor<T>,
 			para_id: ParaId,
+			// Number of random values to receive
 			amount: BlockNumberFor<T>,
+			// XCM multilocation for random value delivery.
 			target: Location,
+			// Distribution interval for random values
 			frequency: BlockNumberFor<T>,
+			// Bounded vector for additional data
 			metadata: Option<MetadataOf<T>>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
@@ -255,6 +272,80 @@ pub mod pallet {
 			Self::create_subscription_internal(
 				subscriber, para_id, amount, target, frequency, metadata,
 			)
+		}
+
+		/// Pauses an active subscription
+		#[pallet::call_index(1)]
+		#[pallet::weight(T::WeightInfo::pause_subscription())]
+		pub fn pause_subscription(origin: OriginFor<T>, sub_id: SubscriptionId) -> DispatchResult {
+			let subscriber = ensure_signed(origin)?;
+			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
+				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
+				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
+				ensure!(
+					sub.state != SubscriptionState::Paused,
+					Error::<T>::SubscriptionAlreadyPaused
+				);
+				sub.state = SubscriptionState::Paused;
+				Self::deposit_event(Event::SubscriptionPaused { sub_id });
+				Ok(())
+			})
+		}
+
+		/// Kills an active subscription
+		#[pallet::call_index(2)]
+		#[pallet::weight(T::WeightInfo::kill_subscription())]
+		pub fn kill_subscription(origin: OriginFor<T>, sub_id: SubscriptionId) -> DispatchResult {
+			let subscriber = ensure_signed(origin)?;
+			Subscriptions::<T>::try_mutate_exists(sub_id, |maybe_sub| {
+				let sub = maybe_sub.take().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
+				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
+				// TODO: refund storage and fees
+				Self::deposit_event(Event::SubscriptionKilled { sub_id });
+				Ok(())
+			})
+		}
+
+		/// Updates an active subscription
+		#[pallet::call_index(3)]
+		#[pallet::weight(T::WeightInfo::update_subscription())]
+		pub fn update_subscription(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+			amount: BlockNumberFor<T>,
+			frequency: BlockNumberFor<T>,
+		) -> DispatchResult {
+			let subscriber = ensure_signed(origin)?;
+			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
+				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
+				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
+				sub.details.amount = amount;
+				sub.details.frequency = frequency;
+				sub.details.updated_at = frame_system::Pallet::<T>::block_number();
+				Self::deposit_event(Event::SubscriptionUpdated { sub_id });
+				Ok(())
+			})
+		}
+
+		/// Reactivates a paused subscription
+		#[pallet::call_index(4)]
+		#[pallet::weight(T::WeightInfo::reactivate_subscription())]
+		pub fn reactivate_subscription(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+		) -> DispatchResult {
+			let subscriber = ensure_signed(origin)?;
+			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
+				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
+				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
+				ensure!(
+					sub.state != SubscriptionState::Active,
+					Error::<T>::SubscriptionAlreadyActive
+				);
+				sub.state = SubscriptionState::Active;
+				Self::deposit_event(Event::SubscriptionReactivated { sub_id });
+				Ok(())
+			})
 		}
 	}
 }
@@ -303,13 +394,6 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Check if there's an active subscription for the given para_id
-	fn has_active_subscription(sub_id: &SubscriptionId) -> bool {
-		Subscriptions::<T>::get(sub_id)
-			.map(|sub| sub.state == SubscriptionState::Active)
-			.unwrap_or(false)
-	}
-
 	/// Internal function to handle subscription creation
 	fn create_subscription_internal(
 		subscriber: T::AccountId,
@@ -339,7 +423,7 @@ impl<T: Config> Pallet<T> {
 			Subscription { state: SubscriptionState::Active, credits_left: amount, details };
 		let sub_id = subscription.id();
 
-		ensure!(!Self::has_active_subscription(&sub_id), Error::<T>::ActiveSubscriptionExists);
+		ensure!(!Subscriptions::<T>::contains_key(sub_id), Error::<T>::SubscriptionAlreadyExists);
 
 		Subscriptions::<T>::insert(&sub_id, subscription);
 
@@ -369,5 +453,41 @@ impl<T: Config> idn_traits::rand::Consumer<T::Rnd, DispatchResult> for Pallet<T>
 		// look for active subscriptions
 		// deliver rand to them
 		Pallet::<T>::distribute(rnd)
+	}
+}
+
+sp_api::decl_runtime_apis! {
+	#[api_version(1)]
+	pub trait IdnManagerApi<Balance, BlockNumber, Metadata, AccountId> where
+		Balance: Codec,
+		BlockNumber: Codec,
+		Metadata: Codec,
+		AccountId: Codec,
+	{
+		/// Computes the fee for a given amount of random values to receive
+		fn calculate_subscription_fees(
+			// Number of random values to receive
+			amount: BlockNumber
+		) -> Balance;
+
+		/// Retrieves a specific subscription
+		fn get_subscription(
+			// Subscription ID
+			sub_id: H256
+		) -> Option<Subscription<
+				AccountId,
+				BlockNumber,
+				Metadata
+			>>;
+
+		/// Retrieves all subscriptions for a specific origin
+		fn get_subscriptions_for_origin(
+			// Origin account ID
+			origin: AccountId
+		) -> Vec<Subscription<
+				AccountId,
+				BlockNumber,
+				Metadata
+			>>;
 	}
 }
