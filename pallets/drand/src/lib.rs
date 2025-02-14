@@ -41,9 +41,9 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use codec::Encode;
 use frame_support::{pallet_prelude::*, storage::bounded_vec::BoundedVec, traits::Randomness};
 use frame_system::pallet_prelude::BlockNumberFor;
+use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 use sp_consensus_randomness_beacon::types::OpaquePulse;
 use sp_runtime::traits::{Hash, Zero};
-use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 pub mod bls12_381;
 pub mod types;
@@ -97,13 +97,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
 
-	/// The aggregated signature of all observed pulses of randomness
+	/// The aggregated signature and aggregated public key (identifier) of all observed pulses of randomness
 	#[pallet::storage]
-	pub type AggregatedSignature<T: Config> = StorageValue<
-		_,
-		OpaqueSignature,
-		OptionQuery,
-	>;
+	pub type AggregatedSignature<T: Config> =
+		StorageValue<_, (OpaqueSignature, OpaqueSignature, RoundNumber), OptionQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -247,48 +244,55 @@ pub mod pallet {
 			ensure_none(origin)?;
 			// fail early on missing beacon config
 			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::MissingBeaconConfig)?;
-			let latest_block = <frame_system::Pallet<T>>::block_number();
-			// the network must be beyond block 0 (otherwise no config can be available anyway)
-			frame_support::ensure!(!latest_block.is_zero(), Error::<T>::NetworkTooEarly);
 			frame_support::ensure!(height > 0, Error::<T>::NonPositiveHeight);
 
-			if let Some(latest_round) = LatestRound::<T>::get() {
-				// the next round *must* be in sequence
-				frame_support::ensure!(
-					start_round == latest_round + 1,
-					Error::<T>::InvalidNextRound
-				);
-			}
-
+			// compute the new part of the apk from round numbers
 			let latest = start_round + height;
 			let rounds = (start_round..latest).collect::<Vec<_>>();
-			let validity = T::Verifier::verify(config.public_key, asig.clone(), &rounds)
-				.map_err(|_| Error::<T>::InvalidInput)?;
-			frame_support::ensure!(validity, Error::<T>::VerificationFailed);
+			let mut apk = crate::verifier::zero_on_g1();
 
-			// alternatively, this could be the NextRound we expect... if we remove the -1
-			// which one is more useful?
-			LatestRound::<T>::set(Some(latest - 1));
-			
-			let mut aggr_sig = asig.clone();
-			if let Some(existing) = AggregatedSignature::<T>::get() {
-				// convert both to points in G1
-				let p1 = G1AffineOpt::deserialize_compressed(existing.to_vec().as_slice()).unwrap();
-				let p2 = G1AffineOpt::deserialize_compressed(aggr_sig.to_vec().as_slice()).unwrap();
-				// aggregate 
-				let p = p1 + p2;
-				// serialize compressed
-				let mut out = Vec::new();
-				p.serialize_compressed(&mut out).unwrap();
-				aggr_sig = OpaqueSignature::truncate_from(out);
+			let mut signature = crate::verifier::decode_g1(&asig).unwrap();
+
+			if let Some((prev_asig_bytes, prev_apk_bytes, prev_latest)) =
+				AggregatedSignature::<T>::get()
+			{
+				frame_support::ensure!(
+					prev_latest + 1 == start_round,
+					Error::<T>::InvalidNextRound
+				);
+				// aggregate asig and apk with existing ones
+				let prev_asig = crate::verifier::decode_g1(&prev_asig_bytes).unwrap();
+				let prev_apk = crate::verifier::decode_g1(&prev_apk_bytes).unwrap();
+				signature = (signature + prev_asig).into();
+				apk = (apk + prev_apk).into();
 			} else {
-				// set the genesis round if no asig exists
+				// we have encountered the first pulse
 				GenesisRound::<T>::set(start_round);
 			}
 
-			AggregatedSignature::<T>::set(Some(aggr_sig));
+			for r in rounds {
+				let q = crate::verifier::compute_round_on_g1(r).unwrap();
+				apk = (apk + q).into()
+			}
 
-			Self::deposit_event(Event::PulseVerificationSuccess { rounds });
+			// verify the signature
+			let beacon_pk = crate::verifier::decode_g2(&config.public_key).unwrap();
+
+			let validity = T::Verifier::verify(beacon_pk, signature, apk)
+				.map_err(|_| Error::<T>::InvalidInput)?;
+
+			frame_support::ensure!(validity, Error::<T>::VerificationFailed);
+
+			let mut sig_bytes = Vec::new();
+			signature.serialize_compressed(&mut sig_bytes).unwrap();
+			let new_asig = OpaqueSignature::truncate_from(sig_bytes.clone());
+
+			let mut apk_bytes = Vec::new();
+			apk.serialize_compressed(&mut apk_bytes).unwrap();
+			let new_apk = OpaqueSignature::truncate_from(apk_bytes);
+
+			// update storage
+			AggregatedSignature::<T>::set(Some((new_asig, new_apk, latest - 1)));
 
 			Ok(())
 		}

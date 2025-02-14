@@ -36,9 +36,9 @@ use ark_serialize::CanonicalDeserialize;
 pub trait Verifier {
 	/// verify the given set of pulses using the beacon_config
 	fn verify(
-		beacon_pk: OpaquePublicKey,
-		signature: OpaqueSignature,
-		rounds: &[RoundNumber],
+		beacon_pk_bytes: G2AffineOpt,
+		signature_bytes: G1AffineOpt,
+		message: G1AffineOpt,
 	) -> Result<bool, String>;
 }
 
@@ -68,28 +68,13 @@ impl Verifier for QuicknetVerifier {
 	///
 	/// See see docs/integration.md for more information on how to use the `host-arkworks` feature.
 	fn verify(
-		beacon_pk_bytes: OpaquePublicKey,
-		signature_bytes: OpaqueSignature,
-		rounds: &[RoundNumber],
+		beacon_pk: G2AffineOpt,
+		signature: G1AffineOpt,
+		message: G1AffineOpt,
 	) -> Result<bool, String> {
-		// convert to arkworks types
-
-		let beacon_pk = decode_g2(&beacon_pk_bytes)?;
-		// let round_pk = decode_g2(&round_pk_bytes)?;
-		let signature = decode_g1(&signature_bytes)?;
-
 		// construct the point on G1 for the rounds
-		let mut aggr_message_on_curve = zero_on_g1();
-
-		for r in rounds {
-			let q = compute_round_on_g1(*r)?;
-			aggr_message_on_curve = (aggr_message_on_curve + q).into()
-		}
-
 		let g2 = G2AffineOpt::generator();
-		let result = bls12_381::fast_pairing_opt(signature, g2, aggr_message_on_curve, beacon_pk);
-
-		Ok(result)
+		Ok(bls12_381::fast_pairing_opt(signature, g2, message, beacon_pk))
 	}
 }
 
@@ -122,99 +107,104 @@ pub(crate) fn zero_on_g1() -> G1AffineOpt {
 }
 
 /// Attempts to decode the byte array to a point on G1
-fn decode_g1(mut bytes: &[u8]) -> Result<G1AffineOpt, String> {
+pub(crate) fn decode_g1(mut bytes: &[u8]) -> Result<G1AffineOpt, String> {
 	G1AffineOpt::deserialize_compressed(&mut bytes)
 		.map_err(|e| format!("Failed to decode message on curve: {}", e))
 }
 
 /// Attempts to decode the byte array to a point on G2
-fn decode_g2(mut bytes: &[u8]) -> Result<G2AffineOpt, String> {
+pub fn decode_g2(mut bytes: &[u8]) -> Result<G2AffineOpt, String> {
 	G2AffineOpt::deserialize_compressed(&mut bytes)
 		.map_err(|e| format!("Failed to decode message on curve: {}", e))
 }
 
 #[cfg(test)]
 pub mod test {
-
 	use super::*;
 	use ark_bls12_381::{G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
 
-	fn get_beacon_pk() -> OpaquePublicKey {
-		let pk_bytes = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
-		let decoded = hex::decode(pk_bytes).expect("Decoding failed");
-		OpaquePublicKey::try_from(decoded).unwrap()
+	pub(crate) type RawPulse = (u64, [u8; 96]);
+	pub(crate) const PULSE1000: RawPulse = (1000u64, *b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39");
+	pub(crate) const PULSE1001: RawPulse = (1001u64, *b"b33bf3667cbd5a82de3a24b4e0e9fe5513cc1a0e840368c6e31f5fcfa79bea03f73896b25883abf2853d10337fb8fa41");
+	pub(crate) const PULSE1002: RawPulse = (1002u64, *b"ab066f9c12dd6de1336fca0f925192fb0c72a771c3e4c82ede1fd362c1a770f9eb05843c6308ce2530b53a99c0281a6e");
+
+	// output the asig + apk
+	pub(crate) fn get(pulse_data: Vec<RawPulse>) -> (OpaqueSignature, OpaqueSignature) {
+		let mut apk = crate::verifier::zero_on_g1();
+		let mut asig = crate::verifier::zero_on_g1();
+
+		for pulse in pulse_data {
+			let sig_bytes = hex::decode(&pulse.1).unwrap();
+			let sig = G1AffineOpt::deserialize_compressed(&mut sig_bytes.as_slice()).unwrap();
+			asig = (asig + sig).into();
+
+			let pk = crate::verifier::compute_round_on_g1(pulse.0).unwrap();
+			apk = (apk + pk).into();
+		}
+
+		let mut asig_bytes = Vec::new();
+		asig.serialize_compressed(&mut asig_bytes).unwrap();
+		let asig_out = OpaqueSignature::truncate_from(asig_bytes);
+
+		let mut apk_bytes = Vec::new();
+		apk.serialize_compressed(&mut apk_bytes).unwrap();
+		let apk_out = OpaqueSignature::truncate_from(apk_bytes);
+
+		(asig_out, apk_out)
 	}
 
-	#[test]
-	fn can_verify_single_pulse_with_quicknet() {
-		let beacon_pk = get_beacon_pk();
-		let sig1_hex = b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39";
-		let sig1_bytes = hex::decode(sig1_hex).unwrap();
-		let round = 1000u64;
-		let opaque_sig = OpaqueSignature::truncate_from(sig1_bytes);
+	// sk * G \in G2
+	fn get_beacon_pk() -> G2AffineOpt {
+		let pk_bytes = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+		let pk_hex = hex::decode(pk_bytes).unwrap();
+		decode_g2(&pk_hex).unwrap()
+	}
 
-		let is_verified = QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round])
-			.expect("There should be no error.");
+	// d = sk * Q(1000)
+	#[test]
+	fn can_verify_single_pulse_with_quicknet_style_verifier() {
+		let beacon_pk = get_beacon_pk();
+		let (sig, pk) = get(vec![PULSE1000]);
+
+		let is_verified =
+			QuicknetVerifier::verify(beacon_pk, decode_g1(&sig).unwrap(), decode_g1(&pk).unwrap())
+				.expect("There should be no error.");
 		assert!(is_verified);
 	}
 
+	// d1 = sk * Q(1000), d2 = sk * Q(1001) => d = d1 + d2
 	#[test]
-	fn can_verify_invalid_with_bad_round_number() {
+	fn can_verify_aggregated_sigs() {
 		let beacon_pk = get_beacon_pk();
-		let sig1_hex = b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39";
-		let sig1_bytes = hex::decode(sig1_hex).unwrap();
-		let round = 10000u64;
-		let opaque_sig = OpaqueSignature::truncate_from(sig1_bytes);
+		let (sig, pk) = get(vec![PULSE1000, PULSE1001]);
 
-		let is_verified = QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round])
-			.expect("There should be no error.");
-		assert!(!is_verified);
+		let is_verified =
+			QuicknetVerifier::verify(beacon_pk, decode_g1(&sig).unwrap(), decode_g1(&pk).unwrap())
+				.expect("There should be no error.");
+		assert!(is_verified);
 	}
 
 	#[test]
 	fn can_verify_invalid_with_bad_signature() {
 		let beacon_pk = get_beacon_pk();
-		let sig1_hex = b"b33bf3667cbd5a82de3a24b4e0e9fe5513cc1a0e840368c6e31f5fcfa79bea03f73896b25883abf2853d10337fb8fa41";
-		let sig1_bytes = hex::decode(sig1_hex).unwrap();
-		let round = 1000u64;
-		let opaque_sig = OpaqueSignature::truncate_from(sig1_bytes);
+		let (sig, pk) = get(vec![PULSE1000]);
+		let (bad_sig, _pk) = get(vec![PULSE1001]);
 
-		let is_verified = QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round])
-			.expect("There should be no error.");
+		let is_verified =
+			QuicknetVerifier::verify(beacon_pk, decode_g1(&bad_sig).unwrap(), decode_g1(&pk).unwrap())
+				.expect("There should be no error.");
 		assert!(!is_verified);
 	}
 
 	#[test]
-	fn can_verify_invalid_with_empty_pubkey() {
-		let beacon_pk = OpaquePublicKey::truncate_from(vec![]);
-		let sig1_hex = b"b33bf3667cbd5a82de3a24b4e0e9fe5513cc1a0e840368c6e31f5fcfa79bea03f73896b25883abf2853d10337fb8fa41";
-		let sig1_bytes = hex::decode(sig1_hex).unwrap();
-		let round = 1000u64;
-		let opaque_sig = OpaqueSignature::truncate_from(sig1_bytes);
-
-		let res = QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round]);
-		assert!(res.is_err());
-		assert_eq!(
-			res,
-			Err("Failed to decode message on curve: the input buffer contained invalid data"
-				.to_string())
-		);
-	}
-
-	#[test]
-	fn can_verify_invalid_with_empty_signature() {
+	fn can_verify_invalid_with_bad_message() {
 		let beacon_pk = get_beacon_pk();
-		let sig1_hex = b"";
-		let sig1_bytes = hex::decode(sig1_hex).unwrap();
-		let round = 1000u64;
-		let opaque_sig = OpaqueSignature::truncate_from(sig1_bytes);
+		let (sig, pk) = get(vec![PULSE1000]);
+		let (_sig, bad_pk) = get(vec![PULSE1001]);
 
-		let res = QuicknetVerifier::verify(beacon_pk, opaque_sig, &[round]);
-		assert!(res.is_err());
-		assert_eq!(
-			res,
-			Err("Failed to decode message on curve: the input buffer contained invalid data"
-				.to_string())
-		);
+		let is_verified =
+			QuicknetVerifier::verify(beacon_pk, decode_g1(&sig).unwrap(), decode_g1(&bad_pk).unwrap())
+				.expect("There should be no error.");
+		assert!(!is_verified);
 	}
 }
