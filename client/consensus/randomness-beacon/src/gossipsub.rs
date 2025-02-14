@@ -61,7 +61,8 @@ pub struct GossipsubState {
 }
 
 impl GossipsubState {
-	/// Append a new pulse to the pulses vec. It returns Ok() if successful, otherwise gives an error.
+	/// Append a new pulse to the pulses vec. It returns Ok() if successful, otherwise gives an
+	/// error.
 	/// * `pulse`: The pulse to append
 	fn add_pulse(&mut self, pulse: Pulse) -> Result<(), Error> {
 		let opaque = pulse.try_into().map_err(|_| Error::SignatureBufferCapacityExceeded)?;
@@ -84,12 +85,12 @@ pub struct GossipsubNetwork {
 impl GossipsubNetwork {
 	/// Build a new gossipsub network.
 	/// It constructs a libp2p [swarm](https://docs.rs/libp2p/latest/libp2p/struct.Swarm.html)
-	/// where message authenticity requires signatures from the provided key and with a tcp-based transport layer.
+	/// where message authenticity requires signatures from the provided key and with a tcp-based
+	/// transport layer.
 	///
 	/// * `key`: A libp2p keypair
 	/// * `state`: The shared state
 	/// * `gossipsub_config`: A gossipsub config
-	///
 	pub fn new(
 		key: &Keypair,
 		state: SharedState,
@@ -120,7 +121,6 @@ impl GossipsubNetwork {
 	/// * `topic_str`: The gossipsub topic to subscribe to
 	/// * `peers`: A list of peers to dial
 	/// * `listen_addr`: An address to listen on. If None, then a random local port is assigned.
-	///
 	pub async fn run(
 		&mut self,
 		topic_str: &str,
@@ -146,9 +146,7 @@ impl GossipsubNetwork {
 
 	/// Executes until at least `target_count` ConnectionEstablished events
 	/// have been observed.
-	///
 	/// * `target_count`: The number of connection established events to observe until it terminates
-	///
 	async fn wait_for_peers(&mut self, target_count: usize) {
 		let mut connected_peers = 0;
 		while connected_peers < target_count {
@@ -163,7 +161,6 @@ impl GossipsubNetwork {
 	/// and ignores and messages it cannot understand.
 	///
 	/// * `topic_str`: The gossipsub topic to subscribe to.
-	///
 	async fn subscribe(&mut self, topic_str: &str) -> Result<(), Error> {
 		let topic = IdentTopic::new(topic_str);
 
