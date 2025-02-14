@@ -22,9 +22,7 @@
 use crate as pallet_idn_manager;
 use codec::{Decode, Encode};
 use frame_support::{
-	construct_runtime, derive_impl, parameter_types,
-	sp_runtime::BuildStorage,
-	traits::{ConstU32, Get},
+	construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage, traits::Get,
 };
 use frame_system as system;
 use scale_info::TypeInfo;
@@ -69,7 +67,6 @@ impl Get<u32> for SubMetadataLenWrapper {
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type MaxSubscriptionDuration = MaxSubscriptionDuration;
 	type FeesCalculator = FeesCalculatorImpl;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;

@@ -27,8 +27,7 @@ pub mod weights;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
-		ensure, Blake2_128Concat, CheckedDiv, DispatchResult, Hooks, IsType, OptionQuery,
-		StorageMap, Zero,
+		ensure, Blake2_128Concat, DispatchResult, Hooks, IsType, OptionQuery, StorageMap, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
@@ -57,48 +56,41 @@ pub use weights::WeightInfo;
 pub type BalanceOf<T> =
 	<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 
+pub type MetadataOf<T> = BoundedVec<u8, <T as Config>::SubMetadataLen>;
+
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
-pub struct Subscription<AccountId, BlockNumber, MetadataLen>
-where
-	AccountId: Encode,
-	BlockNumber: Encode + Copy,
-	MetadataLen: Get<u32>,
-{
-	details: SubscriptionDetails<AccountId, BlockNumber, MetadataLen>,
+pub struct Subscription<AccountId, BlockNumber, Metadata> {
+	details: SubscriptionDetails<AccountId, BlockNumber, Metadata>,
 	credits_left: BlockNumber,
 	state: SubscriptionState,
 }
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
-pub struct SubscriptionDetails<AccountId, BlockNumber, MetadataLen>
-where
-	AccountId: Encode,
-	BlockNumber: Encode + Copy,
-	MetadataLen: Get<u32>,
-{
+pub struct SubscriptionDetails<AccountId, BlockNumber, Metadata> {
 	subscriber: AccountId,
 	para_id: ParaId,
-	start_block: BlockNumber,
+	created_at: BlockNumber,
+	updated_at: BlockNumber,
 	amount: BlockNumber,
 	frequency: BlockNumber,
 	target: Location,
-	metadata: BoundedVec<u8, MetadataLen>,
+	metadata: Metadata,
 }
 
 type ParaId = u32; // todo import type
 
-impl<AccountId, BlockNumber, MetadataLen> Subscription<AccountId, BlockNumber, MetadataLen>
+impl<AccountId, BlockNumber, Metadata> Subscription<AccountId, BlockNumber, Metadata>
 where
 	AccountId: Encode,
 	BlockNumber: Encode + Copy,
-	MetadataLen: Get<u32>,
+	Metadata: Encode + Clone,
 {
 	pub fn id(&self) -> SubscriptionId {
 		// Create a tuple with the fields to include. Adjust fields as necessary.
 		let id_tuple = (
 			&self.details.subscriber,
 			self.details.para_id,
-			self.details.start_block,
+			self.details.created_at,
 			self.details.target.clone(),
 			self.details.metadata.clone(),
 		);
@@ -110,7 +102,6 @@ where
 }
 
 type SubscriptionId = H256;
-type Filter = u32; // to update
 
 #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
 pub enum SubscriptionState {
@@ -146,10 +137,6 @@ pub mod pallet {
 		/// Overarching hold reason.
 		type RuntimeHoldReason: From<HoldReason>;
 
-		/// Maximum subscription duration
-		#[pallet::constant]
-		type MaxSubscriptionDuration: Get<BlockNumberFor<Self>>;
-
 		/// Fees calculator implementation
 		type FeesCalculator: FeesCalculator<BalanceOf<Self>, BlockNumberFor<Self>>;
 
@@ -179,7 +166,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		SubscriptionId,
-		Subscription<T::AccountId, BlockNumberFor<T>, T::SubMetadataLen>,
+		Subscription<T::AccountId, BlockNumberFor<T>, MetadataOf<T>>,
 		OptionQuery,
 	>;
 
@@ -187,21 +174,13 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A new subscription was created (includes single-block subscriptions)
-		SubscriptionCreated {
-			sub_id: SubscriptionId,
-			para_id: ParaId,
-			subscriber: T::AccountId,
-			amount: BlockNumberFor<T>,
-			target: Location,
-		},
+		SubscriptionCreated { sub_id: SubscriptionId },
 		/// A subscription has naturally finished
 		SubscriptionFinished { sub_id: SubscriptionId },
 		/// A subscription was paused
 		SubscriptionPaused { sub_id: SubscriptionId },
 		/// A subscription has been manually finished
 		SubscriptionKilled { sub_id: SubscriptionId },
-		/// Notify of low budget
-		SubscriptionLowBudget { sub_id: SubscriptionId, budget: BalanceOf<T> },
 		/// Randomness was successfully distributed
 		RandomnessDistributed { sub_id: SubscriptionId },
 		/// WARNING Subscription credit went bellow 0. This should never happen
@@ -212,16 +191,12 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// An active subscription already exists
 		ActiveSubscriptionExists,
-		/// The subscription duration is invalid
-		InvalidSubscriptionDuration,
-		/// The subscription frequency is invalid
-		InvalidSubscriptionFrequency,
-		/// The parachain ID is invalid
-		InvalidParaId,
+		// /// The parachain ID is invalid
+		// InvalidParaId,
 		/// Insufficient balance for subscription
 		InsufficientBalance,
-		/// XCM execution failed
-		XcmExecutionFailed,
+		// /// XCM execution failed
+		// XcmExecutionFailed,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -270,13 +245,16 @@ pub mod pallet {
 		pub fn create_subscription(
 			origin: OriginFor<T>,
 			para_id: ParaId,
-			duration: BlockNumberFor<T>,
+			amount: BlockNumberFor<T>,
 			target: Location,
 			frequency: BlockNumberFor<T>,
+			metadata: Option<MetadataOf<T>>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
 			// TODO how to allow for fees preview?
-			Self::create_subscription_internal(subscriber, para_id, duration, target, frequency)
+			Self::create_subscription_internal(
+				subscriber, para_id, amount, target, frequency, metadata,
+			)
 		}
 	}
 }
@@ -336,19 +314,11 @@ impl<T: Config> Pallet<T> {
 	fn create_subscription_internal(
 		subscriber: T::AccountId,
 		para_id: ParaId,
-		duration: BlockNumberFor<T>,
+		amount: BlockNumberFor<T>,
 		target: Location,
 		frequency: BlockNumberFor<T>,
+		metadata: Option<MetadataOf<T>>,
 	) -> DispatchResult {
-		ensure!(
-			duration <= T::MaxSubscriptionDuration::get(),
-			Error::<T>::InvalidSubscriptionDuration
-		);
-
-		let amount = duration
-			.checked_div(&frequency)
-			.ok_or(Error::<T>::InvalidSubscriptionDuration)?;
-
 		// Calculate and hold the subscription fees
 		let fees = T::FeesCalculator::calculate_subscription_fees(amount);
 		T::Currency::hold(&HoldReason::Fees.into(), &subscriber, fees)
@@ -358,11 +328,12 @@ impl<T: Config> Pallet<T> {
 		let details = SubscriptionDetails {
 			subscriber: subscriber.clone(),
 			para_id,
-			start_block: current_block,
-			end_block: current_block + duration,
+			created_at: current_block,
+			updated_at: current_block,
+			amount,
 			target: target.clone(),
 			frequency,
-			filter: None, // TODO define this
+			metadata: metadata.unwrap_or_default(),
 		};
 		let subscription =
 			Subscription { state: SubscriptionState::Active, credits_left: amount, details };
@@ -372,13 +343,7 @@ impl<T: Config> Pallet<T> {
 
 		Subscriptions::<T>::insert(&sub_id, subscription);
 
-		Self::deposit_event(Event::SubscriptionCreated {
-			sub_id,
-			para_id,
-			subscriber,
-			duration,
-			target,
-		});
+		Self::deposit_event(Event::SubscriptionCreated { sub_id });
 
 		Ok(())
 	}
