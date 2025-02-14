@@ -1,2 +1,2 @@
 [test_config]
-exclude-files = "./solochain/*"
+exclude-files = "solochain/*"
