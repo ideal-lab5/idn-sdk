@@ -19,7 +19,6 @@
 //! This module contains examples of fee calculators that can be used in the IDN Manager pallet.
 
 use crate::traits::FeesCalculator;
-use frame_support::sp_runtime::traits::Saturating;
 
 /// Linear fee calculator with no discount
 pub struct LinearFeeCalculator;
@@ -29,27 +28,58 @@ impl FeesCalculator<u32, u32> for LinearFeeCalculator {
 		let base_fee = 100u32;
 		base_fee.saturating_mul(amount.into())
 	}
+	fn calculate_refund_fees(_init_amount: u32, current_amount: u32) -> u32 {
+		// in this case of a liner function, the refund's is the same as the fees'
+		Self::calculate_subscription_fees(current_amount)
+	}
 }
 
 /// Tiered fee calculator with predefined discount tiers
-pub struct TieredFeeCalculator;
+pub struct SteppedTieredFeeCalculator;
 
-impl FeesCalculator<u32, u32> for TieredFeeCalculator {
+impl FeesCalculator<u32, u32> for SteppedTieredFeeCalculator {
 	fn calculate_subscription_fees(amount: u32) -> u32 {
-		let base_fee = 100;
-		let discount = match amount {
-			0..=10 => 0,
-			11..=100 => 500,
-			101..=1_000 => 1_000,
-			1_001..=10_000 => 2_000,
-			_ => 3_000,
-		};
+		let base_fee = 100u32;
 
-		let discounted_fee = base_fee
-			.saturating_mul((10_000.saturating_sub(discount)) as u128)
-			.saturating_div(10_000);
+		// Define tier boundaries and their respective discount rates (in basis points)
+		const TIERS: [(u32, u32); 5] = [
+			(1, 0),        // 0-10: 0% discount
+			(11, 500),     // 11-100: 5% discount
+			(101, 1000),   // 101-1000: 10% discount
+			(1001, 2000),  // 1001-10000: 20% discount
+			(10001, 3000), // 10001+: 30% discount
+		];
 
-		discounted_fee.saturating_mul(amount.into()).try_into().unwrap()
+		let mut total_fee = 0u32;
+		let mut remaining_amount = amount;
+
+		for (i, &(current_tier_start, current_tier_discount)) in TIERS.iter().enumerate() {
+			// If no remaining credits or the tier starts above the requested amount, exit loop.
+			if remaining_amount == 0 || amount < current_tier_start {
+				break;
+			}
+
+			let next_tier_start = TIERS.get(i + 1).map(|&(start, _)| start).unwrap_or(u32::MAX);
+			let credits_in_tier =
+				(amount.min(next_tier_start.saturating_sub(1)) - current_tier_start + 1)
+					.min(remaining_amount);
+
+			let tier_fee = base_fee
+				.saturating_mul(credits_in_tier)
+				.saturating_mul((10_000 - current_tier_discount) as u32)
+				.saturating_div(10_000);
+
+			total_fee = total_fee.saturating_add(tier_fee);
+			remaining_amount = remaining_amount.saturating_sub(credits_in_tier);
+		}
+
+		total_fee
+	}
+	// The discount for the `used_amount` (`init_amount` - `current_amount`) is taken from the lower
+	// tieres (those with less discounts)
+	fn calculate_refund_fees(init_amount: u32, current_amount: u32) -> u32 {
+		let used_amount = init_amount - current_amount;
+		Self::calculate_subscription_fees(used_amount)
 	}
 }
 
@@ -65,20 +95,37 @@ mod tests {
 	}
 
 	#[test]
-	fn test_tiered_fee_calculator() {
-		// No discount tier (0-10 blocks)
-		assert_eq!(TieredFeeCalculator::calculate_subscription_fees(10), 1_000);
+	fn test_stepped_tiered_calculator() {
+		// Test first tier (no discount)
+		assert_eq!(SteppedTieredFeeCalculator::calculate_subscription_fees(10), 1_000); // 10 * 100 = 1,000
 
-		// 5% discount tier (11-100 blocks)
-		assert_eq!(TieredFeeCalculator::calculate_subscription_fees(50), 4_750); // 95% of 5_000
+		// Test crossing into second tier
+		let fee_11 = SteppedTieredFeeCalculator::calculate_subscription_fees(11);
+		assert_eq!(fee_11, 1_095); // (10 * 100) + (1 * 95) = 1,000 + 95 = 1,095
 
-		// 10% discount tier (101-1_000 blocks)
-		assert_eq!(TieredFeeCalculator::calculate_subscription_fees(500), 45_000); // 90% of 50_000
+		// Test middle of second tier
+		let fee_50 = SteppedTieredFeeCalculator::calculate_subscription_fees(50);
+		assert_eq!(fee_50, 4_800); // (10 * 100) + (40 * 95) = 1,000 + 3,800 = 4,800
 
-		// 20% discount tier (1_001-10_000 blocks)
-		assert_eq!(TieredFeeCalculator::calculate_subscription_fees(5_000), 400_000); // 80% of 500_000
+		// Test crossing multiple tiers
+		let fee_150 = SteppedTieredFeeCalculator::calculate_subscription_fees(150);
+		// First 10 at 100% = 1,000
+		// Next 90 at 95% = 8,550
+		// Next 50 at 90% = 4,500
+		// Total should be 14,050
+		assert_eq!(fee_150, 14_050);
+	}
 
-		// 30% discount tier (10_001+ blocks)
-		assert_eq!(TieredFeeCalculator::calculate_subscription_fees(50_000), 3_500_000); // 70% of 5_000_000
+	#[test]
+	fn test_no_price_inversion() {
+		// Test that buying more never costs less
+		let fee_10 = SteppedTieredFeeCalculator::calculate_subscription_fees(10);
+		let fee_11 = SteppedTieredFeeCalculator::calculate_subscription_fees(11);
+		assert!(fee_11 > fee_10, "11 credits should cost more than 10 credits");
+
+		// Test around the 100 credit boundary
+		let fee_100 = SteppedTieredFeeCalculator::calculate_subscription_fees(100);
+		let fee_101 = SteppedTieredFeeCalculator::calculate_subscription_fees(101);
+		assert!(fee_101 > fee_100, "101 credits should cost more than 100 credits");
 	}
 }

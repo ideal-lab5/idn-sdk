@@ -146,10 +146,7 @@ pub mod pallet {
 		type FeesCalculator: FeesCalculator<BalanceOf<Self>, BlockNumberFor<Self>>;
 
 		/// Storage deposit calculator implementation
-		type StorageDepositCalculator: StorageDepositCalculator<
-			BalanceOf<Self>,
-			SubscriptionOf<Self>,
-		>;
+		type DepositCalculator: DepositCalculator<BalanceOf<Self>, SubscriptionOf<Self>>;
 
 		/// The type for the randomness
 		type Rnd;
@@ -280,7 +277,6 @@ pub mod pallet {
 			metadata: Option<MetadataOf<T>>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
-			// TODO how to allow for fees preview?
 			Self::create_subscription_internal(
 				subscriber, para_id, amount, target, frequency, metadata,
 			)
@@ -434,6 +430,14 @@ impl<T: Config> Pallet<T> {
 		};
 		let subscription =
 			Subscription { state: SubscriptionState::Active, credits_left: amount, details };
+
+		T::Currency::hold(
+			&HoldReason::StorageDeposit.into(),
+			&subscriber,
+			T::DepositCalculator::calculate_storage_deposit(&subscription),
+		)
+		.map_err(|_| Error::<T>::InsufficientBalance)?;
+
 		let sub_id = subscription.id();
 
 		ensure!(!Subscriptions::<T>::contains_key(sub_id), Error::<T>::SubscriptionAlreadyExists);

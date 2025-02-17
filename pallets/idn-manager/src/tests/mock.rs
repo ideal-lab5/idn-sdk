@@ -68,7 +68,7 @@ impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type FeesCalculator = FeesCalculatorImpl;
-	type StorageDepositCalculator = StorageDepositCalculatorImpl;
+	type DepositCalculator = DepositCalculatorImpl;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Rnd = [u8; 32];
@@ -84,14 +84,18 @@ impl pallet_idn_manager::FeesCalculator<u64, BlockNumber> for FeesCalculatorImpl
 		let base_fee = 10u64;
 		base_fee.saturating_mul(amount.into())
 	}
+	fn calculate_refund_fees(_init_amount: BlockNumber, current_amount: BlockNumber) -> u64 {
+		// in this case of a liner function, the refund's is the same as the fees'
+		Self::calculate_subscription_fees(current_amount)
+	}
 }
 
-pub struct StorageDepositCalculatorImpl;
+pub struct DepositCalculatorImpl;
 
-impl pallet_idn_manager::StorageDepositCalculator<u64, pallet_idn_manager::SubscriptionOf<Test>>
-	for StorageDepositCalculatorImpl
+impl pallet_idn_manager::DepositCalculator<u64, pallet_idn_manager::SubscriptionOf<Test>>
+	for DepositCalculatorImpl
 {
-	fn calculate_storage_deposit(sub: pallet_idn_manager::SubscriptionOf<Test>) -> u64 {
+	fn calculate_storage_deposit(sub: &pallet_idn_manager::SubscriptionOf<Test>) -> u64 {
 		let storage_deposit_multiplier = 10;
 		// calculate the size of scale encoded `sub`
 		let encoded_size = sub.encode().len() as u64;
