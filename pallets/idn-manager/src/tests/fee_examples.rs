@@ -79,7 +79,8 @@ impl FeesCalculator<u32, u32> for SteppedTieredFeeCalculator {
 	// tieres (those with less discounts)
 	fn calculate_refund_fees(init_amount: u32, current_amount: u32) -> u32 {
 		let used_amount = init_amount - current_amount;
-		Self::calculate_subscription_fees(used_amount)
+		Self::calculate_subscription_fees(init_amount) -
+			Self::calculate_subscription_fees(used_amount)
 	}
 }
 
@@ -92,6 +93,46 @@ mod tests {
 		assert_eq!(LinearFeeCalculator::calculate_subscription_fees(1), 100);
 		assert_eq!(LinearFeeCalculator::calculate_subscription_fees(10), 1_000);
 		assert_eq!(LinearFeeCalculator::calculate_subscription_fees(100), 10_000);
+	}
+	/// Test when no subscription credits were used.
+	#[test]
+	fn test_calculate_refund_linear_fees_no_usage() {
+		let init_amount: u32 = 50;
+		let current_amount: u32 = 50; // no credits used
+								// In this case the refund should equal the fee for the entire subscription.
+		let refund = LinearFeeCalculator::calculate_refund_fees(init_amount, current_amount);
+		let expected = LinearFeeCalculator::calculate_subscription_fees(init_amount) -
+			LinearFeeCalculator::calculate_subscription_fees(0); // used_amount is 0
+		assert_eq!(
+			refund, expected,
+			"Refund must equal entire subscription fee when no credits were used"
+		);
+	}
+
+	/// Test for a partial usage scenario.
+	#[test]
+	fn test_calculate_refund_linear_fees_partial_usage() {
+		let init_amount: u32 = 50;
+		let current_amount: u32 = 30; // 20 credits used
+		let refund = LinearFeeCalculator::calculate_refund_fees(init_amount, current_amount);
+		let used_amount = init_amount - current_amount; // 20
+		let expected = LinearFeeCalculator::calculate_subscription_fees(init_amount) -
+			LinearFeeCalculator::calculate_subscription_fees(used_amount);
+		assert_eq!(
+			refund, expected,
+			"Refund must equal the fee difference between full subscription and the used portion"
+		);
+	}
+
+	/// Test when the subscription is fully used.
+	#[test]
+	fn test_calculate_refund_linear_fees_full_usage() {
+		let init_amount: u32 = 50;
+		let current_amount: u32 = 0; // all credits used
+		let refund = LinearFeeCalculator::calculate_refund_fees(init_amount, current_amount);
+		let expected = LinearFeeCalculator::calculate_subscription_fees(init_amount) -
+			LinearFeeCalculator::calculate_subscription_fees(init_amount); // should be 0
+		assert_eq!(refund, expected, "Refund must be zero when all subscription credits are used");
 	}
 
 	#[test]
@@ -127,5 +168,46 @@ mod tests {
 		let fee_100 = SteppedTieredFeeCalculator::calculate_subscription_fees(100);
 		let fee_101 = SteppedTieredFeeCalculator::calculate_subscription_fees(101);
 		assert!(fee_101 > fee_100, "101 credits should cost more than 100 credits");
+	}
+
+	/// Test when no subscription credits were used.
+	#[test]
+	fn test_calculate_refund_fees_no_usage() {
+		let init_amount: u32 = 50;
+		let current_amount: u32 = 50; // no credits used
+								// In this case the refund should equal the fee for the entire subscription.
+		let refund = SteppedTieredFeeCalculator::calculate_refund_fees(init_amount, current_amount);
+		let expected = SteppedTieredFeeCalculator::calculate_subscription_fees(init_amount) -
+			SteppedTieredFeeCalculator::calculate_subscription_fees(0); // used_amount is 0
+		assert_eq!(
+			refund, expected,
+			"Refund must equal entire subscription fee when no credits were used"
+		);
+	}
+
+	/// Test for a partial usage scenario.
+	#[test]
+	fn test_calculate_refund_fees_partial_usage() {
+		let init_amount: u32 = 50;
+		let current_amount: u32 = 30; // 20 credits used
+		let refund = SteppedTieredFeeCalculator::calculate_refund_fees(init_amount, current_amount);
+		let used_amount = init_amount - current_amount; // 20
+		let expected = SteppedTieredFeeCalculator::calculate_subscription_fees(init_amount) -
+			SteppedTieredFeeCalculator::calculate_subscription_fees(used_amount);
+		assert_eq!(
+			refund, expected,
+			"Refund must equal the fee difference between full subscription and the used portion"
+		);
+	}
+
+	/// Test when the subscription is fully used.
+	#[test]
+	fn test_calculate_refund_fees_full_usage() {
+		let init_amount: u32 = 50;
+		let current_amount: u32 = 0; // all credits used
+		let refund = SteppedTieredFeeCalculator::calculate_refund_fees(init_amount, current_amount);
+		let expected = SteppedTieredFeeCalculator::calculate_subscription_fees(init_amount) -
+			SteppedTieredFeeCalculator::calculate_subscription_fees(init_amount); // should be 0
+		assert_eq!(refund, expected, "Refund must be zero when all subscription credits are used");
 	}
 }
