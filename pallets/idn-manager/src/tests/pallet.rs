@@ -57,31 +57,12 @@ fn create_subscription_works() {
 			subscription.details.metadata,
 			BoundedVec::<u8, SubMetadataLenWrapper>::try_from(vec![]).unwrap()
 		);
+		assert_eq!(
+			subscription.details.metadata,
+			BoundedVec::<u8, SubMetadataLenWrapper>::try_from(vec![]).unwrap()
+		);
 	});
 }
-
-// #[test]
-// fn create_subscription_fails_if_amount_exceeds_max() {
-// 	new_test_ext().execute_with(|| {
-// 		let subscriber: u64 = 1;
-// 		let para_id: u32 = 100;
-// 		let amount = MaxSubscriptionamount::get() + 1;
-// 		let target = Location::new(1, [xcm::v5::Junction::PalletInstance(1)]);
-// 		let frequency: u64 = 10;
-
-// 		assert_noop!(
-// 			IdnManager::create_subscription(
-// 				RuntimeOrigin::signed(subscriber),
-// 				para_id,
-// 				amount,
-// 				target.clone(),
-// 				frequency,
-// 				None
-// 			),
-// 			Error::<Test>::InvalidSubscriptionamount
-// 		);
-// 	});
-// }
 
 #[test]
 fn create_subscription_fails_if_insufficient_balance() {
@@ -135,5 +116,126 @@ fn distribute_randomness_works() {
 		let (_sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
 
 		assert_eq!(subscription.state, SubscriptionState::Active, "Subscription is not Active");
+	});
+}
+
+#[test]
+fn test_pause_subscription() {
+	new_test_ext().execute_with(|| {
+		let subscriber = 1;
+		let para_id = 100;
+		let amount = 10;
+		let frequency = 2;
+		let target = Location::new(1, [xcm::v5::Junction::PalletInstance(1)]);
+		let metadata = None;
+
+		<Test as Config>::Currency::set_balance(&subscriber, 10_000_000);
+
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(subscriber),
+			para_id,
+			amount,
+			target.clone(),
+			frequency,
+			metadata.clone()
+		));
+
+		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+
+		assert_ok!(IdnManager::pause_subscription(RuntimeOrigin::signed(subscriber), sub_id));
+		let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
+		assert_eq!(subscription.state, SubscriptionState::Paused);
+	});
+}
+
+#[test]
+fn test_kill_subscription() {
+	new_test_ext().execute_with(|| {
+		let subscriber = 1;
+		let para_id = 100;
+		let amount = 10;
+		let frequency = 2;
+		let target = Location::new(1, [xcm::v5::Junction::PalletInstance(1)]);
+		let metadata = None;
+
+		<Test as Config>::Currency::set_balance(&subscriber, 10_000_000);
+
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(subscriber),
+			para_id,
+			amount,
+			target.clone(),
+			frequency,
+			metadata.clone()
+		));
+
+		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+		assert_ok!(IdnManager::kill_subscription(RuntimeOrigin::signed(subscriber), sub_id));
+		assert!(Subscriptions::<Test>::get(sub_id).is_none());
+	});
+}
+
+#[test]
+fn test_update_subscription() {
+	new_test_ext().execute_with(|| {
+		let subscriber = 1;
+		let para_id = 100;
+		let amount = 10;
+		let frequency = 2;
+		let target = Location::new(1, [xcm::v5::Junction::PalletInstance(1)]);
+		let metadata = None;
+
+		<Test as Config>::Currency::set_balance(&subscriber, 10_000_000);
+
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(subscriber),
+			para_id,
+			amount,
+			target.clone(),
+			frequency,
+			metadata.clone()
+		));
+
+		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+		let new_amount = 20;
+		let new_frequency = 4;
+		assert_ok!(IdnManager::update_subscription(
+			RuntimeOrigin::signed(subscriber),
+			sub_id,
+			new_amount,
+			new_frequency
+		));
+		let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
+		assert_eq!(subscription.details.amount, new_amount);
+		assert_eq!(subscription.details.frequency, new_frequency);
+	});
+}
+
+#[test]
+fn test_reactivate_subscription() {
+	new_test_ext().execute_with(|| {
+		let subscriber = 1;
+		let para_id = 100;
+		let amount = 10;
+		let frequency = 2;
+		let target = Location::new(1, [xcm::v5::Junction::PalletInstance(1)]);
+		let metadata = None;
+
+		<Test as Config>::Currency::set_balance(&subscriber, 10_000_000);
+
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(subscriber),
+			para_id,
+			amount,
+			target.clone(),
+			frequency,
+			metadata.clone()
+		));
+
+		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+		assert_ok!(IdnManager::pause_subscription(RuntimeOrigin::signed(subscriber), sub_id));
+		assert_eq!(Subscriptions::<Test>::get(sub_id).unwrap().state, SubscriptionState::Paused);
+		assert_ok!(IdnManager::reactivate_subscription(RuntimeOrigin::signed(subscriber), sub_id));
+		assert_eq!(Subscriptions::<Test>::get(sub_id).unwrap().state, SubscriptionState::Active);
 	});
 }

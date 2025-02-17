@@ -16,10 +16,17 @@
 
 //! # Traits
 
-/// Trait for fees calculation implementations
+/// Trait for fees calculation
 ///
 /// This trait is used to calculate the fees for a subscription based on the amount of random values
 /// required by the subscription.
 pub trait FeesCalculator<Fees, Amount> {
 	fn calculate_subscription_fees(amount: Amount) -> Fees;
+}
+
+/// Trait for storage deposit calculation
+///
+/// This trait is used to calculate the storage deposit required for a subscription based it.
+pub trait StorageDepositCalculator<Deposit, Sub> {
+	fn calculate_storage_deposit(sub: Sub) -> Deposit;
 }

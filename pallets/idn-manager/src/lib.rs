@@ -60,6 +60,9 @@ pub type BalanceOf<T> =
 
 pub type MetadataOf<T> = BoundedVec<u8, <T as Config>::SubMetadataLen>;
 
+pub type SubscriptionOf<T> =
+	Subscription<<T as frame_system::Config>::AccountId, BlockNumberFor<T>, MetadataOf<T>>;
+
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber, Metadata> {
 	details: SubscriptionDetails<AccountId, BlockNumber, Metadata>,
@@ -142,6 +145,12 @@ pub mod pallet {
 		/// Fees calculator implementation
 		type FeesCalculator: FeesCalculator<BalanceOf<Self>, BlockNumberFor<Self>>;
 
+		/// Storage deposit calculator implementation
+		type StorageDepositCalculator: StorageDepositCalculator<
+			BalanceOf<Self>,
+			SubscriptionOf<Self>,
+		>;
+
 		/// The type for the randomness
 		type Rnd;
 
@@ -220,6 +229,9 @@ pub mod pallet {
 		/// The IDN Manager Pallet holds balance for future charges.
 		#[codec(index = 0)]
 		Fees,
+		/// Storage deposit
+		#[codec(index = 1)]
+		StorageDeposit,
 	}
 
 	#[pallet::hooks]
@@ -322,6 +334,7 @@ pub mod pallet {
 				sub.details.amount = amount;
 				sub.details.frequency = frequency;
 				sub.details.updated_at = frame_system::Pallet::<T>::block_number();
+				// TODO implement a way to refund or take the difference in fees https://github.com/ideal-lab5/idn-sdk/issues/104
 				Self::deposit_event(Event::SubscriptionUpdated { sub_id });
 				Ok(())
 			})
