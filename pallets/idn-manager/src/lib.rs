@@ -17,6 +17,36 @@
 //! # IDN Manager Pallet
 //!
 //! This pallet manages subscriptions for random value distribution.
+//!
+//! ## Subscription State Lifecycle
+//! ```mermaid
+//! stateDiagram-v2
+//!     [*] --> Active
+//!     Active --> Paused
+//!     Paused --> Active
+//!     Paused --> [*]
+//!     Active --> [*]
+//! ```
+//! ### States
+//!
+//! 1. Active (Default)
+//!    - Randomness is actively distributed
+//!    - IDN delivers random values according to subscription parameters
+//!
+//! 2. Paused
+//!    - Randomness distribution temporarily suspended
+//!    - Subscription remains in storage
+//!    - Can be reactivated
+//!
+//! ### Termination
+//! Subscription ends when:
+//! - All allocated random values are consumed
+//! - Manually killed by the original caller
+//!
+//! Upon termination:
+//! - Removed from storage
+//! - Storage deposit returned
+//! - Unused credits refunded to the origin
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -45,6 +75,7 @@ use frame_system::{
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
+use sp_std::fmt::Debug;
 use traits::*;
 use xcm::{
 	v5::{prelude::*, Location},
@@ -73,7 +104,6 @@ pub struct Subscription<AccountId, BlockNumber, Metadata> {
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct SubscriptionDetails<AccountId, BlockNumber, Metadata> {
 	subscriber: AccountId,
-	para_id: ParaId,
 	created_at: BlockNumber,
 	updated_at: BlockNumber,
 	amount: BlockNumber,
@@ -82,8 +112,6 @@ pub struct SubscriptionDetails<AccountId, BlockNumber, Metadata> {
 	metadata: Metadata,
 }
 
-type ParaId = u32; // todo import type
-
 impl<AccountId, BlockNumber, Metadata> Subscription<AccountId, BlockNumber, Metadata>
 where
 	AccountId: Encode,
@@ -91,10 +119,8 @@ where
 	Metadata: Encode + Clone,
 {
 	pub fn id(&self) -> SubscriptionId {
-		// Create a tuple with the fields to include. Adjust fields as necessary.
 		let id_tuple = (
 			&self.details.subscriber,
-			self.details.para_id,
 			self.details.created_at,
 			self.details.target.clone(),
 			self.details.metadata.clone(),
@@ -212,12 +238,8 @@ pub mod pallet {
 		SubscriptionAlreadyPaused,
 		/// The origin isn't the subscriber
 		NotSubscriber,
-		// /// The parachain ID is invalid
-		// InvalidParaId,
 		/// Insufficient balance for subscription
 		InsufficientBalance,
-		// /// XCM execution failed
-		// XcmExecutionFailed,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -234,28 +256,21 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_finalize(_n: BlockNumberFor<T>) {
-			// let mut reads = 0u64;
-			// let mut writes = 0u64;
-
 			// Look for subscriptions that should be finished
 			for (sub_id, sub) in
 				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left <= Zero::zero())
 			{
-				// reads += 1
-
 				if sub.credits_left < Zero::zero() {
-					// throw  warning
+					// If this happens then there's a bug in the code
 					Self::deposit_event(Event::SubscriptionCreditBelowZero {
 						sub_id,
 						credits: sub.credits_left,
 					});
 				}
 
+				// finish the subscription
 				Self::finish_subscription(sub_id);
-				// writes += 1;
 			}
-
-			// T::DbWeight::get().reads(reads) + T::DbWeight::get().writes(writes)
 		}
 	}
 
@@ -266,10 +281,9 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::create_subscription())]
 		pub fn create_subscription(
 			origin: OriginFor<T>,
-			para_id: ParaId,
 			// Number of random values to receive
 			amount: BlockNumberFor<T>,
-			// XCM multilocation for random value delivery.
+			// XCM multilocation for random value delivery
 			target: Location,
 			// Distribution interval for random values
 			frequency: BlockNumberFor<T>,
@@ -277,15 +291,17 @@ pub mod pallet {
 			metadata: Option<MetadataOf<T>>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
-			Self::create_subscription_internal(
-				subscriber, para_id, amount, target, frequency, metadata,
-			)
+			Self::create_subscription_internal(subscriber, amount, target, frequency, metadata)
 		}
 
-		/// Pauses an active subscription
+		/// Temporarily halts randomness distribution
 		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::pause_subscription())]
-		pub fn pause_subscription(origin: OriginFor<T>, sub_id: SubscriptionId) -> DispatchResult {
+		pub fn pause_subscription(
+			// Must match the subscription's original caller
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -300,15 +316,19 @@ pub mod pallet {
 			})
 		}
 
-		/// Kills an active subscription
+		/// Ends the subscription before its natural conclusion
 		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::kill_subscription())]
-		pub fn kill_subscription(origin: OriginFor<T>, sub_id: SubscriptionId) -> DispatchResult {
+		pub fn kill_subscription(
+			// Must match the subscription's original caller
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
 			Subscriptions::<T>::try_mutate_exists(sub_id, |maybe_sub| {
 				let sub = maybe_sub.take().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
-				// TODO: refund storage and fees
+				// TODO: refund storage and fees https://github.com/ideal-lab5/idn-sdk/issues/107
 				Self::deposit_event(Event::SubscriptionKilled { sub_id });
 				Ok(())
 			})
@@ -318,9 +338,12 @@ pub mod pallet {
 		#[pallet::call_index(3)]
 		#[pallet::weight(T::WeightInfo::update_subscription())]
 		pub fn update_subscription(
+			// Must match the subscription's original caller
 			origin: OriginFor<T>,
 			sub_id: SubscriptionId,
+			// New number of random values
 			amount: BlockNumberFor<T>,
+			// New distribution interval
 			frequency: BlockNumberFor<T>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
@@ -340,6 +363,7 @@ pub mod pallet {
 		#[pallet::call_index(4)]
 		#[pallet::weight(T::WeightInfo::reactivate_subscription())]
 		pub fn reactivate_subscription(
+			// Must match the subscription's original caller
 			origin: OriginFor<T>,
 			sub_id: SubscriptionId,
 		) -> DispatchResult {
@@ -372,11 +396,10 @@ impl<T: Config> Pallet<T> {
 
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
+	// TODO: finish off this as part of https://github.com/ideal-lab5/idn-sdk/issues/77
 	fn distribute(rnd: T::Rnd) -> DispatchResult {
 		// let mut reads = 0u64;
 		// let mut writes = 0u64;
-
-		// let randomness = T::RandomnessSource::get_randomness();
 
 		// Filter for active subscriptions only
 		for (sub_id, sub) in
@@ -393,7 +416,9 @@ impl<T: Config> Pallet<T> {
 				let _ = T::Xcm::send(origin.into(), versioned_target, versioned_msg);
 				// writes += 1;
 
-				// TODO: decrease credits left !!!!
+				// TODO:
+				// - decrease credits left
+				// - move fees to treasury
 
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			}
@@ -406,7 +431,6 @@ impl<T: Config> Pallet<T> {
 	/// Internal function to handle subscription creation
 	fn create_subscription_internal(
 		subscriber: T::AccountId,
-		para_id: ParaId,
 		amount: BlockNumberFor<T>,
 		target: Location,
 		frequency: BlockNumberFor<T>,
@@ -420,7 +444,6 @@ impl<T: Config> Pallet<T> {
 		let current_block = frame_system::Pallet::<T>::block_number();
 		let details = SubscriptionDetails {
 			subscriber: subscriber.clone(),
-			para_id,
 			created_at: current_block,
 			updated_at: current_block,
 			amount,
@@ -450,6 +473,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Helper function to construct XCM message for randomness distribution
+	// TODO: finish this off as part of https://github.com/ideal-lab5/idn-sdk/issues/77
 	fn construct_randomness_xcm(target: Location, _rnd: &T::Rnd) -> Result<Xcm<()>, Error<T>> {
 		Ok(Xcm(vec![
 			WithdrawAsset((Here, 0u128).into()),
@@ -465,10 +489,8 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-impl<T: Config> idn_traits::rand::Consumer<T::Rnd, DispatchResult> for Pallet<T> {
-	fn consume(rnd: T::Rnd) -> DispatchResult {
-		// look for active subscriptions
-		// deliver rand to them
+impl<T: Config> idn_traits::rand::Dispatcher<T::Rnd, DispatchResult> for Pallet<T> {
+	fn dispatch(rnd: T::Rnd) -> DispatchResult {
 		Pallet::<T>::distribute(rnd)
 	}
 }

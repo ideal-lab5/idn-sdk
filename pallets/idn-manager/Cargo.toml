@@ -45,9 +45,5 @@ std = [
 	"xcm/std",
 	"pallet-xcm/std",
 	"pallet-balances/std",
-	"xcm-builder/std",
-	# "frame/std",
-	# "sp-externalities/std",
-	# "sp-runtime-interface/std",
-	# "environmental/std"
+	"xcm-builder/std"
 ]

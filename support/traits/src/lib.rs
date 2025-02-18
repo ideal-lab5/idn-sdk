@@ -18,9 +18,9 @@
 
 pub mod rand {
 
-	/// A trait for consuming random data.
-	pub trait Consumer<R, O> {
-		/// Consume the given random data.
-		fn consume(rnd: R) -> O;
+	/// A trait for dispatching random data.
+	pub trait Dispatcher<R, O> {
+		/// Dispatch the given random data.
+		fn dispatch(rnd: R) -> O;
 	}
 }
