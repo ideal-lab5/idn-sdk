@@ -37,24 +37,21 @@ pub use pallet::*;
 extern crate alloc;
 
 use alloc::{vec, vec::Vec};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use codec::Encode;
-use frame_support::{pallet_prelude::*, storage::bounded_vec::BoundedVec, traits::Randomness};
-use frame_system::pallet_prelude::BlockNumberFor;
-use sp_ark_bls12_381::G1Affine as G1AffineOpt;
+use ark_serialize::CanonicalSerialize;
+use frame_support::{pallet_prelude::*, storage::bounded_vec::BoundedVec};
 use sp_consensus_randomness_beacon::types::OpaquePulse;
-use sp_runtime::traits::{Hash, Zero};
 
+pub mod aggregator;
 pub mod bls12_381;
 pub mod types;
-pub mod verifier;
 
+use aggregator::SignatureAggregator;
 use types::*;
-use verifier::Verifier;
 
-use crate::types::{BoundedStorage, Metadata, OpaquePublicKey, OpaqueSignature, RoundNumber};
-
-pub type RandomValue = [u8; 32];
+use crate::{
+	aggregator::zero_on_g1,
+	types::{BoundedStorage, Metadata, OpaquePublicKey, OpaqueSignature, RoundNumber},
+};
 
 #[cfg(test)]
 mod mock;
@@ -64,8 +61,6 @@ mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-pub mod weights;
-pub use weights::*;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -79,10 +74,10 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		/// A type representing the weights required by the dispatchables of this pallet.
-		type WeightInfo: WeightInfo;
-		/// something that knows how to verify beacon pulses
-		type Verifier: Verifier;
+		/// something that knows how to aggregate and verify beacon pulses
+		type SignatureAggregator: SignatureAggregator;
+		/// The number of pulses per block
+		type SignatureToBlockRatio: Get<u8>;
 	}
 
 	/// the drand beacon configuration
@@ -93,24 +88,25 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type GenesisRound<T: Config> = StorageValue<_, RoundNumber, ValueQuery>;
 
-	/// The latest round number for which we have verified a pulse of randomness
+	/// The latest observed round
 	#[pallet::storage]
-	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
+	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, ValueQuery>;
 
-	/// The aggregated signature and aggregated public key (identifier) of all observed pulses of randomness
+	/// The aggregated signature and aggregated public key (identifier) of all observed pulses of
+	/// randomness
 	#[pallet::storage]
 	pub type AggregatedSignature<T: Config> =
-		StorageValue<_, (OpaqueSignature, OpaqueSignature, RoundNumber), OptionQuery>;
+		StorageValue<_, (OpaqueSignature, OpaqueSignature), OptionQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		/// The beacon configuration has been updated by a root address
 		BeaconConfigChanged,
-		/// A user has successfully set a new value.
-		PulseVerificationSuccess {
-			/// The new value set
-			rounds: Vec<RoundNumber>,
-		},
+		/// The genesis round has been changed by a root address
+		GenesisRoundChanged,
+		/// Siganture verification succeeded for signatures associated with the given rounds.
+		SignatureVerificationSuccess,
 	}
 
 	#[pallet::error]
@@ -131,6 +127,10 @@ pub mod pallet {
 		NetworkTooEarly,
 		/// There must be at least one pulse provided.
 		NonPositiveHeight,
+		/// The genesis round is zero.
+		GenesisRoundNotSet,
+		/// The genesis is already set.
+		GenesisRoundAlreadySet,
 	}
 
 	#[pallet::inherent]
@@ -145,29 +145,24 @@ pub mod pallet {
 			// if we do not find any pulse data, then do nothing
 			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 			{
-				let mut pulse_iter =
-					raw_pulses.iter().map(|rp| OpaquePulse::deserialize_from_vec(rp));
-				// only continue if we can get the initial pulse
-				if let Some(Ok(first)) = pulse_iter.next() {
-					let start_round = first.round;
-					let height = raw_pulses.len();
-					let mut asig = first.signature_point().unwrap();
-					asig = pulse_iter.fold(asig, |acc, val| {
-						(acc + val.unwrap().signature_point().unwrap()).into()
-					});
-					let mut asig_bytes = Vec::with_capacity(48);
-					asig.serialize_compressed(&mut asig_bytes).unwrap();
+				let asig = raw_pulses
+					.iter()
+					.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
+					.filter_map(|pulse| pulse.signature_point().ok())
+					.fold(zero_on_g1(), |acc, sig| (acc + sig).into());
 
-					let bounded_asig_bytes = OpaqueSignature::truncate_from(asig_bytes);
-
-					return Some(Call::write_pulses {
-						asig: bounded_asig_bytes,
-						start_round,
-						height: height as u64,
-					});
-				} else {
-					log::info!("The node provided empty pulse data to the inherent!");
+				let mut asig_bytes = Vec::with_capacity(48);
+				if asig.serialize_compressed(&mut asig_bytes).is_err() {
+					log::error!("Failed to serialize the aggregated signature.");
+					return None;
 				}
+
+				return Some(Call::try_submit_asig {
+					asig: OpaqueSignature::truncate_from(asig_bytes),
+					round: None,
+				});
+			} else {
+				log::info!("The node provided empty pulse data to the inherent!");
 			}
 
 			None
@@ -178,7 +173,7 @@ pub mod pallet {
 		}
 
 		fn is_inherent(call: &Self::Call) -> bool {
-			matches!(call, Call::write_pulses { .. })
+			matches!(call, Call::try_submit_asig { .. })
 		}
 	}
 
@@ -186,6 +181,8 @@ pub mod pallet {
 	pub struct GenesisConfig<T: Config> {
 		/// The randomness beacon config
 		pub config: BeaconConfiguration,
+		/// The first round where we should start consuming from the beacon
+		pub genesis_round: RoundNumber,
 		/// Phantom config
 		#[serde(skip)]
 		pub _phantom: core::marker::PhantomData<T>,
@@ -195,7 +192,7 @@ pub mod pallet {
 		/// The default configuration is Drand Quicknet
 		/// https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info
 		fn default() -> Self {
-			Self { config: drand_quicknet_config(), _phantom: Default::default() }
+			Self { config: drand_quicknet_config(), genesis_round: 0, _phantom: Default::default() }
 		}
 	}
 
@@ -212,10 +209,11 @@ pub mod pallet {
 		/// allows the root user to set the beacon configuration
 		/// there is no verification of configurations, so be careful with this.
 		///
-		/// * `origin`: the root user
-		/// * `config`: the beacon configuration
+		/// * `origin`: The root user
+		/// * `config`: The new beacon configuration
+		/// TODO: weights generation and benchmarking: https://github.com/ideal-lab5/idn-sdk/issues/56
 		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::set_beacon_config())]
+		#[pallet::weight(1_000)]
 		pub fn set_beacon_config(
 			origin: OriginFor<T>,
 			config: BeaconConfiguration,
@@ -226,73 +224,72 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Set the genesis round if the origin has root privileges
+		///
+		/// * `origin`: The root user
+		/// * `round`: The new genesis round
+		/// TODO: weights generation and benchmarking: https://github.com/ideal-lab5/idn-sdk/issues/56
+		#[pallet::call_index(1)]
+		#[pallet::weight(1_000)]
+		pub fn set_genesis_round(origin: OriginFor<T>, round: RoundNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			GenesisRound::<T>::put(round);
+			Self::deposit_event(Event::GenesisRoundChanged {});
+			Ok(())
+		}
+
 		/// Write a set of pulses to the runtime
 		///
 		/// * `origin`: A None origin
 		/// * `asig`: An aggregated signature
-		/// * `start_round`: The round that coincides with the first signature added to asig
-		/// * `height`: The number of signature aggregated to get asig. i.e. if asig = a1 + a2 + a3,
-		///   then height = 3
-		#[pallet::call_index(1)]
+		/// * `round`: An optional genesis round number. It can only be set if the existing genesis
+		///   round is 0.
+		/// TODO: weights generation and benchmarking: https://github.com/ideal-lab5/idn-sdk/issues/56
+		#[pallet::call_index(2)]
 		#[pallet::weight(1_000)]
-		pub fn write_pulses(
+		pub fn try_submit_asig(
 			origin: OriginFor<T>,
 			asig: OpaqueSignature,
-			start_round: RoundNumber,
-			height: RoundNumber,
+			round: Option<RoundNumber>,
 		) -> DispatchResult {
 			ensure_none(origin)?;
-			// fail early on missing beacon config
+			// the beacon config must exist
 			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::MissingBeaconConfig)?;
-			frame_support::ensure!(height > 0, Error::<T>::NonPositiveHeight);
 
-			// compute the new part of the apk from round numbers
-			let latest = start_round + height;
-			let rounds = (start_round..latest).collect::<Vec<_>>();
-			let mut apk = crate::verifier::zero_on_g1();
+			let mut genesis_round = GenesisRound::<T>::get();
+			let mut latest_round = LatestRound::<T>::get();
 
-			let mut signature = crate::verifier::decode_g1(&asig).unwrap();
-
-			if let Some((prev_asig_bytes, prev_apk_bytes, prev_latest)) =
-				AggregatedSignature::<T>::get()
-			{
-				frame_support::ensure!(
-					prev_latest + 1 == start_round,
-					Error::<T>::InvalidNextRound
-				);
-				// aggregate asig and apk with existing ones
-				let prev_asig = crate::verifier::decode_g1(&prev_asig_bytes).unwrap();
-				let prev_apk = crate::verifier::decode_g1(&prev_apk_bytes).unwrap();
-				signature = (signature + prev_asig).into();
-				apk = (apk + prev_apk).into();
+			if let Some(r) = round {
+				// if a round is provided and the genesis round is not set
+				frame_support::ensure!(genesis_round == 0, Error::<T>::GenesisRoundAlreadySet);
+				GenesisRound::<T>::set(r);
+				genesis_round = r;
+				latest_round = genesis_round;
 			} else {
-				// we have encountered the first pulse
-				GenesisRound::<T>::set(start_round);
+				//  if the genesis round is not set and a round is not provided
+				frame_support::ensure!(
+					GenesisRound::<T>::get() > 0,
+					Error::<T>::GenesisRoundNotSet
+				);
 			}
 
-			for r in rounds {
-				let q = crate::verifier::compute_round_on_g1(r).unwrap();
-				apk = (apk + q).into()
-			}
+			// aggregate old asig/apk with the new one and verify the aggregation
+			let (new_asig, new_apk) = T::SignatureAggregator::aggregate_and_verify(
+				config.public_key,
+				asig,
+				latest_round,
+				T::SignatureToBlockRatio::get() as u64,
+				AggregatedSignature::<T>::get(),
+			)
+			.map_err(|_| Error::<T>::VerificationFailed)?;
 
-			// verify the signature
-			let beacon_pk = crate::verifier::decode_g2(&config.public_key).unwrap();
+			LatestRound::<T>::set(
+				latest_round.saturating_add(T::SignatureToBlockRatio::get() as u64),
+			);
 
-			let validity = T::Verifier::verify(beacon_pk, signature, apk)
-				.map_err(|_| Error::<T>::InvalidInput)?;
+			AggregatedSignature::<T>::set(Some((new_asig, new_apk)));
 
-			frame_support::ensure!(validity, Error::<T>::VerificationFailed);
-
-			let mut sig_bytes = Vec::new();
-			signature.serialize_compressed(&mut sig_bytes).unwrap();
-			let new_asig = OpaqueSignature::truncate_from(sig_bytes.clone());
-
-			let mut apk_bytes = Vec::new();
-			apk.serialize_compressed(&mut apk_bytes).unwrap();
-			let new_apk = OpaqueSignature::truncate_from(apk_bytes);
-
-			// update storage
-			AggregatedSignature::<T>::set(Some((new_asig, new_apk, latest - 1)));
+			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 
 			Ok(())
 		}
@@ -300,13 +297,13 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+	/// Set the beacon configuration
 	fn initialize(config: BeaconConfiguration) -> Result<(), ()> {
 		BeaconConfig::<T>::set(Some(config));
 		Ok(())
 	}
 }
 
-/// build a beacon config for drand quicknet
 pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
 	build_beacon_configuration(
 		"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",
@@ -346,17 +343,3 @@ fn build_beacon_configuration(
 
 	BeaconConfiguration { public_key, period, genesis_time, hash, group_hash, scheme_id, metadata }
 }
-
-// impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T> {
-// 	/// This function hashes together the subject with the latest known randomness from quicknet
-// 	/// we should replace this with the merkle root later on...
-// 	fn random(subject: &[u8]) -> (T::Hash, BlockNumberFor<T>) {
-// 		let latest_block = <frame_system::Pallet<T>>::block_number();
-// 		let mut entropy = T::Hash::default();
-// 		if let Some((asig, start_round, height)) = AggregatedSignatures::<T>::get(latest_block) {
-// 			entropy = (subject, start_round, height, asig).using_encoded(T::Hashing::hash);
-// 		}
-
-// 		(entropy, latest_block)
-// 	}
-// }

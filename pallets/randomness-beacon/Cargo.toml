@@ -1,9 +1,8 @@
 [package]
-name = "pallet-drand"
+name = "pallet-randomness-beacon"
 description = "FRAME pallet for bridging to drand."
 authors = [
-	"Tony Riemer <driemworks@idealabs.network>",
-	"Juan Girini <juan@idealabs.network>"
+	"Ideal Labs <hello@idealabs.network>",
 	]
 version = "0.0.1"
 license = "Apache-2.0"
@@ -48,9 +47,6 @@ w3f-bls = { version = "0.1.4", default-features = false }
 sp-keyring = { version = "39.0.0",  default-features = false }
 timelock = { version = "0.0.1", default-features = false }
 sp-consensus-randomness-beacon = { path = "../../primitives/consensus/randomness-beacon", default-features = false }
-# rand = "0.9.0"
-# rand_chacha = { version = "0.3.1", default-features = false, optional = true}
-# rand_core = { version = "0.6.4", features = ["getrandom"], default-features = false }
 
 [dev-dependencies]
 sp-keystore = { version = "0.40.0",  default-features = false }

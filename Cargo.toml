@@ -2,7 +2,7 @@
 members = [
     "client/consensus/randomness-beacon",
     "primitives/consensus/randomness-beacon",
-    "pallets/drand",
+    "pallets/randomness-beacon",
 ]
 resolver = "2"
 
@@ -56,3 +56,4 @@ serde_json = { version = "1.0.114", default-features = false }
 serde_yaml = { version = "0.9" }
 syn = "2.0.53"
 thiserror = { version = "1.0.48" }
+tokio = { version = "^1", features = ["full"] }

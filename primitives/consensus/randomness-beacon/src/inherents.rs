@@ -14,30 +14,12 @@
  * limitations under the License.
  */
 
-use sp_inherents::{Error, InherentData, InherentIdentifier};
 use alloc::vec::Vec;
+use sp_inherents::{Error, InherentData, InherentIdentifier};
 
 pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"rngpulse";
 
-// TODO
 pub type InherentType = Vec<Vec<u8>>;
-
-pub trait BeaconInherentData {
-	// get beacon data for the inherent
-	fn beacon_inherent_data(&self) -> Result<Option<InherentType>, Error>;
-	// Replace beacon inherent data
-	fn beacon_replace_inherent_data(&mut self, new: InherentType);
-}
-
-impl BeaconInherentData for InherentData {
-	fn beacon_inherent_data(&self) -> Result<Option<InherentType>, Error> {
-		self.get_data(&INHERENT_IDENTIFIER)
-	}
-
-	fn beacon_replace_inherent_data(&mut self, new: InherentType) {
-		self.replace_data(INHERENT_IDENTIFIER, &new);
-	}
-}
 
 #[cfg(feature = "std")]
 pub struct InherentDataProvider {
@@ -72,7 +54,34 @@ impl sp_inherents::InherentDataProvider for InherentDataProvider {
 		_: &InherentIdentifier,
 		_: &[u8],
 	) -> Option<Result<(), Error>> {
-		// There is no error anymore
 		None
+	}
+}
+
+#[cfg(test)]
+mod tests {
+
+	use super::{InherentDataProvider as RandInherentDataProvider, *};
+	use core::ops::Deref;
+	use sp_inherents::InherentDataProvider;
+
+	#[test]
+	pub fn can_construct_inherent_data_provider() {
+		let data: InherentType = vec![vec![1]];
+		let provider = RandInherentDataProvider::new(data.clone());
+		assert_eq!(&data, provider.deref())
+	}
+
+	#[tokio::test]
+	pub async fn can_provide_inherent_data() {
+		let extra_data = vec![vec![1]];
+		let mut inherent_data = InherentData::new();
+		let provider = RandInherentDataProvider::new(extra_data.clone());
+
+		let res = provider.provide_inherent_data(&mut inherent_data).await;
+		assert!(res.is_ok());
+
+		let data = inherent_data.get_data::<Vec<Vec<u8>>>(&INHERENT_IDENTIFIER).unwrap().unwrap();
+		assert_eq!(extra_data, data)
 	}
 }

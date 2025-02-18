@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-use alloc::{format, string::{String, ToString}, vec::Vec};
+use alloc::{
+	format,
+	string::{String, ToString},
+	vec::Vec,
+};
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 

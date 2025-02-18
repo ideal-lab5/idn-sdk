@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
- //! A collection of optimized arkworks functions using BLS12-381 for on-chain use.
-
+#[cfg(not(feature = "host-arkworks"))]
+use ark_bls12_381::{Bls12_381 as Bls12_381Opt, G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
 use ark_ec::pairing::Pairing;
 use ark_std::{ops::Neg, Zero};
+#[cfg(feature = "host-arkworks")]
 use sp_ark_bls12_381::{
 	Bls12_381 as Bls12_381Opt, G1Affine as G1AffineOpt, G2Affine as G2AffineOpt,
 };
@@ -28,10 +29,10 @@ use sp_ark_bls12_381::{
 ///
 /// This function is also inlined as a way to optimize performance.
 ///
-/// * `signature`:
-/// * `q`:
-/// * `msg_on_curve`: The message signed by Drand, hashed to G1
-/// * `p_pub`: The beacon public key
+/// * `signature`: The signature to verify
+/// * `q`: The beacon public key
+/// * `r`: The message signed by Drand, hashed to G1
+/// * `s`: A generator
 #[inline]
 pub fn fast_pairing_opt(
 	signature: G1AffineOpt,

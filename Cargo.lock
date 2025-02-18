@@ -3692,7 +3692,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
-name = "pallet-drand"
+name = "pallet-randomness-beacon"
 version = "0.0.1"
 dependencies = [
  "anyhow",
@@ -3714,7 +3714,9 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sp-ark-bls12-381",
+ "sp-consensus-randomness-beacon",
  "sp-core",
+ "sp-inherents",
  "sp-io",
  "sp-keyring",
  "sp-keystore",
@@ -5143,6 +5145,7 @@ dependencies = [
  "serde",
  "sp-ark-bls12-381",
  "sp-inherents",
+ "tokio",
 ]
 
 [[package]]

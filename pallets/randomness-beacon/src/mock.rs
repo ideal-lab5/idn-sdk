@@ -1,8 +1,8 @@
 use crate as pallet_drand_bridge;
-use crate::{verifier::QuicknetVerifier, *};
+use crate::{aggregator::QuicknetAggregator, *};
 use frame_support::{
 	derive_impl,
-	traits::{ConstU16, ConstU64},
+	traits::{ConstU16, ConstU64, ConstU8},
 };
 use sp_core::{sr25519::Signature, H256};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
@@ -56,8 +56,8 @@ impl frame_system::offchain::SigningTypes for Test {
 
 impl pallet_drand_bridge::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = pallet_drand_bridge::weights::SubstrateWeight<Test>;
-	type Verifier = QuicknetVerifier;
+	type SignatureAggregator = QuicknetAggregator;
+	type SignatureToBlockRatio = ConstU8<2>;
 }
 
 // Build genesis storage according to the mock runtime.

@@ -35,6 +35,7 @@ prost-build = "0.13.4"
 
 [dev-dependencies]
 array-bytes = "6.1"
+tokio.workspace = true
 
 [features]
 default = ["std"]
