@@ -208,6 +208,22 @@ fn test_update_subscription() {
 		));
 
 		// TODO implement a way to refund or take the difference in fees https://github.com/ideal-lab5/idn-sdk/issues/104
+		// let new_fees = FeesCalculatorImpl::calculate_subscription_fees(new_amount);
+		// let new_deposit = DepositCalculatorImpl::calculate_storage_deposit(&subscription);
+
+		// let fees_diff = new_fees - original_fees;
+		// let deposit_diff = new_deposit - original_deposit;
+
+		// let balance_after_update = balance_after_create - fees_diff - deposit_diff;
+
+		// // assert correct balances after update
+		// assert_eq!(Balances::free_balance(&subscriber), balance_after_update);
+		// assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &subscriber), new_fees);
+		// assert_eq!(
+		// 	Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &subscriber),
+		// 	new_deposit
+		// );
+		// assert_eq!(balance_after_update + new_fees + new_deposit, initial_balance);
 
 		let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
 
