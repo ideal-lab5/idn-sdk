@@ -398,15 +398,10 @@ impl<T: Config> Pallet<T> {
 	/// Returns a weight based on the number of storage reads and writes performed
 	// TODO: finish off this as part of https://github.com/ideal-lab5/idn-sdk/issues/77
 	fn distribute(rnd: T::Rnd) -> DispatchResult {
-		// let mut reads = 0u64;
-		// let mut writes = 0u64;
-
 		// Filter for active subscriptions only
 		for (sub_id, sub) in
 			Subscriptions::<T>::iter().filter(|(_, sub)| sub.state == SubscriptionState::Active)
 		{
-			// reads += 1;
-
 			if let Ok(msg) = Self::construct_randomness_xcm(sub.details.target.clone(), &rnd) {
 				let versioned_target: Box<VersionedLocation> =
 					Box::new(sub.details.target.clone().into());
@@ -414,8 +409,6 @@ impl<T: Config> Pallet<T> {
 					Box::new(xcm::VersionedXcm::V5(msg.into()));
 				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
 				let _ = T::Xcm::send(origin.into(), versioned_target, versioned_msg);
-				// writes += 1;
-
 				// TODO:
 				// - decrease credits left
 				// - move fees to treasury
@@ -423,8 +416,6 @@ impl<T: Config> Pallet<T> {
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			}
 		}
-
-		// T::DbWeight::get().reads(reads) + T::DbWeight::get().writes(writes)
 		Ok(())
 	}
 
