@@ -465,7 +465,7 @@ impl<T: Config> Pallet<T> {
 
 		ensure!(!Subscriptions::<T>::contains_key(sub_id), Error::<T>::SubscriptionAlreadyExists);
 
-		Subscriptions::<T>::insert(&sub_id, subscription);
+		Subscriptions::<T>::insert(sub_id, subscription);
 
 		Self::deposit_event(Event::SubscriptionCreated { sub_id });
 
@@ -484,7 +484,7 @@ impl<T: Config> Pallet<T> {
 				call: Call::DistributeRnd.encode().into(), // TODO
 			},
 			RefundSurplus,
-			DepositAsset { assets: All.into(), beneficiary: target.into() },
+			DepositAsset { assets: All.into(), beneficiary: target },
 		]))
 	}
 }
