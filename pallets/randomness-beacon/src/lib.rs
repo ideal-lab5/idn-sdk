@@ -64,6 +64,9 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+/// The buffer size required to represent an element of the signature group
+const SERIALIZED_SIG_SIZE: usize = 48;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -155,7 +158,7 @@ pub mod pallet {
 					.filter_map(|pulse| pulse.signature_point().ok())
 					.fold(zero_on_g1(), |acc, sig| (acc + sig).into());
 
-				let mut asig_bytes = Vec::with_capacity(48);
+				let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
 				if asig.serialize_compressed(&mut asig_bytes).is_err() {
 					log::error!("Failed to serialize the aggregated signature.");
 					return None;
