@@ -55,11 +55,13 @@ mod tests;
 
 pub mod traits;
 pub mod weights;
+// pub mod impls;
 
 use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
-		ensure, Blake2_128Concat, DispatchResult, Hooks, IsType, OptionQuery, StorageMap, Zero,
+		ensure, Blake2_128Concat, DispatchError, DispatchResult, Hooks, IsType, OptionQuery,
+		StorageMap, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
@@ -76,7 +78,7 @@ use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_std::fmt::Debug;
-use traits::*;
+use traits::{DepositCalculator, FeesManager};
 use xcm::{
 	v5::{prelude::*, Location},
 	VersionedLocation, VersionedXcm,
@@ -172,7 +174,12 @@ pub mod pallet {
 		type RuntimeHoldReason: From<HoldReason>;
 
 		/// Fees calculator implementation
-		type FeesCalculator: FeesCalculator<BalanceOf<Self>, BlockNumberFor<Self>>;
+		type FeesManager: FeesManager<
+			BalanceOf<Self>,
+			BlockNumberFor<Self>,
+			SubscriptionOf<Self>,
+			DispatchError,
+		>;
 
 		/// Storage deposit calculator implementation
 		type DepositCalculator: DepositCalculator<BalanceOf<Self>, SubscriptionOf<Self>>;
@@ -429,7 +436,7 @@ impl<T: Config> Pallet<T> {
 		metadata: Option<MetadataOf<T>>,
 	) -> DispatchResult {
 		// Calculate and hold the subscription fees
-		let fees = T::FeesCalculator::calculate_subscription_fees(amount);
+		let fees = T::FeesManager::calculate_subscription_fees(amount);
 		T::Currency::hold(&HoldReason::Fees.into(), &subscriber, fees)
 			.map_err(|_| Error::<T>::InsufficientBalance)?;
 
