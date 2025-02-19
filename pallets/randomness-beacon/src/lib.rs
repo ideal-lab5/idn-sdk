@@ -44,6 +44,8 @@ use sp_consensus_randomness_beacon::types::OpaquePulse;
 pub mod aggregator;
 pub mod bls12_381;
 pub mod types;
+pub mod weights;
+pub use weights::*;
 
 use aggregator::SignatureAggregator;
 use types::*;
@@ -74,6 +76,8 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		/// A type representing the weights required by the dispatchables of this pallet.
+		type WeightInfo: WeightInfo;
 		/// something that knows how to aggregate and verify beacon pulses
 		type SignatureAggregator: SignatureAggregator;
 		/// The number of pulses per block
@@ -211,9 +215,8 @@ pub mod pallet {
 		///
 		/// * `origin`: The root user
 		/// * `config`: The new beacon configuration
-		/// TODO: weights generation and benchmarking: https://github.com/ideal-lab5/idn-sdk/issues/56
 		#[pallet::call_index(0)]
-		#[pallet::weight(1_000)]
+		#[pallet::weight(T::WeightInfo::set_beacon_config())]
 		pub fn set_beacon_config(
 			origin: OriginFor<T>,
 			config: BeaconConfiguration,
@@ -230,7 +233,7 @@ pub mod pallet {
 		/// * `round`: The new genesis round
 		/// TODO: weights generation and benchmarking: https://github.com/ideal-lab5/idn-sdk/issues/56
 		#[pallet::call_index(1)]
-		#[pallet::weight(1_000)]
+		#[pallet::weight(T::WeightInfo::set_genesis_round())]
 		pub fn set_genesis_round(origin: OriginFor<T>, round: RoundNumber) -> DispatchResult {
 			ensure_root(origin)?;
 			GenesisRound::<T>::put(round);
@@ -246,7 +249,7 @@ pub mod pallet {
 		///   round is 0.
 		/// TODO: weights generation and benchmarking: https://github.com/ideal-lab5/idn-sdk/issues/56
 		#[pallet::call_index(2)]
-		#[pallet::weight(1_000)]
+		#[pallet::weight(T::WeightInfo::try_submit_asig())]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
 			asig: OpaqueSignature,

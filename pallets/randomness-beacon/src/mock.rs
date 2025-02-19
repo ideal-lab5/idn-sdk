@@ -56,6 +56,7 @@ impl frame_system::offchain::SigningTypes for Test {
 
 impl pallet_drand_bridge::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
 	type SignatureAggregator = QuicknetAggregator;
 	type SignatureToBlockRatio = ConstU8<2>;
 }
