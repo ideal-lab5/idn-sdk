@@ -14,19 +14,74 @@
  * limitations under the License.
  */
 
-//! # Drand Bridge Pallet
+//! # Randomness Beacon Aggregation and Verification Pallet
 //!
-//! A pallet to bridge to [drand](drand.love)'s Quicknet, injecting publicly verifiable randomness
-//! into the runtime.
+//! This pallet facilitates the aggregation and verification of randomness pulses from an external
+//! verifiable randomness beacon, such as [drand](https://drand.love)'s Quicknet. It enables
+//! runtime access to externally sourced, cryptographically secure randomness while ensuring that
+//! only properly signed pulses are accepted.
 //!
 //! ## Overview
 //!
-//! Quicknet chain runs in an 'unchained' mode, producing a fresh pulse of randomness every 3s
-//! This pallet implements an offchain worker that consumes pulses from quicket and then sends a
-//! signed transaction to encode them in the runtime. The runtime uses the optimized arkworks host
-//! functions to efficiently verify the pulse.
+//! - Provides a mechanism to ingest randomness pulses from an external randomness beacon.
+//! - Aggregates and verifies pulses using the [`SignatureAggregator`] trait.
+//! - Ensures that the runtime only uses verified randomness for security-critical applications.
+//! - Stores the latest aggregated signature to enable efficient verification within the runtime.
 //!
-//! Run `cargo doc --package pallet-drand --open` to view this pallet's documentation.
+//! This pallet is particularly useful for use cases that require externally verifiable randomness,
+//! such as fair lotteries, gaming applications, and leader election mechanisms.
+//!
+//! ## Terminology
+//!
+//! - **Randomness Pulse**: A cryptographically signed value representing a random output from an
+//!   external randomness beacon.
+//! - **Round Number**: A sequential identifier corresponding to each randomness pulse.
+//! - **Aggregated Signature**: A combined (aggregated) cryptographic signature that ensures all
+//!   observed pulses originate from the trusted randomness beacon.
+//!
+//! ## Implementation Details
+//!
+//! The pallet relies on a [`SignatureAggregator`] implementation to aggregate and verify randomness
+//! pulses. It maintains the latest observed rounds, validates incoming pulses, and aggregates valid
+//! signatures before storing them in runtime storage. It expects a monotonically increasing
+//! sequence of beacon pulses delivered in packets of size `T::SignatureToBlockRatio`, beginning at
+//! the genesis round.
+//!
+//! To be more specific, if the randomness beacon incrementally outputs pulses A -> B -> C -> D,
+//! the genesis round expects pulse A first, and the SignatureToBlockRatio is 2, then this pallet
+//! would first expect the 'aggregated' pulse AB = A + B, which produces both an aggregated
+//! *signature* (asig) and an aggregated *public key* (apk). Subsequently,  it would expected the
+//! next value to be CD = C + D. On-chain, this results in the aggregated signature, ABCD = AB + CD,
+//! which we can use to prove we have observed all pulses between A and D.
+//!
+//! ### Storage Items
+//!
+//! - `BeaconConfig`: Stores the beacon configuration details.
+//! - `GenesisRound`: The first round number from which randomness pulses are considered valid.
+//! - `LatestRound`: Tracks the latest verified round number.
+//! - `AggregatedSignature`: Stores the latest aggregated signature for verification purposes.
+//!
+//! ## Usage
+//!
+//! This pallet is designed to securely ingest verifiable randomness into the runtime.
+//! It exposes an inherent provider that automatically processes randomness pulses included
+//! in block production.
+//!
+//! ## Interface
+//!
+//! - **Extrinsics**
+//!   - `set_beacon_config`: Allows governance to update the randomness beacon configuration.
+//!   - `set_genesis_round`: Sets the initial round number for randomness pulses.
+//!   - `try_submit_asig`: Submit an aggregated signature for verification. This is an unsigned
+//!     extrinsic, intended to be called from the inherent.
+//!
+//! - **Inherent Implementation**
+//!   - This pallet provides an inherent that automatically submits aggregated randomness pulses
+//!     during block execution.
+//!
+//! ## Examples
+//!
+//! Run `cargo doc --package pallet-randomness-beacon --open` to view this pallet's documentation.
 
 // We make sure this pallet uses `no_std` for compiling to Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -52,7 +107,7 @@ use types::*;
 
 use crate::{
 	aggregator::zero_on_g1,
-	types::{BoundedStorage, Metadata, OpaquePublicKey, OpaqueSignature, RoundNumber},
+	types::{Metadata, OpaqueHash, OpaquePublicKey, OpaqueSignature, RoundNumber},
 };
 
 #[cfg(test)]
@@ -196,8 +251,8 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Default for GenesisConfig<T> {
-		/// The default configuration is Drand Quicknet
-		/// https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info
+		/// The default configuration is
+		/// <a href='https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info'>Drand Quicknet</a>
 		fn default() -> Self {
 			Self { config: drand_quicknet_config(), genesis_round: 0, _phantom: Default::default() }
 		}
@@ -234,7 +289,6 @@ pub mod pallet {
 		///
 		/// * `origin`: The root user
 		/// * `round`: The new genesis round
-		/// TODO: weights generation and benchmarking: https://github.com/ideal-lab5/idn-sdk/issues/56
 		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::set_genesis_round())]
 		pub fn set_genesis_round(origin: OriginFor<T>, round: RoundNumber) -> DispatchResult {
@@ -250,7 +304,6 @@ pub mod pallet {
 		/// * `asig`: An aggregated signature
 		/// * `round`: An optional genesis round number. It can only be set if the existing genesis
 		///   round is 0.
-		/// TODO: weights generation and benchmarking: https://github.com/ideal-lab5/idn-sdk/issues/56
 		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::try_submit_asig())]
 		pub fn try_submit_asig(
@@ -337,12 +390,12 @@ fn build_beacon_configuration(
 	let group_hash = hex::decode(group_hash_hex).expect("Valid hex");
 
 	let public_key: OpaquePublicKey = BoundedVec::try_from(pk).expect("Public key within bounds");
-	let hash: BoundedStorage = BoundedVec::try_from(hash).expect("Hash within bounds");
-	let group_hash: BoundedStorage =
+	let hash: OpaqueHash = BoundedVec::try_from(hash).expect("Hash within bounds");
+	let group_hash: OpaqueHash =
 		BoundedVec::try_from(group_hash).expect("Group hash within bounds");
-	let scheme_id: BoundedStorage =
+	let scheme_id: OpaqueHash =
 		BoundedVec::try_from(scheme_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
-	let beacon_id: BoundedStorage =
+	let beacon_id: OpaqueHash =
 		BoundedVec::try_from(beacon_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
 
 	let metadata = Metadata { beacon_id };

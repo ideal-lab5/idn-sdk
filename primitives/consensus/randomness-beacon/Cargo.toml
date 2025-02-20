@@ -1,6 +1,6 @@
 [package]
 name = "sp-consensus-randomness-beacon"
-version = "1.0.0-dev"
+version = "0.0.1-dev"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -16,19 +16,17 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 async-trait = { optional = true, workspace = true }
-scale-info = { version = "2.10.0", default-features = false, features = [
-	"derive",
-] }
-codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
-sp-inherents = { version = "34.0.0", default-features = false }
+codec.workspace = true
 prost = { version = "0.13.4", default-features = false }
 prost-types = { version = "0.13.4", default-features = false }
-serde = { version = "1.0.197", features = ["derive"], default-features = false }
+scale-info.workspace = true
+serde = { workspace = true, features = ["derive"] }
+sp-inherents.workspace = true
 
 # arkworks dependencies
-sp-ark-bls12-381 = { git = "https://github.com/paritytech/arkworks-substrate", version = "0.4.2", default-features = false, optional = true }
-ark-bls12-381 = { version = "0.4.0", features = ["curve"], default-features = false }
-ark-serialize = { version = "0.4.0", features = [ "derive" ], default-features = false }
+sp-ark-bls12-381 = { workspace = true, optional = true }
+ark-bls12-381.workspace = true
+ark-serialize.workspace = true
 
 [build-dependencies]
 prost-build = "0.13.4"
@@ -48,14 +46,10 @@ std = [
 	"prost/std",
 	"prost-types/std",
 	"ark-bls12-381/std",
-	"ark-serialize/std"
+	"ark-serialize/std",
 ]
 
-host-arkworks = [
-	"sp-ark-bls12-381/std"
-]
+host-arkworks = ["sp-ark-bls12-381/std"]
 
 # Serde support without relying on std features.
-serde = [
-	"scale-info/serde",
-]
+serde = ["scale-info/serde"]
