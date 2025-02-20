@@ -76,7 +76,7 @@ where
 		_init_amount: BlockNumber,
 		current_amount: BlockNumber,
 	) -> Balances::Balance {
-		// in this case of a liner function, the refund's is the same as the fees'
+		// in this case of a linear function, the refund's is the same as the fees'
 		Self::calculate_subscription_fees(current_amount)
 	}
 	fn collect_fees(
@@ -96,6 +96,7 @@ where
 		.map_err(FeesError::Other)?;
 
 		// Ensure the correct amount was collected.
+		// TODO: error to bubble up and be handled by caller https://github.com/ideal-lab5/idn-sdk/issues/107
 		if collected < fees {
 			return Err(FeesError::NotEnoughBalance { needed: fees, balance: collected });
 		}

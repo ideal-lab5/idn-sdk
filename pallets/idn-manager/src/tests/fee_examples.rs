@@ -29,7 +29,7 @@ impl FeesManager<u32, u32, (), (), ()> for LinearFeeCalculator {
 		base_fee.saturating_mul(amount.into())
 	}
 	fn calculate_refund_fees(_init_amount: u32, current_amount: u32) -> u32 {
-		// in this case of a liner function, the refund's is the same as the fees'
+		// in this case of a linear function, the refund's is the same as the fees'
 		Self::calculate_subscription_fees(current_amount)
 	}
 	fn collect_fees(fees: u32, _: ()) -> Result<u32, crate::traits::FeesError<u32, ()>> {
