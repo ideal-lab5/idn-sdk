@@ -27,20 +27,17 @@
 //!
 //! ## Examples
 //!
-//! ``` rust
+//! ```
 //! let topic_str: &str =
 //! 	"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
-//! 
 //! let maddr1: libp2p::Multiaddr =
 //! 	"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
 //! 		.parse()
 //! 		.expect("The string is a well-formatted multiaddress. qed.");
-//! 
 //! let maddr2: libp2p::Multiaddr =
 //! 	"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
 //! 		.parse()
 //! 		.expect("The string is a well-formatted multiaddress. qed.");
-//! 
 //! let (mut gossipsub, state) = build_node();
 //! tokio::spawn(async move {
 //! 	if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
@@ -48,8 +45,6 @@
 //! 	}
 //! });
 //! ```
-
-
 use futures::StreamExt;
 use libp2p::{
 	gossipsub,
