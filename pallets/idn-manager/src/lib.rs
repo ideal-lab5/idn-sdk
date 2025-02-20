@@ -273,6 +273,7 @@ pub mod pallet {
 			{
 				if sub.credits_left < Zero::zero() {
 					// If this happens then there's a bug in the code
+					// TODO: log a warning that can be picked up by the monitoring system https://github.com/ideal-lab5/ideal-network/issues/28
 					Self::deposit_event(Event::SubscriptionCreditBelowZero {
 						sub_id,
 						credits: sub.credits_left,
