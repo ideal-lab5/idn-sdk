@@ -15,19 +15,18 @@
  */
 
 //! # Gossipsub Network Subscription Client
-//! 
+//!
 //! The `GossipsubNetwork` is a libp2p node designed to ingest well-formatted messages
 //! from a gossipsub topic. The implemention is intended to be used with
 //! the Drand beacon gossipsub topic, to which `Pulse` messages are published as protobuf messages.
 //!
 //! ## Overview
-//! 
+//!
 //! - runs a libp2p node and handles peer connections
-//! - subscribes to a gossipsub topic and writes well-formed messages to a [`SharedState`] 
-//! - 
+//! - subscribes to a gossipsub topic and writes well-formed messages to a [`SharedState`]
+//! -
 //!
 //! ## Examples
-//!
 
 use futures::StreamExt;
 use libp2p::{

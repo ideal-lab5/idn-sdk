@@ -30,7 +30,8 @@ use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 use ark_serialize::CanonicalDeserialize;
 
-/// A `pulse` represents the output from a verifiable randomness beacon, specifically an 'unchained' one
+/// A `pulse` represents the output from a verifiable randomness beacon, specifically an 'unchained'
+/// one
 #[derive(Clone, PartialEq, ::prost::Message, Serialize, Deserialize)]
 pub struct Pulse {
 	/// The round of the protocol when the signature was computed
