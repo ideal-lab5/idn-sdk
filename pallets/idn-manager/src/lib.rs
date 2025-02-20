@@ -97,10 +97,13 @@ pub type SubscriptionOf<T> =
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber, Metadata> {
 	details: SubscriptionDetails<AccountId, BlockNumber, Metadata>,
+	// Number of random values left to distribute
 	credits_left: BlockNumber,
 	state: SubscriptionState,
 }
 
+// TODO: details should be immutable, they are what make the subscription unique
+// https://github.com/ideal-lab5/idn-sdk/issues/114
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct SubscriptionDetails<AccountId, BlockNumber, Metadata> {
 	subscriber: AccountId,
@@ -334,7 +337,7 @@ pub mod pallet {
 			})
 		}
 
-		/// Updates an active subscription
+		/// Updates a subscription
 		#[pallet::call_index(3)]
 		#[pallet::weight(T::WeightInfo::update_subscription())]
 		pub fn update_subscription(
