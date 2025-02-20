@@ -5636,20 +5636,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-lottery"
-version = "38.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae0920ee53cf7b0665cfb6d275759ae0537dc3850ec78da5f118d814c99d3562"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "scale-info",
- "sp-runtime",
-]
-
-[[package]]
 name = "pallet-session"
 version = "38.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
