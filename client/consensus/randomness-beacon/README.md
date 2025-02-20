@@ -16,37 +16,7 @@ To run integration tests, use the `e2e` feature: `cargo test --features "e2e"`
 ## Integration 
 
 ``` rust
-// configure gossipsub for the libp2p network
-let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
-let local_identity: sc_network_types::ed25519::Keypair =
-    config.network.node_key.clone().into_keypair()?;
-let local_identity: libp2p::identity::ed25519::Keypair = local_identity.into();
-let local_identity: libp2p::identity::Keypair = local_identity.into();
-// dig TXT _dnsaddr.api.drand.sh
-let maddr1: libp2p::Multiaddr =
-    "/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
-        .parse()
-        .expect("The string is a well-formatted multiaddress. qed.");
-let maddr2: libp2p::Multiaddr =
-    "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
-        .parse()
-        .expect("The string is a well-formatted multiaddress. qed.");
 
-if let Ok(mut gossipsub) = GossipsubNetwork::new(&local_identity, state.clone(), GossipsubConfig::default()) {
-    // Spawn the gossipsub network task
-    task_manager.spawn_handle().spawn(
-        "gossipsub-network",
-        None,
-        async move {
-            if let Err(e) =
-                gossipsub.run(DRAND_QUICKNET_PUBSUB_TOPIC, vec![&maddr1, &maddr2], None).await
-            {
-                log::error!("Failed to run gossipsub network: {:?}", e);
-            }
-        }
-        .boxed(),
-    );
-}
 // END GOSSIPSUB CONFIG
 
 ```

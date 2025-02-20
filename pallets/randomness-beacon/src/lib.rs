@@ -79,8 +79,6 @@
 //!   - This pallet provides an inherent that automatically submits aggregated randomness pulses
 //!     during block execution.
 //!
-//! ## Examples
-//!
 //! Run `cargo doc --package pallet-randomness-beacon --open` to view this pallet's documentation.
 
 // We make sure this pallet uses `no_std` for compiling to Wasm.
