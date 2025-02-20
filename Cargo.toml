@@ -2,7 +2,9 @@
 members = [
     "client/consensus/randomness-beacon",
     "primitives/consensus/randomness-beacon",
-    "pallets/drand"
+    "pallets/drand",
+    "pallets/idn-manager",
+    "support/traits",
 ]
 resolver = "2"
 

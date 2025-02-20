@@ -1,0 +1,49 @@
+[package]
+name = "pallet-idn-manager"
+description = "FRAME pallet for managing IDN services."
+version = "0.0.1-dev"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish = false
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false }
+scale-info = { version = "2.11.6", default-features = false }
+sp-api = { version = "35.0.0",  default-features = false }
+sp-core = { version = "35.0.0",  default-features = false }
+sp-io = { version = "39.0.0",  default-features = false}
+sp-std = { version = "14.0.0",  default-features = false }
+xcm = { version = "15.0.1", default-features = false, package = "staging-xcm" }
+xcm-builder = { version = "18.0.0", default-features = false, package = "staging-xcm-builder" }
+pallet-xcm = { version = "18.0.0", default-features = false }
+# frame deps
+frame-support = { version = "39.0.0",  default-features = false }
+frame-system = { version = "39.0.0",  default-features = false }
+# idn deps
+idn-traits = { path = "../../support/traits" }
+
+[dev-dependencies]
+pallet-balances = { version = "40.0.0", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"scale-info/std",
+	"frame-support/std",
+	"frame-system/std",
+	"idn-traits/std",
+	"sp-core/std",
+	"sp-io/std",
+	"sp-std/std",
+	"xcm/std",
+	"pallet-xcm/std",
+	"pallet-balances/std",
+	"xcm-builder/std"
+]
