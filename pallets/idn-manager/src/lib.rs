@@ -53,9 +53,9 @@
 #[cfg(test)]
 mod tests;
 
+pub mod impls;
 pub mod traits;
 pub mod weights;
-// pub mod impls;
 
 use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use frame_support::{
@@ -78,7 +78,7 @@ use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_std::fmt::Debug;
-use traits::{DepositCalculator, FeesManager};
+use traits::{DepositCalculator, FeesManager, Subscription as SubscriptionTrait};
 use xcm::{
 	v5::{prelude::*, Location},
 	VersionedLocation, VersionedXcm,
@@ -179,6 +179,7 @@ pub mod pallet {
 			BlockNumberFor<Self>,
 			SubscriptionOf<Self>,
 			DispatchError,
+			<Self as frame_system::pallet::Config>::AccountId,
 		>;
 
 		/// Storage deposit calculator implementation

@@ -17,7 +17,8 @@
 //! # Tests for the IDN Manager pallet
 
 use crate::{
-	tests::mock::{new_test_ext, Balances, DepositCalculatorImpl, Test, *},
+	impls::DepositCalculatorImpl,
+	tests::mock::{new_test_ext, Balances, Test, *},
 	traits::{DepositCalculator, FeesManager},
 	Config, Error, HoldReason, SubscriptionState, Subscriptions,
 };

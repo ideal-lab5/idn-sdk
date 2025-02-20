@@ -19,23 +19,17 @@
 //! This file is a mock runtime for the pallet. It is used to test the pallet in a test environment.
 //! It does not contain any tests.
 
-use crate::{self as pallet_idn_manager, traits::FeesError, HoldReason, SubscriptionOf};
-use codec::{Decode, Encode};
+use crate::{
+	self as pallet_idn_manager,
+	impls::{DepositCalculatorImpl, FeesManagerImpl},
+	SubscriptionOf,
+};
 use frame_support::{
-	construct_runtime, derive_impl,
-	pallet_prelude::DispatchError,
-	parameter_types,
-	sp_runtime::BuildStorage,
-	traits::{
-		fungible::MutateHold,
-		tokens::{Fortitude, Precision, Restriction},
-		Get,
-	},
+	construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage, traits::Get,
 };
 use frame_system as system;
 use scale_info::TypeInfo;
 use sp_runtime::{traits::IdentityLookup, AccountId32};
-use sp_std::marker::PhantomData;
 
 type Block = frame_system::mocking::MockBlock<Test>;
 type BlockNumber = frame_system::pallet_prelude::BlockNumberFor<Test>;
@@ -69,7 +63,7 @@ parameter_types! {
 	pub const BaseFee: u64 = 10;
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo, Default)]
+#[derive(TypeInfo)]
 pub struct SubMetadataLen;
 
 impl Get<u32> for SubMetadataLen {
@@ -81,7 +75,8 @@ impl Get<u32> for SubMetadataLen {
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee>;
+	type FeesManager =
+		FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Test>, BlockNumber, Balances>;
 	type DepositCalculator = DepositCalculatorImpl;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
@@ -89,61 +84,6 @@ impl pallet_idn_manager::Config for Test {
 	type WeightInfo = ();
 	type Xcm = ();
 	type SubMetadataLen = SubMetadataLen;
-}
-
-/// A FeesManager implementation that holds a dynamic treasury account.
-pub struct FeesManagerImpl<Treasury: Get<AccountId32>, BaseFee: Get<u64>> {
-	pub _phantom: (PhantomData<Treasury>, PhantomData<BaseFee>),
-}
-
-impl<T: Get<AccountId32>, B: Get<u64>>
-	pallet_idn_manager::FeesManager<u64, BlockNumber, SubscriptionOf<Test>, DispatchError>
-	for FeesManagerImpl<T, B>
-{
-	fn calculate_subscription_fees(amount: BlockNumber) -> u64 {
-		let base_fee = B::get();
-		base_fee.saturating_mul(amount.into())
-	}
-	fn calculate_refund_fees(_init_amount: BlockNumber, current_amount: BlockNumber) -> u64 {
-		// in this case of a liner function, the refund's is the same as the fees'
-		Self::calculate_subscription_fees(current_amount)
-	}
-	fn collect_fees(
-		fees: u64,
-		sub: SubscriptionOf<Test>,
-	) -> Result<u64, FeesError<u64, DispatchError>> {
-		// Collect the held fees from the subscriber
-		let collected = Balances::transfer_on_hold(
-			&HoldReason::Fees.into(),
-			&sub.details.subscriber,
-			&T::get(),
-			fees,
-			Precision::BestEffort,
-			Restriction::Free,
-			Fortitude::Polite,
-		)
-		.map_err(|e| FeesError::Other(e))?;
-
-		// Ensure the correct amount was collected.
-		if collected < fees {
-			return Err(FeesError::NotEnoughBalance { needed: fees, balance: collected });
-		}
-
-		Ok(collected)
-	}
-}
-
-pub struct DepositCalculatorImpl;
-
-impl pallet_idn_manager::DepositCalculator<u64, pallet_idn_manager::SubscriptionOf<Test>>
-	for DepositCalculatorImpl
-{
-	fn calculate_storage_deposit(sub: &pallet_idn_manager::SubscriptionOf<Test>) -> u64 {
-		let storage_deposit_multiplier = 10;
-		// calculate the size of scale encoded `sub`
-		let encoded_size = sub.encode().len() as u64;
-		encoded_size.saturating_mul(storage_deposit_multiplier)
-	}
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

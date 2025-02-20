@@ -23,7 +23,7 @@ use crate::traits::FeesManager;
 /// Linear fee calculator with no discount
 pub struct LinearFeeCalculator;
 
-impl FeesManager<u32, u32, (), ()> for LinearFeeCalculator {
+impl FeesManager<u32, u32, (), (), ()> for LinearFeeCalculator {
 	fn calculate_subscription_fees(amount: u32) -> u32 {
 		let base_fee = 100u32;
 		base_fee.saturating_mul(amount.into())
@@ -41,7 +41,7 @@ impl FeesManager<u32, u32, (), ()> for LinearFeeCalculator {
 /// Tiered fee calculator with predefined discount tiers
 pub struct SteppedTieredFeeCalculator;
 
-impl FeesManager<u32, u32, (), ()> for SteppedTieredFeeCalculator {
+impl FeesManager<u32, u32, (), (), ()> for SteppedTieredFeeCalculator {
 	fn calculate_subscription_fees(amount: u32) -> u32 {
 		let base_fee = 100u32;
 
