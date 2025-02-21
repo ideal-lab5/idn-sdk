@@ -18,18 +18,10 @@
 use frame_support::weights::Weight;
 
 pub trait WeightInfo {
-	fn set_beacon_config() -> Weight;
-	fn set_genesis_round() -> Weight;
 	fn try_submit_asig() -> Weight;
 }
 
 impl WeightInfo for () {
-	fn set_beacon_config() -> Weight {
-		Weight::from_parts(2_956_000, 1627)
-	}
-	fn set_genesis_round() -> Weight {
-		Weight::from_parts(2_956_000, 1627)
-	}
 	fn try_submit_asig() -> Weight {
 		Weight::from_parts(2_956_000, 1627)
 	}

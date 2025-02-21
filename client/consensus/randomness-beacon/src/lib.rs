@@ -14,4 +14,7 @@
  * limitations under the License.
  */
 
+extern crate alloc;
+
 pub mod gossipsub;
+pub mod types;

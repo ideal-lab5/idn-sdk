@@ -17,19 +17,10 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 async-trait = { optional = true, workspace = true }
 codec.workspace = true
-prost = { version = "0.13.4", default-features = false }
-prost-types = { version = "0.13.4", default-features = false }
 scale-info.workspace = true
 serde = { workspace = true, features = ["derive"] }
 sp-inherents.workspace = true
 
-# arkworks dependencies
-sp-ark-bls12-381 = { workspace = true, optional = true }
-ark-bls12-381.workspace = true
-ark-serialize.workspace = true
-
-[build-dependencies]
-prost-build = "0.13.4"
 
 [dev-dependencies]
 array-bytes = "6.1"
@@ -42,14 +33,8 @@ std = [
 	"codec/std",
 	"sp-inherents/std",
 	"scale-info/std",
-	"serde/std",
-	"prost/std",
-	"prost-types/std",
-	"ark-bls12-381/std",
-	"ark-serialize/std",
+	"serde/std"
 ]
-
-host-arkworks = ["sp-ark-bls12-381/std"]
 
 # Serde support without relying on std features.
 serde = ["scale-info/serde"]

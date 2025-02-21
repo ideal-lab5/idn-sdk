@@ -20,13 +20,14 @@ use serde::{Deserialize, Serialize};
 
 /// Represents an opaque public key used in drand's quicknet
 pub type OpaquePublicKey = BoundedVec<u8, ConstU32<96>>;
+/// Represents an element of the signature group
 pub type OpaqueSignature = BoundedVec<u8, ConstU32<48>>;
+/// Represents an aggregated signature and aggregated public key pair
+pub type Aggregate = (OpaqueSignature, OpaqueSignature);
 /// an opaque bounded storage type for 64 bit hashes
 pub type OpaqueHash = BoundedVec<u8, ConstU32<64>>;
 /// the round number to track rounds of the beacon
 pub type RoundNumber = u64;
-
-pub type RandomValue = [u8; 32];
 
 /// A drand chain configuration
 #[derive(

@@ -25,6 +25,7 @@ hex = { version = "0.4", features = ["serde"], default-features = false }
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
+sc-consensus-randomness-beacon = { path = "../../client/consensus/randomness-beacon", default-features = false }
 sp-consensus-randomness-beacon = { path = "../../primitives/consensus/randomness-beacon", default-features = false }
 sp-core.workspace = true
 sp-io.workspace = true

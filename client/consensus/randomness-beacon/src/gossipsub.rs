@@ -38,13 +38,17 @@
 //! 	"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
 //! 		.parse()
 //! 		.expect("The string is a well-formatted multiaddress. qed.");
-//! let (mut gossipsub, state) = build_node();
+//! let local_identity: Keypair = Keypair::generate_ed25519();
+//! let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
+//! let gossipsub_config = GossipsubConfig::default();
+//! let mut gossipsub = GossipsubNetwork::new(&local_identity, state.clone(), gossipsub_config).unwrap();
 //! tokio::spawn(async move {
 //! 	if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
 //! 		log::error!("Failed to run gossipsub network: {:?}", e);
 //! 	}
 //! });
 //! ```
+use crate::types::*;
 use futures::StreamExt;
 use libp2p::{
 	gossipsub,
@@ -56,7 +60,6 @@ use libp2p::{
 	Multiaddr, SwarmBuilder,
 };
 use prost::Message;
-use sp_consensus_randomness_beacon::types::{OpaquePulse, Pulse};
 use std::sync::{Arc, Mutex};
 
 /// The default address instructing libp2p to choose a random open port on the local machine

@@ -50,7 +50,7 @@
 //! To be more specific, if the randomness beacon incrementally outputs pulses A -> B -> C -> D,
 //! the genesis round expects pulse A first, and the SignatureToBlockRatio is 2, then this pallet
 //! would first expect the 'aggregated' pulse AB = A + B, which produces both an aggregated
-//! *signature* (asig) and an aggregated *public key* (apk). Subsequently,  it would expected the
+//! *signature* (asig) and an aggregated *public key* (apk). Subsequently, it would expected the
 //! next value to be CD = C + D. On-chain, this results in the aggregated signature, ABCD = AB + CD,
 //! which we can use to prove we have observed all pulses between A and D.
 //!
@@ -70,8 +70,6 @@
 //! ## Interface
 //!
 //! - **Extrinsics**
-//!   - `set_beacon_config`: Allows governance to update the randomness beacon configuration.
-//!   - `set_genesis_round`: Sets the initial round number for randomness pulses.
 //!   - `try_submit_asig`: Submit an aggregated signature for verification. This is an unsigned
 //!     extrinsic, intended to be called from the inherent.
 //!
@@ -91,8 +89,8 @@ extern crate alloc;
 
 use alloc::{vec, vec::Vec};
 use ark_serialize::CanonicalSerialize;
-use frame_support::{pallet_prelude::*, storage::bounded_vec::BoundedVec};
-use sp_consensus_randomness_beacon::types::OpaquePulse;
+use frame_support::pallet_prelude::*;
+use sc_consensus_randomness_beacon::types::OpaquePulse;
 
 pub mod aggregator;
 pub mod bls12_381;
@@ -100,13 +98,8 @@ pub mod types;
 pub mod weights;
 pub use weights::*;
 
-use aggregator::SignatureAggregator;
+use aggregator::{zero_on_g1, SignatureAggregator};
 use types::*;
-
-use crate::{
-	aggregator::zero_on_g1,
-	types::{Metadata, OpaqueHash, OpaquePublicKey, OpaqueSignature, RoundNumber},
-};
 
 #[cfg(test)]
 mod mock;
@@ -134,15 +127,13 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
 		type WeightInfo: WeightInfo;
-		/// something that knows how to aggregate and verify beacon pulses
+		/// The beacon configuration for which this pallet is defined.
+		type BeaconConfig: Get<BeaconConfiguration>;
+		/// something that knows how to aggregate and verify beacon pulses.
 		type SignatureAggregator: SignatureAggregator;
-		/// The number of pulses per block
+		/// The number of pulses per block.
 		type SignatureToBlockRatio: Get<u8>;
 	}
-
-	/// the drand beacon configuration
-	#[pallet::storage]
-	pub type BeaconConfig<T: Config> = StorageValue<_, BeaconConfiguration, OptionQuery>;
 
 	/// A first round number for which a pulse was observed
 	#[pallet::storage]
@@ -155,14 +146,11 @@ pub mod pallet {
 	/// The aggregated signature and aggregated public key (identifier) of all observed pulses of
 	/// randomness
 	#[pallet::storage]
-	pub type AggregatedSignature<T: Config> =
-		StorageValue<_, (OpaqueSignature, OpaqueSignature), OptionQuery>;
+	pub type AggregatedSignature<T: Config> = StorageValue<_, Aggregate, OptionQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// The beacon configuration has been updated by a root address
-		BeaconConfigChanged,
 		/// The genesis round has been changed by a root address
 		GenesisRoundChanged,
 		/// Siganture verification succeeded for signatures associated with the given rounds.
@@ -171,15 +159,9 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The value retrieved was `None` as no value was previously set.
-		NoneValue,
-		/// There is no valid beacon config
-		MissingBeaconConfig,
-		/// There was an attempt to increment the value in storage over `u32::MAX`.
-		StorageOverflow,
 		/// The input data could not be decoded or was empty
 		InvalidInput,
-		/// the pulse could not be verified
+		/// The pulse could not be verified
 		VerificationFailed,
 		/// The next round number is invalid (either too high or too low)
 		InvalidNextRound,
@@ -237,82 +219,25 @@ pub mod pallet {
 		}
 	}
 
-	#[pallet::genesis_config]
-	pub struct GenesisConfig<T: Config> {
-		/// The randomness beacon config
-		pub config: BeaconConfiguration,
-		/// The first round where we should start consuming from the beacon
-		pub genesis_round: RoundNumber,
-		/// Phantom config
-		#[serde(skip)]
-		pub _phantom: core::marker::PhantomData<T>,
-	}
-
-	impl<T: Config> Default for GenesisConfig<T> {
-		/// The default configuration is
-		/// <a href='https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info'>Drand Quicknet</a>
-		fn default() -> Self {
-			Self { config: drand_quicknet_config(), genesis_round: 0, _phantom: Default::default() }
-		}
-	}
-
-	#[pallet::genesis_build]
-	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
-		fn build(&self) {
-			Pallet::<T>::initialize(self.config.clone())
-				.expect("The genesis config should be correct.");
-		}
-	}
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// allows the root user to set the beacon configuration
-		/// there is no verification of configurations, so be careful with this.
-		///
-		/// * `origin`: The root user
-		/// * `config`: The new beacon configuration
-		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::set_beacon_config())]
-		pub fn set_beacon_config(
-			origin: OriginFor<T>,
-			config: BeaconConfiguration,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			BeaconConfig::<T>::put(config);
-			Self::deposit_event(Event::BeaconConfigChanged {});
-			Ok(())
-		}
-
-		/// Set the genesis round if the origin has root privileges
-		///
-		/// * `origin`: The root user
-		/// * `round`: The new genesis round
-		#[pallet::call_index(1)]
-		#[pallet::weight(T::WeightInfo::set_genesis_round())]
-		pub fn set_genesis_round(origin: OriginFor<T>, round: RoundNumber) -> DispatchResult {
-			ensure_root(origin)?;
-			GenesisRound::<T>::put(round);
-			Self::deposit_event(Event::GenesisRoundChanged {});
-			Ok(())
-		}
-
 		/// Write a set of pulses to the runtime
 		///
 		/// * `origin`: A None origin
 		/// * `asig`: An aggregated signature
 		/// * `round`: An optional genesis round number. It can only be set if the existing genesis
 		///   round is 0.
-		#[pallet::call_index(2)]
+		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::try_submit_asig())]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
 			asig: OpaqueSignature,
 			round: Option<RoundNumber>,
 		) -> DispatchResult {
+			// In the future, this will expected a signed payload
+			// https://github.com/ideal-lab5/idn-sdk/issues/117
 			ensure_none(origin)?;
-			// the beacon config must exist
-			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::MissingBeaconConfig)?;
-
+			let config = T::BeaconConfig::get();
 			let mut genesis_round = GenesisRound::<T>::get();
 			let mut latest_round = LatestRound::<T>::get();
 
@@ -351,52 +276,4 @@ pub mod pallet {
 			Ok(())
 		}
 	}
-}
-
-impl<T: Config> Pallet<T> {
-	/// Set the beacon configuration
-	fn initialize(config: BeaconConfiguration) -> Result<(), ()> {
-		BeaconConfig::<T>::set(Some(config));
-		Ok(())
-	}
-}
-
-pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
-	build_beacon_configuration(
-		"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",
-		3,
-		1692803367,
-		"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
-		"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e",
-		"bls-unchained-g1-rfc9380",
-		"quicknet"
-	)
-}
-
-/// build a beacon configuration struct
-fn build_beacon_configuration(
-	pk_hex: &str,
-	period: u32,
-	genesis_time: u32,
-	hash_hex: &str,
-	group_hash_hex: &str,
-	scheme_id: &str,
-	beacon_id: &str,
-) -> BeaconConfiguration {
-	let pk = hex::decode(pk_hex).expect("Valid hex");
-	let hash = hex::decode(hash_hex).expect("Valid hex");
-	let group_hash = hex::decode(group_hash_hex).expect("Valid hex");
-
-	let public_key: OpaquePublicKey = BoundedVec::try_from(pk).expect("Public key within bounds");
-	let hash: OpaqueHash = BoundedVec::try_from(hash).expect("Hash within bounds");
-	let group_hash: OpaqueHash =
-		BoundedVec::try_from(group_hash).expect("Group hash within bounds");
-	let scheme_id: OpaqueHash =
-		BoundedVec::try_from(scheme_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
-	let beacon_id: OpaqueHash =
-		BoundedVec::try_from(beacon_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
-
-	let metadata = Metadata { beacon_id };
-
-	BeaconConfiguration { public_key, period, genesis_time, hash, group_hash, scheme_id, metadata }
 }

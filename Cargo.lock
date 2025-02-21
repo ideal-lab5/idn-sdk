@@ -3895,6 +3895,7 @@ dependencies = [
  "hex",
  "log",
  "parity-scale-codec",
+ "sc-consensus-randomness-beacon",
  "scale-info",
  "serde",
  "sha2 0.10.8",
@@ -4935,15 +4936,21 @@ dependencies = [
 name = "sc-consensus-randomness-beacon"
 version = "1.0.0"
 dependencies = [
+ "ark-bls12-381",
+ "ark-serialize",
  "async-std",
  "futures",
  "futures-timer",
  "libp2p",
  "log",
+ "parity-scale-codec",
  "prost",
+ "prost-build",
  "prost-types",
  "rand 0.8.5",
- "sp-consensus-randomness-beacon",
+ "scale-info",
+ "serde",
+ "sp-ark-bls12-381",
  "tokio",
 ]
 
@@ -5436,17 +5443,11 @@ dependencies = [
 name = "sp-consensus-randomness-beacon"
 version = "0.0.1-dev"
 dependencies = [
- "ark-bls12-381",
- "ark-serialize",
  "array-bytes",
  "async-trait",
  "parity-scale-codec",
- "prost",
- "prost-build",
- "prost-types",
  "scale-info",
  "serde",
- "sp-ark-bls12-381",
  "sp-inherents 34.0.0",
  "tokio",
 ]

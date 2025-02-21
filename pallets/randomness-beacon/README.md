@@ -1,43 +1,10 @@
-# Drand Bridge Pallet
+# Randomness Beacon Pallet
 
-This is a [FRAME](https://docs.substrate.io/reference/frame-pallets/) pallet that allows Substrate-based chains to bridge to drand. It only supports bridging to drand's [Quicknet](https://drand.love/blog/quicknet-is-live-on-the-league-of-entropy-mainnet), which provides fresh randomness every 3 seconds. Adding this pallet to a runtime allows it to acquire verifiable on-chain randomness which can be used in runtime modules or ink! smart contracts. 
-
-Read [here](https://github.com/ideal-lab5/idn-sdk/blob/main/pallets/drand/docs/how_it_works.md) for a deep-dive into the pallet.
+This pallet facilitates the aggregation and verification of randomness pulses from an external verifiable randomness beacon, such as [drand](https://drand.love)'s Quicknet. It enables runtime access to externally sourced, cryptographically secure randomness while ensuring that only properly signed pulses are accepted.
 
 ## Usage
 
-Use this pallet in a Substrate runtime to acquire verifiable randomness from drand's quicknet.
-
-### Node Requirements
-
-Usage of this pallet requires that the node support:
-- offchain workers
-- (optional - in case of smart contracts) Contracts pallet and drand  chain extension enabled 
-
-We have included an example [solochain](https://github.com/ideal-lab5/idn-sdk/tree/main/pallets/drand/examples/solochain) in this repo, that meets these requirements that you can use to get started.
-
-See [here](https://github.com/ideal-lab5/idn-sdk/blob/main/pallets/drand/docs/integration.md) for a detailed guide on integrating this pallet into a runtime.
-
-### For Pallets
-This pallet implements the [Randomness](https://paritytech.github.io/polkadot-sdk/master/frame_support/traits/trait.Randomness.html) trait. FRAME pallets can use it by configuring their runtimes 
-
-``` rust
-impl pallet_with_randomness for Runtime {
-    type Randomness = Drand;
-}
-```
-
-Subsequently in your pallet, fetch the latest round randomness with:
-
-``` rust
-let latest_randomness = T::Randomness::random(b"ctx");
-```
-
-For example, the [lottery pallet](https://github.com/paritytech/polkadot-sdk/blob/d3d1542c1d387408c141f9a1a8168e32435a4be9/substrate/frame/lottery/src/lib.rs#L518)
-
-### For Smart Contracts
-
-Add a [chain extension](https://use.ink/macros-attributes/chain-extension/) to your runtime to expose the drand pallet's randomness. An example can be found in [here](https://github.com/ideal-lab5/idn-sdk/blob/main/pallets/drand/examples/solochain) and then follow the guide [here](https://github.com/ideal-lab5/contracts). The [template contract](https://github.com/ideal-lab5/contracts/tree/main/template) provides a minimal working example.
+This pallet is intended to be used alongside a node that consumes pulses of randomness from a randomness beacon (e.g. with the [`GossipsubNetwork`]). 
 
 ## Building
 
@@ -79,4 +46,6 @@ cargo build --release --features runtime-benchmarks
     --allow-missing-host-functions
 ```
 
-License: MIT-0
+## License
+
+Apache-2.0

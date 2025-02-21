@@ -1,78 +1,13 @@
 use crate::{
-	aggregator::test::*, drand_quicknet_config, mock::*, AggregatedSignature, BeaconConfig,
-	BoundedVec, Call, Error, GenesisRound, LatestRound, OpaqueSignature, RoundNumber,
+	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound, LatestRound,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent};
 
 #[test]
 fn can_construct_pallet_and_set_genesis_params() {
 	new_test_ext().execute_with(|| {
-		let expected_genesis_config = drand_quicknet_config();
-		let actual_genesis_config =
-			BeaconConfig::<Test>::get().expect("It should be set on genesis");
-
-		assert_eq!(expected_genesis_config, actual_genesis_config);
 		let actual_genesis_round = GenesisRound::<Test>::get();
 		assert_eq!(0, actual_genesis_round);
-	});
-}
-
-#[test]
-fn can_set_beacon_config_when_root() {
-	new_test_ext().execute_with(|| {
-		let mut expected_genesis_config = drand_quicknet_config();
-		// modify the config
-		expected_genesis_config.period = 5;
-		assert_ok!(Drand::set_beacon_config(
-			RuntimeOrigin::root(),
-			expected_genesis_config.clone()
-		));
-		let actual_genesis_config = BeaconConfig::<Test>::get().expect("It should be set");
-		assert_eq!(expected_genesis_config, actual_genesis_config);
-	});
-}
-
-#[test]
-fn can_not_set_beacon_config_when_not_root() {
-	new_test_ext().execute_with(|| {
-		let expected_genesis_config = drand_quicknet_config();
-		assert_noop!(
-			Drand::set_beacon_config(RuntimeOrigin::none(), expected_genesis_config.clone()),
-			crate::DispatchError::BadOrigin,
-		);
-	});
-}
-
-#[test]
-fn can_set_genesis_round_when_root() {
-	new_test_ext().execute_with(|| {
-		let r: RoundNumber = 1;
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), r));
-		let actual_genesis_round = GenesisRound::<Test>::get();
-		assert_eq!(r, actual_genesis_round);
-	});
-}
-
-#[test]
-fn can_not_set_genesis_round_when_not_root() {
-	new_test_ext().execute_with(|| {
-		assert_noop!(
-			Drand::set_genesis_round(RuntimeOrigin::none(), 1),
-			crate::DispatchError::BadOrigin,
-		);
-	});
-}
-
-#[test]
-fn can_fail_write_pulse_when_beacon_config_missing() {
-	let (sig, _pk) = get(vec![PULSE1000]);
-	new_test_ext().execute_with(|| {
-		BeaconConfig::<Test>::set(None);
-		System::set_block_number(1);
-		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), sig, None),
-			Error::<Test>::MissingBeaconConfig,
-		);
 	});
 }
 
@@ -95,7 +30,6 @@ fn can_submit_min_required_valid_pulses_on_genesis() {
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		// Drand::set_genesis_round(RuntimeOrigin::root(), round);
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone(), Some(round)));
 
@@ -123,7 +57,6 @@ fn can_not_submit_less_than_min_required_valid_pulses_on_genesis() {
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		// Drand::set_genesis_round(RuntimeOrigin::root(), round);
 
 		assert_noop!(
 			Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone(), Some(round)),
@@ -203,7 +136,8 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 */
 
 use ark_serialize::CanonicalSerialize;
-use sp_consensus_randomness_beacon::{inherents::INHERENT_IDENTIFIER, types::OpaquePulse};
+use sc_consensus_randomness_beacon::types::OpaquePulse;
+use sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
 use sp_inherents::InherentData;
 
 #[test]

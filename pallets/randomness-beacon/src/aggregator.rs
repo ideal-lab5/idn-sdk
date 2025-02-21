@@ -17,9 +17,9 @@
 //! A collection of verifiers for randomness beacon pulses
 use crate::{
 	bls12_381,
-	types::{OpaquePublicKey, OpaqueSignature, RoundNumber},
+	types::{Aggregate, OpaquePublicKey, OpaqueSignature, RoundNumber},
 };
-use alloc::{format, string::String, vec::Vec};
+use alloc::vec::Vec;
 use ark_ec::{hashing::HashToCurve, AffineRepr};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use sha2::{Digest, Sha256};
@@ -32,27 +32,55 @@ use sp_ark_bls12_381::{G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
 
 /// Something that can verify beacon pulses
 pub trait SignatureAggregator {
+	/// Aggregate the new signature to an old one and then verify it
+	///
+	/// * `beacon_pk_bytes`:
 	fn aggregate_and_verify(
 		beacon_pk_bytes: OpaquePublicKey,
 		next_sig_bytes: OpaqueSignature,
 		start: RoundNumber,
 		height: RoundNumber,
-		prev_sig_and_msg: Option<(OpaqueSignature, OpaqueSignature)>,
-	) -> Result<(OpaqueSignature, OpaqueSignature), String>;
+		prev_sig_and_msg: Option<Aggregate>,
+	) -> Result<(OpaqueSignature, OpaqueSignature), Error>;
 }
 
-/// A verifier to check values received from quicknet. It outputs true if valid, false otherwise
+#[derive(Debug, PartialEq)]
+pub enum Error {
+	/// The input could not be deserialized to a point on G1
+	DeserializeG1Failure,
+	/// The input could not be deserialized to a point on G2
+	DeserializeG2Failure,
+	/// Verification for the siganture failed.
+	InvalidSignature,
+	/// The input buffer could not be hashed.
+	InvalidBuffer,
+}
+
+/// A verifier to check values received from Drand quicknet. It outputs true if valid, false
+/// otherwise
 ///
 /// [Quicknet](https://drand.love/blog/quicknet-is-live-on-the-league-of-entropy-mainnet) operates in an unchained mode,
 /// so messages contain only the round number. in addition, public keys are in G2 and signatures are
-/// in G1
+/// in G1.
 ///
 /// Values are valid if the pairing equality holds: $e(sig, g_2) == e(msg_on_curve, pk)$
 /// where $sig \in \mathbb{G}_1$ is the signature
 ///       $g_2 \in \mathbb{G}_2$ is a generator
-///       $msg_on_curve \in \mathbb{G}_1$ is a hash of the message that drand signed
-/// (hash(round_number))       $pk \in \mathbb{G}_2$ is the public key, read from the input public
+///       $msg_on_curve \in \mathbb{G}_1$ is a hash of the message that drand signed,
+/// (hash(round_number))        $pk \in \mathbb{G}_2$ is the public key, read from the input public
 /// parameters
+///
+/// The implementation is responsible for construcing the public key that is required to verify the
+/// signature. In order to avoid long-running aggregations, the function allows an optional
+/// 'checkpoint' aggregated sig and public key that can be used to 'start' from. The function is
+/// intended to efficiently verify that:
+/// 1) New signatures are correct
+/// 2) The new signatures follow a monotonically increasing sequence and are an extension of
+///    previous a monotonically increasing sequences that I have observed.
+///
+/// More explicitly, it is intended to allow for the runtime to 'follow' a long-running,
+/// aggregated signature and public key that allows it to efficiently prove it has observed all
+/// pulses from the randomness beacon within some given range of round numbers.
 pub struct QuicknetAggregator;
 
 impl SignatureAggregator for QuicknetAggregator {
@@ -62,11 +90,14 @@ impl SignatureAggregator for QuicknetAggregator {
 		start: RoundNumber,
 		height: RoundNumber,
 		prev_sig_and_msg: Option<(OpaqueSignature, OpaqueSignature)>,
-	) -> Result<(OpaqueSignature, OpaqueSignature), String> {
+	) -> Result<Aggregate, Error> {
 		let beacon_pk = decode_g2(&beacon_pk_bytes)?;
+		// apk = 0, asig = new_sig
 		let mut apk = zero_on_g1();
 		let mut asig = decode_g1(&next_sig_bytes)?;
 
+		// if a previous signature and pubkey were provided
+		// then we start there
 		if let Some((prev_sig, prev_msg)) = prev_sig_and_msg {
 			let prev_asig = decode_g1(&prev_sig)?;
 			let prev_apk = decode_g1(&prev_msg)?;
@@ -84,20 +115,23 @@ impl SignatureAggregator for QuicknetAggregator {
 
 		let g2 = G2AffineOpt::generator();
 		let validity = bls12_381::fast_pairing_opt(asig, g2, apk, beacon_pk);
-		// let validity = verify(beacon_pk, asig, apk)?;
+
 		if !validity {
-			return Err("Invalid signature.".to_string());
+			return Err(Error::InvalidSignature);
 		}
 
 		// convert to bytes
 		let mut sig_bytes = Vec::new();
+		// note: this line is untestable
+		// Message for SRLABS: can we use an .expect here instead?
 		asig.serialize_compressed(&mut sig_bytes)
-			.expect("The signature must be well formatted;qed.");
+			.map_err(|_| Error::DeserializeG1Failure)?;
 		let new_asig = OpaqueSignature::truncate_from(sig_bytes.clone());
 
 		let mut apk_bytes = Vec::new();
+		// note: this line is untestable
 		apk.serialize_compressed(&mut apk_bytes)
-			.expect("The public key must be well formatted;qed.");
+			.map_err(|_| Error::DeserializeG2Failure)?;
 		let new_apk = OpaqueSignature::truncate_from(apk_bytes);
 
 		Ok((new_asig, new_apk))
@@ -112,19 +146,19 @@ fn message(current_round: RoundNumber, prev_sig: &[u8]) -> Vec<u8> {
 	hasher.finalize().to_vec()
 }
 
-/// computes the point on G1 given a round number (for message construction)
-pub(crate) fn compute_round_on_g1(round: u64) -> Result<G1AffineOpt, String> {
+/// This computes the point on G1 given a round number (for message construction).
+/// TODO: do we save anything by pulling out the hasher instead of constructing it each time?
+/// https://github.com/ideal-lab5/idn-sdk/issues/119
+pub(crate) fn compute_round_on_g1(round: u64) -> Result<G1AffineOpt, Error> {
 	let message = message(round, &[]);
 	let hasher = <TinyBLS381 as EngineBLS>::hash_to_curve_map();
 	// H(m) \in G1
-	let message_hash = hasher
-		.hash(&message)
-		.map_err(|e| format!("The message could not be hashed: {:?}", e))?;
+	let message_hash = hasher.hash(&message).map_err(|_| Error::InvalidBuffer)?;
 
 	let mut bytes = Vec::new();
 	message_hash
 		.serialize_compressed(&mut bytes)
-		.map_err(|e| format!("The message hash could not be serialized: {:?}", e))?;
+		.map_err(|_| Error::DeserializeG1Failure)?;
 
 	decode_g1(&bytes)
 }
@@ -135,15 +169,13 @@ pub(crate) fn zero_on_g1() -> G1AffineOpt {
 }
 
 /// Attempts to decode the byte array to a point on G1
-pub(crate) fn decode_g1(mut bytes: &[u8]) -> Result<G1AffineOpt, String> {
-	G1AffineOpt::deserialize_compressed(&mut bytes)
-		.map_err(|e| format!("Failed to decode message on curve: {}", e))
+fn decode_g1(mut bytes: &[u8]) -> Result<G1AffineOpt, Error> {
+	G1AffineOpt::deserialize_compressed(&mut bytes).map_err(|_| Error::DeserializeG1Failure)
 }
 
 /// Attempts to decode the byte array to a point on G2
-pub fn decode_g2(mut bytes: &[u8]) -> Result<G2AffineOpt, String> {
-	G2AffineOpt::deserialize_compressed(&mut bytes)
-		.map_err(|e| format!("Failed to decode message on curve: {}", e))
+fn decode_g2(mut bytes: &[u8]) -> Result<G2AffineOpt, Error> {
+	G2AffineOpt::deserialize_compressed(&mut bytes).map_err(|_| Error::DeserializeG2Failure)
 }
 
 #[cfg(test)]
@@ -262,7 +294,7 @@ pub mod test {
 			None,
 		);
 		assert!(res.is_err());
-		assert_eq!(Err(format!("Invalid signature.")), res);
+		assert_eq!(Err(Error::InvalidSignature), res);
 	}
 
 	/// Test that `message` is deterministic and returns a 32-byte SHA256 digest.
@@ -330,6 +362,7 @@ pub mod test {
 		let invalid_bytes = b"invalid bytes";
 		let result = decode_g2(invalid_bytes);
 		assert!(result.is_err(), "Decoding invalid G2 bytes should return an error");
+		assert_eq!(result, Err(Error::DeserializeG2Failure));
 	}
 
 	/// Test that `compute_round_on_g1` produces a valid point for a given round.
