@@ -3,7 +3,6 @@ members = [
     "client/consensus/randomness-beacon",
     "primitives/consensus/randomness-beacon",
     "pallets/randomness-beacon",
-    "pallets/drand",
     "pallets/idn-manager",
     "support/traits",
 ]
