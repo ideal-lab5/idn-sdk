@@ -41,7 +41,6 @@ fn can_submit_min_required_valid_pulses_on_genesis() {
 		assert!(maybe_res.is_some());
 
 		let (actual_asig, actual_apk) = maybe_res.unwrap();
-		// assert_eq!(1002, actual_latest);
 		assert_eq!(asig, actual_asig);
 		assert_eq!(apk, actual_apk);
 	});
