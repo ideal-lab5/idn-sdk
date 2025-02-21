@@ -17,9 +17,9 @@
 //! # Tests for the IDN Manager pallet
 
 use crate::{
-	tests::mock::{new_test_ext, Balances, Test, *},
+	tests::mock::{Balances, ExtBuilder, Test, *},
 	traits::{DepositCalculator, FeesManager},
-	Config, Error, HoldReason, SubscriptionState, Subscriptions,
+	Config, Error, Event, HoldReason, SubscriptionState, Subscriptions,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -34,9 +34,19 @@ use xcm::v5::{Junction, Location};
 const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 const BOB: AccountId32 = AccountId32::new([2u8; 32]);
 
+fn event_emitted(event: Event<Test>) -> bool {
+	System::events().iter().any(|record| {
+		if let RuntimeEvent::IdnManager(ref e) = &record.event {
+			e == &event
+		} else {
+			false
+		}
+	})
+}
+
 #[test]
 fn create_subscription_works() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let amount: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
@@ -55,9 +65,10 @@ fn create_subscription_works() {
 			frequency,
 			None
 		));
+
 		assert_eq!(Subscriptions::<Test>::iter().count(), 1);
 
-		let (_sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
+		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
 
 		// assert that the correct fees have been held
 		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(amount);
@@ -75,12 +86,15 @@ fn create_subscription_works() {
 			subscription.details.metadata,
 			BoundedVec::<u8, SubMetadataLen>::try_from(vec![]).unwrap()
 		);
+
+		// assert that the correct event has been emitted
+		assert!(event_emitted(Event::<Test>::SubscriptionCreated { sub_id }));
 	});
 }
 
 #[test]
 fn create_subscription_fails_if_insufficient_balance() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let amount: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
@@ -97,12 +111,18 @@ fn create_subscription_fails_if_insufficient_balance() {
 			),
 			Error::<Test>::InsufficientBalance
 		);
+
+		// Assert the SubscriptionCreated event was not emitted
+		assert!(!System::events().iter().any(|record| matches!(
+			record.event,
+			RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated { sub_id: _ })
+		)));
 	});
 }
 
 #[test]
 fn create_subscription_fails_if_sub_already_exists() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let amount: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
@@ -117,6 +137,9 @@ fn create_subscription_fails_if_sub_already_exists() {
 			None
 		));
 
+		// erase all events
+		System::reset_events();
+
 		assert_noop!(
 			IdnManager::create_subscription(
 				RuntimeOrigin::signed(ALICE),
@@ -127,6 +150,12 @@ fn create_subscription_fails_if_sub_already_exists() {
 			),
 			Error::<Test>::SubscriptionAlreadyExists
 		);
+
+		// Assert the SubscriptionCreated event was not emitted
+		assert!(!System::events().iter().any(|record| matches!(
+			record.event,
+			RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated { sub_id: _ })
+		)));
 	});
 }
 
@@ -134,7 +163,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 // Todo: https://github.com/ideal-lab5/idn-sdk/issues/77
 #[ignore]
 fn distribute_randomness_works() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let amount: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
@@ -163,7 +192,7 @@ fn distribute_randomness_works() {
 
 #[test]
 fn test_kill_subscription() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let amount = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
@@ -187,24 +216,29 @@ fn test_kill_subscription() {
 		// https://github.com/ideal-lab5/idn-sdk/issues/107
 		assert_ok!(IdnManager::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id));
 		assert!(Subscriptions::<Test>::get(sub_id).is_none());
+
+		assert!(event_emitted(Event::<Test>::SubscriptionFinished { sub_id }));
 	});
 }
 
 #[test]
 fn kill_subscription_fails_if_sub_does_not_exist() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let sub_id = H256::from_slice(&[1; 32]);
 
 		assert_noop!(
 			IdnManager::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id),
 			Error::<Test>::SubscriptionDoesNotExist
 		);
+
+		// Assert the SubscriptionFinished event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionFinished { sub_id }));
 	});
 }
 
 #[test]
 fn test_update_subscription() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let original_amount = 10;
 		let original_frequency = 2;
 		// TODO as part of https://github.com/ideal-lab5/idn-sdk/issues/104
@@ -255,12 +289,14 @@ fn test_update_subscription() {
 		// assert subscription details has been updated
 		assert_eq!(subscription.details.amount, new_amount);
 		assert_eq!(subscription.details.frequency, new_frequency);
+
+		assert!(event_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
 	});
 }
 
 #[test]
 fn update_subscription_fails_if_sub_does_not_exists() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let sub_id = H256::from_slice(&[1; 32]);
 		let new_amount = 20;
 		let new_frequency = 4;
@@ -274,6 +310,9 @@ fn update_subscription_fails_if_sub_does_not_exists() {
 			),
 			Error::<Test>::SubscriptionDoesNotExist
 		);
+
+		// Assert the SubscriptionUpdated event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
 	});
 }
 // todo: test credits consumption, it consumes credit by credit and verify that
@@ -285,7 +324,7 @@ fn update_subscription_fails_if_sub_does_not_exists() {
 
 #[test]
 fn test_pause_reactivate_subscription() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let amount = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
@@ -317,24 +356,31 @@ fn test_pause_reactivate_subscription() {
 		// Assert current free balance is the same as the free balance before pausing and
 		// reactivating
 		assert_eq!(Balances::free_balance(&ALICE), free_balance);
+
+		assert!(event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
+
+		assert!(event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
 	});
 }
 
 #[test]
 fn pause_subscription_fails_if_sub_does_not_exists() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let sub_id = H256::from_slice(&[1; 32]);
 
 		assert_noop!(
 			IdnManager::pause_subscription(RuntimeOrigin::signed(ALICE), sub_id),
 			Error::<Test>::SubscriptionDoesNotExist
 		);
+
+		// Assert the SubscriptionPaused event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
 	});
 }
 
 #[test]
 fn pause_subscription_fails_if_sub_already_paused() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let amount = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
@@ -353,28 +399,38 @@ fn pause_subscription_fails_if_sub_already_paused() {
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
 
 		assert_ok!(IdnManager::pause_subscription(RuntimeOrigin::signed(ALICE.clone()), sub_id));
+
+		// erase all events
+		System::reset_events();
+
 		assert_noop!(
 			IdnManager::pause_subscription(RuntimeOrigin::signed(ALICE), sub_id),
 			Error::<Test>::SubscriptionAlreadyPaused
 		);
+
+		// Assert the SubscriptionPaused event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
 	});
 }
 
 #[test]
 fn reactivate_subscription_fails_if_sub_does_not_exists() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let sub_id = H256::from_slice(&[1; 32]);
 
 		assert_noop!(
 			IdnManager::reactivate_subscription(RuntimeOrigin::signed(ALICE), sub_id),
 			Error::<Test>::SubscriptionDoesNotExist
 		);
+
+		// Assert the SubscriptionReactivated event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
 	});
 }
 
 #[test]
 fn reactivate_subscriptio_fails_if_sub_already_active() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let amount = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
@@ -396,12 +452,15 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 			IdnManager::reactivate_subscription(RuntimeOrigin::signed(ALICE), sub_id),
 			Error::<Test>::SubscriptionAlreadyActive
 		);
+
+		// Assert the SubscriptionReactivated event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
 	});
 }
 
 #[test]
 fn operations_fail_if_origin_is_not_the_subscriber() {
-	new_test_ext().execute_with(|| {
+	ExtBuilder::build().execute_with(|| {
 		let amount: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
@@ -430,11 +489,17 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 			Error::<Test>::NotSubscriber
 		);
 
+		// Assert the SubscriptionFinished event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionFinished { sub_id }));
+
 		// Attempt to pause the subscription using Bob's origin (should fail)
 		assert_noop!(
 			IdnManager::pause_subscription(RuntimeOrigin::signed(BOB.clone()), sub_id),
 			Error::<Test>::NotSubscriber
 		);
+
+		// Assert the SubscriptionPaused event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
 
 		// Attempt to update the subscription using Bob's origin (should fail)
 		let new_amount = amount + 10;
@@ -454,5 +519,8 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 			IdnManager::reactivate_subscription(RuntimeOrigin::signed(BOB.clone()), sub_id),
 			Error::<Test>::NotSubscriber
 		);
+
+		// Assert the SubscriptionReactivated event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
 	});
 }

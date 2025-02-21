@@ -87,7 +87,13 @@ impl pallet_idn_manager::Config for Test {
 	type SubMetadataLen = SubMetadataLen;
 }
 
-pub fn new_test_ext() -> sp_io::TestExternalities {
-	let t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
-	t.into()
+pub struct ExtBuilder;
+
+impl ExtBuilder {
+	pub fn build() -> sp_io::TestExternalities {
+		let storage = system::GenesisConfig::<Test>::default().build_storage().unwrap();
+		let mut ext = sp_io::TestExternalities::new(storage);
+		ext.execute_with(|| System::set_block_number(1));
+		ext
+	}
 }

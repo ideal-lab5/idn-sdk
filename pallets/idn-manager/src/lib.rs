@@ -221,7 +221,7 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// A new subscription was created (includes single-block subscriptions)
 		SubscriptionCreated { sub_id: SubscriptionId },
-		/// A subscription has naturally finished
+		/// A subscription has finished
 		SubscriptionFinished { sub_id: SubscriptionId },
 		/// A subscription was paused
 		SubscriptionPaused { sub_id: SubscriptionId },
@@ -229,8 +229,6 @@ pub mod pallet {
 		SubscriptionUpdated { sub_id: SubscriptionId },
 		/// A subscription was reactivated
 		SubscriptionReactivated { sub_id: SubscriptionId },
-		/// A subscription has been manually finished
-		SubscriptionKilled { sub_id: SubscriptionId },
 		/// Randomness was successfully distributed
 		RandomnessDistributed { sub_id: SubscriptionId },
 		/// WARNING Subscription credit went bellow 0. This should never happen
@@ -341,7 +339,7 @@ pub mod pallet {
 				let sub = maybe_sub.take().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				// TODO: refund storage and fees https://github.com/ideal-lab5/idn-sdk/issues/107
-				Self::deposit_event(Event::SubscriptionKilled { sub_id });
+				Self::deposit_event(Event::SubscriptionFinished { sub_id });
 				Ok(())
 			})
 		}
