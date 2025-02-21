@@ -27,10 +27,11 @@ use frame_support::{
 		Get,
 	},
 };
+use sp_arithmetic::traits::Unsigned;
 use sp_runtime::{AccountId32, Saturating};
 use sp_std::marker::PhantomData;
 
-impl<AccountId, BlockNumber, Metadata> SubscriptionTrait<AccountId>
+impl<AccountId, BlockNumber: Unsigned, Metadata> SubscriptionTrait<AccountId>
 	for Subscription<AccountId, BlockNumber, Metadata>
 {
 	fn subscriber(&self) -> &AccountId {

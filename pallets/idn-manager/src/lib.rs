@@ -75,6 +75,7 @@ use frame_system::{
 	pallet_prelude::{BlockNumberFor, OriginFor},
 };
 use scale_info::TypeInfo;
+use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_std::fmt::Debug;
@@ -97,7 +98,7 @@ pub type SubscriptionOf<T> =
 	Subscription<<T as frame_system::Config>::AccountId, BlockNumberFor<T>, MetadataOf<T>>;
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
-pub struct Subscription<AccountId, BlockNumber, Metadata> {
+pub struct Subscription<AccountId, BlockNumber: Unsigned, Metadata> {
 	details: SubscriptionDetails<AccountId, BlockNumber, Metadata>,
 	// Number of random values left to distribute
 	credits_left: BlockNumber,
@@ -120,7 +121,7 @@ pub struct SubscriptionDetails<AccountId, BlockNumber, Metadata> {
 impl<AccountId, BlockNumber, Metadata> Subscription<AccountId, BlockNumber, Metadata>
 where
 	AccountId: Encode,
-	BlockNumber: Encode + Copy,
+	BlockNumber: Encode + Copy + Unsigned,
 	Metadata: Encode + Clone,
 {
 	pub fn id(&self) -> SubscriptionId {
@@ -222,7 +223,7 @@ pub mod pallet {
 		/// A new subscription was created (includes single-block subscriptions)
 		SubscriptionCreated { sub_id: SubscriptionId },
 		/// A subscription has finished
-		SubscriptionFinished { sub_id: SubscriptionId },
+		SubscriptionRemoved { sub_id: SubscriptionId },
 		/// A subscription was paused
 		SubscriptionPaused { sub_id: SubscriptionId },
 		/// A subscription was updated
@@ -231,8 +232,6 @@ pub mod pallet {
 		SubscriptionReactivated { sub_id: SubscriptionId },
 		/// Randomness was successfully distributed
 		RandomnessDistributed { sub_id: SubscriptionId },
-		/// WARNING Subscription credit went bellow 0. This should never happen
-		SubscriptionCreditBelowZero { sub_id: SubscriptionId, credits: BlockNumberFor<T> },
 	}
 
 	#[pallet::error]
@@ -266,18 +265,9 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_finalize(_n: BlockNumberFor<T>) {
 			// Look for subscriptions that should be finished
-			for (sub_id, sub) in
-				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left <= Zero::zero())
+			for (sub_id, _) in
+				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left == Zero::zero())
 			{
-				if sub.credits_left < Zero::zero() {
-					// If this happens then there's a bug in the code
-					// TODO: log a warning that can be picked up by the monitoring system https://github.com/ideal-lab5/ideal-network/issues/28
-					Self::deposit_event(Event::SubscriptionCreditBelowZero {
-						sub_id,
-						credits: sub.credits_left,
-					});
-				}
-
 				// finish the subscription
 				Self::finish_subscription(sub_id);
 			}
@@ -335,11 +325,13 @@ pub mod pallet {
 			sub_id: SubscriptionId,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
+			// `try_mutate_exists` deletes maybe_sub if mutated to a `None``
 			Subscriptions::<T>::try_mutate_exists(sub_id, |maybe_sub| {
+				// Takes the value out of `maybe_sub``, leaving a `None`` in its place.
 				let sub = maybe_sub.take().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				// TODO: refund storage and fees https://github.com/ideal-lab5/idn-sdk/issues/107
-				Self::deposit_event(Event::SubscriptionFinished { sub_id });
+				Self::deposit_event(Event::SubscriptionRemoved { sub_id });
 				Ok(())
 			})
 		}
@@ -397,7 +389,7 @@ impl<T: Config> Pallet<T> {
 	/// Finishes a subscription by removing it from storage and emitting a finish event.
 	pub(crate) fn finish_subscription(sub_id: SubscriptionId) {
 		Subscriptions::<T>::remove(sub_id);
-		Self::deposit_event(Event::SubscriptionFinished { sub_id });
+		Self::deposit_event(Event::SubscriptionRemoved { sub_id });
 	}
 
 	fn pallet_account_id() -> T::AccountId {
@@ -419,6 +411,8 @@ impl<T: Config> Pallet<T> {
 					Box::new(xcm::VersionedXcm::V5(msg.into()));
 				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
 				let _ = T::Xcm::send(origin.into(), versioned_target, versioned_msg);
+
+				// todo: as part of issue #77 use saturating_sub to make sure it does not underflow
 
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			}
@@ -498,7 +492,7 @@ sp_api::decl_runtime_apis! {
 	#[api_version(1)]
 	pub trait IdnManagerApi<Balance, BlockNumber, Metadata, AccountId> where
 		Balance: Codec,
-		BlockNumber: Codec,
+		BlockNumber: Codec + Unsigned,
 		Metadata: Codec,
 		AccountId: Codec,
 	{

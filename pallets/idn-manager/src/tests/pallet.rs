@@ -23,7 +23,11 @@ use crate::{
 };
 use frame_support::{
 	assert_noop, assert_ok,
-	traits::fungible::{InspectHold, Mutate},
+	pallet_prelude::Zero,
+	traits::{
+		fungible::{InspectHold, Mutate},
+		OnFinalize,
+	},
 	BoundedVec,
 };
 use idn_traits::rand::Dispatcher;
@@ -161,6 +165,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 
 #[test]
 // Todo: https://github.com/ideal-lab5/idn-sdk/issues/77
+// assert event RandomnessDistributed is emitted
 #[ignore]
 fn distribute_randomness_works() {
 	ExtBuilder::build().execute_with(|| {
@@ -217,7 +222,7 @@ fn test_kill_subscription() {
 		assert_ok!(IdnManager::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id));
 		assert!(Subscriptions::<Test>::get(sub_id).is_none());
 
-		assert!(event_emitted(Event::<Test>::SubscriptionFinished { sub_id }));
+		assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
 	});
 }
 
@@ -231,8 +236,8 @@ fn kill_subscription_fails_if_sub_does_not_exist() {
 			Error::<Test>::SubscriptionDoesNotExist
 		);
 
-		// Assert the SubscriptionFinished event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionFinished { sub_id }));
+		// Assert the SubscriptionRemoved event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
 	});
 }
 
@@ -489,8 +494,11 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 			Error::<Test>::NotSubscriber
 		);
 
-		// Assert the SubscriptionFinished event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionFinished { sub_id }));
+		// assert subscription still exists
+		assert!(Subscriptions::<Test>::get(sub_id).is_some());
+
+		// Assert the SubscriptionRemoved event was not emitted
+		assert!(!event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
 
 		// Attempt to pause the subscription using Bob's origin (should fail)
 		assert_noop!(
@@ -522,5 +530,44 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 
 		// Assert the SubscriptionReactivated event was not emitted
 		assert!(!event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
+	});
+}
+
+#[test]
+fn test_on_finalize_removes_finished_subscriptions() {
+	ExtBuilder::build().execute_with(|| {
+		let amount: u64 = 50;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 10;
+		let initial_balance = 10_000_000;
+
+		// Create subscription
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			amount,
+			target.clone(),
+			frequency,
+			None
+		));
+
+		let (sub_id, mut subscription) = Subscriptions::<Test>::iter().next().unwrap();
+
+		// Manually set credits to zero to simulate a finished subscription
+		subscription.credits_left = Zero::zero();
+		Subscriptions::<Test>::insert(sub_id, subscription);
+
+		// Before on_finalize, subscription should exist
+		assert!(Subscriptions::<Test>::contains_key(sub_id));
+
+		// Call on_finalize
+		crate::Pallet::<Test>::on_finalize(System::block_number());
+
+		// After on_finalize:
+		// 1. Subscription should be removed
+		assert!(!Subscriptions::<Test>::contains_key(sub_id));
+
+		// 2. SubscriptionRemoved event should be emitted
+		assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
 	});
 }
