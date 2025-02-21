@@ -27,7 +27,21 @@
 //!
 //! ## Examples
 //!
-//! ```
+//! ``` no_run
+//! use sc_consensus_randomness_beacon::gossipsub::{GossipsubNetwork, GossipsubState};
+//! use sc_consensus_randomness_beacon::types::*;
+//! use futures::StreamExt;
+//! use libp2p::{
+//!		gossipsub,
+//!		gossipsub::{
+//!			Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
+//!		},
+//!		identity::Keypair,
+//!		swarm::{Swarm, SwarmEvent},
+//!		Multiaddr, SwarmBuilder,
+//! }; 
+//! use prost::Message;
+//! use std::sync::{Arc, Mutex};
 //! let topic_str: &str =
 //! 	"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
 //! let maddr1: libp2p::Multiaddr =
