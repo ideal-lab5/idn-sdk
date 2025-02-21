@@ -61,6 +61,7 @@ parameter_types! {
 	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([1u8; 32]);
 	pub const BaseFee: u64 = 10;
+	pub const SDMultiplier: u64 = 10;
 }
 
 #[derive(TypeInfo)]
@@ -77,7 +78,7 @@ impl pallet_idn_manager::Config for Test {
 	type Currency = Balances;
 	type FeesManager =
 		FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Test>, BlockNumber, Balances>;
-	type DepositCalculator = DepositCalculatorImpl;
+	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Rnd = [u8; 32];

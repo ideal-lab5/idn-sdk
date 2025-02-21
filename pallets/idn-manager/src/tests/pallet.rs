@@ -17,7 +17,6 @@
 //! # Tests for the IDN Manager pallet
 
 use crate::{
-	impls::DepositCalculatorImpl,
 	tests::mock::{new_test_ext, Balances, Test, *},
 	traits::{DepositCalculator, FeesManager},
 	Config, Error, HoldReason, SubscriptionState, Subscriptions,
@@ -59,7 +58,7 @@ fn create_subscription_works() {
 
 		// assert that the correct fees have been held
 		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(amount);
-		let deposit = DepositCalculatorImpl::calculate_storage_deposit(&subscription);
+		let deposit = <Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
 		assert_eq!(Balances::free_balance(&subscriber), initial_balance - fees - deposit);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &subscriber), fees);
 		assert_eq!(
@@ -192,7 +191,8 @@ fn test_update_subscription() {
 
 		let original_fees =
 			<Test as Config>::FeesManager::calculate_subscription_fees(original_amount);
-		let original_deposit = DepositCalculatorImpl::calculate_storage_deposit(&subscription);
+		let original_deposit =
+			<Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
 		let balance_after_create = initial_balance - original_fees - original_deposit;
 
 		// assert correct balance on subscriber after creating subscription

@@ -16,9 +16,12 @@
 
 //! # Traits
 
-pub enum FeesError<Fees, E> {
+/// Error type for fees management
+///
+/// Context is used to provide more information about uncategorized errors.
+pub enum FeesError<Fees, Context> {
 	NotEnoughBalance { needed: Fees, balance: Fees },
-	Other(E),
+	Other(Context),
 }
 /// Trait for fees managing
 pub trait FeesManager<Fees, Amount, Sub: Subscription<S>, Err, S> {

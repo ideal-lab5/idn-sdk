@@ -105,15 +105,21 @@ where
 	}
 }
 
-pub struct DepositCalculatorImpl;
+pub struct DepositCalculatorImpl<SDMultiplier: Get<Balance>, Balance> {
+	pub _phantom: (PhantomData<SDMultiplier>, PhantomData<Balance>),
+}
 
-impl<S: SubscriptionTrait<AccountId32> + Encode> pallet_idn_manager::DepositCalculator<u64, S>
-	for DepositCalculatorImpl
+impl<
+		S: SubscriptionTrait<AccountId32> + Encode,
+		SDMultiplier: Get<Balance>,
+		Balance: From<u32> + Saturating,
+	> pallet_idn_manager::DepositCalculator<Balance, S>
+	for DepositCalculatorImpl<SDMultiplier, Balance>
 {
-	fn calculate_storage_deposit(sub: &S) -> u64 {
-		let storage_deposit_multiplier = 10;
+	fn calculate_storage_deposit(sub: &S) -> Balance {
+		let storage_deposit_multiplier = SDMultiplier::get();
 		// calculate the size of scale encoded `sub`
-		let encoded_size = sub.encode().len() as u64;
-		encoded_size.saturating_mul(storage_deposit_multiplier)
+		let encoded_size = sub.encode().len() as u32;
+		storage_deposit_multiplier.saturating_mul(encoded_size.into())
 	}
 }
