@@ -23,12 +23,37 @@ pub enum FeesError<Fees, Context> {
 	NotEnoughBalance { needed: Fees, balance: Fees },
 	Other(Context),
 }
+
+/// Enum to represent the direction of fees movement.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FeesDirection {
+	Hold,
+	Release,
+	// Fees aren't going anywhere. This is usually the case when diff is zero.
+	None,
+}
+
+/// This struct represent movement of fees.
+///
+/// * `fees` - how much fees are being moved.
+/// * `direction` - if the fees are being collected or released.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct DiffFees<Fees> {
+	pub fees: Fees,
+	pub direction: FeesDirection,
+}
+
 /// Trait for fees managing
 pub trait FeesManager<Fees, Amount, Sub: Subscription<S>, Err, S> {
 	/// Calculate the fees for a subscription based on the amount of random values required.
 	fn calculate_subscription_fees(amount: Amount) -> Fees;
-	/// Calculate how much fees should be refunded for a subscription that is being cancelled.
-	fn calculate_refund_fees(init_amount: Amount, current_amount: Amount) -> Fees;
+	/// Calculate how much fees should be held or release when a subscription changes.
+	///
+	/// * `old_amount` - the amount of random values required before the change.
+	/// * `new_amount` - the amount of random values required after the change, this will represent
+	///   the updated amount in an update operation. Or the amount actually consumed in a kill
+	///   operation.
+	fn calculate_diff_fees(old_amount: Amount, new_amount: Amount) -> DiffFees<Fees>;
 	/// Distributes collected fees. Returns the fees that were effectively collected.
 	fn collect_fees(fees: Fees, sub: Sub) -> Result<Fees, FeesError<Fees, Err>>;
 }

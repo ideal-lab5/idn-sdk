@@ -356,6 +356,7 @@ pub mod pallet {
 				sub.details.frequency = frequency;
 				sub.details.updated_at = frame_system::Pallet::<T>::block_number();
 				// TODO implement a way to refund or take the difference in fees https://github.com/ideal-lab5/idn-sdk/issues/104
+				// Self::manage_fees_and_deposit()
 				Self::deposit_event(Event::SubscriptionUpdated { sub_id });
 				Ok(())
 			})

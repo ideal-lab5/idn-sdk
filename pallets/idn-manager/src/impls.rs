@@ -17,7 +17,9 @@
 //! # Implementations of public traits
 
 use crate::{
-	self as pallet_idn_manager, traits::FeesError, HoldReason, Subscription, SubscriptionTrait,
+	self as pallet_idn_manager,
+	traits::{DiffFees, FeesDirection, FeesError},
+	HoldReason, Subscription, SubscriptionTrait,
 };
 use codec::Encode;
 use frame_support::{
@@ -28,8 +30,8 @@ use frame_support::{
 	},
 };
 use sp_arithmetic::traits::Unsigned;
-use sp_runtime::{AccountId32, Saturating};
-use sp_std::marker::PhantomData;
+use sp_runtime::{traits::Zero, AccountId32, Saturating};
+use sp_std::{cmp::Ordering, marker::PhantomData};
 
 impl<AccountId, BlockNumber: Unsigned, Metadata> SubscriptionTrait<AccountId>
 	for Subscription<AccountId, BlockNumber, Metadata>
@@ -61,7 +63,7 @@ impl<
 		T: Get<AccountId32>,
 		B: Get<Balances::Balance>,
 		S: SubscriptionTrait<AccountId32>,
-		BlockNumber,
+		BlockNumber: Saturating + Ord,
 		Balances: Mutate<AccountId32>,
 	> pallet_idn_manager::FeesManager<Balances::Balance, BlockNumber, S, DispatchError, AccountId32>
 	for FeesManagerImpl<T, B, S, BlockNumber, Balances>
@@ -73,12 +75,23 @@ where
 		let base_fee = B::get();
 		base_fee.saturating_mul(amount.into())
 	}
-	fn calculate_refund_fees(
-		_init_amount: BlockNumber,
-		current_amount: BlockNumber,
-	) -> Balances::Balance {
-		// in this case of a linear function, the refund's is the same as the fees'
-		Self::calculate_subscription_fees(current_amount)
+	fn calculate_diff_fees(
+		old_amount: BlockNumber,
+		new_amount: BlockNumber,
+	) -> DiffFees<Balances::Balance> {
+		let mut direction = FeesDirection::None;
+		let fees = match new_amount.cmp(&old_amount) {
+			Ordering::Greater => {
+				direction = FeesDirection::Hold;
+				Self::calculate_subscription_fees(new_amount.saturating_sub(old_amount))
+			},
+			Ordering::Less => {
+				direction = FeesDirection::Release;
+				Self::calculate_subscription_fees(old_amount.saturating_sub(new_amount))
+			},
+			Ordering::Equal => Zero::zero(),
+		};
+		DiffFees { fees, direction }
 	}
 	fn collect_fees(
 		fees: Balances::Balance,

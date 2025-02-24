@@ -287,7 +287,25 @@ fn test_update_subscription() {
 			new_frequency
 		));
 
-		// TODO implement a way to refund or take the difference in fees https://github.com/ideal-lab5/idn-sdk/issues/104
+		let new_fees = <Test as Config>::FeesManager::calculate_subscription_fees(new_amount);
+		let new_deposit =
+			<Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
+
+		let fees_diff = new_fees - original_fees;
+		let deposit_diff = new_deposit - original_deposit;
+
+		let balance_after_update = balance_after_create - fees_diff - deposit_diff;
+
+		// assert fees and deposit diff is correctly handled
+		assert_eq!(Balances::free_balance(&ALICE), balance_after_update);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), new_fees);
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
+			new_deposit
+		);
+		assert_eq!(balance_after_update + new_fees + new_deposit, initial_balance);
+
+		// TODO: test probably in a separate test case fees handling but by adding block advance
 
 		let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
 
