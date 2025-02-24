@@ -32,7 +32,7 @@ use frame_support::{
 };
 use idn_traits::rand::Dispatcher;
 use sp_core::H256;
-use sp_runtime::AccountId32;
+use sp_runtime::{AccountId32, TokenError};
 use xcm::v5::{Junction, Location};
 
 const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
@@ -75,7 +75,7 @@ fn create_subscription_works() {
 		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
 
 		// assert that the correct fees have been held
-		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(amount);
+		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(&amount);
 		let deposit = <Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
 		assert_eq!(Balances::free_balance(&ALICE), initial_balance - fees - deposit);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), fees);
@@ -113,7 +113,7 @@ fn create_subscription_fails_if_insufficient_balance() {
 				frequency,
 				None
 			),
-			Error::<Test>::InsufficientBalance
+			TokenError::FundsUnavailable
 		);
 
 		// Assert the SubscriptionCreated event was not emitted
@@ -267,7 +267,7 @@ fn test_update_subscription() {
 		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
 
 		let original_fees =
-			<Test as Config>::FeesManager::calculate_subscription_fees(original_amount);
+			<Test as Config>::FeesManager::calculate_subscription_fees(&original_amount);
 		let original_deposit =
 			<Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
 		let balance_after_create = initial_balance - original_fees - original_deposit;
@@ -287,11 +287,12 @@ fn test_update_subscription() {
 			new_frequency
 		));
 
-		let new_fees = <Test as Config>::FeesManager::calculate_subscription_fees(new_amount);
+		let new_fees = <Test as Config>::FeesManager::calculate_subscription_fees(&new_amount);
 		let new_deposit =
 			<Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
 
 		let fees_diff = new_fees - original_fees;
+		// TODO: test a diff > 0
 		let deposit_diff = new_deposit - original_deposit;
 
 		let balance_after_update = balance_after_create - fees_diff - deposit_diff;
