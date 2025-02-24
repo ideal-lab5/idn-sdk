@@ -60,8 +60,8 @@ jobs:
       with:
         filename: cobertura.xml
         badge: true
-        fail_below_min: false
-        thresholds: '80 85'
+        fail_below_min: true
+        thresholds: '50 85'
         output: both
         format: markdown
 
