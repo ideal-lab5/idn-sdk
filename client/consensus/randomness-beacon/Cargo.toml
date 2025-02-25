@@ -12,7 +12,7 @@ homepage = "https://idealabs.network"
 workspace = true
 
 [dependencies]
-libp2p = { version = "0.55.0", features = [
+libp2p = { version = "=0.55.0", features = [
     "gossipsub",
     "noise",
     "tcp",
@@ -23,17 +23,17 @@ libp2p = { version = "0.55.0", features = [
     "websocket",
     "yamux",
 ] }
-prost = "0.13.4"
-prost-types = "0.13.4"
+prost = "=0.13.4"
+prost-types = "=0.13.4"
 sp-consensus-randomness-beacon = { path = "../../../primitives/consensus/randomness-beacon" }
 log = { workspace = true }
-futures = "0.3"
+futures = "=0.3"
 
 [dev-dependencies]
-async-std = "1.13.0"
-futures-timer = "3.0.3"
-rand = "0.8.5"
-tokio = { version = "1.43.0", features = ["full"] }
+async-std = "=1.13.0"
+futures-timer = "=3.0.3"
+rand = "=0.8.5"
+tokio = { version = "=1.43.0", features = ["full"] }
 
 [features]
 e2e = []
