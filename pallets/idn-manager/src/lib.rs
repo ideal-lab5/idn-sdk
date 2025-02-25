@@ -105,7 +105,7 @@ pub type SubscriptionOf<T> =
 pub struct Subscription<AccountId, BlockNumber: Unsigned, Metadata> {
 	details: SubscriptionDetails<AccountId, BlockNumber, Metadata>,
 	// Number of random values left to distribute
-	credits_left: BlockNumber,
+	amount_left: BlockNumber,
 	state: SubscriptionState,
 }
 
@@ -270,7 +270,7 @@ pub mod pallet {
 		fn on_finalize(_n: BlockNumberFor<T>) {
 			// Look for subscriptions that should be finished
 			for (sub_id, _) in
-				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left == Zero::zero())
+				Subscriptions::<T>::iter().filter(|(_, sub)| sub.amount_left == Zero::zero())
 			{
 				// finish the subscription
 				Self::finish_subscription(sub_id);
@@ -362,7 +362,7 @@ pub mod pallet {
 					&sub,
 					&Subscription {
 						state: sub.state.clone(),
-						credits_left: amount,
+						amount_left: amount,
 						details: sub.details.clone(),
 					},
 				);
@@ -464,7 +464,7 @@ impl<T: Config> Pallet<T> {
 			metadata: metadata.unwrap_or_default(),
 		};
 		let subscription =
-			Subscription { state: SubscriptionState::Active, credits_left: amount, details };
+			Subscription { state: SubscriptionState::Active, amount_left: amount, details };
 
 		Self::hold_deposit(
 			&subscriber,

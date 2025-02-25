@@ -130,14 +130,18 @@ pub struct DepositCalculatorImpl<SDMultiplier: Get<Deposit>, Deposit> {
 impl<
 		S: SubscriptionTrait<AccountId32> + Encode,
 		SDMultiplier: Get<Deposit>,
-		Deposit: From<u32> + Saturating + Ord,
+		Deposit: Saturating + From<u64> + Ord,
 	> pallet_idn_manager::DepositCalculator<Deposit, S>
 	for DepositCalculatorImpl<SDMultiplier, Deposit>
 {
 	fn calculate_storage_deposit(sub: &S) -> Deposit {
+		// This function could theoretically saturate to the `Deposit` type bounds. Its result type
+		// has an upper bound, which is Deposit::MAX, while unlikely and very expensive to
+		// the attacker, if Deposit type (e.g. u32) is bigger than usize machine architecture (e.g.
+		// 64 bits) there could be subscription object larger than u32::MAX bits, let’s say u32::MAX
+		// + d and only pay a deposit for u32::MAX and not d. Let's assess it with SRLabs.
 		let storage_deposit_multiplier = SDMultiplier::get();
-		// calculate the size of scale encoded `sub`
-		let encoded_size = sub.encode().len() as u32;
+		let encoded_size = u64::try_from(sub.encoded_size()).unwrap_or(u64::MAX);
 		storage_deposit_multiplier.saturating_mul(encoded_size.into())
 	}
 
