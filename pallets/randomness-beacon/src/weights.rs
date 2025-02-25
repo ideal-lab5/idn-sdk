@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
-extern crate alloc;
+// TODO: weights generation and benchmarking: https://github.com/ideal-lab5/idn-sdk/issues/56
+use frame_support::weights::Weight;
 
-pub mod gossipsub;
-pub mod types;
+pub trait WeightInfo {
+	fn try_submit_asig() -> Weight;
+}
+
+impl WeightInfo for () {
+	fn try_submit_asig() -> Weight {
+		Weight::from_parts(2_956_000, 1627)
+	}
+}
