@@ -16,8 +16,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = {workspace = true}
 scale-info = { workspace = true, default-features = false }
 sp-api = { version = "=35.0.0",  default-features = false }
-sp-core = { version = "=35.0.0",  default-features = false }
-sp-io = { version = "=39.0.0",  default-features = false}
+sp-core = {workspace = true,  default-features = false }
+sp-io = { workspace = true,  default-features = false}
 sp-std = { version = "=14.0.0",  default-features = false }
 xcm = { version = "=15.0.1", default-features = false, package = "staging-xcm" }
 xcm-builder = { version = "=18.0.0", default-features = false, package = "staging-xcm-builder" }
