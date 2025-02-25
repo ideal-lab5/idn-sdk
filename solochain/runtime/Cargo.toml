@@ -60,7 +60,7 @@ sp-mmr-primitives.workspace = true
 pallet-mmr.workspace = true
 
 [build-dependencies]
-substrate-wasm-builder = { version = "24.0.1",  optional = true }
+substrate-wasm-builder = { version = "=24.0.1",  optional = true }
 
 [features]
 default = ["std"]

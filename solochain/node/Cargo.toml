@@ -78,8 +78,8 @@ sc-consensus-randomness-beacon.workspace = true
 drand-example-runtime.workspace = true
 
 [build-dependencies]
-substrate-build-script-utils = "11.0.0"
-prost-build = "0.13.4"
+substrate-build-script-utils = "=11.0.0"
+prost-build = "=0.13.4"
 
 [features]
 default = ["std"]
