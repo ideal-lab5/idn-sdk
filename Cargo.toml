@@ -46,16 +46,14 @@ default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
 
 
 [workspace.dependencies]
-async-trait = "0.1.85"
-polkavm = "0.9.3"
-polkavm-linker = "0.9.2"
-polkavm-derive = "0.9.1"
-log = { version = "0.4.21", default-features = false }
-quote = { version = "1.0.33" }
-serde = { version = "1.0.197", default-features = false }
-serde-big-array = { version = "0.3.2" }
-serde_derive = { version = "1.0.117" }
-serde_json = { version = "1.0.114", default-features = false }
-serde_yaml = { version = "0.9" }
-syn = "2.0.53"
-thiserror = { version = "1.0.48" }
+async-trait = "=0.1.85"
+polkavm = "=0.9.3"
+polkavm-linker = "=0.9.2"
+polkavm-derive = "=0.9.1"
+log = { version = "=0.4.26", default-features = false }
+quote = { version = "=1.0.33" }
+serde = { version = "=1.0.218", default-features = false }
+serde_json = { version = "=1.0.139", default-features = false }
+serde_yaml = { version = "=0.9.33" }
+syn = "=2.0.98"
+thiserror = { version = "=2.0.11" }
