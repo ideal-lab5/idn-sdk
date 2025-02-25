@@ -27,28 +27,29 @@
 //!
 //! ## Examples
 //!
-//! ``` no_run
+//! ```
 //! use sc_consensus_randomness_beacon::gossipsub::{GossipsubNetwork, GossipsubState};
 //! use sc_consensus_randomness_beacon::types::*;
 //! use futures::StreamExt;
 //! use libp2p::{
-//!		gossipsub,
-//!		gossipsub::{
-//!			Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
-//!		},
-//!		identity::Keypair,
-//!		swarm::{Swarm, SwarmEvent},
-//!		Multiaddr, SwarmBuilder,
-//! }; 
+//! 		gossipsub,
+//! 		gossipsub::{
+//! 			Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
+//! 		},
+//! 		identity::Keypair,
+//! 		swarm::{Swarm, SwarmEvent},
+//! 		Multiaddr, SwarmBuilder,
+//! };
 //! use prost::Message;
 //! use std::sync::{Arc, Mutex};
+//!
 //! let topic_str: &str =
 //! 	"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
-//! let maddr1: libp2p::Multiaddr =
+//! let maddr1: Multiaddr =
 //! 	"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
 //! 		.parse()
 //! 		.expect("The string is a well-formatted multiaddress. qed.");
-//! let maddr2: libp2p::Multiaddr =
+//! let maddr2: Multiaddr =
 //! 	"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
 //! 		.parse()
 //! 		.expect("The string is a well-formatted multiaddress. qed.");

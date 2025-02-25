@@ -256,7 +256,7 @@ pub mod pallet {
 			}
 
 			// aggregate old asig/apk with the new one and verify the aggregation
-			let (new_asig, new_apk) = T::SignatureAggregator::aggregate_and_verify(
+			let aggr = T::SignatureAggregator::aggregate_and_verify(
 				config.public_key,
 				asig,
 				latest_round,
@@ -269,7 +269,7 @@ pub mod pallet {
 				latest_round.saturating_add(T::SignatureToBlockRatio::get() as u64),
 			);
 
-			AggregatedSignature::<T>::set(Some((new_asig, new_apk)));
+			AggregatedSignature::<T>::set(Some(aggr));
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 

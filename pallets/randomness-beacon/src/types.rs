@@ -22,12 +22,30 @@ use serde::{Deserialize, Serialize};
 pub type OpaquePublicKey = BoundedVec<u8, ConstU32<96>>;
 /// Represents an element of the signature group
 pub type OpaqueSignature = BoundedVec<u8, ConstU32<48>>;
-/// Represents an aggregated signature and aggregated public key pair
-pub type Aggregate = (OpaqueSignature, OpaqueSignature);
 /// an opaque bounded storage type for 64 bit hashes
 pub type OpaqueHash = BoundedVec<u8, ConstU32<64>>;
 /// the round number to track rounds of the beacon
 pub type RoundNumber = u64;
+
+/// Represents an aggregated signature and aggregated public key pair
+#[derive(
+	Clone,
+	Debug,
+	Decode,
+	Default,
+	PartialEq,
+	Encode,
+	// Serialize,
+	// Deserialize,
+	MaxEncodedLen,
+	TypeInfo,
+)]
+pub struct Aggregate {
+	/// A signature (e.g. output from the randomness beacon) in G1
+	pub signature: OpaqueSignature,
+	/// The message signed by the signature, hashed to G1
+	pub message_hash: OpaqueSignature,
+}
 
 /// A drand chain configuration
 #[derive(

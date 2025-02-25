@@ -40,9 +40,9 @@ fn can_submit_min_required_valid_pulses_on_genesis() {
 		let maybe_res = AggregatedSignature::<Test>::get();
 		assert!(maybe_res.is_some());
 
-		let (actual_asig, actual_apk) = maybe_res.unwrap();
-		assert_eq!(asig, actual_asig);
-		assert_eq!(apk, actual_apk);
+		let aggr = maybe_res.unwrap();
+		assert_eq!(asig, aggr.signature);
+		assert_eq!(apk, aggr.message_hash);
 	});
 }
 
@@ -87,9 +87,9 @@ fn can_submit_valid_sigs_in_sequence() {
 		let maybe_res = AggregatedSignature::<Test>::get();
 		assert!(maybe_res.is_some());
 
-		let (actual_asig, actual_apk) = maybe_res.unwrap();
-		assert_eq!(asig, actual_asig);
-		assert_eq!(apk, actual_apk);
+		let aggr = maybe_res.unwrap();
+		assert_eq!(asig, aggr.signature);
+		assert_eq!(apk, aggr.message_hash);
 
 		let actual_latest = LatestRound::<Test>::get();
 		assert_eq!(round2, actual_latest);
@@ -121,9 +121,9 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 		let maybe_res = AggregatedSignature::<Test>::get();
 		assert!(maybe_res.is_some());
 
-		let (actual_asig, actual_apk) = maybe_res.unwrap();
-		assert_eq!(asig1, actual_asig);
-		assert_eq!(apk1, actual_apk);
+		let aggr = maybe_res.unwrap();
+		assert_eq!(asig1, aggr.signature);
+		assert_eq!(apk1, aggr.message_hash);
 
 		let actual_latest = LatestRound::<Test>::get();
 		assert_eq!(1002, actual_latest);

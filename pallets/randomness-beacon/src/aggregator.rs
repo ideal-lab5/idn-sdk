@@ -41,7 +41,7 @@ pub trait SignatureAggregator {
 		start: RoundNumber,
 		height: RoundNumber,
 		prev_sig_and_msg: Option<Aggregate>,
-	) -> Result<(OpaqueSignature, OpaqueSignature), Error>;
+	) -> Result<Aggregate, Error>;
 }
 
 #[derive(Debug, PartialEq)]
@@ -89,7 +89,7 @@ impl SignatureAggregator for QuicknetAggregator {
 		next_sig_bytes: OpaqueSignature,
 		start: RoundNumber,
 		height: RoundNumber,
-		prev_sig_and_msg: Option<(OpaqueSignature, OpaqueSignature)>,
+		prev_sig_and_msg: Option<Aggregate>,
 	) -> Result<Aggregate, Error> {
 		let beacon_pk = decode_g2(&beacon_pk_bytes)?;
 		// apk = 0, asig = new_sig
@@ -98,9 +98,9 @@ impl SignatureAggregator for QuicknetAggregator {
 
 		// if a previous signature and pubkey were provided
 		// then we start there
-		if let Some((prev_sig, prev_msg)) = prev_sig_and_msg {
-			let prev_asig = decode_g1(&prev_sig)?;
-			let prev_apk = decode_g1(&prev_msg)?;
+		if let Some(aggr) = prev_sig_and_msg {
+			let prev_asig = decode_g1(&aggr.signature)?;
+			let prev_apk = decode_g1(&aggr.message_hash)?;
 			asig = (asig + prev_asig).into();
 			apk = (apk + prev_apk).into();
 		}
@@ -134,7 +134,7 @@ impl SignatureAggregator for QuicknetAggregator {
 			.map_err(|_| Error::DeserializeG2Failure)?;
 		let new_apk = OpaqueSignature::truncate_from(apk_bytes);
 
-		Ok((new_asig, new_apk))
+		Ok(Aggregate { signature: new_asig, message_hash: new_apk })
 	}
 }
 
@@ -227,7 +227,7 @@ pub mod test {
 		let beacon_pk_bytes = get_beacon_pk();
 		let (sig, pk) = get(vec![PULSE1000]);
 
-		let (asig, apk) = QuicknetAggregator::aggregate_and_verify(
+		let aggr = QuicknetAggregator::aggregate_and_verify(
 			OpaquePublicKey::truncate_from(beacon_pk_bytes),
 			sig.clone(),
 			1000u64,
@@ -236,8 +236,8 @@ pub mod test {
 		)
 		.unwrap();
 
-		assert_eq!(asig, sig);
-		assert_eq!(pk, apk);
+		assert_eq!(sig, aggr.signature);
+		assert_eq!(pk, aggr.message_hash);
 	}
 
 	// d1 = sk * Q(1000), d2 = sk * Q(1001) => verify d = d1 + d2
@@ -246,7 +246,7 @@ pub mod test {
 		let beacon_pk_bytes = get_beacon_pk();
 		let (sig, pk) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
 
-		let (asig, apk) = QuicknetAggregator::aggregate_and_verify(
+		let aggr = QuicknetAggregator::aggregate_and_verify(
 			OpaquePublicKey::truncate_from(beacon_pk_bytes),
 			sig.clone(),
 			1000u64,
@@ -255,8 +255,8 @@ pub mod test {
 		)
 		.unwrap();
 
-		assert_eq!(asig, sig);
-		assert_eq!(pk, apk);
+		assert_eq!(sig, aggr.signature);
+		assert_eq!(pk, aggr.message_hash);
 	}
 
 	// d1 = sk * Q(1000), d2 = sk * Q(1001) => verify d = d1 + d2
@@ -268,17 +268,17 @@ pub mod test {
 
 		let (expected_asig, expected_apk) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
 
-		let (asig, apk) = QuicknetAggregator::aggregate_and_verify(
+		let aggr = QuicknetAggregator::aggregate_and_verify(
 			OpaquePublicKey::truncate_from(beacon_pk_bytes),
 			next_sig.clone(),
 			1001u64,
 			2,
-			Some((sig, pk)),
+			Some(Aggregate { signature: sig, message_hash: pk }),
 		)
 		.unwrap();
 
-		assert_eq!(asig, expected_asig);
-		assert_eq!(apk, expected_apk);
+		assert_eq!(aggr.signature, expected_asig);
+		assert_eq!(aggr.message_hash, expected_apk);
 	}
 
 	#[test]
