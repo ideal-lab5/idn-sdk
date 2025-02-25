@@ -1,0 +1,5 @@
+# https://github.com/xd009642/tarpaulin/blob/develop/tarpaulin.toml
+[test_config]
+
+# List of file paths to exclude from testing.
+exclude-files = ["solochain/*", "pallets/drand/examples/solochain/*"]
