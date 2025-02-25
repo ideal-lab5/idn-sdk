@@ -12,7 +12,9 @@ homepage = "https://idealabs.network"
 workspace = true
 
 [dependencies]
-libp2p = { version = "=0.55.0", features = [
+codec.workspace = true
+serde = { workspace = true, features = ["derive"] }
+libp2p = { version = "0.55.0", features = [
     "gossipsub",
     "noise",
     "tcp",
@@ -23,11 +25,19 @@ libp2p = { version = "=0.55.0", features = [
     "websocket",
     "yamux",
 ] }
-prost = "=0.13.4"
-prost-types = "=0.13.4"
-sp-consensus-randomness-beacon = { path = "../../../primitives/consensus/randomness-beacon" }
+prost = "0.13.4"
+prost-types = "0.13.4"
 log = { workspace = true }
-futures = "=0.3"
+futures = "0.3"
+scale-info.workspace = true
+
+# arkworks dependencies
+sp-ark-bls12-381 = { workspace = true, optional = true }
+ark-bls12-381.workspace = true
+ark-serialize.workspace = true
+
+[build-dependencies]
+prost-build = "0.13.4"
 
 [dev-dependencies]
 async-std = "=1.13.0"
@@ -37,3 +47,4 @@ tokio = { version = "=1.43.0", features = ["full"] }
 
 [features]
 e2e = []
+host-arkworks = ["sp-ark-bls12-381/std"]

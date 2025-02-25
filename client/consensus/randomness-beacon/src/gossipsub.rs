@@ -14,10 +14,56 @@
  * limitations under the License.
  */
 
+//! # Gossipsub Network Subscription Client
+//!
 //! The `GossipsubNetwork` is a libp2p node designed to ingest well-formatted messages
-//! from a gossipsub topic.More specifically, the implemention is intended to be used with
-//! the Drand beacon gossipsub topic, to which `Pulse` messages are published.
-
+//! from a gossipsub topic. The implemention is intended to be used with
+//! the Drand beacon gossipsub topic, to which `Pulse` messages are published as protobuf messages.
+//!
+//! ## Overview
+//!
+//! - runs a libp2p node and handles peer connections
+//! - subscribes to a gossipsub topic and writes well-formed messages to a [`SharedState`]
+//!
+//! ## Examples
+//!
+//! ```
+//! use sc_consensus_randomness_beacon::gossipsub::{GossipsubNetwork, GossipsubState};
+//! use sc_consensus_randomness_beacon::types::*;
+//! use futures::StreamExt;
+//! use libp2p::{
+//! 		gossipsub,
+//! 		gossipsub::{
+//! 			Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
+//! 		},
+//! 		identity::Keypair,
+//! 		swarm::{Swarm, SwarmEvent},
+//! 		Multiaddr, SwarmBuilder,
+//! };
+//! use prost::Message;
+//! use std::sync::{Arc, Mutex};
+//!
+//! let topic_str: &str =
+//! 	"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
+//! let maddr1: Multiaddr =
+//! 	"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
+//! 		.parse()
+//! 		.expect("The string is a well-formatted multiaddress. qed.");
+//! let maddr2: Multiaddr =
+//! 	"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
+//! 		.parse()
+//! 		.expect("The string is a well-formatted multiaddress. qed.");
+//! let local_identity: Keypair = Keypair::generate_ed25519();
+//! let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
+//! let gossipsub_config = GossipsubConfig::default();
+//! let mut gossipsub = GossipsubNetwork::new(&local_identity, state.clone(), gossipsub_config).unwrap();
+//! tokio::spawn(async move {
+//! 	if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
+//! 		log::error!("Failed to run gossipsub network: {:?}", e);
+//! 	}
+//! });
+//! ```
+use crate::types::*;
 use futures::StreamExt;
 use libp2p::{
 	gossipsub,
@@ -29,7 +75,6 @@ use libp2p::{
 	Multiaddr, SwarmBuilder,
 };
 use prost::Message;
-use sp_consensus_randomness_beacon::types::{OpaquePulse, Pulse};
 use std::sync::{Arc, Mutex};
 
 /// The default address instructing libp2p to choose a random open port on the local machine
