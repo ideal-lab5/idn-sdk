@@ -30,8 +30,8 @@ anyhow = "=1.0.81"
 frame-benchmarking = { version = "=38.0.0",  default-features = false, optional = true }
 frame-support = { version = "=38.0.0",  default-features = false }
 frame-system = { version = "=38.0.0",  default-features = false }
-sp-core = { workspace = true,  default-features = false }
-sp-io = { workspace = true,  default-features = false}
+sp-core = { version = "=34.0.0",  default-features = false }
+sp-io = { version = "=38.0.0",  default-features = false}
 sp-runtime = { version = "=39.0.3",  default-features = false}
 # arkworks dependencies
 sp-ark-bls12-381 = { git = "https://github.com/paritytech/arkworks-substrate", version = "=0.4.2", default-features = false, optional = true }

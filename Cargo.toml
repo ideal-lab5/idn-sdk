@@ -57,7 +57,5 @@ scale-info = {version = "=2.11.6", default-features = false}
 serde = { version = "=1.0.218", default-features = false }
 serde_json = { version = "=1.0.139", default-features = false }
 serde_yaml = { version = "=0.9.33" }
-sp-core = {version = "=34.0.0", default-features = false}
-sp-io = {version = "=38.0.0", default-features = false}
 syn = "=2.0.98"
 thiserror = { version = "=2.0.11" }
