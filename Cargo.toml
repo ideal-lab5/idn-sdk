@@ -46,33 +46,33 @@ default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
 
 [workspace.dependencies]
 # Async & Concurrency
-async-trait = "0.1.85"
+async-trait = "=0.1.85"
 tokio = { version = "^1", features = ["full"] }
 
 # Serialization
-serde = { version = "1.0.197", default-features = false }
+serde = { version = "=1.0.197", default-features = false }
 
 # Polkadot & Substrate
-frame-benchmarking = { version = "38.0.0", default-features = false }
-frame-support = { version = "38.0.0", default-features = false }
-frame-system = { version = "38.0.0", default-features = false }
-sp-core = { version = "34.0.0", default-features = false }
-sp-inherents = { version = "34.0.0", default-features = false }
-sp-io = { version = "38.0.0", default-features = false }
-sp-keystore = { version = "0.34.0", default-features = false }
-sp-runtime = { version = "39.0.3", default-features = false }
+frame-benchmarking = { version = "=38.0.0", default-features = false }
+frame-support = { version = "=38.2.0", default-features = false }
+frame-system = { version = "=38.0.0", default-features = false }
+sp-core = { version = "=34.0.0", default-features = false }
+sp-inherents = { version = "=34.0.0", default-features = false }
+sp-io = { version = "=38.0.0", default-features = false }
+sp-keystore = { version = "=0.34.0", default-features = false }
+sp-runtime = { version = "=39.0.5", default-features = false }
 
 # Arkworks (crypto)
-sp-ark-bls12-381 = { git = "https://github.com/paritytech/arkworks-substrate", version = "0.4.2", default-features = false }
-ark-bls12-381 = { version = "0.4.0", features = ["curve"], default-features = false }
-ark-serialize = { version = "0.4.0", features = ["derive"], default-features = false }
-ark-ec = { version = "0.4.0", default-features = false }
-ark-std = { version = "0.4.0", default-features = false }
+sp-ark-bls12-381 = { git = "https://github.com/paritytech/arkworks-substrate", version = "=0.4.2", default-features = false }
+ark-bls12-381 = { version = "=0.4.0", features = ["curve"], default-features = false }
+ark-serialize = { version = "=0.4.2", features = ["derive"], default-features = false }
+ark-ec = { version = "=0.4.2", default-features = false }
+ark-std = { version = "=0.4.0", default-features = false }
 
 # Logging & Utilities
-log = { version = "0.4.21", default-features = false }
+log = { version = "=0.4.26", default-features = false }
 
 
 # Parity SCALE Codec
-codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
-scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "=3.7.4", default-features = false, features = ["derive"] }
+scale-info = { version = "=2.11.6", default-features = false, features = ["derive"] }
