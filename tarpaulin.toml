@@ -2,4 +2,4 @@
 [test_config]
 
 # List of file paths to exclude from testing.
-exclude-files = ["solochain/*", "pallets/drand/examples/solochain/*"]
+exclude-files = []
