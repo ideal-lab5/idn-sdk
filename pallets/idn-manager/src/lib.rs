@@ -53,13 +53,15 @@
 #[cfg(test)]
 mod tests;
 
+pub mod impls;
 pub mod traits;
 pub mod weights;
 
 use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
-		ensure, Blake2_128Concat, DispatchResult, Hooks, IsType, OptionQuery, StorageMap, Zero,
+		ensure, Blake2_128Concat, DispatchError, DispatchResult, Hooks, IsType, OptionQuery,
+		StorageMap, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
@@ -73,10 +75,11 @@ use frame_system::{
 	pallet_prelude::{BlockNumberFor, OriginFor},
 };
 use scale_info::TypeInfo;
+use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_std::fmt::Debug;
-use traits::*;
+use traits::{DepositCalculator, FeesManager, Subscription as SubscriptionTrait};
 use xcm::{
 	v5::{prelude::*, Location},
 	VersionedLocation, VersionedXcm,
@@ -95,7 +98,7 @@ pub type SubscriptionOf<T> =
 	Subscription<<T as frame_system::Config>::AccountId, BlockNumberFor<T>, MetadataOf<T>>;
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
-pub struct Subscription<AccountId, BlockNumber, Metadata> {
+pub struct Subscription<AccountId, BlockNumber: Unsigned, Metadata> {
 	details: SubscriptionDetails<AccountId, BlockNumber, Metadata>,
 	// Number of random values left to distribute
 	credits_left: BlockNumber,
@@ -118,7 +121,7 @@ pub struct SubscriptionDetails<AccountId, BlockNumber, Metadata> {
 impl<AccountId, BlockNumber, Metadata> Subscription<AccountId, BlockNumber, Metadata>
 where
 	AccountId: Encode,
-	BlockNumber: Encode + Copy,
+	BlockNumber: Encode + Copy + Unsigned,
 	Metadata: Encode + Clone,
 {
 	pub fn id(&self) -> SubscriptionId {
@@ -172,7 +175,13 @@ pub mod pallet {
 		type RuntimeHoldReason: From<HoldReason>;
 
 		/// Fees calculator implementation
-		type FeesCalculator: FeesCalculator<BalanceOf<Self>, BlockNumberFor<Self>>;
+		type FeesManager: FeesManager<
+			BalanceOf<Self>,
+			BlockNumberFor<Self>,
+			SubscriptionOf<Self>,
+			DispatchError,
+			<Self as frame_system::pallet::Config>::AccountId,
+		>;
 
 		/// Storage deposit calculator implementation
 		type DepositCalculator: DepositCalculator<BalanceOf<Self>, SubscriptionOf<Self>>;
@@ -213,20 +222,16 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// A new subscription was created (includes single-block subscriptions)
 		SubscriptionCreated { sub_id: SubscriptionId },
-		/// A subscription has naturally finished
-		SubscriptionFinished { sub_id: SubscriptionId },
+		/// A subscription has finished
+		SubscriptionRemoved { sub_id: SubscriptionId },
 		/// A subscription was paused
 		SubscriptionPaused { sub_id: SubscriptionId },
 		/// A subscription was updated
 		SubscriptionUpdated { sub_id: SubscriptionId },
 		/// A subscription was reactivated
 		SubscriptionReactivated { sub_id: SubscriptionId },
-		/// A subscription has been manually finished
-		SubscriptionKilled { sub_id: SubscriptionId },
 		/// Randomness was successfully distributed
 		RandomnessDistributed { sub_id: SubscriptionId },
-		/// WARNING Subscription credit went bellow 0. This should never happen
-		SubscriptionCreditBelowZero { sub_id: SubscriptionId, credits: BlockNumberFor<T> },
 	}
 
 	#[pallet::error]
@@ -260,17 +265,9 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_finalize(_n: BlockNumberFor<T>) {
 			// Look for subscriptions that should be finished
-			for (sub_id, sub) in
-				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left <= Zero::zero())
+			for (sub_id, _) in
+				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left == Zero::zero())
 			{
-				if sub.credits_left < Zero::zero() {
-					// If this happens then there's a bug in the code
-					Self::deposit_event(Event::SubscriptionCreditBelowZero {
-						sub_id,
-						credits: sub.credits_left,
-					});
-				}
-
 				// finish the subscription
 				Self::finish_subscription(sub_id);
 			}
@@ -328,11 +325,13 @@ pub mod pallet {
 			sub_id: SubscriptionId,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
+			// `try_mutate_exists` deletes maybe_sub if mutated to a `None``
 			Subscriptions::<T>::try_mutate_exists(sub_id, |maybe_sub| {
+				// Takes the value out of `maybe_sub``, leaving a `None`` in its place.
 				let sub = maybe_sub.take().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				// TODO: refund storage and fees https://github.com/ideal-lab5/idn-sdk/issues/107
-				Self::deposit_event(Event::SubscriptionKilled { sub_id });
+				Self::deposit_event(Event::SubscriptionRemoved { sub_id });
 				Ok(())
 			})
 		}
@@ -390,7 +389,7 @@ impl<T: Config> Pallet<T> {
 	/// Finishes a subscription by removing it from storage and emitting a finish event.
 	pub(crate) fn finish_subscription(sub_id: SubscriptionId) {
 		Subscriptions::<T>::remove(sub_id);
-		Self::deposit_event(Event::SubscriptionFinished { sub_id });
+		Self::deposit_event(Event::SubscriptionRemoved { sub_id });
 	}
 
 	fn pallet_account_id() -> T::AccountId {
@@ -413,6 +412,8 @@ impl<T: Config> Pallet<T> {
 				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
 				let _ = T::Xcm::send(origin.into(), versioned_target, versioned_msg);
 
+				// todo: as part of issue #77 use saturating_sub to make sure it does not underflow
+
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			}
 		}
@@ -429,7 +430,7 @@ impl<T: Config> Pallet<T> {
 		metadata: Option<MetadataOf<T>>,
 	) -> DispatchResult {
 		// Calculate and hold the subscription fees
-		let fees = T::FeesCalculator::calculate_subscription_fees(amount);
+		let fees = T::FeesManager::calculate_subscription_fees(amount);
 		T::Currency::hold(&HoldReason::Fees.into(), &subscriber, fees)
 			.map_err(|_| Error::<T>::InsufficientBalance)?;
 
@@ -491,7 +492,7 @@ sp_api::decl_runtime_apis! {
 	#[api_version(1)]
 	pub trait IdnManagerApi<Balance, BlockNumber, Metadata, AccountId> where
 		Balance: Codec,
-		BlockNumber: Codec,
+		BlockNumber: Codec + Unsigned,
 		Metadata: Codec,
 		AccountId: Codec,
 	{
