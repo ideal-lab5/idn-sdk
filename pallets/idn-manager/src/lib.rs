@@ -66,6 +66,7 @@ use frame_support::{
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
+		tokens::Precision,
 		Get,
 	},
 	BoundedVec,
@@ -79,7 +80,10 @@ use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_std::fmt::Debug;
-use traits::{DepositCalculator, FeesManager, Subscription as SubscriptionTrait};
+use traits::{
+	BalanceDirection, DepositCalculator, DiffBalance, FeesManager,
+	Subscription as SubscriptionTrait,
+};
 use xcm::{
 	v5::{prelude::*, Location},
 	VersionedLocation, VersionedXcm,
@@ -101,7 +105,7 @@ pub type SubscriptionOf<T> =
 pub struct Subscription<AccountId, BlockNumber: Unsigned, Metadata> {
 	details: SubscriptionDetails<AccountId, BlockNumber, Metadata>,
 	// Number of random values left to distribute
-	credits_left: BlockNumber,
+	amount_left: BlockNumber,
 	state: SubscriptionState,
 }
 
@@ -246,8 +250,8 @@ pub mod pallet {
 		SubscriptionAlreadyPaused,
 		/// The origin isn't the subscriber
 		NotSubscriber,
-		/// Insufficient balance for subscription
-		InsufficientBalance,
+		// /// Insufficient balance for subscription
+		// InsufficientBalance,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -266,7 +270,7 @@ pub mod pallet {
 		fn on_finalize(_n: BlockNumberFor<T>) {
 			// Look for subscriptions that should be finished
 			for (sub_id, _) in
-				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left == Zero::zero())
+				Subscriptions::<T>::iter().filter(|(_, sub)| sub.amount_left == Zero::zero())
 			{
 				// finish the subscription
 				Self::finish_subscription(sub_id);
@@ -352,10 +356,25 @@ pub mod pallet {
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
+
+				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.details.amount, &amount);
+				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(
+					&sub,
+					&Subscription {
+						state: sub.state.clone(),
+						amount_left: amount,
+						details: sub.details.clone(),
+					},
+				);
+
 				sub.details.amount = amount;
 				sub.details.frequency = frequency;
 				sub.details.updated_at = frame_system::Pallet::<T>::block_number();
-				// TODO implement a way to refund or take the difference in fees https://github.com/ideal-lab5/idn-sdk/issues/104
+
+				// Hold or refund diff fees
+				Self::manage_diff_fees(&subscriber, &fees_diff)?;
+				// Hold or refund diff deposit
+				Self::manage_diff_deposit(&subscriber, &deposit_diff)?;
 				Self::deposit_event(Event::SubscriptionUpdated { sub_id });
 				Ok(())
 			})
@@ -430,9 +449,9 @@ impl<T: Config> Pallet<T> {
 		metadata: Option<MetadataOf<T>>,
 	) -> DispatchResult {
 		// Calculate and hold the subscription fees
-		let fees = T::FeesManager::calculate_subscription_fees(amount);
-		T::Currency::hold(&HoldReason::Fees.into(), &subscriber, fees)
-			.map_err(|_| Error::<T>::InsufficientBalance)?;
+		let fees = T::FeesManager::calculate_subscription_fees(&amount);
+
+		Self::hold_fees(&subscriber, fees)?;
 
 		let current_block = frame_system::Pallet::<T>::block_number();
 		let details = SubscriptionDetails {
@@ -445,14 +464,12 @@ impl<T: Config> Pallet<T> {
 			metadata: metadata.unwrap_or_default(),
 		};
 		let subscription =
-			Subscription { state: SubscriptionState::Active, credits_left: amount, details };
+			Subscription { state: SubscriptionState::Active, amount_left: amount, details };
 
-		T::Currency::hold(
-			&HoldReason::StorageDeposit.into(),
+		Self::hold_deposit(
 			&subscriber,
 			T::DepositCalculator::calculate_storage_deposit(&subscription),
-		)
-		.map_err(|_| Error::<T>::InsufficientBalance)?;
+		)?;
 
 		let sub_id = subscription.id();
 
@@ -463,6 +480,51 @@ impl<T: Config> Pallet<T> {
 		Self::deposit_event(Event::SubscriptionCreated { sub_id });
 
 		Ok(())
+	}
+
+	fn hold_fees(subscriber: &T::AccountId, fees: BalanceOf<T>) -> DispatchResult {
+		T::Currency::hold(&HoldReason::Fees.into(), subscriber, fees)
+	}
+
+	fn release_fees(subscriber: &T::AccountId, fees: BalanceOf<T>) -> DispatchResult {
+		let _ = T::Currency::release(&HoldReason::Fees.into(), subscriber, fees, Precision::Exact)?;
+		Ok(())
+	}
+
+	fn manage_diff_fees(
+		subscriber: &T::AccountId,
+		diff: &DiffBalance<BalanceOf<T>>,
+	) -> DispatchResult {
+		match diff.direction {
+			BalanceDirection::Hold => Self::hold_fees(subscriber, diff.balance),
+			BalanceDirection::Release => Self::release_fees(subscriber, diff.balance),
+			BalanceDirection::None => Ok(()),
+		}
+	}
+
+	fn hold_deposit(subscriber: &T::AccountId, deposit: BalanceOf<T>) -> DispatchResult {
+		T::Currency::hold(&HoldReason::StorageDeposit.into(), subscriber, deposit)
+	}
+
+	fn release_deposit(subscriber: &T::AccountId, deposit: BalanceOf<T>) -> DispatchResult {
+		let _ = T::Currency::release(
+			&HoldReason::StorageDeposit.into(),
+			subscriber,
+			deposit,
+			Precision::BestEffort,
+		)?;
+		Ok(())
+	}
+
+	fn manage_diff_deposit(
+		subscriber: &T::AccountId,
+		diff: &DiffBalance<BalanceOf<T>>,
+	) -> DispatchResult {
+		match diff.direction {
+			BalanceDirection::Hold => Self::hold_deposit(subscriber, diff.balance),
+			BalanceDirection::Release => Self::release_deposit(subscriber, diff.balance),
+			BalanceDirection::None => Ok(()),
+		}
 	}
 
 	/// Helper function to construct XCM message for randomness distribution

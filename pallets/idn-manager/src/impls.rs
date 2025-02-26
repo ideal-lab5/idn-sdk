@@ -17,7 +17,9 @@
 //! # Implementations of public traits
 
 use crate::{
-	self as pallet_idn_manager, traits::FeesError, HoldReason, Subscription, SubscriptionTrait,
+	self as pallet_idn_manager,
+	traits::{BalanceDirection, DiffBalance, FeesError},
+	HoldReason, Subscription, SubscriptionTrait,
 };
 use codec::Encode;
 use frame_support::{
@@ -28,8 +30,8 @@ use frame_support::{
 	},
 };
 use sp_arithmetic::traits::Unsigned;
-use sp_runtime::{AccountId32, Saturating};
-use sp_std::marker::PhantomData;
+use sp_runtime::{traits::Zero, AccountId32, Saturating};
+use sp_std::{cmp::Ordering, marker::PhantomData};
 
 impl<AccountId, BlockNumber: Unsigned, Metadata> SubscriptionTrait<AccountId>
 	for Subscription<AccountId, BlockNumber, Metadata>
@@ -61,7 +63,7 @@ impl<
 		T: Get<AccountId32>,
 		B: Get<Balances::Balance>,
 		S: SubscriptionTrait<AccountId32>,
-		BlockNumber,
+		BlockNumber: Saturating + Ord + Clone,
 		Balances: Mutate<AccountId32>,
 	> pallet_idn_manager::FeesManager<Balances::Balance, BlockNumber, S, DispatchError, AccountId32>
 	for FeesManagerImpl<T, B, S, BlockNumber, Balances>
@@ -69,27 +71,42 @@ where
 	Balances::Balance: From<BlockNumber>,
 	Balances::Reason: From<HoldReason>,
 {
-	fn calculate_subscription_fees(amount: BlockNumber) -> Balances::Balance {
+	fn calculate_subscription_fees(amount: &BlockNumber) -> Balances::Balance {
 		let base_fee = B::get();
-		base_fee.saturating_mul(amount.into())
+		base_fee.saturating_mul(amount.clone().into())
 	}
-	fn calculate_refund_fees(
-		_init_amount: BlockNumber,
-		current_amount: BlockNumber,
-	) -> Balances::Balance {
-		// in this case of a linear function, the refund's is the same as the fees'
-		Self::calculate_subscription_fees(current_amount)
+	fn calculate_diff_fees(
+		old_amount: &BlockNumber,
+		new_amount: &BlockNumber,
+	) -> DiffBalance<Balances::Balance> {
+		let mut direction = BalanceDirection::None;
+		let fees = match new_amount.cmp(&old_amount) {
+			Ordering::Greater => {
+				direction = BalanceDirection::Hold;
+				Self::calculate_subscription_fees(
+					&new_amount.clone().saturating_sub(old_amount.clone()),
+				)
+			},
+			Ordering::Less => {
+				direction = BalanceDirection::Release;
+				Self::calculate_subscription_fees(
+					&old_amount.clone().saturating_sub(new_amount.clone()),
+				)
+			},
+			Ordering::Equal => Zero::zero(),
+		};
+		DiffBalance { balance: fees, direction }
 	}
 	fn collect_fees(
-		fees: Balances::Balance,
-		sub: S,
+		fees: &Balances::Balance,
+		sub: &S,
 	) -> Result<Balances::Balance, FeesError<Balances::Balance, DispatchError>> {
 		// Collect the held fees from the subscriber
 		let collected = Balances::transfer_on_hold(
 			&HoldReason::Fees.into(),
 			sub.subscriber(),
 			&T::get(),
-			fees,
+			fees.clone(),
 			Precision::BestEffort,
 			Restriction::Free,
 			Fortitude::Polite,
@@ -98,29 +115,44 @@ where
 
 		// Ensure the correct amount was collected.
 		// TODO: error to bubble up and be handled by caller https://github.com/ideal-lab5/idn-sdk/issues/107
-		if collected < fees {
-			return Err(FeesError::NotEnoughBalance { needed: fees, balance: collected });
+		if collected < *fees {
+			return Err(FeesError::NotEnoughBalance { needed: *fees, balance: collected });
 		}
 
 		Ok(collected)
 	}
 }
 
-pub struct DepositCalculatorImpl<SDMultiplier: Get<Balance>, Balance> {
-	pub _phantom: (PhantomData<SDMultiplier>, PhantomData<Balance>),
+pub struct DepositCalculatorImpl<SDMultiplier: Get<Deposit>, Deposit> {
+	pub _phantom: (PhantomData<SDMultiplier>, PhantomData<Deposit>),
 }
 
 impl<
 		S: SubscriptionTrait<AccountId32> + Encode,
-		SDMultiplier: Get<Balance>,
-		Balance: From<u32> + Saturating,
-	> pallet_idn_manager::DepositCalculator<Balance, S>
-	for DepositCalculatorImpl<SDMultiplier, Balance>
+		SDMultiplier: Get<Deposit>,
+		Deposit: Saturating + From<u64> + Ord,
+	> pallet_idn_manager::DepositCalculator<Deposit, S>
+	for DepositCalculatorImpl<SDMultiplier, Deposit>
 {
-	fn calculate_storage_deposit(sub: &S) -> Balance {
+	fn calculate_storage_deposit(sub: &S) -> Deposit {
+		// This function could theoretically saturate to the `Deposit` type bounds. Its result type
+		// has an upper bound, which is Deposit::MAX, while unlikely and very expensive to
+		// the attacker, if Deposit type (e.g. u32) is bigger than usize machine architecture (e.g.
+		// 64 bits) there could be subscription object larger than u32::MAX bits, let’s say u32::MAX
+		// + d and only pay a deposit for u32::MAX and not d. Let's assess it with SRLabs.
 		let storage_deposit_multiplier = SDMultiplier::get();
-		// calculate the size of scale encoded `sub`
-		let encoded_size = sub.encode().len() as u32;
+		let encoded_size = u64::try_from(sub.encoded_size()).unwrap_or(u64::MAX);
 		storage_deposit_multiplier.saturating_mul(encoded_size.into())
+	}
+
+	fn calculate_diff_deposit(old_sub: &S, new_sub: &S) -> DiffBalance<Deposit> {
+		let old_deposit = Self::calculate_storage_deposit(old_sub);
+		let new_deposit = Self::calculate_storage_deposit(new_sub);
+		let direction = match new_deposit.cmp(&old_deposit) {
+			Ordering::Greater => BalanceDirection::Hold,
+			Ordering::Less => BalanceDirection::Release,
+			Ordering::Equal => BalanceDirection::None,
+		};
+		DiffBalance { balance: new_deposit.saturating_sub(old_deposit), direction }
 	}
 }
