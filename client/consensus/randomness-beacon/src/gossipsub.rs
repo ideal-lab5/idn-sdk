@@ -27,7 +27,7 @@
 //!
 //! ## Examples
 //!
-//! ```
+//! ``` no_run
 //! use sc_consensus_randomness_beacon::gossipsub::{GossipsubNetwork, GossipsubState};
 //! use sc_consensus_randomness_beacon::types::*;
 //! use futures::StreamExt;
