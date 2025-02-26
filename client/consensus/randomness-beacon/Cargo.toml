@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 codec.workspace = true
 serde = { workspace = true, features = ["derive"] }
-libp2p = { version = "0.55.0", features = [
+libp2p = { version = "=0.55.0", features = [
     "gossipsub",
     "noise",
     "tcp",
@@ -25,10 +25,10 @@ libp2p = { version = "0.55.0", features = [
     "websocket",
     "yamux",
 ] }
-prost = "0.13.4"
-prost-types = "0.13.4"
+prost = "=0.13.5"
+prost-types = "=0.13.5"
 log = { workspace = true }
-futures = "0.3"
+futures = "=0.3"
 scale-info.workspace = true
 
 # arkworks dependencies
@@ -37,7 +37,7 @@ ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 
 [build-dependencies]
-prost-build = "0.13.4"
+prost-build = "=0.13.4"
 
 [dev-dependencies]
 async-std = "=1.13.0"

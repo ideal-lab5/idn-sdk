@@ -46,7 +46,7 @@ default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
 
 [workspace.dependencies]
 # Async & Concurrency
-async-trait = "=0.1.85"
+async-trait = "=0.1.86"
 tokio = { version = "^1", features = ["full"] }
 
 # Serialization
