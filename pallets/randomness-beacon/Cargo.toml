@@ -18,9 +18,9 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec.workspace = true
 scale-info.workspace = true
 serde = { workspace = true, features = ["derive"] }
-sha2 = { version = "0.10.8" }
+sha2 = { version = "=0.10.8" }
 log.workspace = true
-hex = { version = "0.4", features = ["serde"], default-features = false }
+hex = { version = "=0.4", features = ["serde"], default-features = false }
 # frame deps
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
@@ -36,12 +36,12 @@ ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 ark-ec.workspace = true
 ark-std.workspace = true
-timelock = { version = "0.0.1", default-features = false }
+timelock = { version = "=0.0.1", default-features = false }
 
 
 [dev-dependencies]
-sp-keystore = { version = "0.40.0",  default-features = false }
-sp-inherents = { version = "34.0.0" }
+sp-keystore = { version = "=0.40.0",  default-features = false }
+sp-inherents = { version = "=34.0.0" }
 
 [features]
 default = ["std"]
