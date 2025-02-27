@@ -14,17 +14,7 @@ workspace = true
 [dependencies]
 codec.workspace = true
 serde = { workspace = true, features = ["derive"] }
-libp2p = { version = "0.55.0", features = [
-    "gossipsub",
-    "noise",
-    "tcp",
-    "ping",
-    "dns",
-    "async-std",
-    "tokio",
-    "websocket",
-    "yamux",
-] }
+libp2p.workspace = true
 prost = "0.13.4"
 prost-types = "0.13.4"
 log = { workspace = true }
