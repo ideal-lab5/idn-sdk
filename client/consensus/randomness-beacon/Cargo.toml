@@ -37,7 +37,7 @@ ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 
 [build-dependencies]
-prost-build = "=0.13.4"
+prost-build = "=0.13.5"
 
 [dev-dependencies]
 async-std = "=1.13.0"
