@@ -31,8 +31,8 @@
 // 	block_import::{BlockImport, BlockImportParams, ForkChoiceStrategy},
 // 	import_queue::{BasicQueue, BoxBlockImport, Verifier},
 // };
-use crate::gossipsub::{GossipsubNetwork, GossipsubState, SharedState};
-use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair};
+// use crate::gossipsub::{GossipsubNetwork, GossipsubState, SharedState};
+// use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair};
 use sc_consensus_manual_seal::{
 	consensus::ConsensusDataProvider, run_manual_seal, EngineCommand, ManualSealParams,
 };
@@ -176,34 +176,34 @@ mod tests {
 		}
 	}
 
-	async fn run_gossipsub() -> SharedState {
-		let topic_str: &str =
-			"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
+	// async fn run_gossipsub() -> SharedState {
+	// 	let topic_str: &str =
+	// 		"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
 
-		let maddr1: libp2p::Multiaddr =
-			"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
-				.parse()
-				.expect("The string is a well-formatted multiaddress. qed.");
+	// 	let maddr1: libp2p::Multiaddr =
+	// 		"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
+	// 			.parse()
+	// 			.expect("The string is a well-formatted multiaddress. qed.");
 
-		let maddr2: libp2p::Multiaddr =
-        "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
-            .parse()
-            .expect("The string is a well-formatted multiaddress. qed.");
+	// 	let maddr2: libp2p::Multiaddr =
+    //     "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
+    //         .parse()
+    //         .expect("The string is a well-formatted multiaddress. qed.");
 
-		let local_identity: Keypair = Keypair::generate_ed25519();
-		let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
-		let gossipsub_config = GossipsubConfig::default();
-		let mut gossipsub =
-			GossipsubNetwork::new(&local_identity, state.clone(), gossipsub_config).unwrap();
+	// 	let local_identity: Keypair = Keypair::generate_ed25519();
+	// 	let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
+	// 	let gossipsub_config = GossipsubConfig::default();
+	// 	let mut gossipsub =
+	// 		GossipsubNetwork::new(&local_identity, state.clone(), gossipsub_config).unwrap();
 
-		tokio::spawn(async move {
-			if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
-				log::error!("Failed to run gossipsub network: {:?}", e);
-			}
-		});
+	// 	tokio::spawn(async move {
+	// 		if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
+	// 			log::error!("Failed to run gossipsub network: {:?}", e);
+	// 		}
+	// 	});
 
-		state
-	}
+	// 	state
+	// }
 
 	#[tokio::test]
 	async fn instant_seal() {
@@ -232,10 +232,8 @@ mod tests {
 		let mut sender = Arc::new(Some(sender));
 
 		// so we want to redefine the commands stream
-		let mut shared_state = run_gossipsub().await;
-		// shared_state. 
-
-
+		// let mut shared_state = run_gossipsub().await;
+		// shared_state.
 		let commands_stream =
 			pool.pool().validated_pool().import_notification_stream().map(move |_| {
 				// we're only going to submit one tx so this fn will only be called once.
@@ -283,6 +281,6 @@ mod tests {
 		);
 		// assert that there's a new block in the db.
 		assert!(client.header(created_block.hash).unwrap().is_some());
-		assert_eq!(client.header(created_block.hash).unwrap().unwrap().number, 1)
+		assert_eq!(client.header(created_block.hash).unwrap().unwrap().number, 1);
 	}
 }

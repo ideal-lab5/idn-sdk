@@ -7859,6 +7859,7 @@ dependencies = [
  "sc-consensus-manual-seal",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
+ "sc-utils",
  "scale-info",
  "serde",
  "sp-api",
