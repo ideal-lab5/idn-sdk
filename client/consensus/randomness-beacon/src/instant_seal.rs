@@ -31,8 +31,8 @@
 // 	block_import::{BlockImport, BlockImportParams, ForkChoiceStrategy},
 // 	import_queue::{BasicQueue, BoxBlockImport, Verifier},
 // };
-// use crate::gossipsub::{GossipsubNetwork, GossipsubState, SharedState};
-// use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair};
+use crate::gossipsub::GossipsubNetwork;
+use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair};
 use sc_consensus_manual_seal::{
 	consensus::ConsensusDataProvider, run_manual_seal, EngineCommand, ManualSealParams,
 };
@@ -126,12 +126,15 @@ pub struct ConsensusParams<B: BlockT, BI, E, C: ProvideRuntimeApi<B>, TP, SC, CI
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::StreamExt;
+	use crate::types::*;
+	// use crate::gossipsub::*;
+	use futures::{FutureExt, StreamExt};
 	use sc_basic_authorship::ProposerFactory;
 	use sc_consensus::{BlockImportParams, ImportedAux};
 	use sc_consensus_manual_seal::{CreatedBlock, Error};
 	use sc_transaction_pool::{BasicPool, FullChainApi, Options, RevalidationType};
 	use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool, TransactionSource};
+	use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 	use sp_inherents::InherentData;
 	use sp_runtime::generic::{Digest, DigestItem};
 	use substrate_test_runtime_client::AccountKeyring::Alice;
@@ -176,34 +179,36 @@ mod tests {
 		}
 	}
 
-	// async fn run_gossipsub() -> SharedState {
-	// 	let topic_str: &str =
-	// 		"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
+	async fn run_gossipsub() -> TracingUnboundedReceiver<OpaquePulse> {
+		let topic_str: &str =
+			"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
 
-	// 	let maddr1: libp2p::Multiaddr =
-	// 		"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
-	// 			.parse()
-	// 			.expect("The string is a well-formatted multiaddress. qed.");
+		let maddr1: libp2p::Multiaddr =
+			"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
+				.parse()
+				.expect("The string is a well-formatted multiaddress. qed.");
 
-	// 	let maddr2: libp2p::Multiaddr =
-    //     "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
-    //         .parse()
-    //         .expect("The string is a well-formatted multiaddress. qed.");
+		let maddr2: libp2p::Multiaddr =
+        "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
+            .parse()
+            .expect("The string is a well-formatted multiaddress. qed.");
 
-	// 	let local_identity: Keypair = Keypair::generate_ed25519();
-	// 	let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
-	// 	let gossipsub_config = GossipsubConfig::default();
-	// 	let mut gossipsub =
-	// 		GossipsubNetwork::new(&local_identity, state.clone(), gossipsub_config).unwrap();
+		let local_identity: Keypair = Keypair::generate_ed25519();
 
-	// 	tokio::spawn(async move {
-	// 		if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
-	// 			log::error!("Failed to run gossipsub network: {:?}", e);
-	// 		}
-	// 	});
+		let (tx, rx) = tracing_unbounded("test", 1000000);
 
-	// 	state
-	// }
+		let gossipsub_config = GossipsubConfig::default();
+		let mut gossipsub =
+			GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None).unwrap();
+
+		tokio::spawn(async move {
+			if let Err(e) = gossipsub.run(topic_str, vec![maddr1, maddr2]).await {
+				log::error!("Failed to run gossipsub network: {:?}", e);
+			}
+		});
+
+		rx
+	}
 
 	#[tokio::test]
 	async fn instant_seal() {
@@ -226,26 +231,24 @@ mod tests {
 		));
 
 		let env = ProposerFactory::new(spawner.clone(), client.clone(), pool.clone(), None, None);
-		// this test checks that blocks are created as soon as transactions are imported into the
-		// pool.
+
+		// so now, let's do it simply whenever we get a new message from drand
+		// let size = 2;
+		let mut rx = run_gossipsub().await;
 		let (sender, receiver) = futures::channel::oneshot::channel();
 		let mut sender = Arc::new(Some(sender));
 
-		// so we want to redefine the commands stream
-		// let mut shared_state = run_gossipsub().await;
-		// shared_state.
-		let commands_stream =
-			pool.pool().validated_pool().import_notification_stream().map(move |_| {
-				// we're only going to submit one tx so this fn will only be called once.
-				let mut_sender = Arc::get_mut(&mut sender).unwrap();
-				let sender = std::mem::take(mut_sender);
-				EngineCommand::SealNewBlock {
-					create_empty: false,
-					finalize: true,
-					parent_hash: None,
-					sender,
-				}
-			});
+		// create a new block every time we see a new message in the channel
+		let mut commands_stream = rx.map(move |_msg| {
+			let mut_sender = Arc::get_mut(&mut sender).unwrap();
+			let sender = std::mem::take(mut_sender);
+			EngineCommand::SealNewBlock {
+				create_empty: false,
+				finalize: true,
+				parent_hash: None,
+				sender,
+			}
+		});
 
 		// spawn the background authorship task
 		tokio::spawn(run_manual_seal(ManualSealParams {

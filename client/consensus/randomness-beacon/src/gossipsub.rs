@@ -312,5 +312,5 @@ mod tests {
 		let p1 = rx.next().await;
 		let p2 = rx.next().await;
 		assert!(p2.unwrap().round == p1.unwrap().round + 1, "rounds should be incremental.");
-	}
+	} 
 }
