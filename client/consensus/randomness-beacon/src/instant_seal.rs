@@ -20,33 +20,36 @@
 //! Specifically, the goal is to author a block whenever there are N new messages in a queue
 //!
 
-// use futures::prelude::*;
-// use futures_timer::Delay;
-// use prometheus_endpoint::Registry;
-// use sc_client_api::{
-// 	backend::{Backend as ClientBackend, Finalizer},
-// 	client::BlockchainEvents,
-// };
-// use sc_consensus::{
-// 	block_import::{BlockImport, BlockImportParams, ForkChoiceStrategy},
-// 	import_queue::{BasicQueue, BoxBlockImport, Verifier},
-// };
 use crate::gossipsub::GossipsubNetwork;
+use futures::prelude::*;
+use futures_timer::Delay;
+// use prometheus_endpoint::Registry;
+use sc_client_api::{
+	backend::{Backend as ClientBackend, Finalizer},
+	client::BlockchainEvents,
+};
+use sc_consensus::{
+	block_import::{BlockImport, BlockImportParams, ForkChoiceStrategy},
+	import_queue::{BasicQueue, BoxBlockImport, Verifier},
+};
+use sc_transaction_pool::{BasicPool, FullChainApi, Options, RevalidationType};
+use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool, TransactionSource};
 use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair};
 use sc_consensus_manual_seal::{
 	consensus::ConsensusDataProvider, run_manual_seal, EngineCommand, ManualSealParams,
 };
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-// use sp_consensus::{Environment, Proposer, SelectChain};
-// use sp_core::traits::SpawnNamed;
+use sp_consensus::{Environment, Proposer, SelectChain};
+use sp_core::traits::SpawnNamed;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{traits::Block as BlockT, ConsensusEngineId};
 use std::{
 	marker::PhantomData,
-	sync::{Arc, Mutex},
+	sync::Arc,
 	time::Duration,
 };
+use tokio::sync::Mutex;
 
 const LOG_TARGET: &str = "drand-lock-step";
 
@@ -77,65 +80,62 @@ pub struct ConsensusParams<B: BlockT, BI, E, C: ProvideRuntimeApi<B>, TP, SC, CI
 	pub create_inherent_data_providers: CIDP,
 }
 
-// /// runs the background authorship task for the randomness-beacon pulse-based seal engine.
-// /// It creates a new block for every N pulses from a randomness beacon ingested into a queue
-// pub async fn run<B, BI, CB, E, C, TP, SC, CIDP, P>(
-// 	ConsensusParams {
-// 		block_import,
-// 		env,
-// 		client,
-// 		pool,
-// 		select_chain,
-// 		consensus_data_provider,
-// 		create_inherent_data_providers,
-// 	}: ConsensusParams<B, BI, E, C, TP, SC, CIDP, P>,
-// ) where
-// 	B: BlockT + 'static,
-// 	BI: BlockImport<B, Error = sp_consensus::Error> + Send + Sync + 'static,
-// 	C: HeaderBackend<B> + Finalizer<B, CB> + ProvideRuntimeApi<B> + 'static,
-// 	CB: ClientBackend<B> + 'static,
-// 	E: Environment<B> + 'static,
-// 	E::Proposer: Proposer<B, Proof = P>,
-// 	SC: SelectChain<B> + 'static,
-// 	TP: TransactionPool<Block = B>,
-// 	CIDP: CreateInherentDataProviders<B, ()>,
-// 	P: codec::Encode + Send + Sync + 'static,
-// {
-// 	// instant-seal creates blocks as soon as transactions are imported
-// 	// into the transaction pool.
-// 	let commands_stream = pool.import_notification_stream().map(|_| EngineCommand::SealNewBlock {
-// 		create_empty: true,
-// 		finalize: false,
-// 		parent_hash: None,
-// 		sender: None,
-// 	});
+/// runs the background authorship task for the randomness-beacon pulse-based seal engine.
+/// It creates a new block for every N pulses from a randomness beacon ingested into a queue
+pub async fn run<B, BI, CB, E, C, TP, SC, CIDP, P>(
+	ConsensusParams {
+		block_import,
+		env,
+		client,
+		pool,
+		select_chain,
+		consensus_data_provider,
+		create_inherent_data_providers,
+	}: ConsensusParams<B, BI, E, C, TP, SC, CIDP, P>,
+) where
+	B: BlockT + 'static,
+	BI: BlockImport<B, Error = sp_consensus::Error> + Send + Sync + 'static,
+	C: HeaderBackend<B> + Finalizer<B, CB> + ProvideRuntimeApi<B> + 'static,
+	CB: ClientBackend<B> + 'static,
+	E: Environment<B> + 'static,
+	E::Proposer: Proposer<B, Proof = P>,
+	SC: SelectChain<B> + 'static,
+	TP: TransactionPool<Block = B>,
+	CIDP: CreateInherentDataProviders<B, ()>,
+	P: codec::Encode + Send + Sync + 'static,
+{
+	// instant-seal creates blocks as soon as transactions are imported
+	// into the transaction pool.
+	let commands_stream = pool.import_notification_stream().map(|_| EngineCommand::SealNewBlock {
+		create_empty: true,
+		finalize: false,
+		parent_hash: None,
+		sender: None,
+	});
 
-// 	run_manual_seal(ManualSealParams {
-// 		block_import,
-// 		env,
-// 		client,
-// 		pool,
-// 		commands_stream,
-// 		select_chain,
-// 		consensus_data_provider,
-// 		create_inherent_data_providers,
-// 	})
-// 	.await
-// }
+	run_manual_seal(ManualSealParams {
+		block_import,
+		env,
+		client,
+		pool,
+		commands_stream,
+		select_chain,
+		consensus_data_provider,
+		create_inherent_data_providers,
+	})
+	.await
+}
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::types::*;
-	// use crate::gossipsub::*;
 	use futures::{FutureExt, StreamExt};
 	use sc_basic_authorship::ProposerFactory;
 	use sc_consensus::{BlockImportParams, ImportedAux};
 	use sc_consensus_manual_seal::{CreatedBlock, Error};
-	use sc_transaction_pool::{BasicPool, FullChainApi, Options, RevalidationType};
-	use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool, TransactionSource};
 	use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
-	use sp_inherents::InherentData;
+	use sp_inherents::{InherentData, InherentDataProvider};
 	use sp_runtime::generic::{Digest, DigestItem};
 	use substrate_test_runtime_client::AccountKeyring::Alice;
 	use substrate_test_runtime_client::{
@@ -239,9 +239,16 @@ mod tests {
 		let mut sender = Arc::new(Some(sender));
 
 		// create a new block every time we see a new message in the channel
-		let mut commands_stream = rx.map(move |_msg| {
+		// a channel to relay pulses from the commands stream to the CIDP loop
+		let (mut pulse_tx, mut pulse_rx) = tracing_unbounded("pulses", 10000);
+
+		// build a SealEngine command whenever we encounter a new message
+		let mut commands_stream = rx.map(move |pulse| {
 			let mut_sender = Arc::get_mut(&mut sender).unwrap();
 			let sender = std::mem::take(mut_sender);
+			// update the shared state
+			pulse_tx.unbounded_send(pulse).unwrap();
+
 			EngineCommand::SealNewBlock {
 				create_empty: false,
 				finalize: true,
@@ -258,11 +265,23 @@ mod tests {
 			pool: pool.clone(),
 			commands_stream,
 			select_chain,
-			create_inherent_data_providers: |_, _| async { Ok(()) },
+			create_inherent_data_providers: |_, _| async move { 
+				// we want to create a block whenever the required CIDP data is available.
+				// In this case, we want a single message to be available.
+
+				// Q: how can we retrieve the message??
+				// let pulse = rx.next().await.unwrap();
+				let beacon = sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
+					// vec![pulse.serialize_to_vec()]
+					vec![vec![]]
+				);
+
+				Ok(beacon)
+			},
 			consensus_data_provider: None,
 		}));
 
-		// submit a transaction to pool.
+		// submit a transaction to pool -> in practice this would be done by adding the inherent
 		let result = pool.submit_one(genesis_hash, SOURCE, uxt(Alice, 0)).await;
 		// assert that it was successfully imported
 		assert!(result.is_ok());

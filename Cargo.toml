@@ -101,6 +101,7 @@ sp-consensus = { version = "0.41.0", default-features = false }
 sp-consensus-aura = { version = "0.41.0",  default-features = false }
 sp-consensus-babe = { version = "0.41.0",  default-features = false }
 sp-consensus-grandpa = { version = "22.0.0",  default-features = false }
+sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }
 sp-core = { version = "35.0.0", default-features = false }
 sp-crypto-hashing = { version = "0.1.0", default-features = false }
 sp-externalities = { version = "0.30.0", default-features = false }

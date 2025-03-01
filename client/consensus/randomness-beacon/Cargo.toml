@@ -21,9 +21,12 @@ log = { workspace = true }
 futures.workspace = true
 scale-info.workspace = true
 sc-consensus-manual-seal.workspace = true
+sc-client-api.workspace = true
 sc-utils.workspace = true
 sp-api.workspace = true
 sp-blockchain.workspace = true
+sp-consensus.workspace = true
+sp-consensus-randomness-beacon = { workspace = true, default-features = true }
 sp-inherents = {workspace = true, default-features = true }
 sp-runtime.workspace = true
 
