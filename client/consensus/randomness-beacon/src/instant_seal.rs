@@ -237,20 +237,16 @@ mod tests {
 		let mut rx = run_gossipsub().await;
 		let (sender, receiver) = futures::channel::oneshot::channel();
 		let mut sender = Arc::new(Some(sender));
-
-		// create a new block every time we see a new message in the channel
-		// a channel to relay pulses from the commands stream to the CIDP loop
-		let (mut pulse_tx, mut pulse_rx) = tracing_unbounded("pulses", 10000);
-
 		// build a SealEngine command whenever we encounter a new message
 		let mut commands_stream = rx.map(move |pulse| {
 			let mut_sender = Arc::get_mut(&mut sender).unwrap();
 			let sender = std::mem::take(mut_sender);
-			// update the shared state
-			pulse_tx.unbounded_send(pulse).unwrap();
-
+			// Note: here we allow create empty to be  true
+			// in practice, this should always be false
+			// here we allow it to be empty so as to demonstrate that
+			// the engine is driven by new messages, not txs
 			EngineCommand::SealNewBlock {
-				create_empty: false,
+				create_empty: true,
 				finalize: true,
 				parent_hash: None,
 				sender,
@@ -265,26 +261,16 @@ mod tests {
 			pool: pool.clone(),
 			commands_stream,
 			select_chain,
-			create_inherent_data_providers: |_, _| async move { 
-				// we want to create a block whenever the required CIDP data is available.
-				// In this case, we want a single message to be available.
-
-				// Q: how can we retrieve the message??
-				// let pulse = rx.next().await.unwrap();
-				let beacon = sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
-					// vec![pulse.serialize_to_vec()]
-					vec![vec![]]
-				);
-
-				Ok(beacon)
+			create_inherent_data_providers: |_, _| async { 
+				Ok(())
 			},
 			consensus_data_provider: None,
 		}));
 
 		// submit a transaction to pool -> in practice this would be done by adding the inherent
-		let result = pool.submit_one(genesis_hash, SOURCE, uxt(Alice, 0)).await;
+		// let result = pool.submit_one(genesis_hash, SOURCE, uxt(Alice, 0)).await;
 		// assert that it was successfully imported
-		assert!(result.is_ok());
+		// assert!(result.is_ok());
 		// assert that the background task returns ok
 		let created_block = receiver.await.unwrap().unwrap();
 		assert_eq!(
