@@ -113,9 +113,12 @@ fn update_subscription(
 	let new_deposit = <Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
 
 	let fees_diff: i64 = new_fees as i64 - original_fees as i64;
-	// TODO: test a diff > 0
+
 	let deposit_diff: i64 = new_deposit as i64 - original_deposit as i64;
 
+	// We are using fixed-width integer types for amount and frequency, so Subscription objects
+	// can't change in size with this mock. Unit tests are in place insted to ensure the correct
+	// behaviour in case of other types used.
 	assert!(deposit_diff.is_zero());
 
 	let balance_after_update: u64 =
@@ -130,7 +133,8 @@ fn update_subscription(
 	);
 	assert_eq!(balance_after_update + new_fees + new_deposit, initial_balance);
 
-	// TODO: test probably in a separate test case fees handling but by adding block advance
+	// TODO: test probably in a separate test case fees handling but by adding block advance, and
+	// therefore amount consuption
 
 	let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
 
@@ -295,8 +299,9 @@ fn test_kill_subscription() {
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let metadata = None;
+		let initial_balance = 10_000_000;
 
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
@@ -306,14 +311,25 @@ fn test_kill_subscription() {
 			metadata.clone()
 		));
 
-		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
+
+		// assert that the correct fees have been held
+		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(&amount);
+		let deposit = <Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance - fees - deposit);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), fees);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), deposit);
 		// TOOD assert:
-		// - correct fees are refunded
-		// - correct storage deposit is refunded
-		// - correct fees were collected
-		// https://github.com/ideal-lab5/idn-sdk/issues/107
+		// - correct fees were collected. Test probably in a separate test case fees handling but by
+		//   adding block advance,
+		// and therefore amount consuption
 		assert_ok!(IdnManager::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id));
 		assert!(Subscriptions::<Test>::get(sub_id).is_none());
+
+		// assert remaining fees and balance refunded
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0u64);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0u64);
 
 		assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
 	});
@@ -331,6 +347,59 @@ fn kill_subscription_fails_if_sub_does_not_exist() {
 
 		// Assert the SubscriptionRemoved event was not emitted
 		assert!(!event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+	});
+}
+
+#[test]
+fn on_finalize_removes_zero_credit_subscriptions() {
+	ExtBuilder::build().execute_with(|| {
+		// Setup - Create a subscription
+		let amount: u64 = 50;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 10;
+		let initial_balance = 10_000_000;
+
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			amount,
+			target.clone(),
+			frequency,
+			None
+		));
+
+		// Get the subscription ID
+		let (sub_id, mut subscription) = Subscriptions::<Test>::iter().next().unwrap();
+
+		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(&amount);
+		let deposit = <Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance - fees - deposit);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), fees);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), deposit);
+
+		// Manually set credits to zero
+		subscription.amount_left = Zero::zero();
+		Subscriptions::<Test>::insert(sub_id, subscription);
+
+		// Verify subscription exists before on_finalize
+		assert!(Subscriptions::<Test>::contains_key(sub_id));
+
+		// Call on_finalize directly
+		let current_block = System::block_number();
+		crate::Pallet::<Test>::on_finalize(current_block);
+
+		// Verify subscription was removed
+		assert!(!Subscriptions::<Test>::contains_key(sub_id));
+
+		// assert there are no remaining fees and balance refunded
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance - fees);
+		// TODO: once fees collection in place uncomment this line
+		// assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0u64);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0u64);
+
+		// Verify event was emitted
+		assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
 	});
 }
 
@@ -709,7 +778,7 @@ fn manage_diff_deposit_works() {
 
 		// Test holding deposit
 		let hold_diff =
-			DiffBalance { balance: original_deposit, direction: BalanceDirection::Hold };
+			DiffBalance { balance: original_deposit, direction: BalanceDirection::Collect };
 		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &hold_diff));
 		assert_eq!(
 			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
@@ -717,7 +786,7 @@ fn manage_diff_deposit_works() {
 		);
 		// Test holding additional deposit
 		let hold_diff =
-			DiffBalance { balance: additional_deposit, direction: BalanceDirection::Hold };
+			DiffBalance { balance: additional_deposit, direction: BalanceDirection::Collect };
 		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &hold_diff));
 		assert_eq!(
 			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),

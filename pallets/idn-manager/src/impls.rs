@@ -82,7 +82,7 @@ where
 		let mut direction = BalanceDirection::None;
 		let fees = match new_amount.cmp(&old_amount) {
 			Ordering::Greater => {
-				direction = BalanceDirection::Hold;
+				direction = BalanceDirection::Collect;
 				Self::calculate_subscription_fees(
 					&new_amount.clone().saturating_sub(old_amount.clone()),
 				)
@@ -149,7 +149,7 @@ impl<
 		let old_deposit = Self::calculate_storage_deposit(old_sub);
 		let new_deposit = Self::calculate_storage_deposit(new_sub);
 		let direction = match new_deposit.cmp(&old_deposit) {
-			Ordering::Greater => BalanceDirection::Hold,
+			Ordering::Greater => BalanceDirection::Collect,
 			Ordering::Less => BalanceDirection::Release,
 			Ordering::Equal => BalanceDirection::None,
 		};

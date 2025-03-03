@@ -35,7 +35,7 @@ impl FeesManager<u32, u32, (), (), ()> for LinearFeeCalculator {
 		let mut direction = BalanceDirection::None;
 		let fees = match new_amount.cmp(&old_amount) {
 			Ordering::Greater => {
-				direction = BalanceDirection::Hold;
+				direction = BalanceDirection::Collect;
 				Self::calculate_subscription_fees(
 					&new_amount.clone().saturating_sub(old_amount.clone()),
 				)
@@ -102,7 +102,7 @@ impl FeesManager<u32, u32, (), (), ()> for SteppedTieredFeeCalculator {
 		let mut direction = BalanceDirection::None;
 		let fees = match new_fees.cmp(&old_fees) {
 			Ordering::Greater => {
-				direction = BalanceDirection::Hold;
+				direction = BalanceDirection::Collect;
 				new_fees - old_fees
 			},
 			Ordering::Less => {
@@ -165,11 +165,11 @@ mod tests {
 	fn test_calculate_hold_linear_fees_greater_diff() {
 		let old_amount: u32 = 50;
 		let new_amount: u32 = 60; // all credits used
-		let refund = LinearFeeCalculator::calculate_diff_fees(&old_amount, &new_amount);
+		let hold = LinearFeeCalculator::calculate_diff_fees(&old_amount, &new_amount);
 		let expected = 10 * BASE_FEE;
 		assert_eq!(
-			refund,
-			DiffBalance { balance: expected, direction: BalanceDirection::Hold },
+			hold,
+			DiffBalance { balance: expected, direction: BalanceDirection::Collect },
 			"There should be more held balance"
 		);
 	}
@@ -243,11 +243,11 @@ mod tests {
 	fn test_calculate_hold_stepped_fees_greater_diff() {
 		let old_amount: u32 = 100;
 		let new_amount: u32 = 101; // 1 value increase
-		let refund = SteppedTieredFeeCalculator::calculate_diff_fees(&old_amount, &new_amount);
+		let hold = SteppedTieredFeeCalculator::calculate_diff_fees(&old_amount, &new_amount);
 		let expected = 1 * BASE_FEE.saturating_mul(9_000).saturating_div(10_000); // 10% discount on the extra value
 		assert_eq!(
-			refund,
-			DiffBalance { balance: expected, direction: BalanceDirection::Hold },
+			hold,
+			DiffBalance { balance: expected, direction: BalanceDirection::Collect },
 			"There should be more held balance"
 		);
 	}

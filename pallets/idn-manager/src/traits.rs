@@ -27,7 +27,7 @@ pub enum FeesError<Fees, Context> {
 /// Enum to represent the direction of balance movement.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BalanceDirection {
-	Hold,
+	Collect,
 	Release,
 	// Balance isn't going anywhere. This is usually the case when diff is zero.
 	None,

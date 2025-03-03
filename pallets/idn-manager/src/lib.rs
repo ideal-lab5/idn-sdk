@@ -79,6 +79,7 @@ use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
+use sp_runtime::{traits::One, Saturating};
 use sp_std::fmt::Debug;
 use traits::{
 	BalanceDirection, DepositCalculator, DiffBalance, FeesManager,
@@ -269,11 +270,11 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_finalize(_n: BlockNumberFor<T>) {
 			// Look for subscriptions that should be finished
-			for (sub_id, _) in
+			for (sub_id, sub) in
 				Subscriptions::<T>::iter().filter(|(_, sub)| sub.amount_left == Zero::zero())
 			{
 				// finish the subscription
-				Self::finish_subscription(sub_id);
+				let _ = Self::finish_subscription(&sub, sub_id);
 			}
 		}
 	}
@@ -329,15 +330,12 @@ pub mod pallet {
 			sub_id: SubscriptionId,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
-			// `try_mutate_exists` deletes maybe_sub if mutated to a `None``
-			Subscriptions::<T>::try_mutate_exists(sub_id, |maybe_sub| {
-				// Takes the value out of `maybe_sub``, leaving a `None`` in its place.
-				let sub = maybe_sub.take().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
-				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
-				// TODO: refund storage and fees https://github.com/ideal-lab5/idn-sdk/issues/107
-				Self::deposit_event(Event::SubscriptionRemoved { sub_id });
-				Ok(())
-			})
+
+			let sub =
+				Subscriptions::<T>::get(sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
+			ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
+
+			Self::finish_subscription(&sub, sub_id)
 		}
 
 		/// Updates a subscription
@@ -406,9 +404,22 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Finishes a subscription by removing it from storage and emitting a finish event.
-	pub(crate) fn finish_subscription(sub_id: SubscriptionId) {
+	pub(crate) fn finish_subscription(
+		sub: &SubscriptionOf<T>,
+		sub_id: SubscriptionId,
+	) -> DispatchResult {
+		// fees left and deposit to refund
+		let fees_diff = T::FeesManager::calculate_diff_fees(&sub.amount_left, &Zero::zero());
+		let sd = T::DepositCalculator::calculate_storage_deposit(&sub);
+
+		Self::manage_diff_fees(&sub.details.subscriber, &fees_diff)?;
+		Self::release_deposit(&sub.details.subscriber, sd)?;
+
+		Self::deposit_event(Event::SubscriptionRemoved { sub_id });
+
 		Subscriptions::<T>::remove(sub_id);
 		Self::deposit_event(Event::SubscriptionRemoved { sub_id });
+		Ok(())
 	}
 
 	fn pallet_account_id() -> T::AccountId {
@@ -429,15 +440,21 @@ impl<T: Config> Pallet<T> {
 				let versioned_msg: Box<VersionedXcm<()>> =
 					Box::new(xcm::VersionedXcm::V5(msg.into()));
 				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
-				let _ = T::Xcm::send(origin.into(), versioned_target, versioned_msg);
-
-				// todo: as part of issue #77 use saturating_sub to make sure it does not underflow
-
-				Self::deposit_event(Event::RandomnessDistributed { sub_id });
+				if T::Xcm::send(origin.into(), versioned_target, versioned_msg).is_ok() {
+					Self::consume_amount(&sub_id, sub);
+					Self::deposit_event(Event::RandomnessDistributed { sub_id });
+				}
 			}
 		}
 
 		Ok(())
+	}
+
+	fn consume_amount(sub_id: &SubscriptionId, mut sub: SubscriptionOf<T>) {
+		// Decrease amount_left by one using saturating_sub
+		sub.amount_left = sub.amount_left.saturating_sub(One::one());
+		// Update the subscription in storage
+		Subscriptions::<T>::insert(sub_id, sub)
 	}
 
 	/// Internal function to handle subscription creation
@@ -496,7 +513,7 @@ impl<T: Config> Pallet<T> {
 		diff: &DiffBalance<BalanceOf<T>>,
 	) -> DispatchResult {
 		match diff.direction {
-			BalanceDirection::Hold => Self::hold_fees(subscriber, diff.balance),
+			BalanceDirection::Collect => Self::hold_fees(subscriber, diff.balance),
 			BalanceDirection::Release => Self::release_fees(subscriber, diff.balance),
 			BalanceDirection::None => Ok(()),
 		}
@@ -521,7 +538,7 @@ impl<T: Config> Pallet<T> {
 		diff: &DiffBalance<BalanceOf<T>>,
 	) -> DispatchResult {
 		match diff.direction {
-			BalanceDirection::Hold => Self::hold_deposit(subscriber, diff.balance),
+			BalanceDirection::Collect => Self::hold_deposit(subscriber, diff.balance),
 			BalanceDirection::Release => Self::release_deposit(subscriber, diff.balance),
 			BalanceDirection::None => Ok(()),
 		}
