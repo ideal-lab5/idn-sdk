@@ -106,7 +106,7 @@ pub type SubscriptionOf<T> =
 pub struct Subscription<AccountId, BlockNumber: Unsigned, Metadata> {
 	details: SubscriptionDetails<AccountId, BlockNumber, Metadata>,
 	// Number of random values left to distribute
-	amount_left: BlockNumber,
+	credits_left: BlockNumber,
 	state: SubscriptionState,
 }
 
@@ -117,7 +117,7 @@ pub struct SubscriptionDetails<AccountId, BlockNumber, Metadata> {
 	subscriber: AccountId,
 	created_at: BlockNumber,
 	updated_at: BlockNumber,
-	amount: BlockNumber,
+	credits: BlockNumber,
 	frequency: BlockNumber,
 	target: Location,
 	metadata: Metadata,
@@ -271,7 +271,7 @@ pub mod pallet {
 		fn on_finalize(_n: BlockNumberFor<T>) {
 			// Look for subscriptions that should be finished
 			for (sub_id, sub) in
-				Subscriptions::<T>::iter().filter(|(_, sub)| sub.amount_left == Zero::zero())
+				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left == Zero::zero())
 			{
 				// finish the subscription
 				let _ = Self::finish_subscription(&sub, sub_id);
@@ -287,7 +287,7 @@ pub mod pallet {
 		pub fn create_subscription(
 			origin: OriginFor<T>,
 			// Number of random values to receive
-			amount: BlockNumberFor<T>,
+			credits: BlockNumberFor<T>,
 			// XCM multilocation for random value delivery
 			target: Location,
 			// Distribution interval for random values
@@ -296,7 +296,7 @@ pub mod pallet {
 			metadata: Option<MetadataOf<T>>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
-			Self::create_subscription_internal(subscriber, amount, target, frequency, metadata)
+			Self::create_subscription_internal(subscriber, credits, target, frequency, metadata)
 		}
 
 		/// Temporarily halts randomness distribution
@@ -346,7 +346,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: SubscriptionId,
 			// New number of random values
-			amount: BlockNumberFor<T>,
+			credits: BlockNumberFor<T>,
 			// New distribution interval
 			frequency: BlockNumberFor<T>,
 		) -> DispatchResult {
@@ -355,17 +355,17 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 
-				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.details.amount, &amount);
+				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.details.credits, &credits);
 				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(
 					&sub,
 					&Subscription {
 						state: sub.state.clone(),
-						amount_left: amount,
+						credits_left: credits,
 						details: sub.details.clone(),
 					},
 				);
 
-				sub.details.amount = amount;
+				sub.details.credits = credits;
 				sub.details.frequency = frequency;
 				sub.details.updated_at = frame_system::Pallet::<T>::block_number();
 
@@ -409,7 +409,7 @@ impl<T: Config> Pallet<T> {
 		sub_id: SubscriptionId,
 	) -> DispatchResult {
 		// fees left and deposit to refund
-		let fees_diff = T::FeesManager::calculate_diff_fees(&sub.amount_left, &Zero::zero());
+		let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits_left, &Zero::zero());
 		let sd = T::DepositCalculator::calculate_storage_deposit(&sub);
 
 		Self::manage_diff_fees(&sub.details.subscriber, &fees_diff)?;
@@ -441,7 +441,7 @@ impl<T: Config> Pallet<T> {
 					Box::new(xcm::VersionedXcm::V5(msg.into()));
 				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
 				if T::Xcm::send(origin.into(), versioned_target, versioned_msg).is_ok() {
-					Self::consume_amount(&sub_id, sub);
+					Self::consume_credits(&sub_id, sub);
 					Self::deposit_event(Event::RandomnessDistributed { sub_id });
 				}
 			}
@@ -450,9 +450,9 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	fn consume_amount(sub_id: &SubscriptionId, mut sub: SubscriptionOf<T>) {
-		// Decrease amount_left by one using saturating_sub
-		sub.amount_left = sub.amount_left.saturating_sub(One::one());
+	fn consume_credits(sub_id: &SubscriptionId, mut sub: SubscriptionOf<T>) {
+		// Decrease credits_left by one using saturating_sub
+		sub.credits_left = sub.credits_left.saturating_sub(One::one());
 		// Update the subscription in storage
 		Subscriptions::<T>::insert(sub_id, sub)
 	}
@@ -460,13 +460,13 @@ impl<T: Config> Pallet<T> {
 	/// Internal function to handle subscription creation
 	fn create_subscription_internal(
 		subscriber: T::AccountId,
-		amount: BlockNumberFor<T>,
+		credits: BlockNumberFor<T>,
 		target: Location,
 		frequency: BlockNumberFor<T>,
 		metadata: Option<MetadataOf<T>>,
 	) -> DispatchResult {
 		// Calculate and hold the subscription fees
-		let fees = T::FeesManager::calculate_subscription_fees(&amount);
+		let fees = T::FeesManager::calculate_subscription_fees(&credits);
 
 		Self::hold_fees(&subscriber, fees)?;
 
@@ -475,13 +475,13 @@ impl<T: Config> Pallet<T> {
 			subscriber: subscriber.clone(),
 			created_at: current_block,
 			updated_at: current_block,
-			amount,
+			credits,
 			target: target.clone(),
 			frequency,
 			metadata: metadata.unwrap_or_default(),
 		};
 		let subscription =
-			Subscription { state: SubscriptionState::Active, amount_left: amount, details };
+			Subscription { state: SubscriptionState::Active, credits_left: credits, details };
 
 		Self::hold_deposit(
 			&subscriber,
@@ -575,10 +575,10 @@ sp_api::decl_runtime_apis! {
 		Metadata: Codec,
 		AccountId: Codec,
 	{
-		/// Computes the fee for a given amount of random values to receive
+		/// Computes the fee for a given credits
 		fn calculate_subscription_fees(
 			// Number of random values to receive
-			amount: BlockNumber
+			credits: BlockNumber
 		) -> Balance;
 
 		/// Retrieves a specific subscription
