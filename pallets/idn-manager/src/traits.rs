@@ -44,16 +44,16 @@ pub struct DiffBalance<Balance> {
 }
 
 /// Trait for fees managing
-pub trait FeesManager<Fees, Amount, Sub: Subscription<S>, Err, S> {
-	/// Calculate the fees for a subscription based on the amount of random values required.
-	fn calculate_subscription_fees(amount: &Amount) -> Fees;
+pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S> {
+	/// Calculate the fees for a subscription based on the credits of random values required.
+	fn calculate_subscription_fees(credits: &Credits) -> Fees;
 	/// Calculate how much fees should be held or release when a subscription changes.
 	///
-	/// * `old_amount` - the amount of random values required before the change.
-	/// * `new_amount` - the amount of random values required after the change, this will represent
-	///   the updated amount in an update operation. Or the amount actually consumed in a kill
-	///   operation.
-	fn calculate_diff_fees(old_amount: &Amount, new_amount: &Amount) -> DiffBalance<Fees>;
+	/// * `old_credits` - the credits of random values required before the change.
+	/// * `new_credits` - the credits of random values required after the change, this will
+	///   represent the updated credits in an update operation. Or the credits actually consumed in
+	///   a kill operation.
+	fn calculate_diff_fees(old_credits: &Credits, new_credits: &Credits) -> DiffBalance<Fees>;
 	/// Distributes collected fees. Returns the fees that were effectively collected.
 	fn collect_fees(fees: &Fees, sub: &Sub) -> Result<Fees, FeesError<Fees, Err>>;
 }

@@ -71,26 +71,26 @@ where
 	Balances::Balance: From<BlockNumber>,
 	Balances::Reason: From<HoldReason>,
 {
-	fn calculate_subscription_fees(amount: &BlockNumber) -> Balances::Balance {
+	fn calculate_subscription_fees(credits: &BlockNumber) -> Balances::Balance {
 		let base_fee = B::get();
-		base_fee.saturating_mul(amount.clone().into())
+		base_fee.saturating_mul(credits.clone().into())
 	}
 	fn calculate_diff_fees(
-		old_amount: &BlockNumber,
-		new_amount: &BlockNumber,
+		old_credits: &BlockNumber,
+		new_credits: &BlockNumber,
 	) -> DiffBalance<Balances::Balance> {
 		let mut direction = BalanceDirection::None;
-		let fees = match new_amount.cmp(&old_amount) {
+		let fees = match new_credits.cmp(&old_credits) {
 			Ordering::Greater => {
 				direction = BalanceDirection::Collect;
 				Self::calculate_subscription_fees(
-					&new_amount.clone().saturating_sub(old_amount.clone()),
+					&new_credits.clone().saturating_sub(old_credits.clone()),
 				)
 			},
 			Ordering::Less => {
 				direction = BalanceDirection::Release;
 				Self::calculate_subscription_fees(
-					&old_amount.clone().saturating_sub(new_amount.clone()),
+					&old_credits.clone().saturating_sub(new_credits.clone()),
 				)
 			},
 			Ordering::Equal => Zero::zero(),
@@ -113,7 +113,7 @@ where
 		)
 		.map_err(FeesError::Other)?;
 
-		// Ensure the correct amount was collected.
+		// Ensure the correct credits was collected.
 		// TODO: error to bubble up and be handled by caller https://github.com/ideal-lab5/idn-sdk/issues/107
 		if collected < *fees {
 			return Err(FeesError::NotEnoughBalance { needed: *fees, balance: collected });
