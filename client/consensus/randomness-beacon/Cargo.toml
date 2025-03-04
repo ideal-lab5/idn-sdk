@@ -34,8 +34,6 @@ prost-build = "0.13.4"
 async-std = "1.13.0"
 rand = "0.8.5"
 tokio.workspace = true
-# substrate-test-runtime-transaction-pool.workspace = true
-# substrate-test-runtime-client.workspace = true
 
  
 [features]

@@ -29,6 +29,3 @@ std = [
 	"async-trait",
 	"sp-inherents/std",
 ]
-
-# # Serde support without relying on std features.
-# serde = ["scale-info/serde"]
