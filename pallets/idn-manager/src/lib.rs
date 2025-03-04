@@ -105,21 +105,21 @@ pub type SubscriptionOf<T> =
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber: Unsigned, Metadata> {
-	details: SubscriptionDetails<AccountId, BlockNumber, Metadata>,
+	details: SubscriptionDetails<AccountId, Metadata>,
 	// Number of random values left to distribute
 	credits_left: BlockNumber,
 	state: SubscriptionState,
+	created_at: BlockNumber,
+	updated_at: BlockNumber,
+	credits: BlockNumber,
+	frequency: BlockNumber,
 }
 
 // TODO: details should be immutable, they are what make the subscription unique
 // https://github.com/ideal-lab5/idn-sdk/issues/114
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
-pub struct SubscriptionDetails<AccountId, BlockNumber, Metadata> {
+pub struct SubscriptionDetails<AccountId, Metadata> {
 	subscriber: AccountId,
-	created_at: BlockNumber,
-	updated_at: BlockNumber,
-	credits: BlockNumber,
-	frequency: BlockNumber,
 	target: Location,
 	metadata: Metadata,
 }
@@ -132,8 +132,8 @@ where
 {
 	pub fn id(&self) -> SubscriptionId {
 		let id_tuple = (
+			self.created_at,
 			&self.details.subscriber,
-			self.details.created_at,
 			self.details.target.clone(),
 			self.details.metadata.clone(),
 		);
@@ -356,19 +356,15 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 
-				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.details.credits, &credits);
+				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits, &credits);
 				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(
 					sub,
-					&Subscription {
-						state: sub.state.clone(),
-						credits_left: credits,
-						details: sub.details.clone(),
-					},
+					&Subscription { credits, frequency, ..sub.clone() },
 				);
 
-				sub.details.credits = credits;
-				sub.details.frequency = frequency;
-				sub.details.updated_at = frame_system::Pallet::<T>::block_number();
+				sub.credits = credits;
+				sub.frequency = frequency;
+				sub.updated_at = frame_system::Pallet::<T>::block_number();
 
 				// Hold or refund diff fees
 				Self::manage_diff_fees(&subscriber, &fees_diff)?;
@@ -498,15 +494,18 @@ impl<T: Config> Pallet<T> {
 		let current_block = frame_system::Pallet::<T>::block_number();
 		let details = SubscriptionDetails {
 			subscriber: subscriber.clone(),
+			target: target.clone(),
+			metadata: metadata.unwrap_or_default(),
+		};
+		let subscription = Subscription {
+			state: SubscriptionState::Active,
+			credits_left: credits,
+			details,
 			created_at: current_block,
 			updated_at: current_block,
 			credits,
-			target: target.clone(),
 			frequency,
-			metadata: metadata.unwrap_or_default(),
 		};
-		let subscription =
-			Subscription { state: SubscriptionState::Active, credits_left: credits, details };
 
 		Self::hold_deposit(
 			&subscriber,
