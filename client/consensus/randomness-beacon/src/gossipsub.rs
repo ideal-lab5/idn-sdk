@@ -79,7 +79,7 @@ use prost::Message;
 use sc_utils::mpsc::TracingUnboundedSender;
 
 /// The default address instructing libp2p to choose a random open port on the local machine
-const RAND_LISTEN_ADDR: &str = "/ip4/127.0.0.1/tcp/0";
+const RAND_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/0";
 
 /// Various errors that can be encountered
 #[derive(Debug, Clone, PartialEq)]
