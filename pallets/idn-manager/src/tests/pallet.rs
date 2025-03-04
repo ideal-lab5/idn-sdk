@@ -320,10 +320,6 @@ fn test_kill_subscription() {
 		assert_eq!(Balances::free_balance(&ALICE), initial_balance - fees - deposit);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), fees);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), deposit);
-		// TOOD assert:
-		// - correct fees were collected. Test probably in a separate test case fees handling but by
-		//   adding block advance,
-		// and therefore credits consuption
 		assert_ok!(IdnManager::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id));
 		assert!(Subscriptions::<Test>::get(sub_id).is_none());
 

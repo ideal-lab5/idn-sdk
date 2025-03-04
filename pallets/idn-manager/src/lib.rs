@@ -254,8 +254,6 @@ pub mod pallet {
 		SubscriptionAlreadyPaused,
 		/// The origin isn't the subscriber
 		NotSubscriber,
-		// /// Insufficient balance for subscription
-		// InsufficientBalance,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
