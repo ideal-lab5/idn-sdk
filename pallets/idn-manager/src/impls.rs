@@ -80,7 +80,7 @@ where
 		new_credits: &BlockNumber,
 	) -> DiffBalance<Balances::Balance> {
 		let mut direction = BalanceDirection::None;
-		let fees = match new_credits.cmp(&old_credits) {
+		let fees = match new_credits.cmp(old_credits) {
 			Ordering::Greater => {
 				direction = BalanceDirection::Collect;
 				Self::calculate_subscription_fees(
@@ -106,7 +106,7 @@ where
 			&HoldReason::Fees.into(),
 			sub.subscriber(),
 			&T::get(),
-			fees.clone(),
+			*fees,
 			Precision::BestEffort,
 			Restriction::Free,
 			Fortitude::Polite,

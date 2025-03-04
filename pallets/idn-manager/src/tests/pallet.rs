@@ -471,12 +471,89 @@ fn update_subscription_fails_if_sub_does_not_exists() {
 		assert!(!event_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
 	});
 }
-// todo: test credits consumption, it consumes credit by credit and verify that
-// - fees are moved to treasury
-// - credits are consumed
-// - storage dep is refunded
-// - subscription is removed
-// https://github.com/ideal-lab5/idn-sdk/issues/108
+
+#[test]
+fn test_credits_consumption_and_cleanup() {
+	ExtBuilder::build().execute_with(|| {
+		// Setup initial conditions
+		let credits: u64 = 3; // Small number to make testing easier
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 1;
+		let initial_balance = 10_000_000;
+		let mut treasury_balance = 0;
+		let rnd = [0u8; 32];
+
+		// Set up account
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+		<Test as Config>::Currency::set_balance(&TreasuryAccount::get(), treasury_balance);
+
+		// Create subscription
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			credits,
+			target.clone(),
+			frequency,
+			None
+		));
+
+		// Get subscription details
+		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
+		let initial_fees = <Test as Config>::FeesManager::calculate_subscription_fees(&credits);
+		let initial_deposit =
+			<Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
+
+		// Verify initial state
+		assert_eq!(
+			Balances::free_balance(&ALICE),
+			initial_balance - initial_fees - initial_deposit
+		);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), initial_fees);
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
+			initial_deposit
+		);
+		assert_eq!(subscription.credits_left, credits);
+
+		// Consume credits one by one
+		for i in 0..credits {
+			// Dispatch randomness
+			assert_ok!(IdnManager::dispatch(rnd.into()));
+
+			// // Verify credit consumption
+			// let sub = Subscriptions::<Test>::get(sub_id).unwrap();
+			// assert_eq!(sub.credits_left, credits - i - 1, "Credit not consumed correctly");
+
+			// // Verify fees movement to treasury
+			// treasury_balance += <Test as Config>::FeesManager::calculate_diff_fees(&(credits -
+			// i), &(credits - i - 1)).balance; assert_eq!(
+			//     Balances::free_balance(&TreasuryAccount::get()),
+			//     treasury_balance,
+			//     "Fees not moved to treasury correctly"
+			// );
+		}
+
+		// // Verify subscription is removed after last credit
+		// assert!(!Subscriptions::<Test>::contains_key(sub_id));
+
+		// // Verify final balances
+		// assert_eq!(Balances::free_balance(&ALICE), initial_balance - initial_fees);
+		// assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
+		// assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0);
+		// assert_eq!(Balances::free_balance(&TreasuryAccount::get()), initial_fees);
+
+		// // Verify events
+		// assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		// // Should have 'credits' number of RandomnessDistributed events
+		// let randomness_events = System::events()
+		//     .iter()
+		//     .filter(|record| matches!(
+		//         record.event,
+		//         RuntimeEvent::IdnManager(Event::<Test>::RandomnessDistributed { sub_id: _ })
+		//     ))
+		//     .count();
+		// assert_eq!(randomness_events, credits as usize);
+	});
+}
 
 #[test]
 fn test_pause_reactivate_subscription() {

@@ -57,6 +57,7 @@ pub mod impls;
 pub mod traits;
 pub mod weights;
 
+use crate::traits::FeesError;
 use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
@@ -237,6 +238,8 @@ pub mod pallet {
 		SubscriptionReactivated { sub_id: SubscriptionId },
 		/// Randomness was successfully distributed
 		RandomnessDistributed { sub_id: SubscriptionId },
+		/// Fees collected
+		FeesCollected { sub_id: SubscriptionId, fees: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -357,7 +360,7 @@ pub mod pallet {
 
 				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.details.credits, &credits);
 				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(
-					&sub,
+					sub,
 					&Subscription {
 						state: sub.state.clone(),
 						credits_left: credits,
@@ -410,7 +413,7 @@ impl<T: Config> Pallet<T> {
 	) -> DispatchResult {
 		// fees left and deposit to refund
 		let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits_left, &Zero::zero());
-		let sd = T::DepositCalculator::calculate_storage_deposit(&sub);
+		let sd = T::DepositCalculator::calculate_storage_deposit(sub);
 
 		Self::manage_diff_fees(&sub.details.subscriber, &fees_diff)?;
 		Self::release_deposit(&sub.details.subscriber, sd)?;
@@ -441,7 +444,10 @@ impl<T: Config> Pallet<T> {
 					Box::new(xcm::VersionedXcm::V5(msg.into()));
 				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
 				if T::Xcm::send(origin.into(), versioned_target, versioned_msg).is_ok() {
-					Self::consume_credits(&sub_id, sub);
+					// We consume a fixed one credit per distribution
+					let credits_consumed = One::one();
+					Self::collect_fees(&sub, credits_consumed)?;
+					Self::consume_credits(&sub_id, sub.clone(), credits_consumed);
 					Self::deposit_event(Event::RandomnessDistributed { sub_id });
 				}
 			}
@@ -450,11 +456,32 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	fn consume_credits(sub_id: &SubscriptionId, mut sub: SubscriptionOf<T>) {
-		// Decrease credits_left by one using saturating_sub
-		sub.credits_left = sub.credits_left.saturating_sub(One::one());
+	fn consume_credits(
+		sub_id: &SubscriptionId,
+		mut sub: SubscriptionOf<T>,
+		credits_consumed: BlockNumberFor<T>,
+	) {
+		// Decrease credits_left by `credits_consumed` using saturating_sub
+		sub.credits_left = sub.credits_left.saturating_sub(credits_consumed);
 		// Update the subscription in storage
 		Subscriptions::<T>::insert(sub_id, sub)
+	}
+
+	fn collect_fees(
+		sub: &SubscriptionOf<T>,
+		credits_consumed: BlockNumberFor<T>,
+	) -> DispatchResult {
+		let fees_to_collect = T::FeesManager::calculate_diff_fees(
+			&sub.credits_left,
+			&sub.credits_left.saturating_sub(credits_consumed),
+		)
+		.balance;
+		let fees = T::FeesManager::collect_fees(&fees_to_collect, sub).map_err(|e| match e {
+			FeesError::NotEnoughBalance { .. } => DispatchError::Other("NotEnoughBalance"),
+			FeesError::Other(de) => de,
+		})?;
+		Self::deposit_event(Event::FeesCollected { sub_id: sub.id(), fees });
+		Ok(())
 	}
 
 	/// Internal function to handle subscription creation
