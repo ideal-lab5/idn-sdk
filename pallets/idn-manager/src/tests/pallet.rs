@@ -32,14 +32,14 @@ use frame_support::{
 };
 use idn_traits::rand::Dispatcher;
 use sp_core::H256;
-use sp_runtime::{AccountId32, TokenError};
+use sp_runtime::{AccountId32, DispatchError, TokenError};
 use xcm::v5::{Junction, Location};
 
 const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 const BOB: AccountId32 = AccountId32::new([2u8; 32]);
 
-fn event_emitted(event: Event<Test>) -> bool {
-	System::events().iter().any(|record| {
+fn event_not_emitted(event: Event<Test>) -> bool {
+	!System::events().iter().any(|record| {
 		if let RuntimeEvent::IdnManager(ref e) = &record.event {
 			e == &event
 		} else {
@@ -133,16 +133,15 @@ fn update_subscription(
 	);
 	assert_eq!(balance_after_update + new_fees + new_deposit, initial_balance);
 
-	// TODO: test probably in a separate test case fees handling but by adding block advance, and
-	// therefore credits consuption
-
 	let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
 
 	// assert subscription details has been updated
 	assert_eq!(subscription.details.credits, new_credits);
 	assert_eq!(subscription.details.frequency, new_frequency);
 
-	assert!(event_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
+	System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionUpdated {
+		sub_id,
+	}));
 }
 
 #[test]
@@ -189,7 +188,9 @@ fn create_subscription_works() {
 		);
 
 		// assert that the correct event has been emitted
-		assert!(event_emitted(Event::<Test>::SubscriptionCreated { sub_id }));
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated {
+			sub_id,
+		}));
 	});
 }
 
@@ -331,7 +332,9 @@ fn test_kill_subscription() {
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0u64);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0u64);
 
-		assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
+			sub_id,
+		}));
 	});
 }
 
@@ -346,7 +349,7 @@ fn kill_subscription_fails_if_sub_does_not_exist() {
 		);
 
 		// Assert the SubscriptionRemoved event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
 	});
 }
 
@@ -394,12 +397,13 @@ fn on_finalize_removes_zero_credit_subscriptions() {
 
 		// assert there are no remaining fees and balance refunded
 		assert_eq!(Balances::free_balance(&ALICE), initial_balance - fees);
-		// TODO: once fees collection in place uncomment this line
-		// assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0u64);
+
 		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0u64);
 
 		// Verify event was emitted
-		assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
+			sub_id,
+		}));
 	});
 }
 
@@ -468,17 +472,18 @@ fn update_subscription_fails_if_sub_does_not_exists() {
 		);
 
 		// Assert the SubscriptionUpdated event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
 	});
 }
 
 #[test]
+/// This test makes sure that the correct fees are collected, by consuming credits one by one.
 fn test_credits_consumption_and_cleanup() {
 	ExtBuilder::build().execute_with(|| {
 		// Setup initial conditions
-		let credits: u64 = 3; // Small number to make testing easier
+		let credits: u64 = 1010;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let frequency: u64 = 1;
+		let frequency: u64 = 3;
 		let initial_balance = 10_000_000;
 		let mut treasury_balance = 0;
 		let rnd = [0u8; 32];
@@ -499,59 +504,139 @@ fn test_credits_consumption_and_cleanup() {
 		// Get subscription details
 		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
 		let initial_fees = <Test as Config>::FeesManager::calculate_subscription_fees(&credits);
-		let initial_deposit =
+		let storage_deposit =
 			<Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
 
 		// Verify initial state
 		assert_eq!(
 			Balances::free_balance(&ALICE),
-			initial_balance - initial_fees - initial_deposit
+			initial_balance - initial_fees - storage_deposit
 		);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), initial_fees);
 		assert_eq!(
 			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
-			initial_deposit
+			storage_deposit
 		);
 		assert_eq!(subscription.credits_left, credits);
 
 		// Consume credits one by one
 		for i in 0..credits {
+			// Advance block and run hooks
+			System::set_block_number(System::block_number() + 1);
+
 			// Dispatch randomness
 			assert_ok!(IdnManager::dispatch(rnd.into()));
 
-			// // Verify credit consumption
-			// let sub = Subscriptions::<Test>::get(sub_id).unwrap();
-			// assert_eq!(sub.credits_left, credits - i - 1, "Credit not consumed correctly");
+			System::assert_last_event(RuntimeEvent::IdnManager(
+				Event::<Test>::RandomnessDistributed { sub_id },
+			));
 
-			// // Verify fees movement to treasury
-			// treasury_balance += <Test as Config>::FeesManager::calculate_diff_fees(&(credits -
-			// i), &(credits - i - 1)).balance; assert_eq!(
-			//     Balances::free_balance(&TreasuryAccount::get()),
-			//     treasury_balance,
-			//     "Fees not moved to treasury correctly"
-			// );
+			// Verify credit consumption
+			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
+			assert_eq!(sub.credits_left, credits - i - 1, "Credit not consumed correctly");
+
+			// Verify fees movement to treasury
+			let fees = <Test as Config>::FeesManager::calculate_diff_fees(
+				&(credits - i),
+				&(credits - i - 1),
+			)
+			.balance;
+
+			treasury_balance += fees;
+
+			assert_eq!(
+				Balances::free_balance(&TreasuryAccount::get()),
+				treasury_balance,
+				"Fees not moved to treasury correctly"
+			);
+
+			System::assert_has_event(RuntimeEvent::IdnManager(Event::<Test>::FeesCollected {
+				sub_id,
+				fees,
+			}));
+
+			// assert balance has been collected from the hold
+			assert_eq!(
+				Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE),
+				initial_fees - treasury_balance
+			);
+
+			// assert free balance is still correct
+			assert_eq!(
+				Balances::free_balance(&ALICE),
+				initial_balance - initial_fees - storage_deposit
+			);
+
+			// finalize block
+			IdnManager::on_finalize(System::block_number());
 		}
 
-		// // Verify subscription is removed after last credit
-		// assert!(!Subscriptions::<Test>::contains_key(sub_id));
+		// Verify subscription is removed after last credit
+		assert!(!Subscriptions::<Test>::contains_key(sub_id));
 
-		// // Verify final balances
-		// assert_eq!(Balances::free_balance(&ALICE), initial_balance - initial_fees);
-		// assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
-		// assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0);
-		// assert_eq!(Balances::free_balance(&TreasuryAccount::get()), initial_fees);
+		// Verify final balances
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance - initial_fees);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0);
+		assert_eq!(Balances::free_balance(&TreasuryAccount::get()), initial_fees);
 
-		// // Verify events
-		// assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
-		// // Should have 'credits' number of RandomnessDistributed events
-		// let randomness_events = System::events()
-		//     .iter()
-		//     .filter(|record| matches!(
-		//         record.event,
-		//         RuntimeEvent::IdnManager(Event::<Test>::RandomnessDistributed { sub_id: _ })
-		//     ))
-		//     .count();
-		// assert_eq!(randomness_events, credits as usize);
+		// Verify events
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
+			sub_id,
+		}));
+	});
+}
+
+#[test]
+fn test_credits_consumption_not_enogh_balance() {
+	ExtBuilder::build().execute_with(|| {
+		// Setup initial conditions
+		let credits: u64 = 1010;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 3;
+		let initial_balance = 10_000_000;
+		let rnd = [0u8; 32];
+
+		// Set up account
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// Create subscription
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			credits,
+			target.clone(),
+			frequency,
+			None
+		));
+
+		// Get subscription details
+		let (_, sub) = Subscriptions::<Test>::iter().next().unwrap();
+
+		// Consume credits one by one
+		for i in 0..credits {
+			// Advance block and run hooks
+			System::set_block_number(System::block_number() + 1);
+
+			if i == 505 {
+				// let's fake an incorrect fees collection at some arbitrary point
+				let _ = <Test as Config>::FeesManager::collect_fees(
+					&Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE),
+					&sub,
+				);
+				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
+				assert_noop!(
+					IdnManager::dispatch(rnd.into()),
+					DispatchError::Other("NotEnoughBalance")
+				);
+				break;
+			} else {
+				// Dispatch randomness
+				assert_ok!(IdnManager::dispatch(rnd.into()));
+			}
+
+			// finalize block
+			IdnManager::on_finalize(System::block_number());
+		}
 	});
 }
 
@@ -579,6 +664,11 @@ fn test_pause_reactivate_subscription() {
 
 		// Test pause and reactivate subscription
 		assert_ok!(IdnManager::pause_subscription(RuntimeOrigin::signed(ALICE.clone()), sub_id));
+
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionPaused {
+			sub_id,
+		}));
+
 		assert_eq!(Subscriptions::<Test>::get(sub_id).unwrap().state, SubscriptionState::Paused);
 		assert_ok!(IdnManager::reactivate_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
@@ -590,9 +680,9 @@ fn test_pause_reactivate_subscription() {
 		// reactivating
 		assert_eq!(Balances::free_balance(&ALICE), free_balance);
 
-		assert!(event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
-
-		assert!(event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
+		System::assert_last_event(RuntimeEvent::IdnManager(
+			Event::<Test>::SubscriptionReactivated { sub_id },
+		));
 	});
 }
 
@@ -607,7 +697,7 @@ fn pause_subscription_fails_if_sub_does_not_exists() {
 		);
 
 		// Assert the SubscriptionPaused event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
 	});
 }
 
@@ -642,7 +732,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 		);
 
 		// Assert the SubscriptionPaused event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
 	});
 }
 
@@ -657,7 +747,7 @@ fn reactivate_subscription_fails_if_sub_does_not_exists() {
 		);
 
 		// Assert the SubscriptionReactivated event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
 	});
 }
 
@@ -687,7 +777,7 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 		);
 
 		// Assert the SubscriptionReactivated event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
 	});
 }
 
@@ -726,7 +816,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		assert!(Subscriptions::<Test>::get(sub_id).is_some());
 
 		// Assert the SubscriptionRemoved event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
 
 		// Attempt to pause the subscription using Bob's origin (should fail)
 		assert_noop!(
@@ -735,7 +825,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		);
 
 		// Assert the SubscriptionPaused event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
 
 		// Attempt to update the subscription using Bob's origin (should fail)
 		let new_credits = credits + 10;
@@ -757,7 +847,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		);
 
 		// Assert the SubscriptionReactivated event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
 	});
 }
 
@@ -796,7 +886,9 @@ fn test_on_finalize_removes_finished_subscriptions() {
 		assert!(!Subscriptions::<Test>::contains_key(sub_id));
 
 		// 2. SubscriptionRemoved event should be emitted
-		assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
+			sub_id,
+		}));
 	});
 }
 

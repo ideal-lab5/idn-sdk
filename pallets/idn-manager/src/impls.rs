@@ -48,50 +48,74 @@ impl SubscriptionTrait<()> for () {
 }
 
 /// A FeesManager implementation that holds a dynamic treasury account.
-pub struct FeesManagerImpl<Treasury, BaseFee, Sub, BlockNumber, Balances> {
-	pub _phantom: FeesManagerPhantom<Treasury, BaseFee, Sub, BlockNumber, Balances>,
+pub struct FeesManagerImpl<Treasury, BaseFee, Sub, Balances> {
+	pub _phantom: FeesManagerPhantom<Treasury, BaseFee, Sub, Balances>,
 }
-type FeesManagerPhantom<Treasury, BaseFee, Sub, BlockNumber, Balances> = (
-	PhantomData<Treasury>,
-	PhantomData<BaseFee>,
-	PhantomData<Sub>,
-	PhantomData<BlockNumber>,
-	PhantomData<Balances>,
-);
+type FeesManagerPhantom<Treasury, BaseFee, Sub, Balances> =
+	(PhantomData<Treasury>, PhantomData<BaseFee>, PhantomData<Sub>, PhantomData<Balances>);
 
 impl<
 		T: Get<AccountId32>,
 		B: Get<Balances::Balance>,
 		S: SubscriptionTrait<AccountId32>,
-		BlockNumber: Saturating + Ord + Clone,
 		Balances: Mutate<AccountId32>,
-	> pallet_idn_manager::FeesManager<Balances::Balance, BlockNumber, S, DispatchError, AccountId32>
-	for FeesManagerImpl<T, B, S, BlockNumber, Balances>
+	> pallet_idn_manager::FeesManager<Balances::Balance, u64, S, DispatchError, AccountId32>
+	for FeesManagerImpl<T, B, S, Balances>
 where
-	Balances::Balance: From<BlockNumber>,
 	Balances::Reason: From<HoldReason>,
+	Balances::Balance: From<u64>,
 {
-	fn calculate_subscription_fees(credits: &BlockNumber) -> Balances::Balance {
-		let base_fee = B::get();
-		base_fee.saturating_mul(credits.clone().into())
+	fn calculate_subscription_fees(credits: &u64) -> Balances::Balance {
+		// Define tier boundaries and their respective discount rates (in basis points)
+		const TIERS: [(u64, u64); 5] = [
+			(1, 0),        // 0-10: 0% discount
+			(11, 500),     // 11-100: 5% discount
+			(101, 1000),   // 101-1000: 10% discount
+			(1001, 2000),  // 1001-10000: 20% discount
+			(10001, 3000), // 10001+: 30% discount
+		];
+
+		const BASE_FEE: u64 = 100;
+
+		let mut total_fee = 0u64;
+		let mut remaining_credits = *credits;
+
+		for (i, &(current_tier_start, current_tier_discount)) in TIERS.iter().enumerate() {
+			// If no remaining credits or the tier starts above the requested credits, exit loop.
+			if remaining_credits == 0 || credits < &current_tier_start {
+				break;
+			}
+
+			let next_tier_start = TIERS.get(i + 1).map(|&(start, _)| start).unwrap_or(u64::MAX);
+
+			let credits_in_tier =
+				(credits.min(&next_tier_start.saturating_sub(1)) - current_tier_start + 1)
+					.min(remaining_credits);
+
+			let tier_fee = BASE_FEE
+				.saturating_mul(credits_in_tier)
+				.saturating_mul(10_000 - current_tier_discount)
+				.saturating_div(10_000);
+
+			total_fee = total_fee.saturating_add(tier_fee);
+			remaining_credits = remaining_credits.saturating_sub(credits_in_tier);
+		}
+
+		total_fee.into()
 	}
-	fn calculate_diff_fees(
-		old_credits: &BlockNumber,
-		new_credits: &BlockNumber,
-	) -> DiffBalance<Balances::Balance> {
+
+	fn calculate_diff_fees(old_credits: &u64, new_credits: &u64) -> DiffBalance<Balances::Balance> {
+		let old_fees = Self::calculate_subscription_fees(old_credits);
+		let new_fees = Self::calculate_subscription_fees(new_credits);
 		let mut direction = BalanceDirection::None;
-		let fees = match new_credits.cmp(old_credits) {
+		let fees = match new_fees.cmp(&old_fees) {
 			Ordering::Greater => {
 				direction = BalanceDirection::Collect;
-				Self::calculate_subscription_fees(
-					&new_credits.clone().saturating_sub(old_credits.clone()),
-				)
+				new_fees - old_fees
 			},
 			Ordering::Less => {
 				direction = BalanceDirection::Release;
-				Self::calculate_subscription_fees(
-					&old_credits.clone().saturating_sub(new_credits.clone()),
-				)
+				old_fees - new_fees
 			},
 			Ordering::Equal => Zero::zero(),
 		};
@@ -137,9 +161,9 @@ impl<
 	fn calculate_storage_deposit(sub: &S) -> Deposit {
 		// This function could theoretically saturate to the `Deposit` type bounds. Its result type
 		// has an upper bound, which is Deposit::MAX, while unlikely and very expensive to
-		// the attacker, if Deposit type (e.g. u32) is bigger than usize machine architecture (e.g.
-		// 64 bits) there could be subscription object larger than u32::MAX bits, let’s say u32::MAX
-		// + d and only pay a deposit for u32::MAX and not d. Let's assess it with SRLabs.
+		// the attacker, if Deposit type (e.g. u64) is bigger than usize machine architecture (e.g.
+		// 64 bits) there could be subscription object larger than u64::MAX bits, let’s say u64::MAX
+		// + d and only pay a deposit for u64::MAX and not d. Let's assess it with SRLabs.
 		let storage_deposit_multiplier = SDMultiplier::get();
 		let encoded_size = u64::try_from(sub.encoded_size()).unwrap_or(u64::MAX);
 		storage_deposit_multiplier.saturating_mul(encoded_size.into())

@@ -573,18 +573,8 @@ impl<T: Config> Pallet<T> {
 
 	/// Helper function to construct XCM message for randomness distribution
 	// TODO: finish this off as part of https://github.com/ideal-lab5/idn-sdk/issues/77
-	fn construct_randomness_xcm(target: Location, _rnd: &T::Rnd) -> Result<Xcm<()>, Error<T>> {
-		Ok(Xcm(vec![
-			WithdrawAsset((Here, 0u128).into()),
-			BuyExecution { fees: (Here, 0u128).into(), weight_limit: Unlimited },
-			Transact {
-				origin_kind: OriginKind::Native,
-				fallback_max_weight: None,
-				call: Call::DistributeRnd.encode().into(), // TODO
-			},
-			RefundSurplus,
-			DepositAsset { assets: All.into(), beneficiary: target },
-		]))
+	fn construct_randomness_xcm(_target: Location, _rnd: &T::Rnd) -> Result<Xcm<()>, Error<T>> {
+		Ok(Xcm(vec![]))
 	}
 }
 

@@ -32,7 +32,6 @@ use scale_info::TypeInfo;
 use sp_runtime::{traits::IdentityLookup, AccountId32};
 
 type Block = frame_system::mocking::MockBlock<Test>;
-type BlockNumber = frame_system::pallet_prelude::BlockNumberFor<Test>;
 
 construct_runtime!(
 	pub enum Test
@@ -76,8 +75,7 @@ impl Get<u32> for SubMetadataLen {
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager =
-		FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Test>, BlockNumber, Balances>;
+	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Test>, Balances>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
