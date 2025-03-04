@@ -114,6 +114,8 @@ impl GossipsubNetwork {
 	///
 	/// * `key`: A libp2p keypair
 	/// * `gossipsub_config`: A gossipsub config
+	/// * `sender`: A `TracingUnboundedSender` that can send an `OpaquePulse`
+	/// * `listen_addr`: An optional address to listen on. If None, then a random local port will be assigned.
 	pub fn new(
 		key: &Keypair,
 		gossipsub_config: GossipsubConfig,
