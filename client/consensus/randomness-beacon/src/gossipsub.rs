@@ -283,7 +283,6 @@ mod tests {
 			"There should be an `SignatureBufferCapacityExceeded` error."
 		);
 	}
-	// tokio::test
 
 	fn build_node() -> (GossipsubNetwork, TracingUnboundedReceiver<OpaquePulse>) {
 		let local_identity: Keypair = Keypair::generate_ed25519();
@@ -339,27 +338,6 @@ mod tests {
 
 		assert!(!is_err, "There should be no errors.");
 	}
-
-	// 	#[tokio::test]
-	// async fn can_build_node_and_fail_with_bad_peers() {
-	//     let topic_str = "test";
-	//     let (mut node, _rx) = build_node();
-
-	// 	let bad_addr: Multiaddr = "/dns4/example.com/udp/1234".parse().unwrap();
-	//     // let fake_listen_addr: Multiaddr =
-	// Multiaddr::empty().with(libp2p::multiaddr::Protocol::WebRTCDirect);
-
-	//     // Spawn the async task and capture the result
-	//     let handle = tokio::spawn(async move {
-	//         node.run(topic_str, vec![bad_addr]).await
-	//     });
-
-	//     sleep(Duration::from_secs(1)).await;
-
-	//     // Await the spawned task and assert that it failed
-	//     let result = handle.await.expect("Task panicked");
-	//     assert!(result.is_err(), "Expected an error but got success.");
-	// }
 
 	#[tokio::test]
 	async fn can_build_node_and_fail_with_random_peers() {
