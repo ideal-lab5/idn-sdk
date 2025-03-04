@@ -18,26 +18,30 @@
 //!
 //! This module contains examples of fee calculators that can be used in the IDN Manager pallet.
 
-use crate::traits::FeesCalculator;
+use crate::traits::FeesManager;
 
 /// Linear fee calculator with no discount
 pub struct LinearFeeCalculator;
 
-impl FeesCalculator<u32, u32> for LinearFeeCalculator {
+impl FeesManager<u32, u32, (), (), ()> for LinearFeeCalculator {
 	fn calculate_subscription_fees(amount: u32) -> u32 {
 		let base_fee = 100u32;
 		base_fee.saturating_mul(amount.into())
 	}
 	fn calculate_refund_fees(_init_amount: u32, current_amount: u32) -> u32 {
-		// in this case of a liner function, the refund's is the same as the fees'
+		// in this case of a linear function, the refund's is the same as the fees'
 		Self::calculate_subscription_fees(current_amount)
+	}
+	fn collect_fees(fees: u32, _: ()) -> Result<u32, crate::traits::FeesError<u32, ()>> {
+		// In this case, we don't need to do anything with the fees, so we just return them
+		Ok(fees)
 	}
 }
 
 /// Tiered fee calculator with predefined discount tiers
 pub struct SteppedTieredFeeCalculator;
 
-impl FeesCalculator<u32, u32> for SteppedTieredFeeCalculator {
+impl FeesManager<u32, u32, (), (), ()> for SteppedTieredFeeCalculator {
 	fn calculate_subscription_fees(amount: u32) -> u32 {
 		let base_fee = 100u32;
 
@@ -81,6 +85,10 @@ impl FeesCalculator<u32, u32> for SteppedTieredFeeCalculator {
 		let used_amount = init_amount - current_amount;
 		Self::calculate_subscription_fees(init_amount) -
 			Self::calculate_subscription_fees(used_amount)
+	}
+	fn collect_fees(fees: u32, _: ()) -> Result<u32, crate::traits::FeesError<u32, ()>> {
+		// In this case, we don't need to do anything with the fees, so we just return them
+		Ok(fees)
 	}
 }
 

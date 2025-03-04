@@ -16,15 +16,25 @@
 
 //! # Traits
 
-/// Trait for fees calculation
+/// Error type for fees management
 ///
-/// This trait is used to calculate the fees for a subscription based on the amount of random values
-/// required by the subscription.
-pub trait FeesCalculator<Fees, Amount> {
+/// Context is used to provide more information about uncategorized errors.
+pub enum FeesError<Fees, Context> {
+	NotEnoughBalance { needed: Fees, balance: Fees },
+	Other(Context),
+}
+/// Trait for fees managing
+pub trait FeesManager<Fees, Amount, Sub: Subscription<S>, Err, S> {
 	/// Calculate the fees for a subscription based on the amount of random values required.
 	fn calculate_subscription_fees(amount: Amount) -> Fees;
 	/// Calculate how much fees should be refunded for a subscription that is being cancelled.
 	fn calculate_refund_fees(init_amount: Amount, current_amount: Amount) -> Fees;
+	/// Distributes collected fees. Returns the fees that were effectively collected.
+	fn collect_fees(fees: Fees, sub: Sub) -> Result<Fees, FeesError<Fees, Err>>;
+}
+
+pub trait Subscription<Subscriber> {
+	fn subscriber(&self) -> &Subscriber;
 }
 
 /// Trait for storage deposit calculation

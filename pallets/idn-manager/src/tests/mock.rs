@@ -19,13 +19,17 @@
 //! This file is a mock runtime for the pallet. It is used to test the pallet in a test environment.
 //! It does not contain any tests.
 
-use crate as pallet_idn_manager;
-use codec::{Decode, Encode};
+use crate::{
+	self as pallet_idn_manager,
+	impls::{DepositCalculatorImpl, FeesManagerImpl},
+	SubscriptionOf,
+};
 use frame_support::{
 	construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage, traits::Get,
 };
 use frame_system as system;
 use scale_info::TypeInfo;
+use sp_runtime::{traits::IdentityLookup, AccountId32};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 type BlockNumber = frame_system::pallet_prelude::BlockNumberFor<Test>;
@@ -42,6 +46,8 @@ construct_runtime!(
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
 impl frame_system::Config for Test {
 	type Block = Block;
+	type AccountId = AccountId32;
+	type Lookup = IdentityLookup<Self::AccountId>;
 	type AccountData = pallet_balances::AccountData<u64>;
 }
 
@@ -53,12 +59,15 @@ impl pallet_balances::Config for Test {
 parameter_types! {
 	pub const MaxSubscriptionDuration: u64 = 100;
 	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
+	pub const TreasuryAccount: AccountId32 = AccountId32::new([1u8; 32]);
+	pub const BaseFee: u64 = 10;
+	pub const SDMultiplier: u64 = 10;
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo, Default)]
-pub struct SubMetadataLenWrapper;
+#[derive(TypeInfo)]
+pub struct SubMetadataLen;
 
-impl Get<u32> for SubMetadataLenWrapper {
+impl Get<u32> for SubMetadataLen {
 	fn get() -> u32 {
 		8
 	}
@@ -67,43 +76,24 @@ impl Get<u32> for SubMetadataLenWrapper {
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesCalculator = FeesCalculatorImpl;
-	type DepositCalculator = DepositCalculatorImpl;
+	type FeesManager =
+		FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Test>, BlockNumber, Balances>;
+	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Rnd = [u8; 32];
 	type WeightInfo = ();
 	type Xcm = ();
-	type SubMetadataLen = SubMetadataLenWrapper;
+	type SubMetadataLen = SubMetadataLen;
 }
 
-pub struct FeesCalculatorImpl;
+pub struct ExtBuilder;
 
-impl pallet_idn_manager::FeesCalculator<u64, BlockNumber> for FeesCalculatorImpl {
-	fn calculate_subscription_fees(amount: BlockNumber) -> u64 {
-		let base_fee = 10u64;
-		base_fee.saturating_mul(amount.into())
+impl ExtBuilder {
+	pub fn build() -> sp_io::TestExternalities {
+		let storage = system::GenesisConfig::<Test>::default().build_storage().unwrap();
+		let mut ext = sp_io::TestExternalities::new(storage);
+		ext.execute_with(|| System::set_block_number(1));
+		ext
 	}
-	fn calculate_refund_fees(_init_amount: BlockNumber, current_amount: BlockNumber) -> u64 {
-		// in this case of a liner function, the refund's is the same as the fees'
-		Self::calculate_subscription_fees(current_amount)
-	}
-}
-
-pub struct DepositCalculatorImpl;
-
-impl pallet_idn_manager::DepositCalculator<u64, pallet_idn_manager::SubscriptionOf<Test>>
-	for DepositCalculatorImpl
-{
-	fn calculate_storage_deposit(sub: &pallet_idn_manager::SubscriptionOf<Test>) -> u64 {
-		let storage_deposit_multiplier = 10;
-		// calculate the size of scale encoded `sub`
-		let encoded_size = sub.encode().len() as u64;
-		encoded_size.saturating_mul(storage_deposit_multiplier)
-	}
-}
-
-pub fn new_test_ext() -> sp_io::TestExternalities {
-	let t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
-	t.into()
 }
