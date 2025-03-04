@@ -16,9 +16,6 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 async-trait = { optional = true, workspace = true }
-codec.workspace = true
-scale-info.workspace = true
-serde = { workspace = true, features = ["derive"] }
 sp-inherents.workspace = true
 
 
@@ -30,11 +27,8 @@ tokio.workspace = true
 default = ["std"]
 std = [
 	"async-trait",
-	"codec/std",
 	"sp-inherents/std",
-	"scale-info/std",
-	"serde/std"
 ]
 
-# Serde support without relying on std features.
-serde = ["scale-info/serde"]
+# # Serde support without relying on std features.
+# serde = ["scale-info/serde"]

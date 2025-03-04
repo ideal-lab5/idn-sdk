@@ -17,5 +17,4 @@
 extern crate alloc;
 
 pub mod gossipsub;
-pub mod instant_seal;
 pub mod types;

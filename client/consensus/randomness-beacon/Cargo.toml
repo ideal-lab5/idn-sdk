@@ -14,21 +14,13 @@ workspace = true
 [dependencies]
 codec.workspace = true
 serde = { workspace = true, features = ["derive"] }
+tokio.workspace = true
 libp2p.workspace = true
 prost = "0.13.4"
-prost-types = "0.13.4"
 log = { workspace = true }
 futures.workspace = true
 scale-info.workspace = true
-sc-consensus-manual-seal.workspace = true
-sc-client-api.workspace = true
 sc-utils.workspace = true
-sp-api.workspace = true
-sp-blockchain.workspace = true
-sp-consensus.workspace = true
-sp-consensus-randomness-beacon = { workspace = true, default-features = true }
-sp-inherents = {workspace = true, default-features = true }
-sp-runtime.workspace = true
 
 # arkworks dependencies
 sp-ark-bls12-381 = { workspace = true, optional = true }
@@ -40,16 +32,10 @@ prost-build = "0.13.4"
 
 [dev-dependencies]
 async-std = "1.13.0"
-futures-timer = "3.0.3"
 rand = "0.8.5"
 tokio.workspace = true
-substrate-test-runtime-transaction-pool.workspace = true
-substrate-test-runtime-client.workspace = true
-sc-basic-authorship.workspace = true
-sc-consensus.workspace = true
-sc-transaction-pool.workspace = true
-sc-transaction-pool-api.workspace = true
-sp-core = { workspace = true, default-features = true }
+# substrate-test-runtime-transaction-pool.workspace = true
+# substrate-test-runtime-client.workspace = true
 
  
 [features]

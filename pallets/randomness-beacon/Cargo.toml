@@ -40,8 +40,8 @@ timelock = { version = "0.0.1", default-features = false }
 
 
 [dev-dependencies]
-sp-keystore = { version = "0.40.0",  default-features = false }
-sp-inherents = { version = "34.0.0" }
+sp-keystore.workspace = true
+sp-inherents.workspace = true
 
 [features]
 default = ["std"]
