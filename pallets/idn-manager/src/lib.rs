@@ -333,7 +333,7 @@ pub mod pallet {
 			let subscriber = ensure_signed(origin)?;
 
 			let sub =
-				Subscriptions::<T>::get(sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
+				Self::get_subscription(&sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 			ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 
 			Self::finish_subscription(&sub, sub_id)
@@ -487,7 +487,7 @@ impl<T: Config> Pallet<T> {
 		metadata: Option<MetadataOf<T>>,
 	) -> DispatchResult {
 		// Calculate and hold the subscription fees
-		let fees = T::FeesManager::calculate_subscription_fees(&credits);
+		let fees = Self::calculate_subscription_fees(&credits);
 
 		Self::hold_fees(&subscriber, fees)?;
 
@@ -573,6 +573,24 @@ impl<T: Config> Pallet<T> {
 	fn construct_randomness_xcm(_target: Location, _rnd: &T::Rnd) -> Result<Xcm<()>, Error<T>> {
 		Ok(Xcm(vec![]))
 	}
+
+	/// Computes the fee for a given credits
+	pub fn calculate_subscription_fees(credits: &BlockNumberFor<T>) -> BalanceOf<T> {
+		T::FeesManager::calculate_subscription_fees(credits)
+	}
+
+	/// Retrieves a specific subscription
+	pub fn get_subscription(sub_id: &SubscriptionId) -> Option<SubscriptionOf<T>> {
+		Subscriptions::<T>::get(sub_id)
+	}
+
+	/// Retrieves all subscriptions for a specific subscriber
+	pub fn get_subscriptions_for_subscriber(subscriber: &T::AccountId) -> Vec<SubscriptionOf<T>> {
+		Subscriptions::<T>::iter()
+			.filter(|(_, sub)| &sub.details.subscriber == subscriber)
+			.map(|(_, sub)| sub)
+			.collect()
+	}
 }
 
 impl<T: Config> idn_traits::rand::Dispatcher<T::Rnd, DispatchResult> for Pallet<T> {
@@ -590,12 +608,16 @@ sp_api::decl_runtime_apis! {
 		AccountId: Codec,
 	{
 		/// Computes the fee for a given credits
+		///
+		/// See [`crate::Pallet::calculate_subscription_fees`]
 		fn calculate_subscription_fees(
 			// Number of random values to receive
 			credits: BlockNumber
 		) -> Balance;
 
 		/// Retrieves a specific subscription
+		///
+		/// See [`crate::Pallet::get_subscription`]
 		fn get_subscription(
 			// Subscription ID
 			sub_id: H256
@@ -605,10 +627,12 @@ sp_api::decl_runtime_apis! {
 				Metadata
 			>>;
 
-		/// Retrieves all subscriptions for a specific origin
-		fn get_subscriptions_for_origin(
-			// Origin account ID
-			origin: AccountId
+		/// Retrieves all subscriptions for a specific subscriber
+		///
+		/// See [`crate::Pallet::get_subscriptions_for_subscriber`]
+		fn get_subscriptions_for_subscriber(
+			// subscriber account ID
+			subscriber: AccountId
 		) -> Vec<Subscription<
 				AccountId,
 				BlockNumber,
