@@ -57,7 +57,7 @@ pub mod impls;
 pub mod traits;
 pub mod weights;
 
-use crate::traits::FeesError;
+use crate::traits::{CallBuilder, FeesError};
 use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
@@ -106,6 +106,7 @@ pub type SubscriptionOf<T> =
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber: Unsigned, Metadata> {
 	details: SubscriptionDetails<AccountId, Metadata>,
+	call_builder: CallBuilder,
 	// Number of random values left to distribute
 	credits_left: BlockNumber,
 	state: SubscriptionState,
@@ -152,11 +153,11 @@ pub enum SubscriptionState {
 	Paused,
 }
 
-#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
-pub enum Call {
-	#[codec(index = 1)]
-	DistributeRnd,
-}
+// #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
+// pub enum Call {
+// 	#[codec(index = 1)]
+// 	DistributeRnd,
+// }
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -431,7 +432,7 @@ impl<T: Config> Pallet<T> {
 		for (sub_id, sub) in
 			Subscriptions::<T>::iter().filter(|(_, sub)| sub.state == SubscriptionState::Active)
 		{
-			if let Ok(msg) = Self::construct_randomness_xcm(sub.details.target.clone(), &rnd) {
+			if let Ok(msg) = Self::construct_randomness_xcm(sub.call_builder, &rnd) {
 				let versioned_target: Box<VersionedLocation> =
 					Box::new(sub.details.target.clone().into());
 				let versioned_msg: Box<VersionedXcm<()>> =
@@ -570,8 +571,21 @@ impl<T: Config> Pallet<T> {
 
 	/// Helper function to construct XCM message for randomness distribution
 	// TODO: finish this off as part of https://github.com/ideal-lab5/idn-sdk/issues/77
-	fn construct_randomness_xcm(_target: Location, _rnd: &T::Rnd) -> Result<Xcm<()>, Error<T>> {
-		Ok(Xcm(vec![]))
+	fn construct_randomness_xcm<
+		CallBuilderI: CallBuilder<T::Rnd, <T as frame_system::Config>::RuntimeCall>,
+	>(
+		call_builder: CallBuilderI,
+		rnd: &T::Rnd,
+	) -> Result<Xcm<()>, Error<T>> {
+		Ok(Xcm(vec![
+			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			Transact {
+				origin_kind: OriginKind::Native,
+				fallback_max_weight: None,
+				call: call_builder.build(rnd).encode().into(),
+			},
+			ExpectTransactStatus(MaybeErrorCode::Success),
+		]))
 	}
 
 	/// Computes the fee for a given credits

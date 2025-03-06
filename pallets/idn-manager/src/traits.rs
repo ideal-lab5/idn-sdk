@@ -74,3 +74,7 @@ pub trait DepositCalculator<Deposit, Sub> {
 	/// * `new_sub` - the new subscription.
 	fn calculate_diff_deposit(old_sub: &Sub, new_sub: &Sub) -> DiffBalance<Deposit>;
 }
+
+pub trait CallBuilder<Rnd, Call> {
+	fn build(r: &Rnd) -> Call;
+}
