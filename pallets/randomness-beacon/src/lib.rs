@@ -131,8 +131,8 @@ pub mod pallet {
 		type BeaconConfig: Get<BeaconConfiguration>;
 		/// something that knows how to aggregate and verify beacon pulses.
 		type SignatureAggregator: SignatureAggregator;
-		/// The number of pulses per block.
-		type SignatureToBlockRatio: Get<u8>;
+		/// The number of signatures per block.
+		type MaxSigsPerBlock: Get<u8>;
 	}
 
 	/// A first round number for which a pulse was observed
@@ -173,6 +173,10 @@ pub mod pallet {
 		GenesisRoundNotSet,
 		/// The genesis is already set.
 		GenesisRoundAlreadySet,
+		/// There must be at least one signature to construct an asig
+		ZeroHeightProvided,
+		/// There number of aggregated signatures exceeds the maximum rounds we can verify per block.
+		ExcessiveHeightProvided,
 	}
 
 	#[pallet::inherent]
@@ -184,9 +188,11 @@ pub mod pallet {
 			sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			// if we do not find any pulse data, then do nothing
+			// if we do not find any pulse data, then do nothing\
 			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 			{
+				// ignores non-deserializable messages
+				// if all messages are invalid, it outputs 0 on the G1 curve (so serialization of asig always works)
 				let asig = raw_pulses
 					.iter()
 					.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
@@ -194,14 +200,25 @@ pub mod pallet {
 					.fold(zero_on_g1(), |acc, sig| (acc + sig).into());
 
 				let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-				if asig.serialize_compressed(&mut asig_bytes).is_err() {
-					log::error!("Failed to serialize the aggregated signature.");
-					return None;
-				}
+				// [SRLABS]: This error is untestable since we know the signature is correct here.
+				//  Is it reasonable to use an expect?
+				asig.serialize_compressed(&mut asig_bytes)
+					.expect("The signature is well formatted.");
+
+				// if the genesis round is not configured, then the first call sets it
+				let round = (GenesisRound::<T>::get() == 0)
+					.then(|| {
+						// get the round from the first pulse observed
+						raw_pulses.iter().find_map(|rp| {
+							OpaquePulse::deserialize_from_vec(rp).ok().map(|p| p.round)
+						})
+					})
+					.unwrap_or(None);
 
 				return Some(Call::try_submit_asig {
 					asig: OpaqueSignature::truncate_from(asig_bytes),
-					round: None,
+					height: raw_pulses.len() as RoundNumber,
+					round,
 				});
 			} else {
 				log::info!("The node provided empty pulse data to the inherent!");
@@ -210,8 +227,11 @@ pub mod pallet {
 			None
 		}
 
-		fn check_inherent(_call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
-			Ok(())
+		fn check_inherent(call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
+			match call {
+				Call::try_submit_asig { .. } => Ok(()),
+				_ => unreachable!("other calls are not inherents"),
+			}
 		}
 
 		fn is_inherent(call: &Self::Call) -> bool {
@@ -225,6 +245,7 @@ pub mod pallet {
 		///
 		/// * `origin`: A None origin
 		/// * `asig`: An aggregated signature
+		/// * `height`: The number of sigs aggregated to construct asig
 		/// * `round`: An optional genesis round number. It can only be set if the existing genesis
 		///   round is 0.
 		#[pallet::call_index(0)]
@@ -232,14 +253,20 @@ pub mod pallet {
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
 			asig: OpaqueSignature,
+			height: RoundNumber,
 			round: Option<RoundNumber>,
 		) -> DispatchResult {
-			// In the future, this will expected a signed payload
-			// https://github.com/ideal-lab5/idn-sdk/issues/117
 			ensure_none(origin)?;
+
 			let config = T::BeaconConfig::get();
 			let mut genesis_round = GenesisRound::<T>::get();
 			let mut latest_round = LatestRound::<T>::get();
+
+			frame_support::ensure!(height > 0, Error::<T>::ZeroHeightProvided);
+			frame_support::ensure!(
+				height <= T::MaxSigsPerBlock::get() as u64,
+				Error::<T>::ExcessiveHeightProvided
+			);
 
 			if let Some(r) = round {
 				// if a round is provided and the genesis round is not set
@@ -260,14 +287,12 @@ pub mod pallet {
 				config.public_key,
 				asig,
 				latest_round,
-				T::SignatureToBlockRatio::get() as u64,
+				height,
 				AggregatedSignature::<T>::get(),
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
 
-			LatestRound::<T>::set(
-				latest_round.saturating_add(T::SignatureToBlockRatio::get() as u64),
-			);
+			LatestRound::<T>::set(latest_round.saturating_add(height));
 
 			AggregatedSignature::<T>::set(Some(aggr));
 

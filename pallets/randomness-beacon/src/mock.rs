@@ -63,7 +63,7 @@ impl pallet_drand_bridge::Config for Test {
 	type WeightInfo = ();
 	type BeaconConfig = QuicknetBeaconConfig;
 	type SignatureAggregator = QuicknetAggregator;
-	type SignatureToBlockRatio = ConstU8<2>;
+	type MaxSigsPerBlock = ConstU8<2>;
 }
 
 // Build genesis storage according to the mock runtime.

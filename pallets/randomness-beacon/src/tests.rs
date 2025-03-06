@@ -12,12 +12,12 @@ fn can_construct_pallet_and_set_genesis_params() {
 }
 
 #[test]
-fn can_fail_write_pulse_when_genesis_round_zero() {
+fn can_fail_write_pulse_when_genesis_round_zero_and_none_provided() {
 	let (sig, _pk) = get(vec![PULSE1000]);
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), sig, None),
+			Drand::try_submit_asig(RuntimeOrigin::none(), sig, 1, None),
 			Error::<Test>::GenesisRoundNotSet,
 		);
 	});
@@ -31,7 +31,7 @@ fn can_submit_min_required_valid_pulses_on_genesis() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone(), Some(round)));
+		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone(), 2, Some(round)));
 
 		// then the gensis round is set to `round`
 		let genesis_round = GenesisRound::<Test>::get();
@@ -46,20 +46,30 @@ fn can_submit_min_required_valid_pulses_on_genesis() {
 	});
 }
 
-// note: this test is equivalent to either specifying:
-// a) an incorrect signature but correct round
-// b) a correct signature but incorrect round
 #[test]
-fn can_not_submit_less_than_min_required_valid_pulses_on_genesis() {
+fn can_fail_when_sig_height_is_0() {
 	let round = 1000u64;
-	let (asig, _apk) = get(vec![PULSE1000]);
+	let (asig, _apk) = get(vec![PULSE1000, PULSE1001]);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone(), Some(round)),
-			Error::<Test>::VerificationFailed,
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone(), 0, Some(round)),
+			Error::<Test>::ZeroHeightProvided
+		);
+	});
+}
+
+#[test]
+fn can_fail_when_sig_height_is_exceeds_max() {
+	let round = 1000u64;
+	let (asig, _apk) = get(vec![PULSE1000, PULSE1001]);
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		assert_noop!(
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone(), 10, Some(round)),
+			Error::<Test>::ExcessiveHeightProvided
 		);
 	});
 }
@@ -77,8 +87,8 @@ fn can_submit_valid_sigs_in_sequence() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), Some(round1)));
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig2.clone(), None));
+		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, Some(round1)));
+		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig2.clone(), 2, None));
 
 		// then the gensis round is set to `round`
 		let genesis_round = GenesisRound::<Test>::get();
@@ -95,6 +105,7 @@ fn can_submit_valid_sigs_in_sequence() {
 		assert_eq!(round2, actual_latest);
 	});
 }
+
 #[test]
 fn can_fail_to_submit_invalid_sigs_in_sequence() {
 	let round1 = 1000u64;
@@ -104,13 +115,13 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), Some(round1)));
+		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, Some(round1)));
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), None),
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, None),
 			Error::<Test>::VerificationFailed,
 		);
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), Some(round1)),
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, Some(round1)),
 			Error::<Test>::GenesisRoundAlreadySet,
 		);
 
@@ -133,14 +144,12 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 /*
 	Inherents Tests
 */
-
-use ark_serialize::CanonicalSerialize;
 use sc_consensus_randomness_beacon::types::OpaquePulse;
 use sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
 use sp_inherents::InherentData;
 
 #[test]
-fn can_create_inherent() {
+fn can_create_inherent_and_set_genesis_round() {
 	// setup the inherent data
 	let (asig1, _apk1) = get(vec![PULSE1000]);
 	let pulse1 = OpaquePulse { round: 1000u64, signature: asig1.to_vec().try_into().unwrap() };
@@ -155,8 +164,36 @@ fn can_create_inherent() {
 
 	new_test_ext().execute_with(|| {
 		let result = Drand::create_inherent(&inherent_data);
-		if let Some(Call::try_submit_asig { asig: actual_asig, round: None }) = result {
-			assert_eq!(actual_asig, asig);
+		if let Some(Call::try_submit_asig { asig: actual_asig, height, round: Some(1000) }) = result
+		{
+			assert_eq!(height, 2, "The asig height should equal the number of pulses.");
+			assert_eq!(actual_asig, asig, "The output should match the aggregated input.");
+		} else {
+			panic!("Expected Some(Call::try_submit_asig), got None");
+		}
+	});
+}
+
+#[test]
+fn can_create_inherent_when_genesis_round_is_set() {
+	// setup the inherent data
+	let (asig1, _apk1) = get(vec![PULSE1000]);
+	let pulse1 = OpaquePulse { round: 1000u64, signature: asig1.to_vec().try_into().unwrap() };
+	let (asig2, _apk2) = get(vec![PULSE1001]);
+	let pulse2 = OpaquePulse { round: 1001u64, signature: asig2.to_vec().try_into().unwrap() };
+
+	let (asig, _apk) = get(vec![PULSE1000, PULSE1001]);
+
+	let bytes: Vec<Vec<u8>> = vec![pulse1.serialize_to_vec(), pulse2.serialize_to_vec()];
+	let mut inherent_data = InherentData::new();
+	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
+
+	new_test_ext().execute_with(|| {
+		GenesisRound::<Test>::set(999);
+		let result = Drand::create_inherent(&inherent_data);
+		if let Some(Call::try_submit_asig { asig: actual_asig, height, round: None }) = result {
+			assert_eq!(height, 2, "The asig height should equal the number of pulses.");
+			assert_eq!(actual_asig, asig, "The output should match the aggregated input.");
 		} else {
 			panic!("Expected Some(Call::try_submit_asig), got None");
 		}
@@ -173,20 +210,24 @@ fn can_not_create_inherent_when_data_is_unavailable() {
 }
 
 #[test]
-fn can_create_inherent_when_data_is_non_decodable() {
-	// set bad inherent data
-	let bytes: Vec<Vec<u8>> = vec![vec![1, 2, 3, 4, 5]];
+fn can_check_inherent() {
+	// setup the inherent data
+	let (asig1, _apk1) = get(vec![PULSE1000]);
+	let pulse1 = OpaquePulse { round: 1000u64, signature: asig1.to_vec().try_into().unwrap() };
+	let (asig2, _apk2) = get(vec![PULSE1001]);
+	let pulse2 = OpaquePulse { round: 1001u64, signature: asig2.to_vec().try_into().unwrap() };
+
+	let bytes: Vec<Vec<u8>> = vec![pulse1.serialize_to_vec(), pulse2.serialize_to_vec()];
 	let mut inherent_data = InherentData::new();
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
-	let asig = crate::aggregator::zero_on_g1();
-	let mut bytes = Vec::new();
-	asig.serialize_compressed(&mut bytes).unwrap();
-
 	new_test_ext().execute_with(|| {
+		GenesisRound::<Test>::set(999);
 		let result = Drand::create_inherent(&inherent_data);
-		if let Some(Call::try_submit_asig { asig: actual_asig, round: None }) = result {
-			assert_eq!(actual_asig.to_vec(), bytes.to_vec());
+		if let Some(call) = result {
+			assert!(Drand::is_inherent(&call), "The inherent should be allowed.");
+			let res = Drand::check_inherent(&call, &inherent_data);
+			assert!(res.is_ok(), "The inherent should be allowed.");
 		} else {
 			panic!("Expected Some(Call::try_submit_asig), got None");
 		}
