@@ -40,4 +40,3 @@ runtime/wasm/target/
 substrate.code-workspace
 target*/
 *.profraw
-tarpaulin-report.html
