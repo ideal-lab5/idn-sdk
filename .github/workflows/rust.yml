@@ -30,7 +30,7 @@ jobs:
         override: false
 
     - name: Install rustfmt for nightly
-      run: rustup component add --toolchain nightly rustfmt llvm-tools
+      run: rustup component add --toolchain nightly rustfmt llvm-tools-preview
 
     - name: Install dependencies
       run: |
@@ -51,10 +51,11 @@ jobs:
 
     - name: Install llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
+
     - name: Install nextest
       uses: taiki-e/install-action@nextest
 
-    - name: Run cargo-llvm-cov and nextest
+    - name: Run Tests
       run: cargo llvm-cov --cobertura --output-path cobertura.xml nextest
 
     - name: Generate Code Coverage Summary
