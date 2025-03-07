@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - cki/code-coverage
   pull_request:
     branches:
       - main
@@ -50,9 +51,11 @@ jobs:
 
     - name: Install cargo-tarpaulin
       run: cargo install cargo-tarpaulin
-
-    - name: Run cargo tarpaulin
-      run: cargo tarpaulin --rustflags="-C opt-level=0" --no-fail-fast --out xml
+    
+    - name: Install cargo-llvm-cov
+      run: cargo install caro-llvm-cov
+    - name: run cargo-llvm-cov
+      run: cargo llvm-cov report --cobertura --output-path cobertura.xml
 
     - name: Generate Code Coverage Summary
       uses: irongut/CodeCoverageSummary@v1.3.0
