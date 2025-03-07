@@ -18,7 +18,7 @@
 
 use crate::{
 	tests::mock::{Balances, ExtBuilder, Test, *},
-	traits::{DepositCalculator, FeesManager},
+	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
 	Config, Error, Event, HoldReason, SubscriptionState, Subscriptions,
 };
 use frame_support::{
@@ -32,14 +32,14 @@ use frame_support::{
 };
 use idn_traits::rand::Dispatcher;
 use sp_core::H256;
-use sp_runtime::AccountId32;
+use sp_runtime::{AccountId32, DispatchError, TokenError};
 use xcm::v5::{Junction, Location};
 
 const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 const BOB: AccountId32 = AccountId32::new([2u8; 32]);
 
-fn event_emitted(event: Event<Test>) -> bool {
-	System::events().iter().any(|record| {
+fn event_not_emitted(event: Event<Test>) -> bool {
+	!System::events().iter().any(|record| {
 		if let RuntimeEvent::IdnManager(ref e) = &record.event {
 			e == &event
 		} else {
@@ -48,10 +48,106 @@ fn event_emitted(event: Event<Test>) -> bool {
 	})
 }
 
+fn update_subscription(
+	subscriber: AccountId32,
+	original_credits: u64,
+	original_frequency: u64,
+	new_credits: u64,
+	new_frequency: u64,
+) {
+	let target = Location::new(1, [Junction::PalletInstance(1)]);
+	let metadata = None;
+	let initial_balance = 99_990_000_000_000_000;
+
+	<Test as Config>::Currency::set_balance(&subscriber, initial_balance);
+
+	assert_ok!(IdnManager::create_subscription(
+		RuntimeOrigin::signed(subscriber.clone()),
+		original_credits,
+		target.clone(),
+		original_frequency,
+		metadata.clone()
+	));
+
+	// Get the sub_id from the last emitted event
+	let sub_id = System::events()
+		.iter()
+		.rev()
+		.find_map(|record| {
+			if let RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated { sub_id }) =
+				&record.event
+			{
+				Some(*sub_id)
+			} else {
+				None
+			}
+		})
+		.expect("SubscriptionCreated event should be emitted");
+
+	let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
+
+	assert_eq!(subscription.details.subscriber, subscriber);
+
+	let original_fees =
+		<Test as Config>::FeesManager::calculate_subscription_fees(&original_credits);
+	let original_deposit =
+		<Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
+	let balance_after_create = initial_balance - original_fees - original_deposit;
+
+	// assert correct balance on subscriber after creating subscription
+	assert_eq!(Balances::free_balance(&subscriber), balance_after_create);
+	assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &subscriber), original_fees);
+	assert_eq!(
+		Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &subscriber),
+		original_deposit
+	);
+
+	assert_ok!(IdnManager::update_subscription(
+		RuntimeOrigin::signed(subscriber.clone()),
+		sub_id,
+		new_credits,
+		new_frequency
+	));
+
+	let new_fees = <Test as Config>::FeesManager::calculate_subscription_fees(&new_credits);
+	let new_deposit = <Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
+
+	let fees_diff: i64 = new_fees as i64 - original_fees as i64;
+
+	let deposit_diff: i64 = new_deposit as i64 - original_deposit as i64;
+
+	// We are using fixed-width integer types for credits and frequency, so Subscription objects
+	// can't change in size with this mock. Unit tests are in place insted to ensure the correct
+	// behaviour in case of other types used.
+	assert!(deposit_diff.is_zero());
+
+	let balance_after_update: u64 =
+		(balance_after_create as i64 - fees_diff - deposit_diff).try_into().unwrap();
+
+	// assert fees and deposit diff is correctly handled
+	assert_eq!(Balances::free_balance(&subscriber), balance_after_update);
+	assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &subscriber), new_fees);
+	assert_eq!(
+		Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &subscriber),
+		new_deposit
+	);
+	assert_eq!(balance_after_update + new_fees + new_deposit, initial_balance);
+
+	let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
+
+	// assert subscription details has been updated
+	assert_eq!(subscription.details.credits, new_credits);
+	assert_eq!(subscription.details.frequency, new_frequency);
+
+	System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionUpdated {
+		sub_id,
+	}));
+}
+
 #[test]
 fn create_subscription_works() {
 	ExtBuilder::build().execute_with(|| {
-		let amount: u64 = 50;
+		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 		let initial_balance = 10_000_000;
@@ -64,7 +160,7 @@ fn create_subscription_works() {
 		// assert that the subscription has been created
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			amount,
+			credits,
 			target.clone(),
 			frequency,
 			None
@@ -75,7 +171,7 @@ fn create_subscription_works() {
 		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
 
 		// assert that the correct fees have been held
-		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(amount);
+		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(&credits);
 		let deposit = <Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
 		assert_eq!(Balances::free_balance(&ALICE), initial_balance - fees - deposit);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), fees);
@@ -83,7 +179,7 @@ fn create_subscription_works() {
 
 		// assert that the subscription details are correct
 		assert_eq!(subscription.details.subscriber, ALICE);
-		assert_eq!(subscription.details.amount, amount);
+		assert_eq!(subscription.details.credits, credits);
 		assert_eq!(subscription.details.target, target);
 		assert_eq!(subscription.details.frequency, frequency);
 		assert_eq!(
@@ -92,14 +188,16 @@ fn create_subscription_works() {
 		);
 
 		// assert that the correct event has been emitted
-		assert!(event_emitted(Event::<Test>::SubscriptionCreated { sub_id }));
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated {
+			sub_id,
+		}));
 	});
 }
 
 #[test]
 fn create_subscription_fails_if_insufficient_balance() {
 	ExtBuilder::build().execute_with(|| {
-		let amount: u64 = 50;
+		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 
@@ -108,12 +206,12 @@ fn create_subscription_fails_if_insufficient_balance() {
 		assert_noop!(
 			IdnManager::create_subscription(
 				RuntimeOrigin::signed(ALICE),
-				amount,
+				credits,
 				target,
 				frequency,
 				None
 			),
-			Error::<Test>::InsufficientBalance
+			TokenError::FundsUnavailable
 		);
 
 		// Assert the SubscriptionCreated event was not emitted
@@ -127,7 +225,7 @@ fn create_subscription_fails_if_insufficient_balance() {
 #[test]
 fn create_subscription_fails_if_sub_already_exists() {
 	ExtBuilder::build().execute_with(|| {
-		let amount: u64 = 50;
+		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 
@@ -135,7 +233,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			amount,
+			credits,
 			target.clone(),
 			frequency,
 			None
@@ -147,7 +245,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 		assert_noop!(
 			IdnManager::create_subscription(
 				RuntimeOrigin::signed(ALICE),
-				amount,
+				credits,
 				target,
 				frequency,
 				None
@@ -169,7 +267,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 #[ignore]
 fn distribute_randomness_works() {
 	ExtBuilder::build().execute_with(|| {
-		let amount: u64 = 50;
+		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 
@@ -177,7 +275,7 @@ fn distribute_randomness_works() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE),
-			amount,
+			credits,
 			target.clone(),
 			frequency,
 			None
@@ -198,31 +296,41 @@ fn distribute_randomness_works() {
 #[test]
 fn test_kill_subscription() {
 	ExtBuilder::build().execute_with(|| {
-		let amount = 10;
+		let credits = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let metadata = None;
+		let initial_balance = 10_000_000;
 
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			amount,
+			credits,
 			target.clone(),
 			frequency,
 			metadata.clone()
 		));
 
-		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
-		// TOOD assert:
-		// - correct fees are refunded
-		// - correct storage deposit is refunded
-		// - correct fees were collected
-		// https://github.com/ideal-lab5/idn-sdk/issues/107
+		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
+
+		// assert that the correct fees have been held
+		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(&credits);
+		let deposit = <Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance - fees - deposit);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), fees);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), deposit);
 		assert_ok!(IdnManager::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id));
 		assert!(Subscriptions::<Test>::get(sub_id).is_none());
 
-		assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		// assert remaining fees and balance refunded
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0u64);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0u64);
+
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
+			sub_id,
+		}));
 	});
 }
 
@@ -237,65 +345,108 @@ fn kill_subscription_fails_if_sub_does_not_exist() {
 		);
 
 		// Assert the SubscriptionRemoved event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
 	});
 }
 
 #[test]
-fn test_update_subscription() {
+fn on_finalize_removes_zero_credit_subscriptions() {
 	ExtBuilder::build().execute_with(|| {
-		let original_amount = 10;
-		let original_frequency = 2;
-		// TODO as part of https://github.com/ideal-lab5/idn-sdk/issues/104
-		// make these two variables dynamic and test lt and gt
-		let new_amount = 20;
-		let new_frequency = 4;
+		// Setup - Create a subscription
+		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let metadata = None;
+		let frequency: u64 = 10;
 		let initial_balance = 10_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			original_amount,
+			credits,
 			target.clone(),
-			original_frequency,
-			metadata.clone()
+			frequency,
+			None
 		));
 
-		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
+		// Get the subscription ID
+		let (sub_id, mut subscription) = Subscriptions::<Test>::iter().next().unwrap();
 
-		let original_fees =
-			<Test as Config>::FeesManager::calculate_subscription_fees(original_amount);
-		let original_deposit =
-			<Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
-		let balance_after_create = initial_balance - original_fees - original_deposit;
+		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(&credits);
+		let deposit = <Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance - fees - deposit);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), fees);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), deposit);
 
-		// assert correct balance on subscriber after creating subscription
-		assert_eq!(Balances::free_balance(&ALICE), balance_after_create);
-		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), original_fees);
-		assert_eq!(
-			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
-			original_deposit
-		);
+		// Manually set credits to zero
+		subscription.credits_left = Zero::zero();
+		Subscriptions::<Test>::insert(sub_id, subscription);
 
-		assert_ok!(IdnManager::update_subscription(
-			RuntimeOrigin::signed(ALICE),
+		// Verify subscription exists before on_finalize
+		assert!(Subscriptions::<Test>::contains_key(sub_id));
+
+		// Call on_finalize directly
+		let current_block = System::block_number();
+		crate::Pallet::<Test>::on_finalize(current_block);
+
+		// Verify subscription was removed
+		assert!(!Subscriptions::<Test>::contains_key(sub_id));
+
+		// assert there are no remaining fees and balance refunded
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance - fees);
+
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0u64);
+
+		// Verify event was emitted
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
 			sub_id,
-			new_amount,
-			new_frequency
-		));
+		}));
+	});
+}
 
-		// TODO implement a way to refund or take the difference in fees https://github.com/ideal-lab5/idn-sdk/issues/104
+#[test]
+fn test_update_subscription() {
+	ExtBuilder::build().execute_with(|| {
+		struct SubParams {
+			credits: u64,
+			frequency: u64,
+		}
+		struct SubUpdate {
+			old: SubParams,
+			new: SubParams,
+		}
 
-		let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
-
-		// assert subscription details has been updated
-		assert_eq!(subscription.details.amount, new_amount);
-		assert_eq!(subscription.details.frequency, new_frequency);
-
-		assert!(event_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
+		let updates: Vec<SubUpdate> = vec![
+			SubUpdate {
+				old: SubParams { credits: 10, frequency: 2 },
+				new: SubParams { credits: 20, frequency: 4 },
+			},
+			SubUpdate {
+				old: SubParams { credits: 100, frequency: 20 },
+				new: SubParams { credits: 20, frequency: 4 },
+			},
+			SubUpdate {
+				old: SubParams { credits: 100, frequency: 20 },
+				new: SubParams { credits: 100, frequency: 20 },
+			},
+			SubUpdate {
+				old: SubParams { credits: 100, frequency: 1 },
+				new: SubParams { credits: 9_999_999_999_999, frequency: 1 },
+			},
+			SubUpdate {
+				old: SubParams { credits: 9_999_999_999_999, frequency: 1 },
+				new: SubParams { credits: 100, frequency: 1 },
+			},
+		];
+		for i in 0..updates.len() {
+			let update = &updates[i];
+			update_subscription(
+				AccountId32::new([i.try_into().unwrap(); 32]),
+				update.old.credits,
+				update.old.frequency,
+				update.new.credits,
+				update.new.frequency,
+			);
+		}
 	});
 }
 
@@ -303,34 +454,192 @@ fn test_update_subscription() {
 fn update_subscription_fails_if_sub_does_not_exists() {
 	ExtBuilder::build().execute_with(|| {
 		let sub_id = H256::from_slice(&[1; 32]);
-		let new_amount = 20;
+		let new_credits = 20;
 		let new_frequency = 4;
 
 		assert_noop!(
 			IdnManager::update_subscription(
 				RuntimeOrigin::signed(ALICE),
 				sub_id,
-				new_amount,
+				new_credits,
 				new_frequency
 			),
 			Error::<Test>::SubscriptionDoesNotExist
 		);
 
 		// Assert the SubscriptionUpdated event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
 	});
 }
-// todo: test credits consumption, it consumes credit by credit and verify that
-// - fees are moved to treasury
-// - credits are consumed
-// - storage dep is refunded
-// - subscription is removed
-// https://github.com/ideal-lab5/idn-sdk/issues/108
+
+#[test]
+/// This test makes sure that the correct fees are collected, by consuming credits one by one.
+fn test_credits_consumption_and_cleanup() {
+	ExtBuilder::build().execute_with(|| {
+		// Setup initial conditions
+		let credits: u64 = 1010;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 3;
+		let initial_balance = 10_000_000;
+		let mut treasury_balance = 0;
+		let rnd = [0u8; 32];
+
+		// Set up account
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+		<Test as Config>::Currency::set_balance(&TreasuryAccount::get(), treasury_balance);
+
+		// Create subscription
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			credits,
+			target.clone(),
+			frequency,
+			None
+		));
+
+		// Get subscription details
+		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
+		let initial_fees = <Test as Config>::FeesManager::calculate_subscription_fees(&credits);
+		let storage_deposit =
+			<Test as Config>::DepositCalculator::calculate_storage_deposit(&subscription);
+
+		// Verify initial state
+		assert_eq!(
+			Balances::free_balance(&ALICE),
+			initial_balance - initial_fees - storage_deposit
+		);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), initial_fees);
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
+			storage_deposit
+		);
+		assert_eq!(subscription.credits_left, credits);
+
+		// Consume credits one by one
+		for i in 0..credits {
+			// Advance block and run hooks
+			System::set_block_number(System::block_number() + 1);
+
+			// Dispatch randomness
+			assert_ok!(IdnManager::dispatch(rnd.into()));
+
+			System::assert_last_event(RuntimeEvent::IdnManager(
+				Event::<Test>::RandomnessDistributed { sub_id },
+			));
+
+			// Verify credit consumption
+			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
+			assert_eq!(sub.credits_left, credits - i - 1, "Credit not consumed correctly");
+
+			// Verify fees movement to treasury
+			let fees = <Test as Config>::FeesManager::calculate_diff_fees(
+				&(credits - i),
+				&(credits - i - 1),
+			)
+			.balance;
+
+			treasury_balance += fees;
+
+			assert_eq!(
+				Balances::free_balance(&TreasuryAccount::get()),
+				treasury_balance,
+				"Fees not moved to treasury correctly"
+			);
+
+			System::assert_has_event(RuntimeEvent::IdnManager(Event::<Test>::FeesCollected {
+				sub_id,
+				fees,
+			}));
+
+			// assert balance has been collected from the hold
+			assert_eq!(
+				Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE),
+				initial_fees - treasury_balance
+			);
+
+			// assert free balance is still correct
+			assert_eq!(
+				Balances::free_balance(&ALICE),
+				initial_balance - initial_fees - storage_deposit
+			);
+
+			// finalize block
+			IdnManager::on_finalize(System::block_number());
+		}
+
+		// Verify subscription is removed after last credit
+		assert!(!Subscriptions::<Test>::contains_key(sub_id));
+
+		// Verify final balances
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance - initial_fees);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0);
+		assert_eq!(Balances::free_balance(&TreasuryAccount::get()), initial_fees);
+
+		// Verify events
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
+			sub_id,
+		}));
+	});
+}
+
+#[test]
+fn test_credits_consumption_not_enogh_balance() {
+	ExtBuilder::build().execute_with(|| {
+		// Setup initial conditions
+		let credits: u64 = 1010;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 3;
+		let initial_balance = 10_000_000;
+		let rnd = [0u8; 32];
+
+		// Set up account
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// Create subscription
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			credits,
+			target.clone(),
+			frequency,
+			None
+		));
+
+		// Get subscription details
+		let (_, sub) = Subscriptions::<Test>::iter().next().unwrap();
+
+		// Consume credits one by one
+		for i in 0..credits {
+			// Advance block and run hooks
+			System::set_block_number(System::block_number() + 1);
+
+			if i == 505 {
+				// let's fake an incorrect fees collection at some arbitrary point
+				let _ = <Test as Config>::FeesManager::collect_fees(
+					&Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE),
+					&sub,
+				);
+				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
+				assert_noop!(
+					IdnManager::dispatch(rnd.into()),
+					DispatchError::Other("NotEnoughBalance")
+				);
+				break;
+			} else {
+				// Dispatch randomness
+				assert_ok!(IdnManager::dispatch(rnd.into()));
+			}
+
+			// finalize block
+			IdnManager::on_finalize(System::block_number());
+		}
+	});
+}
 
 #[test]
 fn test_pause_reactivate_subscription() {
 	ExtBuilder::build().execute_with(|| {
-		let amount = 10;
+		let credits = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let metadata = None;
@@ -339,7 +648,7 @@ fn test_pause_reactivate_subscription() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			amount,
+			credits,
 			target.clone(),
 			frequency,
 			metadata.clone()
@@ -351,6 +660,11 @@ fn test_pause_reactivate_subscription() {
 
 		// Test pause and reactivate subscription
 		assert_ok!(IdnManager::pause_subscription(RuntimeOrigin::signed(ALICE.clone()), sub_id));
+
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionPaused {
+			sub_id,
+		}));
+
 		assert_eq!(Subscriptions::<Test>::get(sub_id).unwrap().state, SubscriptionState::Paused);
 		assert_ok!(IdnManager::reactivate_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
@@ -362,9 +676,9 @@ fn test_pause_reactivate_subscription() {
 		// reactivating
 		assert_eq!(Balances::free_balance(&ALICE), free_balance);
 
-		assert!(event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
-
-		assert!(event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
+		System::assert_last_event(RuntimeEvent::IdnManager(
+			Event::<Test>::SubscriptionReactivated { sub_id },
+		));
 	});
 }
 
@@ -379,14 +693,14 @@ fn pause_subscription_fails_if_sub_does_not_exists() {
 		);
 
 		// Assert the SubscriptionPaused event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
 	});
 }
 
 #[test]
 fn pause_subscription_fails_if_sub_already_paused() {
 	ExtBuilder::build().execute_with(|| {
-		let amount = 10;
+		let credits = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let metadata = None;
@@ -395,7 +709,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			amount,
+			credits,
 			target.clone(),
 			frequency,
 			metadata.clone()
@@ -414,7 +728,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 		);
 
 		// Assert the SubscriptionPaused event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
 	});
 }
 
@@ -429,14 +743,14 @@ fn reactivate_subscription_fails_if_sub_does_not_exists() {
 		);
 
 		// Assert the SubscriptionReactivated event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
 	});
 }
 
 #[test]
 fn reactivate_subscriptio_fails_if_sub_already_active() {
 	ExtBuilder::build().execute_with(|| {
-		let amount = 10;
+		let credits = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let metadata = None;
@@ -445,7 +759,7 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			amount,
+			credits,
 			target.clone(),
 			frequency,
 			metadata.clone()
@@ -459,14 +773,14 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 		);
 
 		// Assert the SubscriptionReactivated event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
 	});
 }
 
 #[test]
 fn operations_fail_if_origin_is_not_the_subscriber() {
 	ExtBuilder::build().execute_with(|| {
-		let amount: u64 = 50;
+		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 		let metadata = None;
@@ -479,7 +793,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		// Create subscription for Alice
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			amount,
+			credits,
 			target.clone(),
 			frequency,
 			metadata.clone()
@@ -498,7 +812,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		assert!(Subscriptions::<Test>::get(sub_id).is_some());
 
 		// Assert the SubscriptionRemoved event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
 
 		// Attempt to pause the subscription using Bob's origin (should fail)
 		assert_noop!(
@@ -507,16 +821,16 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		);
 
 		// Assert the SubscriptionPaused event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionPaused { sub_id }));
 
 		// Attempt to update the subscription using Bob's origin (should fail)
-		let new_amount = amount + 10;
+		let new_credits = credits + 10;
 		let new_frequency = frequency + 1;
 		assert_noop!(
 			IdnManager::update_subscription(
 				RuntimeOrigin::signed(BOB.clone()),
 				sub_id,
-				new_amount,
+				new_credits,
 				new_frequency
 			),
 			Error::<Test>::NotSubscriber
@@ -529,14 +843,14 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		);
 
 		// Assert the SubscriptionReactivated event was not emitted
-		assert!(!event_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
+		assert!(event_not_emitted(Event::<Test>::SubscriptionReactivated { sub_id }));
 	});
 }
 
 #[test]
 fn test_on_finalize_removes_finished_subscriptions() {
 	ExtBuilder::build().execute_with(|| {
-		let amount: u64 = 50;
+		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 		let initial_balance = 10_000_000;
@@ -545,7 +859,7 @@ fn test_on_finalize_removes_finished_subscriptions() {
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			amount,
+			credits,
 			target.clone(),
 			frequency,
 			None
@@ -568,6 +882,126 @@ fn test_on_finalize_removes_finished_subscriptions() {
 		assert!(!Subscriptions::<Test>::contains_key(sub_id));
 
 		// 2. SubscriptionRemoved event should be emitted
-		assert!(event_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
+			sub_id,
+		}));
+	});
+}
+
+#[test]
+fn hold_deposit_works() {
+	ExtBuilder::build().execute_with(|| {
+		let initial_balance = 10_000_000;
+		let deposit_credits = 1_000;
+
+		// Setup account with initial balance
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// Hold deposit
+		assert_ok!(crate::Pallet::<Test>::hold_deposit(&ALICE, deposit_credits));
+
+		// Verify deposit is held
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
+			deposit_credits
+		);
+		// Verify free balance is reduced
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance - deposit_credits);
+	});
+}
+
+#[test]
+fn release_deposit_works() {
+	ExtBuilder::build().execute_with(|| {
+		let initial_balance = 10_000_000;
+		let deposit_credits = 1_000;
+
+		// Setup account and hold deposit
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+		assert_ok!(crate::Pallet::<Test>::hold_deposit(&ALICE, deposit_credits));
+
+		// Release deposit
+		assert_ok!(crate::Pallet::<Test>::release_deposit(&ALICE, deposit_credits));
+
+		// Verify deposit is released
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0);
+		// Verify free balance is restored
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance);
+	});
+}
+
+#[test]
+fn manage_diff_deposit_works() {
+	ExtBuilder::build().execute_with(|| {
+		let initial_balance = 10_000_000;
+		let original_deposit = 1_000;
+		let additional_deposit = 1_500;
+		let excess_deposit = 500;
+
+		// Setup account with initial balance
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// Test holding deposit
+		let hold_diff =
+			DiffBalance { balance: original_deposit, direction: BalanceDirection::Collect };
+		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &hold_diff));
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
+			original_deposit
+		);
+		// Test holding additional deposit
+		let hold_diff =
+			DiffBalance { balance: additional_deposit, direction: BalanceDirection::Collect };
+		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &hold_diff));
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
+			original_deposit + additional_deposit
+		);
+
+		// Test releasing excess deposit
+		let release_diff =
+			DiffBalance { balance: excess_deposit, direction: BalanceDirection::Release };
+		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &release_diff));
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
+			original_deposit + additional_deposit - excess_deposit
+		);
+
+		// Test no change in deposit
+		let no_change_diff = DiffBalance { balance: 0, direction: BalanceDirection::None };
+		let held_before = Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE);
+		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &no_change_diff));
+		assert_eq!(
+			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
+			held_before
+		);
+
+		// assert free balance
+		assert_eq!(
+			Balances::free_balance(&ALICE),
+			initial_balance - original_deposit - additional_deposit + excess_deposit
+		);
+	});
+}
+
+#[test]
+fn hold_deposit_fails_with_insufficient_balance() {
+	ExtBuilder::build().execute_with(|| {
+		let initial_balance = 500;
+		let deposit_credits = 1_000;
+
+		// Setup account with insufficient balance
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// Attempt to hold deposit should fail
+		assert_noop!(
+			crate::Pallet::<Test>::hold_deposit(&ALICE, deposit_credits),
+			TokenError::FundsUnavailable
+		);
+
+		// Verify no deposit is held
+		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0);
+		// Verify balance remains unchanged
+		assert_eq!(Balances::free_balance(&ALICE), initial_balance);
 	});
 }
