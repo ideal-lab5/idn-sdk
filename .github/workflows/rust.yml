@@ -30,7 +30,7 @@ jobs:
         override: false
 
     - name: Install rustfmt for nightly
-      run: rustup component add --toolchain nightly rustfmt
+      run: rustup component add --toolchain nightly rustfmt llvm-tools
 
     - name: Install dependencies
       run: |
