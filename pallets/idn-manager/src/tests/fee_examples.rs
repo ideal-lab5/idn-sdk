@@ -74,8 +74,8 @@ impl FeesManager<u32, u32, (), (), ()> for SteppedTieredFeeCalculator {
 		let mut remaining_credits = *credits;
 
 		for (i, &(current_tier_start, current_tier_discount)) in TIERS.iter().enumerate() {
-			// If no remaining credits or the tier starts above the requested credits, exit loop.
-			if remaining_credits == 0 || credits < &current_tier_start {
+			// If no remaining credits exit loop.
+			if remaining_credits == 0 {
 				break;
 			}
 
@@ -186,6 +186,14 @@ mod tests {
 		// Test middle of second tier
 		let fee_50 = SteppedTieredFeeCalculator::calculate_subscription_fees(&50);
 		assert_eq!(fee_50, 4_800); // (10 * 100) + (40 * 95) = 1,000 + 3,800 = 4,800
+
+		// Test edge of second tier
+		let fee_100 = SteppedTieredFeeCalculator::calculate_subscription_fees(&100);
+		assert_eq!(fee_100, 9550); // (10 * 100) + (90 * 95) = 1,000 + 8,550 = 9,550
+
+		// Test edge of second tier
+		let fee_101 = SteppedTieredFeeCalculator::calculate_subscription_fees(&101);
+		assert_eq!(fee_101, 9_640); // (10 * 100) + (90 * 95) + (1 * 90)= 1,000 + 8,550 + 90 = 9,640
 
 		// Test crossing multiple tiers
 		let fee_150 = SteppedTieredFeeCalculator::calculate_subscription_fees(&150);
