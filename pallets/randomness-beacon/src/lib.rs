@@ -188,7 +188,7 @@ pub mod pallet {
 			sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			// if we do not find any pulse data, then do nothing\
+			// if we do not find any pulse data, then do nothing
 			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 			{
 				// ignores non-deserializable messages
@@ -257,6 +257,7 @@ pub mod pallet {
 			round: Option<RoundNumber>,
 		) -> DispatchResult {
 			ensure_none(origin)?;
+			// if called => reject;
 
 			let config = T::BeaconConfig::get();
 			let mut genesis_round = GenesisRound::<T>::get();
@@ -281,8 +282,9 @@ pub mod pallet {
 					Error::<T>::GenesisRoundNotSet
 				);
 			}
-
 			// aggregate old asig/apk with the new one and verify the aggregation
+			// Q: do we care about the entire linear history of message hashes?
+			// https://github.com/ideal-lab5/idn-sdk/issues/119
 			let aggr = T::SignatureAggregator::aggregate_and_verify(
 				config.public_key,
 				asig,

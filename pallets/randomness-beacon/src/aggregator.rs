@@ -108,6 +108,9 @@ impl SignatureAggregator for QuicknetAggregator {
 		// compute new rounds
 		let latest = start + height;
 		let rounds = (start..latest).collect::<Vec<_>>();
+
+		// TODO: Investigate lookup table for round numbers
+		// https://github.com/ideal-lab5/idn-sdk/issues/119
 		for r in rounds {
 			let q = compute_round_on_g1(r)?;
 			apk = (apk + q).into()
