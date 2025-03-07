@@ -49,8 +49,9 @@ jobs:
     - name: Run cargo clippy
       run: cargo clippy -- -D warnings
 
-    - name: Install llvm-cov and nextest
+    - name: Install llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
+    - name: Install nextest
       uses: taiki-e/install-action@nextest
 
     - name: Run cargo-llvm-cov and nextest
