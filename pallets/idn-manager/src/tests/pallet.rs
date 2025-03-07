@@ -1014,3 +1014,140 @@ fn hold_deposit_fails_with_insufficient_balance() {
 		assert_eq!(Balances::free_balance(&ALICE), initial_balance);
 	});
 }
+
+#[test]
+fn test_calculate_subscription_fees() {
+	ExtBuilder::build().execute_with(|| {
+		// Test with different credit amounts
+		let test_cases = vec![
+			(0, 0),     // Zero credits
+			(1, 100),   // One credit (base fee)
+			(10, 1000), // Ten credits
+			(50, 4800), // Fifty credits, 5% discount over 10
+			(1000, 90550),
+			(1001, 90630),
+		];
+
+		for (credits, expected_fee) in test_cases {
+			let fee = IdnManager::calculate_subscription_fees(&credits);
+			assert_eq!(
+				fee, expected_fee,
+				"Fee calculation incorrect for {} credits, expected {}, got {}",
+				credits, expected_fee, fee
+			);
+		}
+	});
+}
+
+#[test]
+fn test_get_subscription() {
+	ExtBuilder::build().execute_with(|| {
+		let credits: u64 = 50;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 10;
+
+		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
+
+		// Create a subscription
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			credits,
+			target.clone(),
+			frequency,
+			None
+		));
+
+		// Retrieve the subscription ID created
+		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+
+		// Test get_subscription with valid ID
+		let subscription = IdnManager::get_subscription(&sub_id);
+		assert!(subscription.is_some(), "Subscription should exist");
+
+		let sub = subscription.unwrap();
+		assert_eq!(sub.details.subscriber, ALICE);
+		assert_eq!(sub.credits, credits);
+		assert_eq!(sub.frequency, frequency);
+		assert_eq!(sub.details.target, target);
+
+		// Test get_subscription with invalid ID
+		let invalid_sub_id = H256::from_slice(&[0xff; 32]);
+		let invalid_subscription = IdnManager::get_subscription(&invalid_sub_id);
+		assert!(invalid_subscription.is_none(), "Invalid subscription ID should return None");
+	});
+}
+
+#[test]
+fn test_get_subscriptions_for_subscriber() {
+	ExtBuilder::build().execute_with(|| {
+		// Set up accounts
+		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
+		<Test as Config>::Currency::set_balance(&BOB, 10_000_000);
+
+		// Create subscriptions for ALICE
+		let target1 = Location::new(1, [Junction::PalletInstance(1)]);
+		let target2 = Location::new(1, [Junction::PalletInstance(2)]);
+		let target3 = Location::new(1, [Junction::PalletInstance(3)]);
+
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			50,
+			target1.clone(),
+			10,
+			None
+		));
+
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			100,
+			target2.clone(),
+			20,
+			None
+		));
+
+		// Create a subscription for BOB
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(BOB.clone()),
+			75,
+			target3.clone(),
+			15,
+			None
+		));
+
+		// Test get_subscriptions_for_subscriber with ALICE
+		let alice_subs = IdnManager::get_subscriptions_for_subscriber(&ALICE);
+		assert_eq!(alice_subs.len(), 2, "ALICE should have 2 subscriptions");
+
+		// Verify subscription details
+		let has_sub1 = alice_subs.iter().any(|sub| {
+			sub.details.subscriber == ALICE &&
+				sub.credits == 50 &&
+				sub.frequency == 10 &&
+				sub.details.target == target1
+		});
+
+		let has_sub2 = alice_subs.iter().any(|sub| {
+			sub.details.subscriber == ALICE &&
+				sub.credits == 100 &&
+				sub.frequency == 20 &&
+				sub.details.target == target2
+		});
+
+		assert!(has_sub1, "ALICE's first subscription not found");
+		assert!(has_sub2, "ALICE's second subscription not found");
+
+		// Test get_subscriptions_for_subscriber with BOB
+		let bob_subs = IdnManager::get_subscriptions_for_subscriber(&BOB);
+		assert_eq!(bob_subs.len(), 1, "BOB should have 1 subscription");
+
+		// Verify subscription details
+		let has_sub3 = bob_subs.iter().any(|sub| {
+			sub.details.subscriber == BOB &&
+				sub.credits == 75 &&
+				sub.frequency == 15 &&
+				sub.details.target == target3
+		});
+
+		assert!(has_sub3, "BOB's subscription not found");
+	});
+}
