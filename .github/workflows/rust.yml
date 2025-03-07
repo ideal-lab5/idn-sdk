@@ -48,11 +48,12 @@ jobs:
 
     - name: Run cargo clippy
       run: cargo clippy -- -D warnings
-    
-    - name: Install cargo-llvm-cov and nextest
-      run: cargo install cargo-llvm-cov --locked cargo-nextest
 
-    - name: run cargo-llvm-cov and nextest
+    - name: Install llvm-cov and nextest
+      uses: taiki-e/install-action@cargo-llvm-cov
+      uses: taiki-e/install-action@nextest
+
+    - name: Run cargo-llvm-cov and nextest
       run: cargo llvm-cov --cobertura --output-path cobertura.xml nextest
 
     - name: Generate Code Coverage Summary
@@ -61,7 +62,7 @@ jobs:
         filename: cobertura.xml
         badge: true
         fail_below_min: true
-        thresholds: '50 85'
+        thresholds: '85 90'
         output: both
         format: markdown
 
