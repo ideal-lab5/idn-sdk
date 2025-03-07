@@ -116,6 +116,7 @@ const SERIALIZED_SIG_SIZE: usize = 48;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::pallet]
@@ -148,6 +149,13 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type AggregatedSignature<T: Config> = StorageValue<_, Aggregate, OptionQuery>;
 
+	/// Whether the asig has been updated in this block.
+	///
+	/// This value is updated to `true` upon successful submission of an asig by a node.
+	/// It is then checked at the end of each block execution in the `on_finalize` hook.
+	#[pallet::storage]
+	pub(super) type DidUpdate<T: Config> = StorageValue<_, bool, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -177,6 +185,8 @@ pub mod pallet {
 		ZeroHeightProvided,
 		/// There number of aggregated signatures exceeds the maximum rounds we can verify per block.
 		ExcessiveHeightProvided,
+		/// Only one aggregated signature can be provided per block
+		SignatureAlreadyVerified,
 	}
 
 	#[pallet::inherent]
@@ -239,6 +249,26 @@ pub mod pallet {
 		}
 	}
 
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
+		/// execute.
+		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+			// weight of `on_finalize`
+			T::WeightInfo::on_finalize()
+		}
+
+		/// At the end of block execution, the `on_finalize` hook checks that the timestamp was
+		/// updated. Upon success, it removes the boolean value from storage. If the value resolves
+		/// to `false`, the pallet will panic.
+		///
+		/// ## Complexity
+		/// - `O(1)`
+		fn on_finalize(_n: BlockNumberFor<T>) {
+			assert!(DidUpdate::<T>::take(), "The aggregated siganture must be updated once in the block");
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Write a set of pulses to the runtime
@@ -257,27 +287,30 @@ pub mod pallet {
 			round: Option<RoundNumber>,
 		) -> DispatchResult {
 			ensure_none(origin)?;
-			// if called => reject;
+			ensure!(
+				!DidUpdate::<T>::exists(), 
+				Error::<T>::SignatureAlreadyVerified,
+			);
 
 			let config = T::BeaconConfig::get();
 			let mut genesis_round = GenesisRound::<T>::get();
 			let mut latest_round = LatestRound::<T>::get();
 
-			frame_support::ensure!(height > 0, Error::<T>::ZeroHeightProvided);
-			frame_support::ensure!(
+			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
+			ensure!(
 				height <= T::MaxSigsPerBlock::get() as u64,
 				Error::<T>::ExcessiveHeightProvided
 			);
 
 			if let Some(r) = round {
 				// if a round is provided and the genesis round is not set
-				frame_support::ensure!(genesis_round == 0, Error::<T>::GenesisRoundAlreadySet);
+				ensure!(genesis_round == 0, Error::<T>::GenesisRoundAlreadySet);
 				GenesisRound::<T>::set(r);
 				genesis_round = r;
 				latest_round = genesis_round;
 			} else {
 				//  if the genesis round is not set and a round is not provided
-				frame_support::ensure!(
+				ensure!(
 					GenesisRound::<T>::get() > 0,
 					Error::<T>::GenesisRoundNotSet
 				);
@@ -295,8 +328,8 @@ pub mod pallet {
 			.map_err(|_| Error::<T>::VerificationFailed)?;
 
 			LatestRound::<T>::set(latest_round.saturating_add(height));
-
 			AggregatedSignature::<T>::set(Some(aggr));
+			DidUpdate::<T>::put(true);
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 

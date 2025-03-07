@@ -16,8 +16,9 @@
  
 use crate::{
 	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound, LatestRound,
+	weights::*,
 };
-use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent};
+use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 
 #[test]
 fn can_construct_pallet_and_set_genesis_params() {
@@ -104,6 +105,10 @@ fn can_submit_valid_sigs_in_sequence() {
 		System::set_block_number(1);
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, Some(round1)));
+
+		Drand::on_finalize(1);
+		System::set_block_number(2);
+
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig2.clone(), 2, None));
 
 		// then the gensis round is set to `round`
@@ -123,6 +128,27 @@ fn can_submit_valid_sigs_in_sequence() {
 }
 
 #[test]
+fn can_fail_to_calls_to_try_submit_asig_per_block() {
+	let round1 = 1000u64;
+	let round2 = 1004u64;
+
+	let (asig1, _apk1) = get(vec![PULSE1000, PULSE1001]);
+	let (asig2, _apk2) = get(vec![PULSE1002, PULSE1003]);
+	// the aggregated values
+	let (asig, apk) = get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003]);
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, Some(round1)));
+		assert_noop!(
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, None),
+			Error::<Test>::SignatureAlreadyVerified,
+		);
+	});
+}
+
+#[test]
 fn can_fail_to_submit_invalid_sigs_in_sequence() {
 	let round1 = 1000u64;
 
@@ -132,6 +158,10 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 		System::set_block_number(1);
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, Some(round1)));
+
+		Drand::on_finalize(1);
+		System::set_block_number(2);
+
 		assert_noop!(
 			Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, None),
 			Error::<Test>::VerificationFailed,
