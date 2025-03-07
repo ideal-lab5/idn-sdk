@@ -49,11 +49,11 @@ jobs:
     - name: Run cargo clippy
       run: cargo clippy -- -D warnings
     
-    - name: Install cargo-llvm-cov
-      run: cargo install cargo-llvm-cov
+    - name: Install cargo-llvm-cov and nextest
+      run: cargo install cargo-llvm-cov --locked cargo-nextest
 
-    - name: run cargo-llvm-cov
-      run: cargo llvm-cov --cobertura --output-path cobertura.xml
+    - name: run cargo-llvm-cov and nextest
+      run: cargo llvm-cov --cobertura --output-path cobertura.xml nextest
 
     - name: Generate Code Coverage Summary
       uses: irongut/CodeCoverageSummary@v1.3.0
