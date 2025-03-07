@@ -86,6 +86,9 @@ fn update_subscription(
 
 	let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
 
+	assert_eq!(subscription.created_at, System::block_number());
+	assert_eq!(subscription.updated_at, System::block_number());
+
 	assert_eq!(subscription.details.subscriber, subscriber);
 
 	let original_fees =
@@ -101,6 +104,9 @@ fn update_subscription(
 		Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &subscriber),
 		original_deposit
 	);
+
+	// Advance a block
+	System::set_block_number(System::block_number() + 1);
 
 	assert_ok!(IdnManager::update_subscription(
 		RuntimeOrigin::signed(subscriber.clone()),
@@ -135,9 +141,12 @@ fn update_subscription(
 
 	let subscription = Subscriptions::<Test>::get(sub_id).unwrap();
 
+	assert_eq!(subscription.created_at, System::block_number() - 1);
+	assert_eq!(subscription.updated_at, System::block_number());
+
 	// assert subscription details has been updated
-	assert_eq!(subscription.details.credits, new_credits);
-	assert_eq!(subscription.details.frequency, new_frequency);
+	assert_eq!(subscription.credits, new_credits);
+	assert_eq!(subscription.frequency, new_frequency);
 
 	System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionUpdated {
 		sub_id,
@@ -179,9 +188,9 @@ fn create_subscription_works() {
 
 		// assert that the subscription details are correct
 		assert_eq!(subscription.details.subscriber, ALICE);
-		assert_eq!(subscription.details.credits, credits);
+		assert_eq!(subscription.credits, credits);
 		assert_eq!(subscription.details.target, target);
-		assert_eq!(subscription.details.frequency, frequency);
+		assert_eq!(subscription.frequency, frequency);
 		assert_eq!(
 			subscription.details.metadata,
 			BoundedVec::<u8, SubMetadataLen>::try_from(vec![]).unwrap()
