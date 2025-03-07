@@ -66,4 +66,4 @@ jobs:
         format: markdown
 
     - name: Export Job Summary
-      run: echo "$(<code-coverage-results)" >> $GITHUB_STEP_SUMMARY
+      run: echo "$(<code-coverage-results.md)" >> $GITHUB_STEP_SUMMARY
