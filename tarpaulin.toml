@@ -2,7 +2,7 @@
 [test_config]
 
 # List of file paths to exclude from testing.
-exclude-files = [""]
+exclude-files = ["solochain/*", "*/**/weights.rs"]
 
 [report]
 out = ["Html"]
