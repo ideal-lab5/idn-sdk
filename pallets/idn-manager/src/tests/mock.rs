@@ -83,6 +83,7 @@ impl pallet_idn_manager::Config for Test {
 	type WeightInfo = ();
 	type Xcm = ();
 	type SubMetadataLen = SubMetadataLen;
+	type Credits = u64;
 }
 
 pub struct ExtBuilder;
