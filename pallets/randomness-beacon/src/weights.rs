@@ -18,10 +18,14 @@
 use frame_support::weights::Weight;
 
 pub trait WeightInfo {
+	fn on_finalize() -> Weight;
 	fn try_submit_asig() -> Weight;
 }
 
 impl WeightInfo for () {
+	fn on_finalize() -> Weight {
+		Weight::from_parts(2_956_000, 1627)
+	}
 	fn try_submit_asig() -> Weight {
 		Weight::from_parts(2_956_000, 1627)
 	}
