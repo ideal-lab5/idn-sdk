@@ -276,39 +276,6 @@ fn create_subscription_fails_if_sub_already_exists() {
 }
 
 #[test]
-// Todo: https://github.com/ideal-lab5/idn-sdk/issues/77
-// assert event RandomnessDistributed is emitted
-#[ignore]
-fn distribute_randomness_works() {
-	ExtBuilder::build().execute_with(|| {
-		let credits: u64 = 50;
-		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let frequency: u64 = 10;
-
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
-
-		assert_ok!(IdnManager::create_subscription(
-			RuntimeOrigin::signed(ALICE),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None
-		));
-
-		let rnd = [0; 32];
-
-		assert_ok!(IdnManager::dispatch(rnd.into()));
-
-		assert_eq!(Subscriptions::<Test>::iter().count(), 1, "Subscriptions count is not 1");
-
-		let (_sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
-
-		assert_eq!(subscription.state, SubscriptionState::Active, "Subscription is not Active");
-	});
-}
-
-#[test]
 fn test_kill_subscription() {
 	ExtBuilder::build().execute_with(|| {
 		let credits = 10;
@@ -496,7 +463,7 @@ fn test_credits_consumption_and_cleanup() {
 		// Setup initial conditions
 		let credits: u64 = 1010;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let frequency: u64 = 3;
+		let frequency: u64 = 1;
 		let initial_balance = 10_000_000;
 		let mut treasury_balance = 0;
 		let rnd = [0u8; 32];
@@ -607,7 +574,7 @@ fn test_credits_consumption_not_enogh_balance() {
 		// Setup initial conditions
 		let credits: u64 = 1010;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let frequency: u64 = 3;
+		let frequency: u64 = 1;
 		let initial_balance = 10_000_000;
 		let rnd = [0u8; 32];
 
@@ -652,6 +619,78 @@ fn test_credits_consumption_not_enogh_balance() {
 			// finalize block
 			IdnManager::on_finalize(System::block_number());
 		}
+	});
+}
+
+#[test]
+fn test_credits_consumption_frequency() {
+	ExtBuilder::build().execute_with(|| {
+		// Setup initial conditions
+		let credits: u64 = 10;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 3; // Every 3 blocks
+		let initial_balance = 10_000_000;
+		let rnd = [0u8; 32];
+
+		// Set up account
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// Create subscription
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			credits,
+			target.clone(),
+			[1; 2],
+			frequency,
+			None
+		));
+
+		// Get the subscription ID
+		let (sub_id, sub) = Subscriptions::<Test>::iter().next().unwrap();
+
+		assert_eq!(sub.credits_left, credits);
+		assert!(sub.last_delivered.is_none());
+
+		let deliveries = (credits - 1) * frequency;
+		// Run through the test blocks
+		for i in 0..=deliveries {
+			// Set the block number
+			System::set_block_number(System::block_number() + 1);
+
+			// Clear previous events
+			System::reset_events();
+
+			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
+			let last_delivered = sub.last_delivered;
+			let credits_left = sub.credits_left;
+
+			// Dispatch randomness
+			assert_ok!(IdnManager::dispatch(rnd.into()));
+
+			// Check the subscription state
+			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
+
+			if last_delivered.is_none() || i % frequency == 0 {
+				// Verify events
+				System::assert_last_event(RuntimeEvent::IdnManager(
+					Event::<Test>::RandomnessDistributed { sub_id },
+				));
+				assert_eq!(sub.credits_left, credits_left - 1);
+			} else {
+				// Verify events
+				assert!(event_not_emitted(Event::<Test>::RandomnessDistributed { sub_id }));
+				assert_eq!(sub.credits_left, credits_left);
+			}
+
+			if i == deliveries {
+				// by the end all credits should be consumed
+				assert!(sub.credits_left == 0);
+			}
+			// Finalize the block
+			IdnManager::on_finalize(System::block_number());
+		}
+		// Verify subscription is removed after last credit
+		assert!(Subscriptions::<Test>::get(sub_id).is_none());
 	});
 }
 

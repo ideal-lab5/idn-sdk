@@ -134,6 +134,7 @@ pub struct Subscription<AccountId, BlockNumber, Credits, Metadata> {
 	updated_at: BlockNumber,
 	credits: Credits,
 	frequency: BlockNumber,
+	last_delivered: Option<BlockNumber>,
 }
 
 /// Details specific to a subscription for random value delivery
@@ -480,36 +481,40 @@ impl<T: Config> Pallet<T> {
 	/// Returns a weight based on the number of storage reads and writes performed
 	// TODO: finish off this as part of https://github.com/ideal-lab5/idn-sdk/issues/77
 	fn distribute(rnd: T::Rnd) -> DispatchResult {
-		// Filter for active subscriptions only
-		for (sub_id, sub) in
-			Subscriptions::<T>::iter().filter(|(_, sub)| sub.state == SubscriptionState::Active)
-		{
+		// Get the current block number once for comparison
+		let current_block = frame_system::Pallet::<T>::block_number();
+
+		// Filter for active subscriptions that are eligible for delivery based on frequency
+		for (sub_id, mut sub) in Subscriptions::<T>::iter().filter(|(_, sub)| {
+			// Subscription must be active
+			sub.state == SubscriptionState::Active &&
+            // And either never delivered before, or enough blocks have passed since last delivery
+            (sub.last_delivered.is_none() ||
+             current_block >= sub.last_delivered.unwrap() + sub.frequency)
+		}) {
 			let msg = Self::construct_randomness_xcm(&rnd, sub.details.call_index);
 			let versioned_target: Box<VersionedLocation> =
 				Box::new(sub.details.target.clone().into());
 			let versioned_msg: Box<VersionedXcm<()>> = Box::new(xcm::VersionedXcm::V5(msg.into()));
 			let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
+
 			if T::Xcm::send(origin.into(), versioned_target, versioned_msg).is_ok() {
 				// We consume a fixed one credit per distribution
 				let credits_consumed = One::one();
 				Self::collect_fees(&sub, credits_consumed)?;
-				Self::consume_credits(&sub_id, sub.clone(), credits_consumed);
+
+				// Update subscription with consumed credits and last_delivered block number
+				sub.credits_left = sub.credits_left.saturating_sub(credits_consumed);
+				sub.last_delivered = Some(current_block);
+
+				// Store the updated subscription
+				Subscriptions::<T>::insert(sub_id, sub);
+
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			}
 		}
 
 		Ok(())
-	}
-
-	fn consume_credits(
-		sub_id: &SubscriptionId,
-		mut sub: SubscriptionOf<T>,
-		credits_consumed: T::Credits,
-	) {
-		// Decrease credits_left by `credits_consumed` using saturating_sub
-		sub.credits_left = sub.credits_left.saturating_sub(credits_consumed);
-		// Update the subscription in storage
-		Subscriptions::<T>::insert(sub_id, sub)
 	}
 
 	fn collect_fees(sub: &SubscriptionOf<T>, credits_consumed: T::Credits) -> DispatchResult {
@@ -555,6 +560,7 @@ impl<T: Config> Pallet<T> {
 			updated_at: current_block,
 			credits,
 			frequency,
+			last_delivered: None,
 		};
 
 		Self::hold_deposit(
