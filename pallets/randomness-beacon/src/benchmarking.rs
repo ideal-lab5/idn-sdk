@@ -18,7 +18,7 @@
 use super::*;
 
 #[allow(unused)]
-use crate::{pallet as pallet_drand, mock::*, Pallet as Drand, types::*};
+use crate::{pallet as pallet_drand, Pallet as Drand};
 use ark_ec::Group;
 use ark_std::{ops::Mul, UniformRand};
 use frame_benchmarking::v2::*;
@@ -32,47 +32,48 @@ mod benchmarks {
 	use ark_std::test_rng;
 
 	#[benchmark]
+	fn set_beacon_config() {
+		let config = drand_quicknet_config();
+
+		#[extrinsic_call]
+		_(RawOrigin::Root, config.clone());
+
+		assert_eq!(BeaconConfig::<T>::get(), Some(config));
+	}
+
+	#[benchmark]
 	fn try_submit_asig() {
 		// we mock drand here
-		let sk = <TinyBLS381 as EngineBLS>::Scalar::from(1);
-		// let pk = <TinyBLS381 as EngineBLS>::PublicKeyGroup::generator().mul(sk);
-		// let mut pk_bytes = Vec::new();
-		// pk.serialize_compressed(&mut pk_bytes).unwrap();
+		let sk = <TinyBLS381 as EngineBLS>::Scalar::rand(&mut test_rng());
+		let pk = <TinyBLS381 as EngineBLS>::PublicKeyGroup::generator().mul(sk);
+		let mut pk_bytes = Vec::new();
+		pk.serialize_compressed(&mut pk_bytes).unwrap();
 
-		// let mut config = drand_quicknet_config();
-		// config.public_key = BoundedVec::truncate_from(pk_bytes);
+		let mut config = drand_quicknet_config();
+		config.public_key = BoundedVec::truncate_from(pk_bytes);
 
-		// pallet_drand::BeaconConfig::<T>::set(Some(config));
+		pallet_drand::BeaconConfig::<T>::set(Some(config));
 
+		let block_number: BlockNumberFor<T> = 1u32.into();
 		let start = 1;
-		let num_rounds = 2;
+		let num_rounds = 1;
 
-		let mut asig = crate::aggregator::zero_on_g1();
-		let mut apk = crate::verifier::zero_on_g1();
-
+		let mut asig = crate::verifier::zero_on_g1();
 		for round in start..start + num_rounds {
 			let q_id = crate::verifier::compute_round_on_g1(round).unwrap();
-			apk = (apk + q_id).into();
 			asig = (asig + (q_id.mul(sk))).into();
 		}
 
 		let mut asig_bytes = Vec::new();
 		asig.serialize_compressed(&mut asig_bytes).unwrap();
-		let bounded_asig = OpaqueSignature::truncate_from(asig_bytes);
-
-		let mut apk_bytes = Vec::new();
-		apk.serialize_compressed(&mut apk_bytes).unwrap();
-		let bounded_message_hash = OpaqueSignature::truncate_from(apk_bytes);
+		let bounded_asig = BoundedVec::truncate_from(asig_bytes);
 
 		#[extrinsic_call]
-		_(RawOrigin::None, bounded_asig.clone(), num_rounds.clone(), Some(start));
+		_(RawOrigin::None, bounded_asig.clone(), start.clone(), num_rounds.clone());
 
 		assert_eq!(
-			AggregatedSignature::<T>::get(),
-			Some(Aggregate {
-				signature: bounded_asig, 
-				message_hash:  bounded_message_hash,
-			})
+			AggregatedSignatures::<T>::get(block_number),
+			Some((bounded_asig, start, num_rounds))
 		);
 	}
 
