@@ -106,7 +106,6 @@ pub type SubscriptionOf<T> =
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber: Unsigned, Metadata> {
 	details: SubscriptionDetails<AccountId, Metadata>,
-	call_builder: CallBuilder,
 	// Number of random values left to distribute
 	credits_left: BlockNumber,
 	state: SubscriptionState,
@@ -432,7 +431,7 @@ impl<T: Config> Pallet<T> {
 		for (sub_id, sub) in
 			Subscriptions::<T>::iter().filter(|(_, sub)| sub.state == SubscriptionState::Active)
 		{
-			if let Ok(msg) = Self::construct_randomness_xcm(sub.call_builder, &rnd) {
+			if let Ok(msg) = Self::construct_randomness_xcm(&rnd) {
 				let versioned_target: Box<VersionedLocation> =
 					Box::new(sub.details.target.clone().into());
 				let versioned_msg: Box<VersionedXcm<()>> =
@@ -571,12 +570,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Helper function to construct XCM message for randomness distribution
 	// TODO: finish this off as part of https://github.com/ideal-lab5/idn-sdk/issues/77
-	fn construct_randomness_xcm<
-		CallBuilderI: CallBuilder<T::Rnd, <T as frame_system::Config>::RuntimeCall>,
-	>(
-		call_builder: CallBuilderI,
-		rnd: &T::Rnd,
-	) -> Result<Xcm<()>, Error<T>> {
+	fn construct_randomness_xcm(rnd: &T::Rnd) -> Result<Xcm<()>, Error<T>> {
 		Ok(Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			Transact {
