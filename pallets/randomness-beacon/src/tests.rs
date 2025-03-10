@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 use crate::{
-	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound, LatestRound,
-	weights::*,
+	aggregator::test::*, mock::*, weights::*, AggregatedSignature, Call, Error, GenesisRound,
+	LatestRound,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 

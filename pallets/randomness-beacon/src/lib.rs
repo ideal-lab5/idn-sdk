@@ -183,7 +183,8 @@ pub mod pallet {
 		GenesisRoundAlreadySet,
 		/// There must be at least one signature to construct an asig
 		ZeroHeightProvided,
-		/// There number of aggregated signatures exceeds the maximum rounds we can verify per block.
+		/// There number of aggregated signatures exceeds the maximum rounds we can verify per
+		/// block.
 		ExcessiveHeightProvided,
 		/// Only one aggregated signature can be provided per block
 		SignatureAlreadyVerified,
@@ -202,7 +203,8 @@ pub mod pallet {
 			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 			{
 				// ignores non-deserializable messages
-				// if all messages are invalid, it outputs 0 on the G1 curve (so serialization of asig always works)
+				// if all messages are invalid, it outputs 0 on the G1 curve (so serialization of
+				// asig always works)
 				let asig = raw_pulses
 					.iter()
 					.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
@@ -265,7 +267,10 @@ pub mod pallet {
 		/// ## Complexity
 		/// - `O(1)`
 		fn on_finalize(_n: BlockNumberFor<T>) {
-			assert!(DidUpdate::<T>::take(), "The aggregated siganture must be updated once in the block");
+			assert!(
+				DidUpdate::<T>::take(),
+				"The aggregated siganture must be updated once in the block"
+			);
 		}
 	}
 
@@ -287,10 +292,7 @@ pub mod pallet {
 			round: Option<RoundNumber>,
 		) -> DispatchResult {
 			ensure_none(origin)?;
-			ensure!(
-				!DidUpdate::<T>::exists(), 
-				Error::<T>::SignatureAlreadyVerified,
-			);
+			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified,);
 
 			let config = T::BeaconConfig::get();
 			let mut genesis_round = GenesisRound::<T>::get();
@@ -310,10 +312,7 @@ pub mod pallet {
 				latest_round = genesis_round;
 			} else {
 				//  if the genesis round is not set and a round is not provided
-				ensure!(
-					GenesisRound::<T>::get() > 0,
-					Error::<T>::GenesisRoundNotSet
-				);
+				ensure!(GenesisRound::<T>::get() > 0, Error::<T>::GenesisRoundNotSet);
 			}
 			// aggregate old asig/apk with the new one and verify the aggregation
 			// Q: do we care about the entire linear history of message hashes?
