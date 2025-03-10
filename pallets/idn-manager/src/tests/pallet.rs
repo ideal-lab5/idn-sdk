@@ -65,6 +65,7 @@ fn update_subscription(
 		RuntimeOrigin::signed(subscriber.clone()),
 		original_credits,
 		target.clone(),
+		[1; 2],
 		original_frequency,
 		metadata.clone()
 	));
@@ -171,6 +172,7 @@ fn create_subscription_works() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			None
 		));
@@ -217,6 +219,7 @@ fn create_subscription_fails_if_insufficient_balance() {
 				RuntimeOrigin::signed(ALICE),
 				credits,
 				target,
+				[1; 2],
 				frequency,
 				None
 			),
@@ -244,6 +247,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			None
 		));
@@ -256,6 +260,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 				RuntimeOrigin::signed(ALICE),
 				credits,
 				target,
+				[1; 2],
 				frequency,
 				None
 			),
@@ -286,6 +291,7 @@ fn distribute_randomness_works() {
 			RuntimeOrigin::signed(ALICE),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			None
 		));
@@ -317,6 +323,7 @@ fn test_kill_subscription() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			metadata.clone()
 		));
@@ -373,6 +380,7 @@ fn on_finalize_removes_zero_credit_subscriptions() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			None
 		));
@@ -502,6 +510,7 @@ fn test_credits_consumption_and_cleanup() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			None
 		));
@@ -610,6 +619,7 @@ fn test_credits_consumption_not_enogh_balance() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			None
 		));
@@ -659,6 +669,7 @@ fn test_pause_reactivate_subscription() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			metadata.clone()
 		));
@@ -720,6 +731,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			metadata.clone()
 		));
@@ -770,6 +782,7 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			metadata.clone()
 		));
@@ -804,6 +817,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			metadata.clone()
 		));
@@ -870,6 +884,7 @@ fn test_on_finalize_removes_finished_subscriptions() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			None
 		));
@@ -1053,6 +1068,7 @@ fn test_get_subscription() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			credits,
 			target.clone(),
+			[1; 2],
 			frequency,
 			None
 		));
@@ -1093,6 +1109,7 @@ fn test_get_subscriptions_for_subscriber() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			50,
 			target1.clone(),
+			[1; 2],
 			10,
 			None
 		));
@@ -1101,6 +1118,7 @@ fn test_get_subscriptions_for_subscriber() {
 			RuntimeOrigin::signed(ALICE.clone()),
 			100,
 			target2.clone(),
+			[1; 2],
 			20,
 			None
 		));
@@ -1110,6 +1128,7 @@ fn test_get_subscriptions_for_subscriber() {
 			RuntimeOrigin::signed(BOB.clone()),
 			75,
 			target3.clone(),
+			[1; 2],
 			15,
 			None
 		));

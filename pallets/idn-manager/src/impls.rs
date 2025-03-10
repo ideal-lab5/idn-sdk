@@ -33,8 +33,8 @@ use sp_arithmetic::traits::Unsigned;
 use sp_runtime::{traits::Zero, AccountId32, Saturating};
 use sp_std::{cmp::Ordering, marker::PhantomData};
 
-impl<AccountId, BlockNumber: Unsigned, Metadata> SubscriptionTrait<AccountId>
-	for Subscription<AccountId, BlockNumber, Metadata>
+impl<AccountId, BlockNumber, Credits: Unsigned, Metadata> SubscriptionTrait<AccountId>
+	for Subscription<AccountId, BlockNumber, Credits, Metadata>
 {
 	fn subscriber(&self) -> &AccountId {
 		&self.details.subscriber
@@ -87,7 +87,7 @@ where
 	/// appropriate balance type
 	///
 	/// # Example
-	/// ```no_compile
+	///```nocompile
 	/// // 100 credits would incur a fee of:
 	/// // - 10 credits at full price: 10 * 100 = 1000
 	/// // - 90 credits at 5% discount: 90 * 95 = 8550
@@ -159,7 +159,7 @@ where
 	/// - `direction`: Whether to collect additional fees, release excess fees, or do nothing
 	///
 	/// # Examples
-	/// ```no_compile
+	///```nocompile
 	/// // When increasing credits, additional fees are collected:
 	/// // Old: 10 credits (1000 fee), New: 50 credits (5000 fee)
 	/// let diff = calculate_diff_fees(&10, &50);
@@ -221,7 +221,7 @@ where
 	///   amount is collected
 	///
 	/// # Example
-	/// ```no_compile
+	///```nocompile
 	/// let fees = 1000u64.into();
 	/// let result = FeesManagerImpl::<Treasury, BaseFee, Subscription, Balances>::collect_fees(
 	///     &fees,
@@ -291,7 +291,7 @@ impl<
 	/// 2. Using saturating multiplication to prevent arithmetic overflow
 	///
 	/// # Example
-	/// ```no_compile
+	/// ```nocompile
 	/// let subscription = Subscription {
 	///     // subscription details...
 	/// };
@@ -333,7 +333,7 @@ impl<
 	/// 3. Returns both the amount and direction of the required deposit adjustment
 	///
 	/// # Example
-	/// ```no_compile
+	///```nocompile
 	/// // When subscription size increases (e.g., metadata added):
 	/// let old_sub = /* subscription with 100 bytes encoded size */;
 	/// let new_sub = /* same subscription with 150 bytes encoded size */;
