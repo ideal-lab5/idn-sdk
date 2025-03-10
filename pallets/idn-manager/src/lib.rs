@@ -479,7 +479,6 @@ impl<T: Config> Pallet<T> {
 
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
-	// TODO: finish off this as part of https://github.com/ideal-lab5/idn-sdk/issues/77
 	fn distribute(rnd: T::Rnd) -> DispatchResult {
 		// Get the current block number once for comparison
 		let current_block = frame_system::Pallet::<T>::block_number();

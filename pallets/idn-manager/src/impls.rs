@@ -252,8 +252,7 @@ where
 		)
 		.map_err(FeesError::Other)?;
 
-		// Ensure the correct credits was collected.
-		// TODO: error to bubble up and be handled by caller https://github.com/ideal-lab5/idn-sdk/issues/107
+		// Ensure the correct credits were collected.
 		if collected < *fees {
 			return Err(FeesError::NotEnoughBalance { needed: *fees, balance: collected });
 		}
