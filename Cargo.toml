@@ -47,8 +47,8 @@ default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
 [workspace.dependencies]
 # Async, Concurrency, & Networking
 async-trait = "=0.1.86"
-futures = "0.3"
-futures-timer = "3.0.3"
+futures = "=0.3"
+futures-timer = "=3.0.3"
 libp2p = { version = "0.55.0", features = [
     "gossipsub",
     "noise",
@@ -60,37 +60,37 @@ libp2p = { version = "0.55.0", features = [
     "websocket",
     "yamux",
 ] }
-thiserror = { version = "1.0.64" }
+thiserror = { version = "=1.0.64" }
 tokio = { version = "^1", features = ["full"] }
 
 # Serialization
-array-bytes = { version = "6.2.2", default-features = false }
-hex = { version = "0.4", features = ["serde"], default-features = false }
+array-bytes = { version = "=6.2.2", default-features = false }
+hex = { version = "=0.4", features = ["serde"], default-features = false }
 serde = { version = "=1.0.218", default-features = false }
-serde_json = { version = "1.0.132", default-features = false }
+serde_json = { version = "=1.0.132", default-features = false }
 
 # Polkadot & Substrate
-frame-benchmarking = { version = "39.0.0", default-features = false }
-frame-executive = { version = "39.0.0", default-features = false }
-frame-support = { version = "39.0.0", default-features = false }
-frame-system = { version = "39.1.0", default-features = false }
+frame-benchmarking = { version = "=39.0.0", default-features = false }
+frame-executive = { version = "3=9.0.0", default-features = false }
+frame-support = { version = "=39.0.0", default-features = false }
+frame-system = { version = "=39.1.0", default-features = false }
 sc-consensus-randomness-beacon = { path = "./client/consensus/randomness-beacon", default-features = false }
 sc-utils = { version = "18.0.0", default-features = false }
 sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }
-sp-core = { version = "35.0.0", default-features = false }
-sp-inherents = { version = "35.0.0", default-features = false }
-sp-io = { version = "39.0.0", default-features = false }
-sp-keystore = { version = "0.41.0", default-features = false }
-sp-runtime = { version = "40.1.0", default-features = false }
+sp-core = { version = "=35.0.0", default-features = false }
+sp-inherents = { version = "=35.0.0", default-features = false }
+sp-io = { version = "=39.0.0", default-features = false }
+sp-keystore = { version = "=0.41.0", default-features = false }
+sp-runtime = { version = "=40.1.0", default-features = false }
 
 # Arkworks & Crypto
-sp-ark-bls12-381 = { git = "https://github.com/paritytech/arkworks-substrate", version = "0.4.2", default-features = false }
-ark-bls12-381 = { version = "0.4.0", features = ["curve"], default-features = false }
-ark-serialize = { version = "0.4.0", features = ["derive"], default-features = false }
-ark-ec = { version = "0.4.0", default-features = false }
-ark-std = { version = "0.4.0", default-features = false }
-sha2 = { version = "0.10.8" }
-timelock = { version = "0.0.1", default-features = false }
+sp-ark-bls12-381 = { git = "https://github.com/paritytech/arkworks-substrate", version = "=0.4.2", default-features = false }
+ark-bls12-381 = { version = "=0.4.0", features = ["curve"], default-features = false }
+ark-serialize = { version = "=0.4.2", features = ["derive"], default-features = false }
+ark-ec = { version = "=0.4.2", default-features = false }
+ark-std = { version = "=0.4.0", default-features = false }
+sha2 = { version = "=0.10.8" }
+timelock = { version = "=0.0.1", default-features = false }
 
 # Logging & Utilities
 log = { version = "=0.4.26", default-features = false }
