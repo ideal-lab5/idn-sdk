@@ -49,7 +49,7 @@ default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
 async-trait = "=0.1.86"
 futures = "=0.3"
 futures-timer = "=3.0.3"
-libp2p = { version = "0.55.0", features = [
+libp2p = { version = "=0.55.0", features = [
     "gossipsub",
     "noise",
     "tcp",
