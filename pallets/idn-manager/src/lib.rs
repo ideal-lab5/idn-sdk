@@ -57,7 +57,6 @@ pub mod impls;
 pub mod traits;
 pub mod weights;
 
-use crate::traits::FeesError;
 use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
@@ -76,6 +75,7 @@ use frame_system::{
 	ensure_signed,
 	pallet_prelude::{BlockNumberFor, OriginFor},
 };
+use idn_traits::rand::{Dispatcher, Pulse};
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
@@ -83,7 +83,7 @@ use sp_io::hashing::blake2_256;
 use sp_runtime::{traits::One, Saturating};
 use sp_std::fmt::Debug;
 use traits::{
-	BalanceDirection, DepositCalculator, DiffBalance, FeesManager,
+	BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
 	Subscription as SubscriptionTrait,
 };
 use xcm::{
@@ -239,8 +239,8 @@ pub mod pallet {
 		/// Storage deposit calculator implementation
 		type DepositCalculator: DepositCalculator<BalanceOf<Self>, SubscriptionOf<Self>>;
 
-		/// The type for the randomness
-		type Rnd: Encode;
+		/// The type for the randomness pulse
+		type Pulse: Pulse + Encode;
 
 		// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
@@ -479,7 +479,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
-	fn distribute(rnd: T::Rnd) -> DispatchResult {
+	fn distribute(pulse: T::Pulse) -> DispatchResult {
 		// Get the current block number once for comparison
 		let current_block = frame_system::Pallet::<T>::block_number();
 
@@ -640,23 +640,23 @@ impl<T: Config> Pallet<T> {
 	/// 3. Expect successful execution and check status code (ExpectTransactStatus)
 	///
 	/// # Parameters
-	/// * `rnd` - The random value to deliver to the subscriber
+	/// * `pulse` - The random value to deliver to the subscriber
 	/// * `call_index` - Identifier for dispatching the XCM call, see [`crate::CallIndex`]
 	///
 	/// # Returns
 	/// * `Xcm` - A complete XCM message ready to be sent
-	fn construct_randomness_xcm(rnd: &T::Rnd, call_index: CallIndex) -> Xcm<()> {
+	fn construct_randomness_xcm(pulse: &T::Pulse, call_index: CallIndex) -> Xcm<()> {
 		Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			Transact {
 				origin_kind: OriginKind::Xcm,
 				fallback_max_weight: None,
-				// Create a tuple of call_index and rnd, encode it using SCALE codec, then convert
+				// Create a tuple of call_index and pulse, encode it using SCALE codec, then convert
 				// to Vec<u8> The encoded data will be used by the receiving chain to:
 				// 1. Find the target pallet using first byte of call_index
 				// 2. Find the target function using second byte of call_index
 				// 3. Pass the random value to that function
-				call: (call_index, rnd).encode().into(),
+				call: (call_index, pulse).encode().into(),
 			},
 			ExpectTransactStatus(MaybeErrorCode::Success),
 		])
@@ -681,9 +681,9 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-impl<T: Config> idn_traits::rand::Dispatcher<T::Rnd, DispatchResult> for Pallet<T> {
-	fn dispatch(rnd: T::Rnd) -> DispatchResult {
-		Pallet::<T>::distribute(rnd)
+impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
+	fn dispatch(pulse: T::Pulse) -> DispatchResult {
+		Pallet::<T>::distribute(pulse)
 	}
 }
 
