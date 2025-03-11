@@ -183,7 +183,7 @@ pub mod pallet {
 		GenesisRoundAlreadySet,
 		/// There must be at least one signature to construct an asig
 		ZeroHeightProvided,
-		/// There number of aggregated signatures exceeds the maximum rounds we can verify per
+		/// The number of aggregated signatures exceeds the maximum rounds that we can verify per
 		/// block.
 		ExcessiveHeightProvided,
 		/// Only one aggregated signature can be provided per block
