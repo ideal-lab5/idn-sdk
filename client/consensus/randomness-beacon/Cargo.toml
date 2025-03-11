@@ -16,7 +16,7 @@ codec.workspace = true
 serde = { workspace = true, features = ["derive"] }
 tokio.workspace = true
 libp2p.workspace = true
-prost = "0.13.4"
+prost = "=0.13.5"
 log = { workspace = true }
 futures.workspace = true
 scale-info.workspace = true
@@ -31,8 +31,8 @@ ark-serialize.workspace = true
 prost-build = "=0.13.5"
 
 [dev-dependencies]
-async-std = "1.13.0"
-rand = "0.8.5"
+async-std = "=1.13.0"
+rand = "=0.8.5"
 tokio.workspace = true
 
  
