@@ -10,6 +10,11 @@ homepage = "https://www.idealabs.network"
 repository.workspace = true
 publish = false
 
+[dependencies]
+frame-support = { version = "39.0.0",  default-features = false }
+
 [features]
 default = ["std"]
-std = []
+std = [
+	"frame-support/std"
+]

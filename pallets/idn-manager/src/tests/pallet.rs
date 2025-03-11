@@ -17,7 +17,7 @@
 //! # Tests for the IDN Manager pallet
 
 use crate::{
-	tests::mock::{Balances, ExtBuilder, Test, *},
+	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
 	Config, Error, Event, HoldReason, SubscriptionState, Subscriptions,
 };
@@ -466,7 +466,7 @@ fn test_credits_consumption_and_cleanup() {
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000;
 		let mut treasury_balance = 0;
-		let rnd = [0u8; 32];
+		let pulse = mock::Pulse { rand: [0u8; 32], round: 0 };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -506,7 +506,7 @@ fn test_credits_consumption_and_cleanup() {
 			System::set_block_number(System::block_number() + 1);
 
 			// Dispatch randomness
-			assert_ok!(IdnManager::dispatch(rnd.into()));
+			assert_ok!(IdnManager::dispatch(pulse.into()));
 
 			System::assert_last_event(RuntimeEvent::IdnManager(
 				Event::<Test>::RandomnessDistributed { sub_id },
@@ -576,7 +576,7 @@ fn test_credits_consumption_not_enogh_balance() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000;
-		let rnd = [0u8; 32];
+		let pulse = mock::Pulse { rand: [0u8; 32], round: 0 };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -607,13 +607,13 @@ fn test_credits_consumption_not_enogh_balance() {
 				);
 				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
 				assert_noop!(
-					IdnManager::dispatch(rnd.into()),
+					IdnManager::dispatch(pulse.into()),
 					DispatchError::Other("NotEnoughBalance")
 				);
 				break;
 			} else {
 				// Dispatch randomness
-				assert_ok!(IdnManager::dispatch(rnd.into()));
+				assert_ok!(IdnManager::dispatch(pulse.into()));
 			}
 
 			// finalize block
@@ -630,7 +630,7 @@ fn test_credits_consumption_frequency() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 3; // Every 3 blocks
 		let initial_balance = 10_000_000;
-		let rnd = [0u8; 32];
+		let pulse = mock::Pulse { rand: [0u8; 32], round: 0 };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -665,7 +665,7 @@ fn test_credits_consumption_frequency() {
 			let credits_left = sub.credits_left;
 
 			// Dispatch randomness
-			assert_ok!(IdnManager::dispatch(rnd.into()));
+			assert_ok!(IdnManager::dispatch(pulse.into()));
 
 			// Check the subscription state
 			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
