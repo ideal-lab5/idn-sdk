@@ -18,23 +18,41 @@
 //!
 //! This module contains examples of fee calculators that can be used in the IDN Manager pallet.
 
-use crate::traits::FeesManager;
+use crate::traits::{BalanceDirection, DiffBalance, FeesManager};
+use sp_runtime::traits::Zero;
+use sp_std::cmp::Ordering;
 
 /// Linear fee calculator with no discount
 pub struct LinearFeeCalculator;
 
+const BASE_FEE: u32 = 100;
+
 impl FeesManager<u32, u32, (), (), ()> for LinearFeeCalculator {
-	fn calculate_subscription_fees(amount: u32) -> u32 {
-		let base_fee = 100u32;
-		base_fee.saturating_mul(amount.into())
+	fn calculate_subscription_fees(credits: &u32) -> u32 {
+		BASE_FEE.saturating_mul(credits.clone().into())
 	}
-	fn calculate_refund_fees(_init_amount: u32, current_amount: u32) -> u32 {
-		// in this case of a linear function, the refund's is the same as the fees'
-		Self::calculate_subscription_fees(current_amount)
+	fn calculate_diff_fees(old_credits: &u32, new_credits: &u32) -> DiffBalance<u32> {
+		let mut direction = BalanceDirection::None;
+		let fees = match new_credits.cmp(&old_credits) {
+			Ordering::Greater => {
+				direction = BalanceDirection::Collect;
+				Self::calculate_subscription_fees(
+					&new_credits.clone().saturating_sub(old_credits.clone()),
+				)
+			},
+			Ordering::Less => {
+				direction = BalanceDirection::Release;
+				Self::calculate_subscription_fees(
+					&old_credits.clone().saturating_sub(new_credits.clone()),
+				)
+			},
+			Ordering::Equal => Zero::zero(),
+		};
+		DiffBalance { balance: fees, direction }
 	}
-	fn collect_fees(fees: u32, _: ()) -> Result<u32, crate::traits::FeesError<u32, ()>> {
+	fn collect_fees(fees: &u32, _: &()) -> Result<u32, crate::traits::FeesError<u32, ()>> {
 		// In this case, we don't need to do anything with the fees, so we just return them
-		Ok(fees)
+		Ok(*fees)
 	}
 }
 
@@ -42,9 +60,7 @@ impl FeesManager<u32, u32, (), (), ()> for LinearFeeCalculator {
 pub struct SteppedTieredFeeCalculator;
 
 impl FeesManager<u32, u32, (), (), ()> for SteppedTieredFeeCalculator {
-	fn calculate_subscription_fees(amount: u32) -> u32 {
-		let base_fee = 100u32;
-
+	fn calculate_subscription_fees(credits: &u32) -> u32 {
 		// Define tier boundaries and their respective discount rates (in basis points)
 		const TIERS: [(u32, u32); 5] = [
 			(1, 0),        // 0-10: 0% discount
@@ -55,40 +71,51 @@ impl FeesManager<u32, u32, (), (), ()> for SteppedTieredFeeCalculator {
 		];
 
 		let mut total_fee = 0u32;
-		let mut remaining_amount = amount;
+		let mut remaining_credits = *credits;
 
 		for (i, &(current_tier_start, current_tier_discount)) in TIERS.iter().enumerate() {
-			// If no remaining credits or the tier starts above the requested amount, exit loop.
-			if remaining_amount == 0 || amount < current_tier_start {
+			// If no remaining credits exit loop.
+			if remaining_credits == 0 {
 				break;
 			}
 
 			let next_tier_start = TIERS.get(i + 1).map(|&(start, _)| start).unwrap_or(u32::MAX);
 			let credits_in_tier =
-				(amount.min(next_tier_start.saturating_sub(1)) - current_tier_start + 1)
-					.min(remaining_amount);
+				(credits.min(&next_tier_start.saturating_sub(1)) - current_tier_start + 1)
+					.min(remaining_credits);
 
-			let tier_fee = base_fee
+			let tier_fee = BASE_FEE
 				.saturating_mul(credits_in_tier)
 				.saturating_mul((10_000 - current_tier_discount) as u32)
 				.saturating_div(10_000);
 
 			total_fee = total_fee.saturating_add(tier_fee);
-			remaining_amount = remaining_amount.saturating_sub(credits_in_tier);
+			remaining_credits = remaining_credits.saturating_sub(credits_in_tier);
 		}
 
 		total_fee
 	}
-	// The discount for the `used_amount` (`init_amount` - `current_amount`) is taken from the lower
-	// tieres (those with less discounts)
-	fn calculate_refund_fees(init_amount: u32, current_amount: u32) -> u32 {
-		let used_amount = init_amount - current_amount;
-		Self::calculate_subscription_fees(init_amount) -
-			Self::calculate_subscription_fees(used_amount)
+
+	fn calculate_diff_fees(old_credits: &u32, new_credits: &u32) -> DiffBalance<u32> {
+		let old_fees = Self::calculate_subscription_fees(old_credits);
+		let new_fees = Self::calculate_subscription_fees(new_credits);
+		let mut direction = BalanceDirection::None;
+		let fees = match new_fees.cmp(&old_fees) {
+			Ordering::Greater => {
+				direction = BalanceDirection::Collect;
+				new_fees - old_fees
+			},
+			Ordering::Less => {
+				direction = BalanceDirection::Release;
+				old_fees - new_fees
+			},
+			Ordering::Equal => Zero::zero(),
+		};
+		DiffBalance { balance: fees, direction }
 	}
-	fn collect_fees(fees: u32, _: ()) -> Result<u32, crate::traits::FeesError<u32, ()>> {
+	fn collect_fees(fees: &u32, _: &()) -> Result<u32, crate::traits::FeesError<u32, ()>> {
 		// In this case, we don't need to do anything with the fees, so we just return them
-		Ok(fees)
+		Ok(*fees)
 	}
 }
 
@@ -98,66 +125,78 @@ mod tests {
 
 	#[test]
 	fn test_linear_fee_calculator() {
-		assert_eq!(LinearFeeCalculator::calculate_subscription_fees(1), 100);
-		assert_eq!(LinearFeeCalculator::calculate_subscription_fees(10), 1_000);
-		assert_eq!(LinearFeeCalculator::calculate_subscription_fees(100), 10_000);
+		assert_eq!(LinearFeeCalculator::calculate_subscription_fees(&1), 100);
+		assert_eq!(LinearFeeCalculator::calculate_subscription_fees(&10), 1_000);
+		assert_eq!(LinearFeeCalculator::calculate_subscription_fees(&100), 10_000);
 	}
-	/// Test when no subscription credits were used.
+
+	/// Thest when a subscription is fully used before being killed or the update does not change
+	/// the credits.
 	#[test]
-	fn test_calculate_refund_linear_fees_no_usage() {
-		let init_amount: u32 = 50;
-		let current_amount: u32 = 50; // no credits used
-								// In this case the refund should equal the fee for the entire subscription.
-		let refund = LinearFeeCalculator::calculate_refund_fees(init_amount, current_amount);
-		let expected = LinearFeeCalculator::calculate_subscription_fees(init_amount) -
-			LinearFeeCalculator::calculate_subscription_fees(0); // used_amount is 0
+	fn test_calculate_release_linear_fees_no_diff() {
+		let old_credits: u32 = 50;
+		let new_credits: u32 = 50; // no credits diff
+		let refund = LinearFeeCalculator::calculate_diff_fees(&old_credits, &new_credits);
+		// there should be no refund as all credit has been used, or no difference in the update
+		let expected = 0;
 		assert_eq!(
-			refund, expected,
-			"Refund must equal entire subscription fee when no credits were used"
+			refund,
+			DiffBalance { balance: expected, direction: BalanceDirection::None },
+			"There should be no release when no diff in credits"
 		);
 	}
 
-	/// Test for a partial usage scenario.
+	/// Test when a subscription is reduced or killed.
 	#[test]
-	fn test_calculate_refund_linear_fees_partial_usage() {
-		let init_amount: u32 = 50;
-		let current_amount: u32 = 30; // 20 credits used
-		let refund = LinearFeeCalculator::calculate_refund_fees(init_amount, current_amount);
-		let used_amount = init_amount - current_amount; // 20
-		let expected = LinearFeeCalculator::calculate_subscription_fees(init_amount) -
-			LinearFeeCalculator::calculate_subscription_fees(used_amount);
+	fn test_calculate_release_linear_fees_lower_diff() {
+		let old_credits: u32 = 50;
+		let new_credits: u32 = 30; // 20 credits used
+		let refund = LinearFeeCalculator::calculate_diff_fees(&old_credits, &new_credits);
+		let expected = 20 * BASE_FEE;
 		assert_eq!(
-			refund, expected,
-			"Refund must equal the fee difference between full subscription and the used portion"
+			refund,
+			DiffBalance { balance: expected, direction: BalanceDirection::Release },
+			"There should be a release when new credits is lower than old credits"
 		);
 	}
 
-	/// Test when the subscription is fully used.
+	/// Test when the subscription is extended.
 	#[test]
-	fn test_calculate_refund_linear_fees_full_usage() {
-		let init_amount: u32 = 50;
-		let current_amount: u32 = 0; // all credits used
-		let refund = LinearFeeCalculator::calculate_refund_fees(init_amount, current_amount);
-		let expected = LinearFeeCalculator::calculate_subscription_fees(init_amount) -
-			LinearFeeCalculator::calculate_subscription_fees(init_amount); // should be 0
-		assert_eq!(refund, expected, "Refund must be zero when all subscription credits are used");
+	fn test_calculate_hold_linear_fees_greater_diff() {
+		let old_credits: u32 = 50;
+		let new_credits: u32 = 60; // all credits used
+		let hold = LinearFeeCalculator::calculate_diff_fees(&old_credits, &new_credits);
+		let expected = 10 * BASE_FEE;
+		assert_eq!(
+			hold,
+			DiffBalance { balance: expected, direction: BalanceDirection::Collect },
+			"There should be more held balance"
+		);
 	}
 
 	#[test]
 	fn test_stepped_tiered_calculator() {
 		// Test first tier (no discount)
-		assert_eq!(SteppedTieredFeeCalculator::calculate_subscription_fees(10), 1_000); // 10 * 100 = 1,000
+		assert_eq!(SteppedTieredFeeCalculator::calculate_subscription_fees(&10), 1_000); // 10 * 100 = 1,000
 
 		// Test crossing into second tier
-		let fee_11 = SteppedTieredFeeCalculator::calculate_subscription_fees(11);
+		let fee_11 = SteppedTieredFeeCalculator::calculate_subscription_fees(&11);
 		assert_eq!(fee_11, 1_095); // (10 * 100) + (1 * 95) = 1,000 + 95 = 1,095
 
 		// Test middle of second tier
-		let fee_50 = SteppedTieredFeeCalculator::calculate_subscription_fees(50);
+		let fee_50 = SteppedTieredFeeCalculator::calculate_subscription_fees(&50);
 		assert_eq!(fee_50, 4_800); // (10 * 100) + (40 * 95) = 1,000 + 3,800 = 4,800
 
+		// Test edge of second tier
+		let fee_100 = SteppedTieredFeeCalculator::calculate_subscription_fees(&100);
+		assert_eq!(fee_100, 9550); // (10 * 100) + (90 * 95) = 1,000 + 8,550 = 9,550
+
+		// Test edge of second tier
+		let fee_101 = SteppedTieredFeeCalculator::calculate_subscription_fees(&101);
+		assert_eq!(fee_101, 9_640); // (10 * 100) + (90 * 95) + (1 * 90)= 1,000 + 8,550 + 90 = 9,640
+
 		// Test crossing multiple tiers
-		let fee_150 = SteppedTieredFeeCalculator::calculate_subscription_fees(150);
+		let fee_150 = SteppedTieredFeeCalculator::calculate_subscription_fees(&150);
 		// First 10 at 100% = 1,000
 		// Next 90 at 95% = 8,550
 		// Next 50 at 90% = 4,500
@@ -168,54 +207,56 @@ mod tests {
 	#[test]
 	fn test_no_price_inversion() {
 		// Test that buying more never costs less
-		let fee_10 = SteppedTieredFeeCalculator::calculate_subscription_fees(10);
-		let fee_11 = SteppedTieredFeeCalculator::calculate_subscription_fees(11);
+		let fee_10 = SteppedTieredFeeCalculator::calculate_subscription_fees(&10);
+		let fee_11 = SteppedTieredFeeCalculator::calculate_subscription_fees(&11);
 		assert!(fee_11 > fee_10, "11 credits should cost more than 10 credits");
 
 		// Test around the 100 credit boundary
-		let fee_100 = SteppedTieredFeeCalculator::calculate_subscription_fees(100);
-		let fee_101 = SteppedTieredFeeCalculator::calculate_subscription_fees(101);
+		let fee_100 = SteppedTieredFeeCalculator::calculate_subscription_fees(&100);
+		let fee_101 = SteppedTieredFeeCalculator::calculate_subscription_fees(&101);
 		assert!(fee_101 > fee_100, "101 credits should cost more than 100 credits");
 	}
 
-	/// Test when no subscription credits were used.
+	/// Thest when a subscription is fully used before being killed or the update does not change
+	/// the credits.
 	#[test]
-	fn test_calculate_refund_fees_no_usage() {
-		let init_amount: u32 = 50;
-		let current_amount: u32 = 50; // no credits used
-								// In this case the refund should equal the fee for the entire subscription.
-		let refund = SteppedTieredFeeCalculator::calculate_refund_fees(init_amount, current_amount);
-		let expected = SteppedTieredFeeCalculator::calculate_subscription_fees(init_amount) -
-			SteppedTieredFeeCalculator::calculate_subscription_fees(0); // used_amount is 0
+	fn test_calculate_release_stepped_fees_no_diff() {
+		let old_credits: u32 = 50;
+		let new_credits: u32 = 50; // no credits diff
+		let refund = SteppedTieredFeeCalculator::calculate_diff_fees(&old_credits, &new_credits);
+		let expected = 0;
 		assert_eq!(
-			refund, expected,
-			"Refund must equal entire subscription fee when no credits were used"
+			refund,
+			DiffBalance { balance: expected, direction: BalanceDirection::None },
+			"There should be no release when no diff in credits"
 		);
 	}
 
 	/// Test for a partial usage scenario.
 	#[test]
-	fn test_calculate_refund_fees_partial_usage() {
-		let init_amount: u32 = 50;
-		let current_amount: u32 = 30; // 20 credits used
-		let refund = SteppedTieredFeeCalculator::calculate_refund_fees(init_amount, current_amount);
-		let used_amount = init_amount - current_amount; // 20
-		let expected = SteppedTieredFeeCalculator::calculate_subscription_fees(init_amount) -
-			SteppedTieredFeeCalculator::calculate_subscription_fees(used_amount);
+	fn test_calculate_release_stepped_fees_lower_diff() {
+		let old_credits: u32 = 110;
+		let new_credits: u32 = 100; // 1 value decrease
+		let refund = SteppedTieredFeeCalculator::calculate_diff_fees(&old_credits, &new_credits);
+		let expected = 10 * BASE_FEE.saturating_mul(9_000).saturating_div(10_000); // 10% discount on the extra value
 		assert_eq!(
-			refund, expected,
-			"Refund must equal the fee difference between full subscription and the used portion"
+			refund,
+			DiffBalance { balance: expected, direction: BalanceDirection::Release },
+			"There should be a release when new credits is lower than old credits"
 		);
 	}
 
 	/// Test when the subscription is fully used.
 	#[test]
-	fn test_calculate_refund_fees_full_usage() {
-		let init_amount: u32 = 50;
-		let current_amount: u32 = 0; // all credits used
-		let refund = SteppedTieredFeeCalculator::calculate_refund_fees(init_amount, current_amount);
-		let expected = SteppedTieredFeeCalculator::calculate_subscription_fees(init_amount) -
-			SteppedTieredFeeCalculator::calculate_subscription_fees(init_amount); // should be 0
-		assert_eq!(refund, expected, "Refund must be zero when all subscription credits are used");
+	fn test_calculate_hold_stepped_fees_greater_diff() {
+		let old_credits: u32 = 100;
+		let new_credits: u32 = 101; // 1 value increase
+		let hold = SteppedTieredFeeCalculator::calculate_diff_fees(&old_credits, &new_credits);
+		let expected = 1 * BASE_FEE.saturating_mul(9_000).saturating_div(10_000); // 10% discount on the extra value
+		assert_eq!(
+			hold,
+			DiffBalance { balance: expected, direction: BalanceDirection::Collect },
+			"There should be more held balance"
+		);
 	}
 }

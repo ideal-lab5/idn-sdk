@@ -27,8 +27,8 @@
 //!
 //! ## Examples
 //!
-//! ```
-//! use sc_consensus_randomness_beacon::gossipsub::{GossipsubNetwork, GossipsubState};
+//! ``` no_run
+//! use sc_consensus_randomness_beacon::gossipsub::GossipsubNetwork;
 //! use sc_consensus_randomness_beacon::types::*;
 //! use futures::StreamExt;
 //! use libp2p::{
@@ -40,6 +40,7 @@
 //! 		swarm::{Swarm, SwarmEvent},
 //! 		Multiaddr, SwarmBuilder,
 //! };
+//! use sc_utils::mpsc::tracing_unbounded;
 //! use prost::Message;
 //! use std::sync::{Arc, Mutex};
 //!
@@ -54,11 +55,11 @@
 //! 		.parse()
 //! 		.expect("The string is a well-formatted multiaddress. qed.");
 //! let local_identity: Keypair = Keypair::generate_ed25519();
-//! let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
+//! let (tx, rx) = tracing_unbounded("drand-notification-channel", 100000);
 //! let gossipsub_config = GossipsubConfig::default();
-//! let mut gossipsub = GossipsubNetwork::new(&local_identity, state.clone(), gossipsub_config).unwrap();
+//! let mut gossipsub = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None).unwrap();
 //! tokio::spawn(async move {
-//! 	if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
+//! 	if let Err(e) = gossipsub.run(topic_str, vec![maddr1, maddr2]).await {
 //! 		log::error!("Failed to run gossipsub network: {:?}", e);
 //! 	}
 //! });
@@ -75,7 +76,7 @@ use libp2p::{
 	Multiaddr, SwarmBuilder,
 };
 use prost::Message;
-use std::sync::{Arc, Mutex};
+use sc_utils::mpsc::TracingUnboundedSender;
 
 /// The default address instructing libp2p to choose a random open port on the local machine
 const RAND_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/0";
@@ -85,46 +86,24 @@ const RAND_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/0";
 pub enum Error {
 	/// The signature buffer expects 48 bytes, but more were provided
 	SignatureBufferCapacityExceeded,
+	/// The message did not follow the expected format
+	UnexpectedMessageFormat,
 	/// The provided gossipsub behaviour is invalid
 	InvalidGossipsubNetworkBehaviour,
-	/// The peer could not be dialed.
-	PeerUnreachable { who: Multiaddr },
+	/// The multiaddress is invalid (likely the protocol is not supported)
+	InvalidMultiaddress { who: Multiaddr },
 	/// The swarm could not listen on the given port
 	SwarmListenFailure,
-	/// The swarm could not subscribe to the topic.
-	GossipsubSubscriptionFailed,
-	/// The Mutex is locked and can not be accessed.
-	StateLocked,
 }
-
-/// The Gossipsub State tracks the pulses ingested from a randomness beacon
-/// during some given block's lifetime (i.e. the new pulses observed)
-#[derive(Debug, Clone, PartialEq)]
-pub struct GossipsubState {
-	/// An (unbounded) vec of pulses
-	pub pulses: Vec<OpaquePulse>,
-}
-
-impl GossipsubState {
-	/// Append a new pulse to the pulses vec. It returns Ok() if successful, otherwise gives an
-	/// error.
-	/// * `pulse`: The pulse to append
-	fn add_pulse(&mut self, pulse: Pulse) -> Result<(), Error> {
-		let opaque = pulse.try_into().map_err(|_| Error::SignatureBufferCapacityExceeded)?;
-		self.pulses.push(opaque);
-		Ok(())
-	}
-}
-
-/// A shared Gossipsub state between threads
-pub type SharedState = Arc<Mutex<GossipsubState>>;
 
 /// A gossipsub network with any behaviour and shared state
 pub struct GossipsubNetwork {
 	/// The behaviour config for the swam
 	swarm: Swarm<GossipsubBehaviour>,
-	/// The shared state
-	state: SharedState,
+	/// The mpsc channel sender
+	sender: TracingUnboundedSender<OpaquePulse>,
+	/// The number of peers the node is connected to
+	pub(crate) connected_peers: u8,
 }
 
 impl GossipsubNetwork {
@@ -134,17 +113,21 @@ impl GossipsubNetwork {
 	/// transport layer.
 	///
 	/// * `key`: A libp2p keypair
-	/// * `state`: The shared state
 	/// * `gossipsub_config`: A gossipsub config
+	/// * `sender`: A `TracingUnboundedSender` that can send an `OpaquePulse`
+	/// * `listen_addr`: An optional address to listen on. If None, a random local port is assigned.
 	pub fn new(
 		key: &Keypair,
-		state: SharedState,
 		gossipsub_config: GossipsubConfig,
+		sender: TracingUnboundedSender<OpaquePulse>,
+		listen_addr: Option<&Multiaddr>,
 	) -> Result<Self, Error> {
 		let message_authenticity = MessageAuthenticity::Signed(key.clone());
 		let gossipsub = GossipsubBehaviour::new(message_authenticity, gossipsub_config)
 			.map_err(|_| Error::InvalidGossipsubNetworkBehaviour)?;
-		let swarm = SwarmBuilder::with_existing_identity(key.clone())
+		// setup a libp2p swarm with tcp transport, using noise protocol for encryption
+		// and yamux for multiplexing
+		let mut swarm = SwarmBuilder::with_existing_identity(key.clone())
 			.with_tokio()
 			.with_tcp(
 				libp2p::tcp::Config::default(),
@@ -156,36 +139,31 @@ impl GossipsubNetwork {
 			.expect("The behaviour is well defined.")
 			.build();
 
-		Ok(Self { swarm, state })
+		// fallback to a randomly assigned open port if one was not provided
+		let fallback = &RAND_LISTEN_ADDR.parse().expect("The multiaddress is well-formatted;QED.");
+		let listen_addr = listen_addr.unwrap_or(fallback);
+
+		swarm.listen_on(listen_addr.clone()).map_err(|_| Error::SwarmListenFailure)?;
+
+		Ok(Self { swarm, sender, connected_peers: 0 })
 	}
 
 	/// Start the gossipsub network.
 	/// It waits for peers to establish a connection, then writes well-formed messages received
 	/// from the gossipsub topic to the shared state.
 	///
-	/// * `topic_str`: The gossipsub topic to subscribe to
-	/// * `peers`: A list of peers to dial
-	/// * `listen_addr`: An address to listen on. If None, then a random local port is assigned.
-	pub async fn run(
-		&mut self,
-		topic_str: &str,
-		peers: Vec<&Multiaddr>,
-		listen_addr: Option<&Multiaddr>,
-	) -> Result<(), Error> {
-		// fallback to a randomly assigned open port if one was not provided
-		let fallback = &RAND_LISTEN_ADDR.parse().expect("The multiaddress is well-formatted;QED.");
-		let listen_addr = listen_addr.unwrap_or(fallback);
-		self.swarm
-			.listen_on(listen_addr.clone())
-			.map_err(|_| Error::SwarmListenFailure)?;
-
-		for peer in &peers {
-			self.swarm
-				.dial((*peer).clone())
-				.map_err(|_| Error::PeerUnreachable { who: (*peer).clone() })?;
+	/// * `topic_str`: The gossipsub topic to subscribe to.
+	/// * `peers`: A list of peers to dial.
+	pub async fn run(&mut self, topic_str: &str, peers: Vec<Multiaddr>) -> Result<(), Error> {
+		if !peers.is_empty() {
+			for peer in &peers {
+				self.swarm.dial((*peer).clone()).map_err(|_| {
+					return Error::InvalidMultiaddress { who: (*peer).clone() };
+				})?;
+			}
+			self.wait_for_peers(peers.len()).await;
 		}
 
-		self.wait_for_peers(peers.len()).await;
 		self.subscribe(topic_str).await
 	}
 
@@ -199,6 +177,7 @@ impl GossipsubNetwork {
 				connected_peers += 1;
 			}
 		}
+		self.connected_peers = connected_peers as u8;
 	}
 
 	/// Create a subscription to a gossipsub topic.
@@ -208,33 +187,26 @@ impl GossipsubNetwork {
 	/// * `topic_str`: The gossipsub topic to subscribe to.
 	async fn subscribe(&mut self, topic_str: &str) -> Result<(), Error> {
 		let topic = IdentTopic::new(topic_str);
-
+		// *SRLabs: The error can never be encountered
+		// Q: Can we use an expect, or is this unsafe?
+		// Ref: https://docs.rs/libpp-gossipsub/0.48.0/src/libp2p_gossipsub/behaviour.rs.html#532
+		// The error can only occur if the subscription filter rejects it, but we specify no filter.
 		self.swarm
 			.behaviour_mut()
 			.subscribe(&topic)
-			.map_err(|_| Error::GossipsubSubscriptionFailed)?;
+			.expect("The libp2p gossipsub behavior has no subscription filter.");
 
 		loop {
 			match self.swarm.next().await {
-				Some(SwarmEvent::Behaviour(gossipsub::Event::Message {
-					propagation_source,
-					message_id,
-					message,
-				})) => {
-					// ignore non-decodable messages
-					if let Ok(pulse) = Pulse::decode(&*message.data) {
-						// The state could be locked here: https://github.com/ideal-lab5/idn-sdk/issues/59
-						if let Ok(mut state) = self.state.lock() {
-							state.add_pulse(pulse.clone())?;
-							log::info!(
-								"Received pulse for round {:?} with message id: {} from peer: {:?}",
-								pulse.round,
-								message_id,
-								propagation_source
-							);
-						}
+				Some(SwarmEvent::Behaviour(gossipsub::Event::Message { message, .. })) => {
+					match try_handle_pulse(&message.data) {
+						Ok(pulse) => {
+							self.sender.unbounded_send(pulse.clone()).unwrap();
+						},
+						Err(_) => {
+							// handle non-decodable messages: https://github.com/ideal-lab5/idn-sdk/issues/60
+						},
 					}
-					// handle non-decodable messages: https://github.com/ideal-lab5/idn-sdk/issues/60
 				},
 				_ => {
 					// ignore all other events
@@ -244,107 +216,149 @@ impl GossipsubNetwork {
 	}
 }
 
-#[cfg(feature = "e2e")]
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use std::sync::{Arc, Mutex};
-	use tokio::time::{sleep, Duration};
+pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<OpaquePulse, Error> {
+	let pulse = Pulse::decode(data).map_err(|_| Error::UnexpectedMessageFormat)?;
+	let pulse: OpaquePulse =
+		pulse.try_into().map_err(|_| Error::SignatureBufferCapacityExceeded)?;
 
-	fn build_node() -> (GossipsubNetwork, SharedState) {
-		let local_identity: Keypair = Keypair::generate_ed25519();
-		let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
-		let gossipsub_config = GossipsubConfig::default();
-		(GossipsubNetwork::new(&local_identity, state.clone(), gossipsub_config).unwrap(), state)
-	}
-
-	#[tokio::test]
-	async fn can_subscribe_to_topic_and_deserialize_pulses_when_peers_connected() {
-		let topic_str: &str =
-			"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
-
-		let maddr1: libp2p::Multiaddr =
-			"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
-				.parse()
-				.expect("The string is a well-formatted multiaddress. qed.");
-
-		let maddr2: libp2p::Multiaddr =
-        "/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
-            .parse()
-            .expect("The string is a well-formatted multiaddress. qed.");
-
-		let (mut gossipsub, state) = build_node();
-		tokio::spawn(async move {
-			if let Err(e) = gossipsub.run(topic_str, vec![&maddr1, &maddr2], None).await {
-				log::error!("Failed to run gossipsub network: {:?}", e);
-			}
-		});
-
-		// Sleep for 6 secs
-		sleep(Duration::from_millis(6000)).await;
-		let data_lock = state.lock().unwrap();
-		let pulses = &data_lock.pulses;
-		assert!(pulses.len() >= 1);
-	}
+	Ok(pulse)
 }
 
-#[cfg(not(feature = "e2e"))]
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use libp2p::gossipsub::{ConfigBuilder, ValidationMode};
-	use std::sync::{Arc, Mutex};
+	use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 	use tokio::time::{sleep, Duration};
 
-	fn build_node() -> (GossipsubNetwork, SharedState) {
-		let local_identity: Keypair = Keypair::generate_ed25519();
-		let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
-		let gossipsub_config = GossipsubConfig::default();
-		(GossipsubNetwork::new(&local_identity, state.clone(), gossipsub_config).unwrap(), state)
+	#[test]
+	fn can_convert_valid_data_to_opaque_pulse() {
+		let pulse = Pulse {
+			round: 14475418,
+			signature: [
+				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
+				95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49,
+				223, 95, 22, 186, 113, 163, 202, 195, 230, 117,
+			]
+			.to_vec(),
+		};
+		let opaque: OpaquePulse = pulse.clone().try_into().unwrap();
+		let mut data = Vec::new();
+		pulse.encode(&mut data).unwrap();
+
+		let actual_opaque = try_handle_pulse(&data).unwrap();
+		assert_eq!(opaque, actual_opaque, "The output should match the input");
 	}
 
 	#[test]
-	fn can_add_pulse_to_state() {
-		let mut state = GossipsubState { pulses: vec![] };
-		let pulse = Pulse { round: 0, signature: ::prost::alloc::vec![1;48] };
-		let res = state.add_pulse(pulse);
-		assert!(res.is_ok());
-		assert_eq!(state.pulses.len(), 1);
-	}
-
-	#[test]
-	fn can_not_pulse_to_state_if_sig_buff_too_big() {
-		let mut state = GossipsubState { pulses: vec![] };
-		let pulse = Pulse { round: 0, signature: ::prost::alloc::vec![1;49] };
-		let res = state.add_pulse(pulse);
+	fn can_fail_when_data_not_decodable_to_pulse() {
+		let res = try_handle_pulse(&[1; 32]);
 		assert!(res.is_err());
-		assert_eq!(state.pulses.len(), 0);
-	}
-
-	#[tokio::test]
-	async fn can_fail_on_invalid_gossipsub_network_behaviour() {
-		let local_identity: Keypair = Keypair::generate_ed25519();
-		let state = Arc::new(Mutex::new(GossipsubState { pulses: vec![] }));
-
-		let gossipsub_config = ConfigBuilder::default()
-			.validation_mode(ValidationMode::Anonymous)
-			.build()
-			.unwrap();
-
-		let result = GossipsubNetwork::new(&local_identity, state, gossipsub_config);
-
-		assert!(result.is_err());
-		assert!(
-			matches!(result, Err(Error::InvalidGossipsubNetworkBehaviour)),
-			"Expected InvalidGossipsubNetworkBehaviour error"
+		assert_eq!(
+			res,
+			Err(Error::UnexpectedMessageFormat),
+			"There should be an `UnexpectedMessageFormat` error."
 		);
 	}
 
+	#[test]
+	fn can_fail_when_pulse_signature_exceeds_buffer() {
+		let pulse = Pulse {
+			round: 14475418,
+			signature: [
+				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
+				95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49,
+				223, 95, 22, 186, 113, 163, 202, 195, 230, 117, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			]
+			.to_vec(),
+		};
+
+		let expected_error = Error::SignatureBufferCapacityExceeded;
+
+		let mut data = Vec::new();
+		pulse.encode(&mut data).unwrap();
+
+		let res = try_handle_pulse(&data);
+		assert!(res.is_err());
+		assert_eq!(
+			res,
+			Err(expected_error),
+			"There should be an `SignatureBufferCapacityExceeded` error."
+		);
+	}
+
+	fn build_node() -> (GossipsubNetwork, TracingUnboundedReceiver<OpaquePulse>) {
+		let local_identity: Keypair = Keypair::generate_ed25519();
+		let gossipsub_config = GossipsubConfig::default();
+		let (tx, rx) = tracing_unbounded("drand-notification-channel", 100000);
+		(GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None).unwrap(), rx)
+	}
+
 	#[tokio::test]
-	async fn can_create_new_gossipsub_network() {
-		let (_gossipsub, state) = build_node();
-		let data_lock = state.lock().unwrap();
-		assert!(data_lock.pulses.is_empty());
+	async fn can_not_build_node_with_invalid_gossipsub_behavior() {
+		// supply a signing key but set anon validation, an invalid config
+		let local_identity: Keypair = Keypair::generate_ed25519();
+		let gossipsub_config = libp2p::gossipsub::ConfigBuilder::default()
+			.validation_mode(libp2p::gossipsub::ValidationMode::Anonymous)
+			.build()
+			.unwrap();
+		let (tx, _rx) = tracing_unbounded("drand-notification-channel", 100000);
+		let res = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None);
+		assert!(res.is_err());
+	}
+
+	#[tokio::test]
+	async fn can_build_new_node() {
+		let (node, _rx) = build_node();
+		assert!(node.connected_peers == 0, "There should be no connected peers.");
+	}
+
+	#[tokio::test]
+	async fn can_build_new_node_with_listen_addr() {
+		let local_identity: Keypair = Keypair::generate_ed25519();
+		let gossipsub_config = GossipsubConfig::default();
+		let (tx, _rx) = tracing_unbounded("drand-notification-channel", 100000);
+		let listen_addr: Multiaddr = "/ip4/0.0.0.0/tcp/4001".parse().unwrap();
+		let node = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, Some(&listen_addr))
+			.unwrap();
+		assert!(node.connected_peers == 0, "There should be no connected peers.");
+	}
+
+	#[tokio::test]
+	async fn can_build_node_and_run_without_peers() {
+		let topic_str = "test";
+		let (mut node, _rx) = build_node();
+
+		let mut is_err: bool = false;
+
+		tokio::spawn(async move {
+			if let Err(_e) = node.run(topic_str, vec![]).await {
+				is_err = true;
+			}
+		});
+
+		sleep(Duration::from_secs(1)).await;
+
+		assert!(!is_err, "There should be no errors.");
+	}
+
+	#[tokio::test]
+	async fn can_build_node_and_fail_with_random_peers() {
+		let topic_str = "test";
+		let (mut node, _rx) = build_node();
+
+		let fake_peer: Multiaddr = Multiaddr::empty().with_p2p(libp2p::PeerId::random()).unwrap();
+
+		let mut is_err: bool = false;
+
+		tokio::spawn(async move {
+			if let Err(_e) = node.run(topic_str, vec![fake_peer]).await {
+				is_err = true;
+			}
+		});
+
+		sleep(Duration::from_secs(2)).await;
+
+		assert!(!is_err, "There should not be an error.");
 	}
 
 	#[tokio::test]
@@ -354,29 +368,23 @@ mod tests {
 				.parse()
 				.unwrap();
 
-		let (mut gossipsub, _s) = build_node();
-
-		let res = gossipsub.run("test", vec![], Some(&fake_listen_addr)).await;
+		let local_identity: Keypair = Keypair::generate_ed25519();
+		let gossipsub_config = GossipsubConfig::default();
+		let (tx, _rx) = tracing_unbounded("drand-notification-channel", 100000);
+		let res =
+			GossipsubNetwork::new(&local_identity, gossipsub_config, tx, Some(&fake_listen_addr));
 		assert!(res.is_err());
 		assert!(matches!(res, Err(Error::SwarmListenFailure)), "Expected SwarmListenFailure error");
 	}
 
 	#[tokio::test]
-	async fn can_fail_to_subscribe_to_topic_with_no_peers() {
-		let topic_str: &str =
-			"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
+	async fn test_gossipsub_network_listen_failure() {
+		let key = Keypair::generate_ed25519();
+		let (tx, _rx) = tracing_unbounded("drand-notification-channel", 100000);
+		let config = GossipsubConfig::default();
+		let invalid_addr: Multiaddr = Multiaddr::empty();
 
-		let (mut gossipsub, state) = build_node();
-		tokio::spawn(async move {
-			if let Err(e) = gossipsub.run(topic_str, vec![], None).await {
-				log::error!("Failed to run gossipsub network: {:?}", e);
-			}
-		});
-
-		// Sleep for 6 secs
-		sleep(Duration::from_millis(6000)).await;
-		let data_lock = state.lock().unwrap();
-		let pulses = &data_lock.pulses;
-		assert!(pulses.len() == 0);
+		let result = GossipsubNetwork::new(&key, config, tx, Some(&invalid_addr));
+		assert!(result.is_err(), "Expected failure due to invalid listen address");
 	}
 }

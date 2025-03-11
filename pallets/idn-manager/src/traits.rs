@@ -23,14 +23,39 @@ pub enum FeesError<Fees, Context> {
 	NotEnoughBalance { needed: Fees, balance: Fees },
 	Other(Context),
 }
+
+/// Enum to represent the direction of balance movement.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BalanceDirection {
+	Collect,
+	Release,
+	// Balance isn't going anywhere. This is usually the case when diff is zero.
+	None,
+}
+
+/// This struct represent movement of balance.
+///
+/// * `balance` - how much balance being moved.
+/// * `direction` - if the balance are being collected or released.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct DiffBalance<Balance> {
+	pub balance: Balance,
+	pub direction: BalanceDirection,
+}
+
 /// Trait for fees managing
-pub trait FeesManager<Fees, Amount, Sub: Subscription<S>, Err, S> {
-	/// Calculate the fees for a subscription based on the amount of random values required.
-	fn calculate_subscription_fees(amount: Amount) -> Fees;
-	/// Calculate how much fees should be refunded for a subscription that is being cancelled.
-	fn calculate_refund_fees(init_amount: Amount, current_amount: Amount) -> Fees;
+pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S> {
+	/// Calculate the fees for a subscription based on the credits of random values required.
+	fn calculate_subscription_fees(credits: &Credits) -> Fees;
+	/// Calculate how much fees should be held or release when a subscription changes.
+	///
+	/// * `old_credits` - the credits of random values required before the change.
+	/// * `new_credits` - the credits of random values required after the change, this will
+	///   represent the updated credits in an update operation. Or the credits actually consumed in
+	///   a kill operation.
+	fn calculate_diff_fees(old_credits: &Credits, new_credits: &Credits) -> DiffBalance<Fees>;
 	/// Distributes collected fees. Returns the fees that were effectively collected.
-	fn collect_fees(fees: Fees, sub: Sub) -> Result<Fees, FeesError<Fees, Err>>;
+	fn collect_fees(fees: &Fees, sub: &Sub) -> Result<Fees, FeesError<Fees, Err>>;
 }
 
 pub trait Subscription<Subscriber> {
@@ -41,5 +66,11 @@ pub trait Subscription<Subscriber> {
 ///
 /// This trait is used to calculate the storage deposit required for a subscription based it.
 pub trait DepositCalculator<Deposit, Sub> {
+	/// Calculate the storage deposit required for a subscription.
 	fn calculate_storage_deposit(sub: &Sub) -> Deposit;
+	/// Calculate the difference in storage deposit between two subscriptions.
+	///
+	/// * `old_sub` - the old subscription.
+	/// * `new_sub` - the new subscription.
+	fn calculate_diff_deposit(old_sub: &Sub, new_sub: &Sub) -> DiffBalance<Deposit>;
 }

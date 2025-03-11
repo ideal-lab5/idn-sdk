@@ -18,30 +18,29 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec.workspace = true
 scale-info.workspace = true
 serde = { workspace = true, features = ["derive"] }
-sha2 = { version = "=0.10.8" }
+sha2.workspace = true
 log.workspace = true
-hex = { version = "=0.4", features = ["serde"], default-features = false }
+hex.workspace = true
 # frame deps
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
-sc-consensus-randomness-beacon = { path = "../../client/consensus/randomness-beacon", default-features = false }
-sp-consensus-randomness-beacon = { path = "../../primitives/consensus/randomness-beacon", default-features = false }
+sc-consensus-randomness-beacon.workspace = true
+sp-consensus-randomness-beacon.workspace = true
 sp-core.workspace = true
 sp-io.workspace = true
 sp-runtime.workspace = true
-# arkworks dependencies
+# crypto dependencies
 sp-ark-bls12-381 = { workspace = true, optional = true }
 ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 ark-ec.workspace = true
 ark-std.workspace = true
-timelock = { version = "=0.0.1", default-features = false }
-
+timelock.workspace = true
 
 [dev-dependencies]
-sp-keystore = { version = "=0.40.0",  default-features = false }
-sp-inherents = { version = "=34.0.0" }
+sp-keystore.workspace = true
+sp-inherents.workspace = true
 
 [features]
 default = ["std"]
