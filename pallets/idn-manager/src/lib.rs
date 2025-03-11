@@ -483,35 +483,43 @@ impl<T: Config> Pallet<T> {
 		// Get the current block number once for comparison
 		let current_block = frame_system::Pallet::<T>::block_number();
 
-		// Filter for active subscriptions that are eligible for delivery based on frequency
-		for (sub_id, mut sub) in Subscriptions::<T>::iter().filter(|(_, sub)| {
-			// Subscription must be active
-			sub.state == SubscriptionState::Active &&
-            // And either never delivered before, or enough blocks have passed since last delivery
-            (sub.last_delivered.is_none() ||
-             current_block >= sub.last_delivered.unwrap() + sub.frequency)
-		}) {
-			let msg = Self::construct_randomness_xcm(&rnd, sub.details.call_index);
-			let versioned_target: Box<VersionedLocation> =
-				Box::new(sub.details.target.clone().into());
-			let versioned_msg: Box<VersionedXcm<()>> = Box::new(xcm::VersionedXcm::V5(msg.into()));
-			let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
+		Subscriptions::<T>::iter().try_for_each(
+			|(sub_id, mut sub): (SubscriptionId, SubscriptionOf<T>)| -> DispatchResult {
+				// Filter for active subscriptions that are eligible for delivery based on frequency
+				if !(
+					// Subscription must be active
+					sub.state == SubscriptionState::Active  &&
+					// And either never delivered before, or enough blocks have passed since last delivery
+					(sub.last_delivered.is_none() ||
+					current_block >= sub.last_delivered.unwrap() + sub.frequency)
+				) {
+					return Ok(()); // Skip this subscription
+				}
 
-			if T::Xcm::send(origin.into(), versioned_target, versioned_msg).is_ok() {
-				// We consume a fixed one credit per distribution
-				let credits_consumed = One::one();
-				Self::collect_fees(&sub, credits_consumed)?;
+				let msg = Self::construct_randomness_xcm(&rnd, sub.details.call_index);
+				let versioned_target: Box<VersionedLocation> =
+					Box::new(sub.details.target.clone().into());
+				let versioned_msg: Box<VersionedXcm<()>> =
+					Box::new(xcm::VersionedXcm::V5(msg.into()));
+				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
 
-				// Update subscription with consumed credits and last_delivered block number
-				sub.credits_left = sub.credits_left.saturating_sub(credits_consumed);
-				sub.last_delivered = Some(current_block);
+				if T::Xcm::send(origin.into(), versioned_target, versioned_msg).is_ok() {
+					// We consume a fixed one credit per distribution
+					let credits_consumed = One::one();
+					Self::collect_fees(&sub, credits_consumed)?;
 
-				// Store the updated subscription
-				Subscriptions::<T>::insert(sub_id, sub);
+					// Update subscription with consumed credits and last_delivered block number
+					sub.credits_left = sub.credits_left.saturating_sub(credits_consumed);
+					sub.last_delivered = Some(current_block);
 
-				Self::deposit_event(Event::RandomnessDistributed { sub_id });
-			}
-		}
+					// Store the updated subscription
+					Subscriptions::<T>::insert(sub_id, sub);
+
+					Self::deposit_event(Event::RandomnessDistributed { sub_id });
+				}
+				Ok(())
+			},
+		)?;
 
 		Ok(())
 	}
