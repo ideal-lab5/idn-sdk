@@ -22,7 +22,7 @@
 //!
 //! ## Modules
 //!
-//! * [`rand`] - Traits and types for randomness handling and distribution
+//! * [`pulse`] - Traits and types for randomness pulses handling and distribution
 //!
 //! ## Overview
 //!
@@ -38,11 +38,11 @@
 /// This module contains all the traits and types needed for working with
 /// randomness in the IDN system, including:
 ///
-/// * [`crate::rand::Pulse`] - Core trait for randomness beacon pulses
-/// * [`crate::rand::PulseMatch`] - Extension trait for filtering pulses by properties
-/// * [`crate::rand::Dispatcher`] - Trait for handling and distributing randomness
-/// * [`crate::rand::PulseProperty`] - Enum for referencing pulse properties in a type-safe way
-pub mod rand {
+/// * [`crate::pulse::Pulse`] - Core trait for randomness beacon pulses
+/// * [`crate::pulse::PulseMatch`] - Extension trait for filtering pulses by properties
+/// * [`crate::pulse::Dispatcher`] - Trait for handling and distributing randomness
+/// * [`crate::pulse::PulseProperty`] - Enum for referencing pulse properties in a type-safe way
+pub mod pulse {
 	use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo};
 	use sp_std::fmt::Debug;
 
@@ -134,6 +134,11 @@ pub mod rand {
 	/// a pulse matches specified criteria. For example, a subscription might want
 	/// to only receive randomness from specific rounds.
 	///
+	/// ## Automatic Implementation
+	/// Any type that implements the [`Pulse`] trait automatically receives this
+	/// trait implementation through a blanket impl. This means you don't need to
+	/// explicitly implement this trait for your pulse types - just implement [`Pulse`].
+	///
 	/// ## Default Implementation
 	/// The default implementation provides simple equality checking:
 	/// - For `PulseProperty::Rand`, it checks if the pulse's random value equals the provided value
@@ -142,7 +147,7 @@ pub mod rand {
 	///
 	/// ## Example
 	/// ```rust
-	/// use idn_traits::rand::{Pulse, PulseMatch, PulseProperty};
+	/// use idn_traits::pulse::{Pulse, PulseMatch, PulseProperty};
 	/// struct MyPulse {
 	///     rand: [u8; 3],
 	///     round: u8,
@@ -186,9 +191,9 @@ pub mod rand {
 		}
 	}
 
-	/// Blanket implementation of PulseMatch for all types that implement Pulse.
+	/// Blanket implementation of [`PulseMatch`] for all types that implement [`Pulse`].
 	///
-	/// This provides PulseMatch functionality for any type implementing the Pulse trait. It
+	/// This provides [`PulseMatch`] functionality for any type implementing the [`Pulse`] trait. It
 	/// ensures all pulse types can be filtered with the default equality-based matching logic
 	/// without requiring additional implementation work.
 	impl<T: Pulse> PulseMatch for T {}
