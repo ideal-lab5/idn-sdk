@@ -260,7 +260,7 @@ pub mod pallet {
 			T::WeightInfo::on_finalize()
 		}
 
-		/// At the end of block execution, the `on_finalize` hook checks that the timestamp was
+		/// At the end of block execution, the `on_finalize` hook checks that the asig was
 		/// updated. Upon success, it removes the boolean value from storage. If the value resolves
 		/// to `false`, the pallet will panic.
 		///
@@ -315,7 +315,7 @@ pub mod pallet {
 				ensure!(GenesisRound::<T>::get() > 0, Error::<T>::GenesisRoundNotSet);
 			}
 			// aggregate old asig/apk with the new one and verify the aggregation
-			// Q: do we care about the entire linear history of message hashes?
+			// TODO: do we care about the entire linear history of message hashes?
 			// https://github.com/ideal-lab5/idn-sdk/issues/119
 			let aggr = T::SignatureAggregator::aggregate_and_verify(
 				config.public_key,
