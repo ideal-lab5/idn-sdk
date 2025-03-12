@@ -116,6 +116,7 @@ const SERIALIZED_SIG_SIZE: usize = 48;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::pallet]
@@ -131,8 +132,8 @@ pub mod pallet {
 		type BeaconConfig: Get<BeaconConfiguration>;
 		/// something that knows how to aggregate and verify beacon pulses.
 		type SignatureAggregator: SignatureAggregator;
-		/// The number of pulses per block.
-		type SignatureToBlockRatio: Get<u8>;
+		/// The number of signatures per block.
+		type MaxSigsPerBlock: Get<u8>;
 	}
 
 	/// A first round number for which a pulse was observed
@@ -147,6 +148,13 @@ pub mod pallet {
 	/// randomness
 	#[pallet::storage]
 	pub type AggregatedSignature<T: Config> = StorageValue<_, Aggregate, OptionQuery>;
+
+	/// Whether the asig has been updated in this block.
+	///
+	/// This value is updated to `true` upon successful submission of an asig by a node.
+	/// It is then checked at the end of each block execution in the `on_finalize` hook.
+	#[pallet::storage]
+	pub(super) type DidUpdate<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -173,6 +181,13 @@ pub mod pallet {
 		GenesisRoundNotSet,
 		/// The genesis is already set.
 		GenesisRoundAlreadySet,
+		/// There must be at least one signature to construct an asig
+		ZeroHeightProvided,
+		/// The number of aggregated signatures exceeds the maximum rounds that we can verify per
+		/// block.
+		ExcessiveHeightProvided,
+		/// Only one aggregated signature can be provided per block
+		SignatureAlreadyVerified,
 	}
 
 	#[pallet::inherent]
@@ -187,6 +202,9 @@ pub mod pallet {
 			// if we do not find any pulse data, then do nothing
 			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 			{
+				// ignores non-deserializable messages
+				// if all messages are invalid, it outputs 0 on the G1 curve (so serialization of
+				// asig always works)
 				let asig = raw_pulses
 					.iter()
 					.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
@@ -194,14 +212,25 @@ pub mod pallet {
 					.fold(zero_on_g1(), |acc, sig| (acc + sig).into());
 
 				let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-				if asig.serialize_compressed(&mut asig_bytes).is_err() {
-					log::error!("Failed to serialize the aggregated signature.");
-					return None;
-				}
+				// [SRLABS]: This error is untestable since we know the signature is correct here.
+				//  Is it reasonable to use an expect?
+				asig.serialize_compressed(&mut asig_bytes)
+					.expect("The signature is well formatted.");
+
+				// if the genesis round is not configured, then the first call sets it
+				let round = (GenesisRound::<T>::get() == 0)
+					.then(|| {
+						// get the round from the first pulse observed
+						raw_pulses.iter().find_map(|rp| {
+							OpaquePulse::deserialize_from_vec(rp).ok().map(|p| p.round)
+						})
+					})
+					.unwrap_or(None);
 
 				return Some(Call::try_submit_asig {
 					asig: OpaqueSignature::truncate_from(asig_bytes),
-					round: None,
+					height: raw_pulses.len() as RoundNumber,
+					round,
 				});
 			} else {
 				log::info!("The node provided empty pulse data to the inherent!");
@@ -210,12 +239,38 @@ pub mod pallet {
 			None
 		}
 
-		fn check_inherent(_call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
-			Ok(())
+		fn check_inherent(call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
+			match call {
+				Call::try_submit_asig { .. } => Ok(()),
+				_ => unreachable!("other calls are not inherents"),
+			}
 		}
 
 		fn is_inherent(call: &Self::Call) -> bool {
 			matches!(call, Call::try_submit_asig { .. })
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
+		/// execute.
+		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+			// weight of `on_finalize`
+			T::WeightInfo::on_finalize()
+		}
+
+		/// At the end of block execution, the `on_finalize` hook checks that the asig was
+		/// updated. Upon success, it removes the boolean value from storage. If the value resolves
+		/// to `false`, the pallet will panic.
+		///
+		/// ## Complexity
+		/// - `O(1)`
+		fn on_finalize(_n: BlockNumberFor<T>) {
+			assert!(
+				DidUpdate::<T>::take(),
+				"The aggregated siganture must be updated once in the block"
+			);
 		}
 	}
 
@@ -225,6 +280,7 @@ pub mod pallet {
 		///
 		/// * `origin`: A None origin
 		/// * `asig`: An aggregated signature
+		/// * `height`: The number of sigs aggregated to construct asig
 		/// * `round`: An optional genesis round number. It can only be set if the existing genesis
 		///   round is 0.
 		#[pallet::call_index(0)]
@@ -232,44 +288,47 @@ pub mod pallet {
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
 			asig: OpaqueSignature,
+			height: RoundNumber,
 			round: Option<RoundNumber>,
 		) -> DispatchResult {
-			// In the future, this will expected a signed payload
-			// https://github.com/ideal-lab5/idn-sdk/issues/117
 			ensure_none(origin)?;
+			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified,);
+
 			let config = T::BeaconConfig::get();
 			let mut genesis_round = GenesisRound::<T>::get();
 			let mut latest_round = LatestRound::<T>::get();
 
+			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
+			ensure!(
+				height <= T::MaxSigsPerBlock::get() as u64,
+				Error::<T>::ExcessiveHeightProvided
+			);
+
 			if let Some(r) = round {
 				// if a round is provided and the genesis round is not set
-				frame_support::ensure!(genesis_round == 0, Error::<T>::GenesisRoundAlreadySet);
+				ensure!(genesis_round == 0, Error::<T>::GenesisRoundAlreadySet);
 				GenesisRound::<T>::set(r);
 				genesis_round = r;
 				latest_round = genesis_round;
 			} else {
 				//  if the genesis round is not set and a round is not provided
-				frame_support::ensure!(
-					GenesisRound::<T>::get() > 0,
-					Error::<T>::GenesisRoundNotSet
-				);
+				ensure!(GenesisRound::<T>::get() > 0, Error::<T>::GenesisRoundNotSet);
 			}
-
 			// aggregate old asig/apk with the new one and verify the aggregation
+			// TODO: do we care about the entire linear history of message hashes?
+			// https://github.com/ideal-lab5/idn-sdk/issues/119
 			let aggr = T::SignatureAggregator::aggregate_and_verify(
 				config.public_key,
 				asig,
 				latest_round,
-				T::SignatureToBlockRatio::get() as u64,
+				height,
 				AggregatedSignature::<T>::get(),
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
 
-			LatestRound::<T>::set(
-				latest_round.saturating_add(T::SignatureToBlockRatio::get() as u64),
-			);
-
+			LatestRound::<T>::set(latest_round.saturating_add(height));
 			AggregatedSignature::<T>::set(Some(aggr));
+			DidUpdate::<T>::put(true);
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 
