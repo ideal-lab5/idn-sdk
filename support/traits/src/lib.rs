@@ -16,24 +16,38 @@
 
 //! # IDN Traits
 pub mod rand {
-	use frame_support::traits::Get;
+	use std::fmt::Debug;
+
+	use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo};
 
 	/// A trait for dispatching random data.
-	pub trait Dispatcher<P, O> {
+	pub trait Dispatcher<P: Pulse, O> {
 		/// Dispatch the given random data.
 		fn dispatch(pulse: P) -> O;
 	}
 
+	#[derive(Encode, Decode, TypeInfo, MaxEncodedLen, Debug, PartialEq, Clone)]
+	pub enum PulseProperty<RandType, RoundType> {
+		/// The random value for a pulse.
+		Rand(RandType),
+		/// The round number for a pulse.
+		Round(RoundType),
+	}
+
 	/// A trait to define the Pulse type behaviour
 	pub trait Pulse {
-		type Rand;
-		type Round;
-		type MaxSize: Get<u32>;
+		type Rand: Encode + Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
+		type Round: Encode + Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
 		/// Get the random value for this pulse.
-		fn random(&self) -> Self::Rand;
+		fn rand(&self) -> Self::Rand;
 		/// Get the round number for this pulse.
 		fn round(&self) -> Self::Round;
-		// / Filter by round
-		// fn filter_by_round(&self, rounds: BoundedVec<Self::Round, Self::MaxSize::get()>) -> Self;
+		/// Get a property for this pulse.
+		fn get(&self, property: PulseProperty<(), ()>) -> PulseProperty<Self::Rand, Self::Round> {
+			match property {
+				PulseProperty::Rand(_) => PulseProperty::Rand(self.rand()),
+				PulseProperty::Round(_) => PulseProperty::Round(self.round()),
+			}
+		}
 	}
 }

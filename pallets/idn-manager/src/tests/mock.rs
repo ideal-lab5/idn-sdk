@@ -62,6 +62,7 @@ parameter_types! {
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
+	pub const PulseFilterLen: u32 = 100;
 }
 
 #[derive(TypeInfo)]
@@ -86,7 +87,7 @@ impl idn_traits::rand::Pulse for Pulse {
 	type Rand = Rand;
 	type Round = Round;
 
-	fn random(&self) -> Self::Rand {
+	fn rand(&self) -> Self::Rand {
 		self.rand
 	}
 
@@ -107,6 +108,7 @@ impl pallet_idn_manager::Config for Test {
 	type Xcm = ();
 	type SubMetadataLen = SubMetadataLen;
 	type Credits = u64;
+	type PulseFilterLen = PulseFilterLen;
 }
 
 pub struct ExtBuilder;

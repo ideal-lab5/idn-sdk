@@ -67,7 +67,8 @@ fn update_subscription(
 		target.clone(),
 		[1; 2],
 		original_frequency,
-		metadata.clone()
+		metadata.clone(),
+		None
 	));
 
 	// Get the sub_id from the last emitted event
@@ -113,7 +114,8 @@ fn update_subscription(
 		RuntimeOrigin::signed(subscriber.clone()),
 		sub_id,
 		new_credits,
-		new_frequency
+		new_frequency,
+		None
 	));
 
 	let new_fees = <Test as Config>::FeesManager::calculate_subscription_fees(&new_credits);
@@ -174,6 +176,7 @@ fn create_subscription_works() {
 			target.clone(),
 			[1; 2],
 			frequency,
+			None,
 			None
 		));
 
@@ -221,6 +224,7 @@ fn create_subscription_fails_if_insufficient_balance() {
 				target,
 				[1; 2],
 				frequency,
+				None,
 				None
 			),
 			TokenError::FundsUnavailable
@@ -249,6 +253,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 			target.clone(),
 			[1; 2],
 			frequency,
+			None,
 			None
 		));
 
@@ -262,6 +267,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 				target,
 				[1; 2],
 				frequency,
+				None,
 				None
 			),
 			Error::<Test>::SubscriptionAlreadyExists
@@ -292,7 +298,8 @@ fn test_kill_subscription() {
 			target.clone(),
 			[1; 2],
 			frequency,
-			metadata.clone()
+			metadata.clone(),
+			None
 		));
 
 		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
@@ -349,6 +356,7 @@ fn on_finalize_removes_zero_credit_subscriptions() {
 			target.clone(),
 			[1; 2],
 			frequency,
+			None,
 			None
 		));
 
@@ -446,7 +454,8 @@ fn update_subscription_fails_if_sub_does_not_exists() {
 				RuntimeOrigin::signed(ALICE),
 				sub_id,
 				new_credits,
-				new_frequency
+				new_frequency,
+				None
 			),
 			Error::<Test>::SubscriptionDoesNotExist
 		);
@@ -479,6 +488,7 @@ fn test_credits_consumption_and_cleanup() {
 			target.clone(),
 			[1; 2],
 			frequency,
+			None,
 			None
 		));
 
@@ -588,6 +598,7 @@ fn test_credits_consumption_not_enogh_balance() {
 			target.clone(),
 			[1; 2],
 			frequency,
+			None,
 			None
 		));
 
@@ -642,6 +653,7 @@ fn test_credits_consumption_frequency() {
 			target.clone(),
 			[1; 2],
 			frequency,
+			None,
 			None
 		));
 
@@ -710,7 +722,8 @@ fn test_pause_reactivate_subscription() {
 			target.clone(),
 			[1; 2],
 			frequency,
-			metadata.clone()
+			metadata.clone(),
+			None
 		));
 
 		let free_balance = Balances::free_balance(&ALICE);
@@ -772,7 +785,8 @@ fn pause_subscription_fails_if_sub_already_paused() {
 			target.clone(),
 			[1; 2],
 			frequency,
-			metadata.clone()
+			metadata.clone(),
+			None
 		));
 
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
@@ -823,7 +837,8 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 			target.clone(),
 			[1; 2],
 			frequency,
-			metadata.clone()
+			metadata.clone(),
+			None
 		));
 
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
@@ -858,7 +873,8 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 			target.clone(),
 			[1; 2],
 			frequency,
-			metadata.clone()
+			metadata.clone(),
+			None
 		));
 
 		// Retrieve the subscription ID created
@@ -893,7 +909,8 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 				RuntimeOrigin::signed(BOB.clone()),
 				sub_id,
 				new_credits,
-				new_frequency
+				new_frequency,
+				None
 			),
 			Error::<Test>::NotSubscriber
 		);
@@ -925,6 +942,7 @@ fn test_on_finalize_removes_finished_subscriptions() {
 			target.clone(),
 			[1; 2],
 			frequency,
+			None,
 			None
 		));
 
@@ -1109,6 +1127,7 @@ fn test_get_subscription() {
 			target.clone(),
 			[1; 2],
 			frequency,
+			None,
 			None
 		));
 
@@ -1150,6 +1169,7 @@ fn test_get_subscriptions_for_subscriber() {
 			target1.clone(),
 			[1; 2],
 			10,
+			None,
 			None
 		));
 
@@ -1159,6 +1179,7 @@ fn test_get_subscriptions_for_subscriber() {
 			target2.clone(),
 			[1; 2],
 			20,
+			None,
 			None
 		));
 
@@ -1169,6 +1190,7 @@ fn test_get_subscriptions_for_subscriber() {
 			target3.clone(),
 			[1; 2],
 			15,
+			None,
 			None
 		));
 
