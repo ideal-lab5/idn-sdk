@@ -55,6 +55,8 @@ libp2p = { version = "0.55.0", features = [
     "tcp",
     "ping",
     "dns",
+    "macros",
+    "mdns",
     "async-std",
     "tokio",
     "websocket",

@@ -231,7 +231,7 @@ mod tests {
 	use std::sync::Arc;
 	use tokio::{
 		sync::Mutex,
-		time::{sleep, Duration}
+		time::{sleep, Duration},
 	};
 
 	#[test]
@@ -392,12 +392,53 @@ mod tests {
 		assert!(result.is_err(), "Expected failure due to invalid listen address");
 	}
 
+	// We create a custom network behaviour that combines gossipsuib and mDNS.
+	#[derive(libp2p::swarm::NetworkBehaviour)]
+	struct TestBehaviour {
+		gossipsub: GossipsubBehaviour,
+		mdns: libp2p::mdns::tokio::Behaviour, 
+	}
+
 	#[tokio::test]
 	async fn test_dial_nodes() {
 		let topic_str = "test";
 
-		let (mut publisher, rx) = build_node();
-		let arc_publisher = Arc::new(Mutex::new(publisher));
+		let local_identity: Keypair = Keypair::generate_ed25519();
+		let message_authenticity = MessageAuthenticity::Signed(local_identity.clone());
+		let gossipsub_config = GossipsubConfig::default();
+		let behaviour = GossipsubBehaviour::new(message_authenticity, gossipsub_config).unwrap();
+		let mdns_behaviour = libp2p::mdns::tokio::Behaviour::new(
+			libp2p::mdns::Config::default(), 
+			libp2p::PeerId::random(),
+		).expect("Failed to create mDNS");
+
+		let combined_behaviour = TestBehaviour {
+			gossipsub: behaviour,
+			mdns: mdns_behaviour,
+		};
+		// the 'publisher' swarm capable of connecting to peers with kademlia
+		let mut swarm = libp2p::SwarmBuilder::with_new_identity()
+			.with_tokio()
+			.with_tcp(
+				libp2p::tcp::Config::default(),
+				libp2p::noise::Config::new,
+				libp2p::yamux::Config::default,
+			)
+			.unwrap()
+			.with_behaviour(|_| combined_behaviour)
+			.unwrap()
+			.with_swarm_config(|cfg| {
+				cfg.with_idle_connection_timeout(Duration::from_secs(u64::MAX))
+			})
+			.build();
+
+		// swarm.behaviour_mut().kademlia.set_mode(Some(libp2p::kad::Mode::Server));
+
+		// Tell the swarm to listen on all interfaces and a random, OS-assigned
+		// port.
+		swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse().unwrap()).unwrap();
+
+		let arc_publisher = Arc::new(Mutex::new(swarm));
 		let arc_publisher_clone = Arc::clone(&arc_publisher);
 
 		let (mut subscriber, rx_sub) = build_node();
@@ -406,49 +447,56 @@ mod tests {
 
 		let mut maybe_addr: Option<Multiaddr> = None;
 
-		// this thread constantly polls swarm events
-		tokio::spawn(async move {
-			let mut publisher = arc_publisher.lock().await;
-			if let Err(_e) = publisher.run(topic_str, vec![]).await {
-				panic!("There should be no error ");
-			}
-		});
+		// // this thread constantly polls swarm events
+		// tokio::spawn(async move {
+		// 	let mut publisher = arc_publisher.lock().await;
+		// 	if let Err(_e) = publisher.run(topic_str, vec![]).await {
+		// 		panic!("There should be no error ");
+		// 	}
+		// });
 
-		let mut publisher = arc_publisher_clone.lock().await;
+		let mut publisher = arc_publisher.lock().await;
 		// get the publisher's listen address and peer id so the subscriber can dial it
 		loop {
-			match publisher.swarm.select_next_some().await {
+			match publisher.select_next_some().await {
 				SwarmEvent::NewListenAddr { address, .. } => {
-					let peer_id = publisher.swarm.local_peer_id();
+					// // there is no external listen address
+					// let ext = publisher.swarm.external_addresses().collect::<Vec<_>>();
+					// panic!("{:?}", ext);
+
+					let peer_id = publisher.local_peer_id();
 					let full_address = address.with_p2p(*peer_id).unwrap();
 					maybe_addr = Some(full_address);
+					// maybe_addr = Some(address);
 					break;
 				},
-				_ => { },
+				_ => {},
 			}
 		}
 		// give the publisher 1 sec to ensure it is listening
 		sleep(Duration::from_secs(1)).await;
 		// now the subscriber should be able to dial the publisher when it runs
 		// start the subscriber `run` thread, constantly polls swarm events
-		tokio::spawn(async move {
-			let mut subscriber = arc_subscriber.lock().await;
-			if let Err(_e) = subscriber.run(topic_str, vec![]).await {
-				panic!("There should be no error ");
-			}
-		});
-
+		// tokio::spawn(async move {
+		// 	let mut subscriber = arc_subscriber.lock().await;
+		// 	if let Err(_e) = subscriber.run(topic_str, vec![]).await {
+		// 		panic!("There should be no error ");
+		// 	}
+		// });
 		// we can explicitly look for the connection established events
 		loop {
 			let mut subscriber = arc_subscriber_clone.lock().await;
-			// attempt to dial the publisher's multiaddress manually - still does not work :(
-			// subscriber.swarm.dial(maybe_addr.clone().unwrap()).unwrap();
+			subscriber.swarm.dial(maybe_addr.clone().unwrap()).unwrap();
+
 			match subscriber.swarm.next().await {
 				Some(SwarmEvent::ConnectionEstablished { .. }) => {
-					panic!("if the connection is established, this should panic...");	
+					panic!("if the connection is established, this should panic...");
 				},
 				Some(SwarmEvent::NewListenAddr { .. }) => {
 					// ignore this event
+				},
+				Some(evt) => {
+					panic!("There should be no other events but got {:?}", evt);
 				},
 				_ => {
 					panic!("There should be no other events");
@@ -459,11 +507,10 @@ mod tests {
 		// let message = b"asdfasdf".to_vec();
 		// publisher.swarm.behaviour_mut().publish(IdentTopic::new(topic_str), message).unwrap();
 
-
 		// let subscriber = arc_subscriber_clone.lock().await;
 		// // give the subscriber 1 sec to ensure it has dialed the peer
 		// sleep(Duration::from_secs(2)).await;
 
-		// assert!(subscriber.connected_peers == 1, "The subscriber should have dialed the publisher.");		
+		// assert!(subscriber.connected_peers == 1, "The subscriber should have dialed the publisher.");
 	}
 }
