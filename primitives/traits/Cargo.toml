@@ -4,16 +4,17 @@ authors = [
 	"Juan Girini <juan@idealabs.network>"
 	]
 version = "0.0.1"
-license = "Apache-2.0"
-edition = "2021"
-homepage = "https://www.idealabs.network"
+license.workspace = true
+edition.workspace = true
+homepage.workspace = true
 repository.workspace = true
 publish = false
 
 [dependencies]
 codec = { workspace = true, default-features = false }
-frame-support = { version = "39.0.0",  default-features = false }
-scale-info = { version = "=2.11.6", default-features = false }
+frame-support = { workspace = true,  default-features = false }
+scale-info = { workspace = true, default-features = false }
+sp-std = { workspace = true, default-features = false }
 
 [features]
 default = ["std"]
