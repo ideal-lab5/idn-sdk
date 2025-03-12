@@ -75,7 +75,7 @@ use frame_system::{
 	ensure_signed,
 	pallet_prelude::{BlockNumberFor, OriginFor},
 };
-use idn_traits::rand::{Dispatcher, Pulse, PulseProperty};
+use idn_traits::rand::{Dispatcher, Pulse, PulseMatch, PulseProperty};
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
@@ -130,16 +130,7 @@ pub type PulsePropertyOf<T> = PulseProperty<
 	<<T as pallet::Config>::Pulse as Pulse>::Round,
 >;
 
-#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
-pub struct PulseFilter<Prop, Vals> {
-	pub property: Prop,
-	pub values: Vals,
-}
-
-pub type PulseFilterOf<T> = PulseFilter<
-	PulseProperty<(), ()>,
-	BoundedVec<PulsePropertyOf<T>, <T as Config>::PulseFilterLen>,
->;
+pub type PulseFilterOf<T> = BoundedVec<PulsePropertyOf<T>, <T as Config>::PulseFilterLen>;
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter> {
@@ -459,7 +450,7 @@ pub mod pallet {
 				sub.pulse_filter = pulse_filter;
 				sub.updated_at = frame_system::Pallet::<T>::block_number();
 
-				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(&sub, &old_sub);
+				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(sub, &old_sub);
 
 				// Hold or refund diff fees
 				Self::manage_diff_fees(&subscriber, &fees_diff)?;
@@ -588,7 +579,7 @@ impl<T: Config> Pallet<T> {
 	/// in a subscription. If no filter is present, all pulses pass through.
 	///
 	/// # Parameters
-	/// * `pulse_filter` - Optional filter conditions to apply to the pulse
+	/// * `pulse_filter` - Optional filters to apply to the pulse
 	/// * `pulse` - The pulse to check against the filter
 	///
 	/// # Returns
@@ -597,14 +588,14 @@ impl<T: Config> Pallet<T> {
 	///
 	/// # How Filtering Works
 	/// 1. If `pulse_filter` is `None`, returns `true` (no filtering)
-	/// 2. Otherwise, checks if the property extracted from the pulse exists in the list of allowed
-	///    values in the filter
+	/// 2. Otherwise, checks if ANY of the properties in the filter match the pulse using the
+	///    PulseMatch trait's match_prop method
 	///
 	/// This enables subscriptions to receive randomness only when the pulse has specific
 	/// properties, such as coming from a particular round number.
 	fn custom_filter(pulse_filter: &Option<PulseFilterOf<T>>, pulse: &T::Pulse) -> bool {
 		match pulse_filter {
-			Some(filter) => filter.values.contains(&pulse.get(filter.property.clone())),
+			Some(filter) => filter.iter().any(|prop| pulse.match_prop(prop.clone())),
 			None => true,
 		}
 	}
@@ -712,13 +703,13 @@ impl<T: Config> Pallet<T> {
 	/// potentially gaming the system by receiving only certain random values that
 	/// match specific patterns.
 	fn ensure_filter_no_rand(pulse_filter: &Option<PulseFilterOf<T>>) -> DispatchResult {
-		match pulse_filter {
-			Some(filter) => match filter.property {
-				PulseProperty::Rand(_) => Err(Error::<T>::FilterRandNotPermitted.into()),
-				_ => Ok(()),
-			},
-			None => Ok(()),
+		if let Some(filter) = pulse_filter {
+			// Check if any item in the filter is a PulseProperty::Rand variant
+			if filter.iter().any(|prop| matches!(prop, PulseProperty::Rand(_))) {
+				return Err(Error::<T>::FilterRandNotPermitted.into());
+			}
 		}
+		Ok(())
 	}
 
 	fn manage_diff_deposit(

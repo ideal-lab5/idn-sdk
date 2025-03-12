@@ -20,7 +20,7 @@ sp-api = { version = "=35.0.0",  default-features = false }
 sp-core = { version = "=35.0.0",  default-features = false }
 sp-io = { version = "=39.0.0",  default-features = false}
 sp-runtime = { version = "=40.1.0",  default-features = false}
-sp-std = { version = "=14.0.0",  default-features = false }
+sp-std = { workspace = true,  default-features = false }
 xcm = { version = "=15.0.1", default-features = false, package = "staging-xcm" }
 xcm-builder = { version = "=18.0.0", default-features = false, package = "staging-xcm-builder" }
 pallet-xcm = { version = "=18.0.0", default-features = false }
@@ -28,7 +28,7 @@ pallet-xcm = { version = "=18.0.0", default-features = false }
 frame-support = { version = "=39.0.0",  default-features = false }
 frame-system = { version = "=39.1.0",  default-features = false }
 # idn deps
-idn-traits = { path = "../../support/traits" }
+idn-traits = { path = "../../primitives/traits" }
 
 [dev-dependencies]
 pallet-balances = { version = "=40.0.0", default-features = false }

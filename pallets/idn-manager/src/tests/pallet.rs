@@ -19,7 +19,8 @@
 use crate::{
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
-	Config, Error, Event, HoldReason, SubscriptionState, Subscriptions,
+	Config, Error, Event, HoldReason, PulseFilterOf, PulsePropertyOf, SubscriptionState,
+	Subscriptions,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -156,6 +157,12 @@ fn update_subscription(
 	}));
 }
 
+fn mock_rounds_filter(rounds: Vec<u64>) -> PulseFilterOf<Test> {
+	let v: Vec<PulsePropertyOf<Test>> =
+		rounds.iter().map(|round| PulsePropertyOf::<Test>::Round(*round)).collect();
+	BoundedVec::try_from(v).unwrap()
+}
+
 #[test]
 fn create_subscription_works() {
 	ExtBuilder::build().execute_with(|| {
@@ -177,7 +184,7 @@ fn create_subscription_works() {
 			[1; 2],
 			frequency,
 			None,
-			None
+			Some(mock_rounds_filter(vec![0, 1, 2]))
 		));
 
 		assert_eq!(Subscriptions::<Test>::iter().count(), 1);
@@ -207,6 +214,37 @@ fn create_subscription_works() {
 		}));
 	});
 }
+
+// #[test]
+// fn create_subscription_fails_if_filtering_randomness() {
+// 	ExtBuilder::build().execute_with(|| {
+// 		let credits: u64 = 50;
+// 		let target = Location::new(1, [Junction::PalletInstance(1)]);
+// 		let frequency: u64 = 10;
+// 		let initial_balance = 10_000_000;
+
+// 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+// 		assert_noop!(
+// 			IdnManager::create_subscription(
+// 				RuntimeOrigin::signed(ALICE.clone()),
+// 				credits,
+// 				target.clone(),
+// 				[1; 2],
+// 				frequency,
+// 				None,
+// 				Some(	PulseFilterOf::<Test> {
+// 					property: PulseProperty::Rand(()),
+// 					values: BoundedVec::try_from(v).unwrap(),
+// 				})
+// 			),
+// 			Error::<Test>::FilteringRandomness
+// 		);
+
+// 		// Assert the SubscriptionCreated event was not emitted
+// 		assert!(event_not_emitted(Event::<Test>::SubscriptionCreated { sub_id: H256::zero() }));
+// 	});
+// }
 
 #[test]
 fn create_subscription_fails_if_insufficient_balance() {
