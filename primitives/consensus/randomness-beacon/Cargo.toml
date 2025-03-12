@@ -20,7 +20,7 @@ sp-inherents.workspace = true
 
 
 [dev-dependencies]
-array-bytes = "6.1"
+array-bytes = "=6.2.3"
 tokio.workspace = true
 
 [features]
