@@ -75,7 +75,7 @@ use frame_system::{
 	ensure_signed,
 	pallet_prelude::{BlockNumberFor, OriginFor},
 };
-use idn_traits::rand::{Dispatcher, Pulse};
+use idn_traits::rand::{Dispatcher, Pulse, PulseProperty};
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
@@ -122,10 +122,27 @@ pub type SubscriptionOf<T> = Subscription<
 	BlockNumberFor<T>,
 	<T as pallet::Config>::Credits,
 	MetadataOf<T>,
+	PulseFilterOf<T>,
+>;
+
+pub type PulsePropertyOf<T> = PulseProperty<
+	<<T as pallet::Config>::Pulse as Pulse>::Rand,
+	<<T as pallet::Config>::Pulse as Pulse>::Round,
+>;
+
+#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
+pub struct PulseFilter<Prop, Vals> {
+	pub property: Prop,
+	pub values: Vals,
+}
+
+pub type PulseFilterOf<T> = PulseFilter<
+	PulseProperty<(), ()>,
+	BoundedVec<PulsePropertyOf<T>, <T as Config>::PulseFilterLen>,
 >;
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
-pub struct Subscription<AccountId, BlockNumber, Credits, Metadata> {
+pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter> {
 	details: SubscriptionDetails<AccountId, Metadata>,
 	// Number of random values left to distribute
 	credits_left: Credits,
@@ -135,6 +152,7 @@ pub struct Subscription<AccountId, BlockNumber, Credits, Metadata> {
 	credits: Credits,
 	frequency: BlockNumber,
 	last_delivered: Option<BlockNumber>,
+	pulse_filter: Option<PulseFilter>,
 }
 
 /// Details specific to a subscription for random value delivery
@@ -175,8 +193,8 @@ pub struct SubscriptionDetails<AccountId, Metadata> {
 	pub metadata: Metadata,
 }
 
-impl<AccountId, BlockNumber, Credits, Metadata>
-	Subscription<AccountId, BlockNumber, Credits, Metadata>
+impl<AccountId, BlockNumber, Credits, Metadata, PulseFilter>
+	Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter>
 where
 	AccountId: Encode,
 	BlockNumber: Encode + Copy,
@@ -258,7 +276,10 @@ pub mod pallet {
 		type PalletId: Get<frame_support::PalletId>;
 
 		/// Maximum metadata size
-		type SubMetadataLen: Get<u32> + TypeInfo;
+		type SubMetadataLen: Get<u32>;
+
+		/// Maximum Pulse Filter size
+		type PulseFilterLen: Get<u32>;
 
 		/// A type to define the amount of credits in a subscription
 		type Credits: Unsigned + Codec + TypeInfo + MaxEncodedLen + Debug + Saturating + Copy;
@@ -269,7 +290,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		SubscriptionId,
-		Subscription<T::AccountId, BlockNumberFor<T>, T::Credits, MetadataOf<T>>,
+		Subscription<T::AccountId, BlockNumberFor<T>, T::Credits, MetadataOf<T>, PulseFilterOf<T>>, /* todo subscriotiopnof<T>? */
 		OptionQuery,
 	>;
 
@@ -304,6 +325,8 @@ pub mod pallet {
 		SubscriptionAlreadyPaused,
 		/// The origin isn't the subscriber
 		NotSubscriber,
+		/// Can't filter out based on random values
+		FilterRandNotPermitted,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -347,10 +370,22 @@ pub mod pallet {
 			frequency: BlockNumberFor<T>,
 			// Bounded vector for additional data
 			metadata: Option<MetadataOf<T>>,
+			// Optional Pulse Filter
+			pulse_filter: Option<PulseFilterOf<T>>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
+
+			// make sure the filter does not filter on random values
+			Self::ensure_filter_no_rand(&pulse_filter)?;
+
 			Self::create_subscription_internal(
-				subscriber, credits, target, call_index, frequency, metadata,
+				subscriber,
+				credits,
+				target,
+				call_index,
+				frequency,
+				metadata,
+				pulse_filter,
 			)
 		}
 
@@ -404,21 +439,27 @@ pub mod pallet {
 			credits: T::Credits,
 			// New distribution interval
 			frequency: BlockNumberFor<T>,
+			// New Pulse Filter
+			pulse_filter: Option<PulseFilterOf<T>>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
+
+			// make sure the filter does not filter on random values
+			Self::ensure_filter_no_rand(&pulse_filter)?;
+
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 
 				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits, &credits);
-				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(
-					sub,
-					&Subscription { credits, frequency, ..sub.clone() },
-				);
+				let old_sub = sub.clone();
 
 				sub.credits = credits;
 				sub.frequency = frequency;
+				sub.pulse_filter = pulse_filter;
 				sub.updated_at = frame_system::Pallet::<T>::block_number();
+
+				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(&sub, &old_sub);
 
 				// Hold or refund diff fees
 				Self::manage_diff_fees(&subscriber, &fees_diff)?;
@@ -486,17 +527,20 @@ impl<T: Config> Pallet<T> {
 		Subscriptions::<T>::iter().try_for_each(
 			|(sub_id, mut sub): (SubscriptionId, SubscriptionOf<T>)| -> DispatchResult {
 				// Filter for active subscriptions that are eligible for delivery based on frequency
+				// and custom filter criteria
 				if !(
 					// Subscription must be active
 					sub.state == SubscriptionState::Active  &&
 					// And either never delivered before, or enough blocks have passed since last delivery
 					(sub.last_delivered.is_none() ||
-					current_block >= sub.last_delivered.unwrap() + sub.frequency)
+					current_block >= sub.last_delivered.unwrap() + sub.frequency) &&
+ 					// The pulse passes the custom filter
+					Self::custom_filter(&sub.pulse_filter, &pulse)
 				) {
 					return Ok(()); // Skip this subscription
 				}
 
-				let msg = Self::construct_randomness_xcm(&rnd, sub.details.call_index);
+				let msg = Self::construct_randomness_xcm(&pulse, sub.details.call_index);
 				let versioned_target: Box<VersionedLocation> =
 					Box::new(sub.details.target.clone().into());
 				let versioned_msg: Box<VersionedXcm<()>> =
@@ -538,6 +582,33 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	/// Determines whether a pulse should pass through a filter
+	///
+	/// This function checks whether a given pulse meets the filter criteria specified
+	/// in a subscription. If no filter is present, all pulses pass through.
+	///
+	/// # Parameters
+	/// * `pulse_filter` - Optional filter conditions to apply to the pulse
+	/// * `pulse` - The pulse to check against the filter
+	///
+	/// # Returns
+	/// * `true` - If the pulse passes the filter or if no filter is specified
+	/// * `false` - If the pulse does not match the filter criteria
+	///
+	/// # How Filtering Works
+	/// 1. If `pulse_filter` is `None`, returns `true` (no filtering)
+	/// 2. Otherwise, checks if the property extracted from the pulse exists in the list of allowed
+	///    values in the filter
+	///
+	/// This enables subscriptions to receive randomness only when the pulse has specific
+	/// properties, such as coming from a particular round number.
+	fn custom_filter(pulse_filter: &Option<PulseFilterOf<T>>, pulse: &T::Pulse) -> bool {
+		match pulse_filter {
+			Some(filter) => filter.values.contains(&pulse.get(filter.property.clone())),
+			None => true,
+		}
+	}
+
 	/// Internal function to handle subscription creation
 	fn create_subscription_internal(
 		subscriber: T::AccountId,
@@ -546,6 +617,7 @@ impl<T: Config> Pallet<T> {
 		call_index: CallIndex,
 		frequency: BlockNumberFor<T>,
 		metadata: Option<MetadataOf<T>>,
+		pulse_filter: Option<PulseFilterOf<T>>,
 	) -> DispatchResult {
 		// Calculate and hold the subscription fees
 		let fees = Self::calculate_subscription_fees(&credits);
@@ -568,6 +640,7 @@ impl<T: Config> Pallet<T> {
 			credits,
 			frequency,
 			last_delivered: None,
+			pulse_filter,
 		};
 
 		Self::hold_deposit(
@@ -618,6 +691,34 @@ impl<T: Config> Pallet<T> {
 			Precision::BestEffort,
 		)?;
 		Ok(())
+	}
+
+	/// Ensures that a pulse filter doesn't attempt to filter on random values
+	///
+	/// This function checks that the filter doesn't use the `PulseProperty::Rand` variant
+	/// for filtering. Filtering based on randomness is not permitted because it would
+	/// contradict the purpose of randomness distribution - clients shouldn't be able
+	/// to selectively receive only certain random values.
+	///
+	/// # Parameters
+	/// * `pulse_filter` - The optional pulse filter to validate
+	///
+	/// # Returns
+	/// * `Ok(())` - If the filter is either not present or doesn't filter on random values
+	/// * `Err(Error::FilterRandNotPermitted)` - If the filter attempts to filter on random values
+	///
+	/// # Security Notes
+	/// This function is an important security check that prevents subscribers from
+	/// potentially gaming the system by receiving only certain random values that
+	/// match specific patterns.
+	fn ensure_filter_no_rand(pulse_filter: &Option<PulseFilterOf<T>>) -> DispatchResult {
+		match pulse_filter {
+			Some(filter) => match filter.property {
+				PulseProperty::Rand(_) => Err(Error::<T>::FilterRandNotPermitted.into()),
+				_ => Ok(()),
+			},
+			None => Ok(()),
+		}
 	}
 
 	fn manage_diff_deposit(
@@ -689,12 +790,13 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 
 sp_api::decl_runtime_apis! {
 	#[api_version(1)]
-	pub trait IdnManagerApi<Balance, BlockNumber, Credits, Metadata, AccountId> where
+	pub trait IdnManagerApi<Balance, BlockNumber, Credits, Metadata, AccountId, PulseFilter> where
 		Balance: Codec,
 		BlockNumber: Codec,
 		Credits: Codec,
 		Metadata: Codec,
 		AccountId: Codec,
+		PulseFilter: Codec,
 	{
 		/// Computes the fee for a given credits
 		///
@@ -714,7 +816,8 @@ sp_api::decl_runtime_apis! {
 				AccountId,
 				BlockNumber,
 				Credits,
-				Metadata
+				Metadata,
+				PulseFilter
 			>>;
 
 		/// Retrieves all subscriptions for a specific subscriber
@@ -727,7 +830,8 @@ sp_api::decl_runtime_apis! {
 				AccountId,
 				BlockNumber,
 				Credits,
-				Metadata
+				Metadata,
+				PulseFilter
 			>>;
 	}
 }
