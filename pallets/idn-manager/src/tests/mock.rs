@@ -83,7 +83,7 @@ pub struct Pulse {
 	pub round: Round,
 }
 
-impl idn_traits::rand::Pulse for Pulse {
+impl idn_traits::pulse::Pulse for Pulse {
 	type Rand = Rand;
 	type Round = Round;
 

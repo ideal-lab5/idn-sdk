@@ -75,7 +75,7 @@ use frame_system::{
 	ensure_signed,
 	pallet_prelude::{BlockNumberFor, OriginFor},
 };
-use idn_traits::rand::{Dispatcher, Pulse, PulseMatch, PulseProperty};
+use idn_traits::pulse::{Dispatcher, Pulse, PulseMatch, PulseProperty};
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
