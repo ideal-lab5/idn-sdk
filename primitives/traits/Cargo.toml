@@ -1,8 +1,7 @@
 [package]
 name = "idn-traits"
-authors = [
-	"Juan Girini <juan@idealabs.network>"
-	]
+description = "IDN traits"
+authors.workspace = true
 version = "0.0.1"
 license.workspace = true
 edition.workspace = true
@@ -11,10 +10,10 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-codec = { workspace = true, default-features = false }
-frame-support = { workspace = true,  default-features = false }
-scale-info = { workspace = true, default-features = false }
-sp-std = { workspace = true, default-features = false }
+codec.workspace = true
+frame-support.workspace = true
+scale-info.workspace = true
+sp-std.workspace = true
 
 [features]
 default = ["std"]
