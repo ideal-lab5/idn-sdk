@@ -73,11 +73,15 @@ serde_json = { version = "=1.0.132", default-features = false }
 
 # Polkadot & Substrate
 frame-benchmarking = { version = "=39.0.0", default-features = false }
-frame-executive = { version = "3=9.0.0", default-features = false }
+frame-executive = { version = "=39.0.0", default-features = false }
 frame-support = { version = "=39.0.0", default-features = false }
 frame-system = { version = "=39.1.0", default-features = false }
+pallet-balances = { version = "=40.0.0", default-features = false }
+pallet-xcm = { version = "=18.0.0", default-features = false }
 sc-consensus-randomness-beacon = { path = "./client/consensus/randomness-beacon", default-features = false }
-sc-utils = { version = "18.0.0", default-features = false }
+sc-utils = { version = "=18.0.0", default-features = false }
+sp-arithmetic = { version = "=26.0.0", default-features = false }
+sp-api = { version = "=35.0.0",  default-features = false }
 sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }
 sp-core = { version = "=35.0.0", default-features = false }
 sp-inherents = { version = "=35.0.0", default-features = false }
@@ -85,6 +89,8 @@ sp-io = { version = "=39.0.0", default-features = false }
 sp-keystore = { version = "=0.41.0", default-features = false }
 sp-runtime = { version = "=40.1.0", default-features = false }
 sp-std = { version = "=14.0.0",  default-features = false }
+xcm = { version = "=15.0.1", default-features = false, package = "staging-xcm" }
+xcm-builder = { version = "=18.0.0", default-features = false, package = "staging-xcm-builder" }
 
 # Arkworks & Crypto
 sp-ark-bls12-381 = { git = "https://github.com/paritytech/arkworks-substrate", version = "=0.4.2", default-features = false }
@@ -101,3 +107,6 @@ log = { version = "=0.4.26", default-features = false }
 # Parity SCALE Codec
 codec = { package = "parity-scale-codec", version = "=3.7.4", default-features = false, features = ["derive"] }
 scale-info = { version = "=2.11.6", default-features = false, features = ["derive"] }
+
+# IDN
+idn-traits = { path = "primitives/traits", default-features = false }
