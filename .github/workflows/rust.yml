@@ -54,11 +54,8 @@ jobs:
     - name: Install llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
 
-    - name: Install nextest
-      uses: taiki-e/install-action@nextest
-
     - name: Run Tests
-      run: cargo llvm-cov --cobertura --output-path cobertura.xml nextest
+      run: cargo +nightly llvm-cov --doctests --cobertura --output-path cobertura.xml
 
     - name: Generate Code Coverage Summary
       uses: irongut/CodeCoverageSummary@v1.3.0
