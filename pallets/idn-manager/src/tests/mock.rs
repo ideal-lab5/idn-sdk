@@ -24,6 +24,7 @@ use crate::{
 	impls::{DepositCalculatorImpl, FeesManagerImpl},
 	SubscriptionOf,
 };
+use codec::Encode;
 use frame_support::{
 	construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage, traits::Get,
 };
@@ -61,6 +62,7 @@ parameter_types! {
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
+	pub const PulseFilterLen: u32 = 100;
 }
 
 #[derive(TypeInfo)]
@@ -72,6 +74,28 @@ impl Get<u32> for SubMetadataLen {
 	}
 }
 
+type Rand = [u8; 32];
+type Round = u64;
+
+#[derive(Encode, Clone, Copy)]
+pub struct Pulse {
+	pub rand: Rand,
+	pub round: Round,
+}
+
+impl idn_traits::pulse::Pulse for Pulse {
+	type Rand = Rand;
+	type Round = Round;
+
+	fn rand(&self) -> Self::Rand {
+		self.rand
+	}
+
+	fn round(&self) -> Self::Round {
+		self.round
+	}
+}
+
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -79,11 +103,12 @@ impl pallet_idn_manager::Config for Test {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Rnd = [u8; 32];
+	type Pulse = Pulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type SubMetadataLen = SubMetadataLen;
 	type Credits = u64;
+	type PulseFilterLen = PulseFilterLen;
 }
 
 pub struct ExtBuilder;
