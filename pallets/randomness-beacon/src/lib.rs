@@ -169,16 +169,16 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// The pulse could not be verified
 		VerificationFailed,
-		// The genesis round is zero.
+		/// The genesis round is zero.
 		GenesisRoundNotSet,
-		// The genesis is already set.
+		/// The genesis is already set.
 		GenesisRoundAlreadySet,
-		// There must be at least one signature to construct an asig
+		/// There must be at least one signature to construct an asig
 		ZeroHeightProvided,
-		// There number of aggregated signatures exceeds the maximum rounds we can verify per
-		// block.
+		/// There number of aggregated signatures exceeds the maximum rounds we can verify per
+		/// block.
 		ExcessiveHeightProvided,
-		// Only one aggregated signature can be provided per block
+		/// Only one aggregated signature can be provided per block
 		SignatureAlreadyVerified,
 	}
 
@@ -307,7 +307,7 @@ pub mod pallet {
 				ensure!(GenesisRound::<T>::get() > 0, Error::<T>::GenesisRoundNotSet);
 			}
 			// aggregate old asig/apk with the new one and verify the aggregation
-			// Q: do we care about the entire linear history of message hashes?
+			// TODO: do we care about the entire linear history of message hashes?
 			// https://github.com/ideal-lab5/idn-sdk/issues/119
 			let aggr = T::SignatureAggregator::aggregate_and_verify(
 				config.public_key,

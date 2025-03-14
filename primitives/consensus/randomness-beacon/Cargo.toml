@@ -28,7 +28,7 @@ ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 
 [dev-dependencies]
-array-bytes = "6.1"
+array-bytes = "=6.2.3"
 tokio.workspace = true
 
 [build-dependencies]

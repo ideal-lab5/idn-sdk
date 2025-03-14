@@ -95,39 +95,91 @@ use xcm_builder::SendController;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
+/// Two-byte identifier for dispatching XCM calls
+///
+/// This type represents a compact encoding of pallet and function identifiers:
+/// - The first byte represents the pallet index in the destination runtime
+/// - The second byte represents the call index within that pallet
+///
+/// # Example
+/// ```rust
+/// # use pallet_idn_manager::CallIndex;
+///
+/// let call_index: CallIndex = [42, 3];  // Target the 42nd pallet, 3rd function
+/// ```
+///
+/// This identifier is used in XCM messages to ensure randomness is delivered
+/// to the appropriate function in the destination pallet.
+pub type CallIndex = [u8; 2];
+
 pub type BalanceOf<T> =
 	<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 
 pub type MetadataOf<T> = BoundedVec<u8, <T as Config>::SubMetadataLen>;
 
-pub type SubscriptionOf<T> =
-	Subscription<<T as frame_system::Config>::AccountId, BlockNumberFor<T>, MetadataOf<T>>;
+pub type SubscriptionOf<T> = Subscription<
+	<T as frame_system::Config>::AccountId,
+	BlockNumberFor<T>,
+	<T as pallet::Config>::Credits,
+	MetadataOf<T>,
+>;
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
-pub struct Subscription<AccountId, BlockNumber: Unsigned, Metadata> {
+pub struct Subscription<AccountId, BlockNumber, Credits, Metadata> {
 	details: SubscriptionDetails<AccountId, Metadata>,
 	// Number of random values left to distribute
-	credits_left: BlockNumber,
+	credits_left: Credits,
 	state: SubscriptionState,
 	created_at: BlockNumber,
 	updated_at: BlockNumber,
-	credits: BlockNumber,
+	credits: Credits,
 	frequency: BlockNumber,
+	last_delivered: Option<BlockNumber>,
 }
 
-// TODO: details should be immutable, they are what make the subscription unique
-// https://github.com/ideal-lab5/idn-sdk/issues/114
+/// Details specific to a subscription for random value delivery
+///
+/// This struct contains information about the subscription owner, where randomness should be
+/// delivered, how to deliver it via XCM, and any additional metadata for the subscription.
+///
+/// # Fields
+/// * `subscriber` - The account that created and pays for the subscription
+/// * `target` - The XCM location where randomness should be delivered
+/// * `call_index` - Identifier for dispatching the XCM call, see [`crate::CallIndex`]
+/// * `metadata` - Optional bounded metadata that can be used by the subscriber for identification
+///   or application-specific data
+///
+/// # Example
+/// ```rust
+/// # use xcm::v5::{Junction, Location};
+/// # use sp_runtime::AccountId32;
+/// # use pallet_idn_manager::SubscriptionDetails;
+/// # const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+///
+/// let details = SubscriptionDetails {
+///     subscriber: ALICE,
+///     target: Location::new(1, [Junction::PalletInstance(42)]),
+///     call_index: [42, 3],  // Target the 42nd pallet, 3rd function
+///     metadata: b"My randomness subscription".to_vec(),
+/// };
+/// ```
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct SubscriptionDetails<AccountId, Metadata> {
-	subscriber: AccountId,
-	target: Location,
-	metadata: Metadata,
+	/// The account that created and pays for the subscription
+	pub subscriber: AccountId,
+	/// The XCM location where randomness should be delivered
+	pub target: Location,
+	/// Identifier for dispatching the XCM call, see [`crate::CallIndex`]
+	pub call_index: CallIndex,
+	/// Optional metadata that can be used by the subscriber
+	pub metadata: Metadata,
 }
 
-impl<AccountId, BlockNumber, Metadata> Subscription<AccountId, BlockNumber, Metadata>
+impl<AccountId, BlockNumber, Credits, Metadata>
+	Subscription<AccountId, BlockNumber, Credits, Metadata>
 where
 	AccountId: Encode,
-	BlockNumber: Encode + Copy + Unsigned,
+	BlockNumber: Encode + Copy,
 	Metadata: Encode + Clone,
 {
 	pub fn id(&self) -> SubscriptionId {
@@ -135,6 +187,7 @@ where
 			self.created_at,
 			&self.details.subscriber,
 			self.details.target.clone(),
+			self.details.call_index,
 			self.details.metadata.clone(),
 		);
 		// Encode the tuple using SCALE codec.
@@ -150,12 +203,6 @@ type SubscriptionId = H256;
 pub enum SubscriptionState {
 	Active,
 	Paused,
-}
-
-#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
-pub enum Call {
-	#[codec(index = 1)]
-	DistributeRnd,
 }
 
 #[frame_support::pallet]
@@ -183,7 +230,7 @@ pub mod pallet {
 		/// Fees calculator implementation
 		type FeesManager: FeesManager<
 			BalanceOf<Self>,
-			BlockNumberFor<Self>,
+			Self::Credits,
 			SubscriptionOf<Self>,
 			DispatchError,
 			<Self as frame_system::pallet::Config>::AccountId,
@@ -193,7 +240,7 @@ pub mod pallet {
 		type DepositCalculator: DepositCalculator<BalanceOf<Self>, SubscriptionOf<Self>>;
 
 		/// The type for the randomness
-		type Rnd;
+		type Rnd: Encode;
 
 		// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
@@ -212,6 +259,9 @@ pub mod pallet {
 
 		/// Maximum metadata size
 		type SubMetadataLen: Get<u32> + TypeInfo;
+
+		/// A type to define the amount of credits in a subscription
+		type Credits: Unsigned + Codec + TypeInfo + MaxEncodedLen + Debug + Saturating + Copy;
 	}
 
 	#[pallet::storage]
@@ -219,7 +269,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		SubscriptionId,
-		Subscription<T::AccountId, BlockNumberFor<T>, MetadataOf<T>>,
+		Subscription<T::AccountId, BlockNumberFor<T>, T::Credits, MetadataOf<T>>,
 		OptionQuery,
 	>;
 
@@ -288,16 +338,20 @@ pub mod pallet {
 		pub fn create_subscription(
 			origin: OriginFor<T>,
 			// Number of random values to receive
-			credits: BlockNumberFor<T>,
+			credits: T::Credits,
 			// XCM multilocation for random value delivery
 			target: Location,
+			// Call index for XCM message
+			call_index: CallIndex,
 			// Distribution interval for random values
 			frequency: BlockNumberFor<T>,
 			// Bounded vector for additional data
 			metadata: Option<MetadataOf<T>>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
-			Self::create_subscription_internal(subscriber, credits, target, frequency, metadata)
+			Self::create_subscription_internal(
+				subscriber, credits, target, call_index, frequency, metadata,
+			)
 		}
 
 		/// Temporarily halts randomness distribution
@@ -347,7 +401,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: SubscriptionId,
 			// New number of random values
-			credits: BlockNumberFor<T>,
+			credits: T::Credits,
 			// New distribution interval
 			frequency: BlockNumberFor<T>,
 		) -> DispatchResult {
@@ -425,46 +479,52 @@ impl<T: Config> Pallet<T> {
 
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
-	// TODO: finish off this as part of https://github.com/ideal-lab5/idn-sdk/issues/77
 	fn distribute(rnd: T::Rnd) -> DispatchResult {
-		// Filter for active subscriptions only
-		for (sub_id, sub) in
-			Subscriptions::<T>::iter().filter(|(_, sub)| sub.state == SubscriptionState::Active)
-		{
-			if let Ok(msg) = Self::construct_randomness_xcm(sub.details.target.clone(), &rnd) {
+		// Get the current block number once for comparison
+		let current_block = frame_system::Pallet::<T>::block_number();
+
+		Subscriptions::<T>::iter().try_for_each(
+			|(sub_id, mut sub): (SubscriptionId, SubscriptionOf<T>)| -> DispatchResult {
+				// Filter for active subscriptions that are eligible for delivery based on frequency
+				if !(
+					// Subscription must be active
+					sub.state == SubscriptionState::Active  &&
+					// And either never delivered before, or enough blocks have passed since last delivery
+					(sub.last_delivered.is_none() ||
+					current_block >= sub.last_delivered.unwrap() + sub.frequency)
+				) {
+					return Ok(()); // Skip this subscription
+				}
+
+				let msg = Self::construct_randomness_xcm(&rnd, sub.details.call_index);
 				let versioned_target: Box<VersionedLocation> =
 					Box::new(sub.details.target.clone().into());
 				let versioned_msg: Box<VersionedXcm<()>> =
 					Box::new(xcm::VersionedXcm::V5(msg.into()));
 				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
+
 				if T::Xcm::send(origin.into(), versioned_target, versioned_msg).is_ok() {
 					// We consume a fixed one credit per distribution
 					let credits_consumed = One::one();
 					Self::collect_fees(&sub, credits_consumed)?;
-					Self::consume_credits(&sub_id, sub.clone(), credits_consumed);
+
+					// Update subscription with consumed credits and last_delivered block number
+					sub.credits_left = sub.credits_left.saturating_sub(credits_consumed);
+					sub.last_delivered = Some(current_block);
+
+					// Store the updated subscription
+					Subscriptions::<T>::insert(sub_id, sub);
+
 					Self::deposit_event(Event::RandomnessDistributed { sub_id });
 				}
-			}
-		}
+				Ok(())
+			},
+		)?;
 
 		Ok(())
 	}
 
-	fn consume_credits(
-		sub_id: &SubscriptionId,
-		mut sub: SubscriptionOf<T>,
-		credits_consumed: BlockNumberFor<T>,
-	) {
-		// Decrease credits_left by `credits_consumed` using saturating_sub
-		sub.credits_left = sub.credits_left.saturating_sub(credits_consumed);
-		// Update the subscription in storage
-		Subscriptions::<T>::insert(sub_id, sub)
-	}
-
-	fn collect_fees(
-		sub: &SubscriptionOf<T>,
-		credits_consumed: BlockNumberFor<T>,
-	) -> DispatchResult {
+	fn collect_fees(sub: &SubscriptionOf<T>, credits_consumed: T::Credits) -> DispatchResult {
 		let fees_to_collect = T::FeesManager::calculate_diff_fees(
 			&sub.credits_left,
 			&sub.credits_left.saturating_sub(credits_consumed),
@@ -481,8 +541,9 @@ impl<T: Config> Pallet<T> {
 	/// Internal function to handle subscription creation
 	fn create_subscription_internal(
 		subscriber: T::AccountId,
-		credits: BlockNumberFor<T>,
+		credits: T::Credits,
 		target: Location,
+		call_index: CallIndex,
 		frequency: BlockNumberFor<T>,
 		metadata: Option<MetadataOf<T>>,
 	) -> DispatchResult {
@@ -495,6 +556,7 @@ impl<T: Config> Pallet<T> {
 		let details = SubscriptionDetails {
 			subscriber: subscriber.clone(),
 			target: target.clone(),
+			call_index,
 			metadata: metadata.unwrap_or_default(),
 		};
 		let subscription = Subscription {
@@ -505,6 +567,7 @@ impl<T: Config> Pallet<T> {
 			updated_at: current_block,
 			credits,
 			frequency,
+			last_delivered: None,
 		};
 
 		Self::hold_deposit(
@@ -568,14 +631,39 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// Helper function to construct XCM message for randomness distribution
-	// TODO: finish this off as part of https://github.com/ideal-lab5/idn-sdk/issues/77
-	fn construct_randomness_xcm(_target: Location, _rnd: &T::Rnd) -> Result<Xcm<()>, Error<T>> {
-		Ok(Xcm(vec![]))
+	/// Constructs an XCM message for delivering randomness to a subscriber
+	///
+	/// This function creates a complete XCM message that will:
+	/// 1. Execute without payment at the destination chain (UnpaidExecution)
+	/// 2. Execute a call on the destination chain using the provided call index and randomness data
+	///    (Transact)
+	/// 3. Expect successful execution and check status code (ExpectTransactStatus)
+	///
+	/// # Parameters
+	/// * `rnd` - The random value to deliver to the subscriber
+	/// * `call_index` - Identifier for dispatching the XCM call, see [`crate::CallIndex`]
+	///
+	/// # Returns
+	/// * `Xcm` - A complete XCM message ready to be sent
+	fn construct_randomness_xcm(rnd: &T::Rnd, call_index: CallIndex) -> Xcm<()> {
+		Xcm(vec![
+			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			Transact {
+				origin_kind: OriginKind::Xcm,
+				fallback_max_weight: None,
+				// Create a tuple of call_index and rnd, encode it using SCALE codec, then convert
+				// to Vec<u8> The encoded data will be used by the receiving chain to:
+				// 1. Find the target pallet using first byte of call_index
+				// 2. Find the target function using second byte of call_index
+				// 3. Pass the random value to that function
+				call: (call_index, rnd).encode().into(),
+			},
+			ExpectTransactStatus(MaybeErrorCode::Success),
+		])
 	}
 
 	/// Computes the fee for a given credits
-	pub fn calculate_subscription_fees(credits: &BlockNumberFor<T>) -> BalanceOf<T> {
+	pub fn calculate_subscription_fees(credits: &T::Credits) -> BalanceOf<T> {
 		T::FeesManager::calculate_subscription_fees(credits)
 	}
 
@@ -601,9 +689,10 @@ impl<T: Config> idn_traits::rand::Dispatcher<T::Rnd, DispatchResult> for Pallet<
 
 sp_api::decl_runtime_apis! {
 	#[api_version(1)]
-	pub trait IdnManagerApi<Balance, BlockNumber, Metadata, AccountId> where
+	pub trait IdnManagerApi<Balance, BlockNumber, Credits, Metadata, AccountId> where
 		Balance: Codec,
-		BlockNumber: Codec + Unsigned,
+		BlockNumber: Codec,
+		Credits: Codec,
 		Metadata: Codec,
 		AccountId: Codec,
 	{
@@ -624,6 +713,7 @@ sp_api::decl_runtime_apis! {
 		) -> Option<Subscription<
 				AccountId,
 				BlockNumber,
+				Credits,
 				Metadata
 			>>;
 
@@ -636,6 +726,7 @@ sp_api::decl_runtime_apis! {
 		) -> Vec<Subscription<
 				AccountId,
 				BlockNumber,
+				Credits,
 				Metadata
 			>>;
 	}

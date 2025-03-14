@@ -29,8 +29,8 @@ ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 
 [dev-dependencies]
-async-std = "1.13.0"
-rand = "0.8.5"
+async-std = "=1.13.0"
+rand = "=0.8.5"
 tokio.workspace = true
  
 [features]
