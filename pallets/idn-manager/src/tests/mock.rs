@@ -22,7 +22,7 @@
 use crate::{
 	self as pallet_idn_manager,
 	impls::{DepositCalculatorImpl, FeesManagerImpl},
-	SubscriptionOf,
+	BalanceOf, SubscriptionOf,
 };
 use codec::Encode;
 use frame_support::{
@@ -30,7 +30,10 @@ use frame_support::{
 };
 use frame_system as system;
 use scale_info::TypeInfo;
-use sp_runtime::{traits::IdentityLookup, AccountId32};
+use sp_runtime::{
+	traits::{Block as BlockT, IdentityLookup},
+	AccountId32,
+};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -109,6 +112,42 @@ impl pallet_idn_manager::Config for Test {
 	type SubMetadataLen = SubMetadataLen;
 	type Credits = u64;
 	type PulseFilterLen = PulseFilterLen;
+}
+
+sp_api::impl_runtime_apis! {
+	impl pallet_idn_manager::IdnManagerApi<
+			Block,
+			BalanceOf<Test>,
+			u64,
+			AccountId32,
+			SubscriptionOf<Test>
+		> for Test {
+		fn calculate_subscription_fees(credits: u64) -> BalanceOf<Test> {
+			pallet_idn_manager::Pallet::<Test>::calculate_subscription_fees(&credits)
+		}
+		fn get_subscription(
+			sub_id: pallet_idn_manager::SubscriptionId
+		) -> Option<SubscriptionOf<Test>> {
+			pallet_idn_manager::Pallet::<Test>::get_subscription(&sub_id)
+		}
+		fn get_subscriptions_for_subscriber(
+			subscriber: AccountId32
+		) -> Vec<SubscriptionOf<Test>> {
+			pallet_idn_manager::Pallet::<Test>::get_subscriptions_for_subscriber(&subscriber)
+		}
+	}
+
+	impl sp_api::Core<Block> for Test {
+		fn version() -> sp_version::RuntimeVersion {
+			unimplemented!()
+		}
+		fn execute_block(_: Block) {
+			unimplemented!()
+		}
+		fn initialize_block(_: &<Block as BlockT>::Header) -> sp_runtime::ExtrinsicInclusionMode {
+			unimplemented!()
+		}
+	}
 }
 
 pub struct ExtBuilder;
