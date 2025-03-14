@@ -277,13 +277,8 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
-	pub type Subscriptions<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		SubscriptionId,
-		Subscription<T::AccountId, BlockNumberFor<T>, T::Credits, MetadataOf<T>, PulseFilterOf<T>>, /* todo subscriotiopnof<T>? */
-		OptionQuery,
-	>;
+	pub type Subscriptions<T: Config> =
+		StorageMap<_, Blake2_128Concat, SubscriptionId, SubscriptionOf<T>, OptionQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
