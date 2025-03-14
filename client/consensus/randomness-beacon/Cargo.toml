@@ -16,19 +16,17 @@ codec.workspace = true
 serde = { workspace = true, features = ["derive"] }
 tokio.workspace = true
 libp2p.workspace = true
-prost = "0.13.4"
-log = { workspace = true }
+prost.workspace = true
+log.workspace = true
 futures.workspace = true
 scale-info.workspace = true
 sc-utils.workspace = true
+sp-consensus-randomness-beacon.workspace = true
 
 # arkworks dependencies
 sp-ark-bls12-381 = { workspace = true, optional = true }
 ark-bls12-381.workspace = true
 ark-serialize.workspace = true
-
-[build-dependencies]
-prost-build = "0.13.4"
 
 [dev-dependencies]
 async-std = "1.13.0"

@@ -18,3 +18,4 @@
 extern crate alloc;
 
 pub mod inherents;
+pub mod types;

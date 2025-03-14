@@ -90,7 +90,7 @@ extern crate alloc;
 use alloc::{vec, vec::Vec};
 use ark_serialize::CanonicalSerialize;
 use frame_support::pallet_prelude::*;
-use sc_consensus_randomness_beacon::types::OpaquePulse;
+use sp_consensus_randomness_beacon::types::OpaquePulse;
 
 pub mod aggregator;
 pub mod bls12_381;
@@ -99,7 +99,7 @@ pub mod weights;
 pub use weights::*;
 
 use aggregator::{zero_on_g1, SignatureAggregator};
-use types::*;
+pub use types::*;
 
 #[cfg(test)]
 mod mock;

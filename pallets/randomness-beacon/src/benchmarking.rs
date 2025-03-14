@@ -19,10 +19,10 @@
 use super::*;
 
 #[allow(unused)]
-use crate::{pallet as pallet_drand, Pallet as Drand};
+use crate::{pallet as pallet_randomness_beacon, Pallet};
 use ark_bls12_381::G1Affine as G1AffineOpt;
 use ark_serialize::CanonicalDeserialize;
-use frame_benchmarking::v2::*;
+use frame_benchmarking::{benchmarking::add_to_whitelist, v2::*};
 use frame_system::RawOrigin;
 
 #[benchmarks]
@@ -73,7 +73,8 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn try_submit_asig(r: Linear<2, { T::MaxSigsPerBlock::get() as u32 }>) -> Result<(), BenchmarkError> {
+	fn try_submit_asig() -> Result<(), BenchmarkError> {
+		let r = T::MaxSigsPerBlock::get();
 		let (asig, apk) = test(r as u8);
 
 		#[extrinsic_call]
@@ -87,5 +88,29 @@ mod benchmarks {
 		Ok(())
 	}
 
-	impl_benchmark_test_suite!(Drand, crate::mock::new_test_ext(), crate::mock::Test);
+	#[benchmark]
+	fn on_finalize() -> Result<(), BenchmarkError> {
+		let block_number: u32 = 1u32;
+
+		// submit an asig
+		let (asig, _apk) = test(2 as u8);
+		Pallet::<T>::try_submit_asig(RawOrigin::None.into(), asig.clone(), 2, Some(1000u64))
+			.unwrap();
+
+		assert!(DidUpdate::<T>::exists(), "Asig was not updated.");
+		// Ignore read/write to `DidUpdate` since it is transient.
+		let did_update_key = DidUpdate::<T>::hashed_key().to_vec();
+		add_to_whitelist(did_update_key.into());
+
+		#[block]
+		{
+			Pallet::<T>::on_finalize(block_number.into());
+		}
+
+		assert!(!DidUpdate::<T>::exists(), "Asig was not removed.");
+
+		Ok(())
+	}
+
+	impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
 }

@@ -29,7 +29,7 @@
 //!
 //! ``` no_run
 //! use sc_consensus_randomness_beacon::gossipsub::GossipsubNetwork;
-//! use sc_consensus_randomness_beacon::types::*;
+//! use sp_consensus_randomness_beacon::types::*;
 //! use futures::StreamExt;
 //! use libp2p::{
 //! 		gossipsub,
@@ -64,7 +64,6 @@
 //! 	}
 //! });
 //! ```
-use crate::types::*;
 use futures::StreamExt;
 use libp2p::{
 	gossipsub,
@@ -77,6 +76,7 @@ use libp2p::{
 };
 use prost::Message;
 use sc_utils::mpsc::TracingUnboundedSender;
+use sp_consensus_randomness_beacon::types::*;
 
 /// The default address instructing libp2p to choose a random open port on the local machine
 const RAND_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/0";
@@ -396,7 +396,7 @@ mod tests {
 	#[derive(libp2p::swarm::NetworkBehaviour)]
 	struct TestBehaviour {
 		gossipsub: GossipsubBehaviour,
-		mdns: libp2p::mdns::tokio::Behaviour, 
+		mdns: libp2p::mdns::tokio::Behaviour,
 	}
 
 	#[tokio::test]
@@ -408,14 +408,12 @@ mod tests {
 		let gossipsub_config = GossipsubConfig::default();
 		let behaviour = GossipsubBehaviour::new(message_authenticity, gossipsub_config).unwrap();
 		let mdns_behaviour = libp2p::mdns::tokio::Behaviour::new(
-			libp2p::mdns::Config::default(), 
+			libp2p::mdns::Config::default(),
 			libp2p::PeerId::random(),
-		).expect("Failed to create mDNS");
+		)
+		.expect("Failed to create mDNS");
 
-		let combined_behaviour = TestBehaviour {
-			gossipsub: behaviour,
-			mdns: mdns_behaviour,
-		};
+		let combined_behaviour = TestBehaviour { gossipsub: behaviour, mdns: mdns_behaviour };
 		// the 'publisher' swarm capable of connecting to peers with kademlia
 		let mut swarm = libp2p::SwarmBuilder::with_new_identity()
 			.with_tokio()
@@ -511,6 +509,7 @@ mod tests {
 		// // give the subscriber 1 sec to ensure it has dialed the peer
 		// sleep(Duration::from_secs(2)).await;
 
-		// assert!(subscriber.connected_peers == 1, "The subscriber should have dialed the publisher.");
+		// assert!(subscriber.connected_peers == 1, "The subscriber should have dialed the
+		// publisher.");
 	}
 }
