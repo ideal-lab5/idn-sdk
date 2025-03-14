@@ -17,4 +17,3 @@
 extern crate alloc;
 
 pub mod gossipsub;
-pub mod types;

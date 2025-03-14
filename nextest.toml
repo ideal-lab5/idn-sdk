@@ -1,0 +1,21 @@
+[profile.default]
+
+# Ignore coverage for macros like #[pallet::error] that can't be tested
+# Also ignore doc comments on enum fields
+[profile.default.ignore]
+lines = ["///"]
+
+# Exclude benchmarks/solochain directory from testing
+[profile.default.exclude]
+path = ["benchmarks/solochain/**", "**/weights.rs"]
+
+# Enable concurrency for faster testing
+[profile.default.run-override]
+threads = "num-cpus"
+
+# Use retries for flaky tests
+retries = 2
+
+# Run all tests except the excluded ones
+[profile.default.run]
+all = true

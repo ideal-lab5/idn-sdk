@@ -35,15 +35,29 @@ cd examples/solochain
 # build the node with benchmarks enables
 cargo build --release --features runtime-benchmarks
 # run the pallet benchmarks
-./target/release/drand-example-node benchmark pallet \
-    --chain dev \
+./target/release/solochain-template-node benchmark pallet \
+    --runtime ./target/release/wbuild/solochain-template-runtime/solochain_template_runtime.compact.compressed.wasm \
+    --genesis-builder runtime \
     --wasm-execution=compiled \
-    --pallet pallet_drand \
+    --pallet pallet_randomness_beacon \
     --extrinsic "*" \
     --steps 50 \
     --repeat 20 \
-    --output ../src/new_weight.rs \
+    --output ./weights.rs \
     --allow-missing-host-functions
+
+
+./target/release/solochain-template-node benchmark pallet \
+    --runtime /home/driemworks/ideal/idn-sdk/benchmarking/solochain/target/release/wbuild/solochain-template-runtime/solochain_template_runtime.compact.compressed.wasm \
+    --genesis-builder runtime \
+    --wasm-execution=compiled \
+    --pallet pallet_randomness_beacon \
+    --extrinsic "*" \
+    --steps 50 \
+    --repeat 20 \
+    --output ./weights.rs \
+    --allow-missing-host-functions
+
 ```
 
 ## License

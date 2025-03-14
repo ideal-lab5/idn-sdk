@@ -55,9 +55,12 @@ libp2p = { version = "=0.55.0", features = [
     "tcp",
     "ping",
     "dns",
+    "macros",
+    "mdns",
     "async-std",
     "tokio",
     "websocket",
+    "quic",
     "yamux",
 ] }
 thiserror = { version = "=1.0.64" }
@@ -66,7 +69,8 @@ tokio = { version = "^1", features = ["full"] }
 # Serialization
 array-bytes = { version = "=6.2.2", default-features = false }
 hex = { version = "=0.4", features = ["serde"], default-features = false }
-serde = { version = "=1.0.218", default-features = false }
+prost = { version = "=0.13.4", default-features = false, features = ["prost-derive"] }
+serde = { version = "=1.0.219", default-features = false }
 serde_json = { version = "=1.0.132", default-features = false }
 
 # Polkadot & Substrate

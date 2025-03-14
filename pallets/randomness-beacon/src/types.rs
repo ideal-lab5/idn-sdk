@@ -35,8 +35,8 @@ pub type RoundNumber = u64;
 	Default,
 	PartialEq,
 	Encode,
-	// Serialize,
-	// Deserialize,
+	Serialize,
+	Deserialize,
 	MaxEncodedLen,
 	TypeInfo,
 )]
