@@ -206,7 +206,7 @@ where
 	}
 }
 
-type SubscriptionId = H256;
+pub type SubscriptionId = H256;
 
 #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
 pub enum SubscriptionState {
@@ -776,20 +776,18 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 
 sp_api::decl_runtime_apis! {
 	#[api_version(1)]
-	pub trait IdnManagerApi<Balance, BlockNumber, Credits, Metadata, AccountId, PulseFilter> where
+	pub trait IdnManagerApi<Balance, Credits, AccountId, Subscription> where
 		Balance: Codec,
-		BlockNumber: Codec,
 		Credits: Codec,
-		Metadata: Codec,
 		AccountId: Codec,
-		PulseFilter: Codec,
+		Subscription: Codec,
 	{
 		/// Computes the fee for a given credits
 		///
 		/// See [`crate::Pallet::calculate_subscription_fees`]
 		fn calculate_subscription_fees(
 			// Number of random values to receive
-			credits: BlockNumber
+			credits: Credits
 		) -> Balance;
 
 		/// Retrieves a specific subscription
@@ -797,14 +795,8 @@ sp_api::decl_runtime_apis! {
 		/// See [`crate::Pallet::get_subscription`]
 		fn get_subscription(
 			// Subscription ID
-			sub_id: H256
-		) -> Option<Subscription<
-				AccountId,
-				BlockNumber,
-				Credits,
-				Metadata,
-				PulseFilter
-			>>;
+			sub_id: SubscriptionId
+		) -> Option<Subscription>;
 
 		/// Retrieves all subscriptions for a specific subscriber
 		///
@@ -812,12 +804,6 @@ sp_api::decl_runtime_apis! {
 		fn get_subscriptions_for_subscriber(
 			// subscriber account ID
 			subscriber: AccountId
-		) -> Vec<Subscription<
-				AccountId,
-				BlockNumber,
-				Credits,
-				Metadata,
-				PulseFilter
-			>>;
+		) -> Vec<Subscription>;
 	}
 }
