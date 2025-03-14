@@ -60,6 +60,7 @@ libp2p = { version = "0.55.0", features = [
     "async-std",
     "tokio",
     "websocket",
+    "quic",
     "yamux",
 ] }
 thiserror = { version = "1.0.64" }
