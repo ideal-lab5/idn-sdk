@@ -167,26 +167,18 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The input data could not be decoded or was empty
-		InvalidInput,
 		/// The pulse could not be verified
 		VerificationFailed,
-		/// The next round number is invalid (either too high or too low)
-		InvalidNextRound,
-		/// The network is at block 0.
-		NetworkTooEarly,
-		/// There must be at least one pulse provided.
-		NonPositiveHeight,
-		/// The genesis round is zero.
+		// The genesis round is zero.
 		GenesisRoundNotSet,
-		/// The genesis is already set.
+		// The genesis is already set.
 		GenesisRoundAlreadySet,
-		/// There must be at least one signature to construct an asig
+		// There must be at least one signature to construct an asig
 		ZeroHeightProvided,
-		/// There number of aggregated signatures exceeds the maximum rounds we can verify per
-		/// block.
+		// There number of aggregated signatures exceeds the maximum rounds we can verify per
+		// block.
 		ExcessiveHeightProvided,
-		/// Only one aggregated signature can be provided per block
+		// Only one aggregated signature can be provided per block
 		SignatureAlreadyVerified,
 	}
 
