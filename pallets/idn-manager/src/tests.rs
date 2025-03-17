@@ -19,5 +19,5 @@
 //! Find tests in the submodules.
 
 mod fee_examples;
-mod mock;
+pub mod mock;
 mod pallet;
