@@ -16,12 +16,13 @@
 
 #[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::{Bls12_381 as Bls12_381Opt, G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
-use ark_ec::pairing::Pairing;
-use ark_std::{ops::Neg, Zero};
 #[cfg(feature = "host-arkworks")]
 use sp_ark_bls12_381::{
 	Bls12_381 as Bls12_381Opt, G1Affine as G1AffineOpt, G2Affine as G2AffineOpt,
 };
+
+use ark_ec::pairing::Pairing;
+use ark_std::{ops::Neg, Zero};
 
 /// An optimized way to verify Drand pulses from quicket
 /// Instead of computing two pairings and comparing them, we instead compute a multi miller loop,

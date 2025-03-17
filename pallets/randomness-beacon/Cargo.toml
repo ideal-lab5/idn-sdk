@@ -76,4 +76,7 @@ try-runtime = [
 	"frame-system/try-runtime",
 	"sp-runtime/try-runtime",
 ]
-host-arkworks = ["sp-ark-bls12-381"]
+host-arkworks = [
+	"sp-ark-bls12-381/std",
+	"sp-consensus-randomness-beacon/host-arkworks",
+]
