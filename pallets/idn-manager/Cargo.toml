@@ -50,3 +50,7 @@ std = [
 	"pallet-balances/std",
 	"xcm-builder/std"
 ]
+
+runtime-benchmarks = [
+	"pallet-xcm/runtime-benchmarks"
+]
