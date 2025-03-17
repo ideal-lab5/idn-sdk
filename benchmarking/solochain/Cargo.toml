@@ -74,6 +74,7 @@ sp-version = { version = "38.0.0", default-features = false }
 substrate-wasm-builder = { version = "25.0.0", default-features = false }
 
 # IDN DEPS
+pallet-idn-manager = { path = "../../pallets/idn-manager", default-features = false }
 pallet-randomness-beacon = { path = "../../pallets/randomness-beacon", default-features = false }
 sc-consensus-randomness-beacon = { path = "../../client/consensus/randomness-beacon", default-features = false }
 sp-consensus-randomness-beacon = { path = "../../primitives/consensus/randomness-beacon", default-features = false }

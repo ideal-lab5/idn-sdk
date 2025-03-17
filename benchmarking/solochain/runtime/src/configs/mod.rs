@@ -33,10 +33,10 @@ use frame_support::{
 	},
 };
 use frame_system::limits::{BlockLength, BlockWeights};
-use pallet_transaction_payment::{ConstFeeMultiplier, FungibleAdapter, Multiplier};
 use pallet_randomness_beacon::{BeaconConfiguration, Metadata, OpaqueHash, OpaquePublicKey};
+use pallet_transaction_payment::{ConstFeeMultiplier, FungibleAdapter, Multiplier};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::{traits::One, Perbill, BoundedVec};
+use sp_runtime::{traits::One, BoundedVec, Perbill};
 use sp_version::RuntimeVersion;
 
 // Local module imports
@@ -177,7 +177,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 }
 
 pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
-	build_beacon_configuration( 
+	build_beacon_configuration(
 		"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",
 		3,
 		1692803367,
@@ -214,4 +214,60 @@ fn build_beacon_configuration(
 	let metadata = Metadata { beacon_id };
 
 	BeaconConfiguration { public_key, period, genesis_time, hash, group_hash, scheme_id, metadata }
+}
+
+// Pallet IDN Manager
+parameter_types! {
+	pub const MaxSubscriptionDuration: u64 = 100;
+	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
+	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
+	pub const BaseFee: u64 = 10;
+	pub const SDMultiplier: u64 = 10;
+	pub const PulseFilterLen: u32 = 100;
+}
+
+#[derive(TypeInfo)]
+pub struct SubMetadataLen;
+
+impl Get<u32> for SubMetadataLen {
+	fn get() -> u32 {
+		8
+	}
+}
+
+type Rand = [u8; 32];
+type Round = u64;
+
+#[derive(Encode, Clone, Copy)]
+pub struct Pulse {
+	pub rand: Rand,
+	pub round: Round,
+}
+
+impl idn_traits::pulse::Pulse for Pulse {
+	type Rand = Rand;
+	type Round = Round;
+
+	fn rand(&self) -> Self::Rand {
+		self.rand
+	}
+
+	fn round(&self) -> Self::Round {
+		self.round
+	}
+}
+
+impl pallet_idn_manager::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
+	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
+	type PalletId = PalletId;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type Pulse = Pulse;
+	type WeightInfo = ();
+	type Xcm = ();
+	type SubMetadataLen = SubMetadataLen;
+	type Credits = u64;
+	type PulseFilterLen = PulseFilterLen;
 }
