@@ -46,4 +46,4 @@ std = [
 	"ark-bls12-381/std",
 	"ark-serialize/std",
 ]
-host-arkworks = ["sp-ark-bls12-381"]
+host-arkworks = ["sp-ark-bls12-381/std"]

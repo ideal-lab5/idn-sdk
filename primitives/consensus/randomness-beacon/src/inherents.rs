@@ -15,7 +15,11 @@
  */
 
 use alloc::vec::Vec;
-use sp_inherents::{Error, InherentData, InherentIdentifier};
+
+#[cfg(feature = "std")]
+use sp_inherents::{Error, InherentData};
+
+use sp_inherents::InherentIdentifier;
 
 pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"rngpulse";
 

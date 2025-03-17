@@ -22,11 +22,11 @@ use alloc::{
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-// #[cfg(not(feature = "host-arkworks"))]
+#[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::G1Affine as G1AffineOpt;
 
-// #[cfg(feature = "host-arkworks")]
-// use sp_ark_bls12_381::G1Affine as G1AffineOpt;
+#[cfg(feature = "host-arkworks")]
+use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 use ark_serialize::CanonicalDeserialize;
 
