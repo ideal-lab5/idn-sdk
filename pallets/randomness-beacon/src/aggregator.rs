@@ -184,7 +184,6 @@ fn decode_g2(mut bytes: &[u8]) -> Result<G2AffineOpt, Error> {
 #[cfg(test)]
 pub mod test {
 	use super::*;
-	use ark_bls12_381::{G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
 
 	pub(crate) type RawPulse = (u64, [u8; 96]);
 	pub(crate) const PULSE1000: RawPulse = (1000u64, *b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39");
