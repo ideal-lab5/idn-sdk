@@ -8,10 +8,14 @@ Install the frame-omni-benchmarker tool: `cargo install frame-omni-bencher`
 
 ## Add Benchmarks
 
-0. Add necessary dependencies.
+Briefly:
+
+0. Add necessary dependencies to Cargo toml files.
 1. Configure the pallet in ./solochain/runtime/src/configs/mod.rs
 2. Configure pallet benchmarks in ./solochain/runtime/src/benchmarks.rs
 3. Add the pallet to the runtime in ./solocahin/runtime/src/lib.rs
+
+For an in-depth guide, follow the [official guide from Parity](https://docs.polkadot.com/develop/parachains/testing/benchmarking/).
 
 ## Build
 
@@ -31,14 +35,4 @@ frame-omni-bencher v1 benchmark pallet \
     --extrinsic "" \
     --template ./frame-weight-template.hbs \
     --output weights.rs
-```
-
-
-``` shell
-frame-omni-bencher v1 benchmark pallet \
-    --runtime  ./target/release/wbuild/solochain-template-runtime/solochain_template_runtime.compact.compressed.wasm \
-    --pallet pallet_randomness_beacon \
-    --extrinsic "try_submit_asig" \
-    --template ./frame-weight-template.hbs \
-    --output ../../pallets/randomness-beacon/generated_weights.rs
 ```
