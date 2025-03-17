@@ -47,7 +47,36 @@
 //! - Removed from storage
 //! - Storage deposit returned
 //! - Unused credits refunded to the origin
-
+//!
+//! ## Pulse Filtering Security
+// [SRLABS]
+//! ### Overview
+//! Subscribers can specify filters to receive only pulses that match specific criteria. For
+//! security reasons, we only allow filtering by round numbers and prohibit filtering by
+//! randomness values.
+//!
+//! ### Security Concern
+//! If filtering by random values were allowed, a subscriber could potentially:
+//! - Set up filters to only receive specific randomness patterns
+//! - Game the system by cherry-picking favorable random values
+//! - Undermine the fairness and unpredictability of the randomness distribution
+//!
+//! ### Implementation Approach
+//! The [`ensure_filter_no_rand`](Pallet::ensure_filter_no_rand) function validates that
+//! filters don't contain any random value criteria. This validation happens when the filter
+//! is first created or updated, rather than during distribution:
+//!
+//! - **Benefits**: The filter validation cost is paid by the subscriber creating the filter, not
+//!   distributed across all subscribers during the randomness delivery process
+//! - **Calls**: Implemented in [`create_subscription`](Pallet::create_subscription) and
+//!   [`update_subscription`](Pallet::update_subscription)
+//!
+//! ### Developer Warning
+//! **Important**: When adding or modifying any dispatchable that creates or updates filters,
+//! always include a call to [`ensure_filter_no_rand`](Pallet::ensure_filter_no_rand).
+//! Failure to do this could create security vulnerabilities by allowing random-value filtering.
+//! Test suites should catch issues with existing dispatchables, but new functions need
+//! careful attention.
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
@@ -130,6 +159,31 @@ pub type PulsePropertyOf<T> = PulseProperty<
 	<<T as pallet::Config>::Pulse as Pulse>::Round,
 >;
 
+/// A filter that controls which pulses are delivered to a subscription
+///
+/// This type allows subscribers to define specific criteria for which pulses they want to receive.
+/// For example, a subscriber might want to receive only pulses from specific round numbers.
+///
+/// # Implementation
+/// - Uses a bounded vector to limit the maximum number of filter conditions
+/// - Each element is a `PulseProperty` that can match against `round` (but not `rand` values)
+/// - A pulse passes the filter if it matches ANY of the properties in the filter
+///
+/// # Usage
+/// ```rust
+/// use idn_traits::pulse::PulseProperty as PulsePropertyTrait;
+/// type PulseProperty = PulsePropertyTrait<[u8; 32], u64>;
+/// // Create a filter for even-numbered rounds only
+/// let filter = vec![
+///     PulseProperty::Round(2),
+///     PulseProperty::Round(4),
+///     PulseProperty::Round(6),
+/// ];
+/// ```
+///
+/// # Security
+/// For security reasons, filtering on `rand` values is explicitly prohibited.
+/// See the [Pulse Filtering Security](#pulse-filtering-security) section for more details.
 pub type PulseFilterOf<T> = BoundedVec<PulsePropertyOf<T>, <T as Config>::PulseFilterLen>;
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
@@ -697,7 +751,7 @@ impl<T: Config> Pallet<T> {
 	/// This function is an important security check that prevents subscribers from
 	/// potentially gaming the system by receiving only certain random values that
 	/// match specific patterns.
-	fn ensure_filter_no_rand(pulse_filter: &Option<PulseFilterOf<T>>) -> DispatchResult {
+	pub fn ensure_filter_no_rand(pulse_filter: &Option<PulseFilterOf<T>>) -> DispatchResult {
 		if let Some(filter) = pulse_filter {
 			// Check if any item in the filter is a PulseProperty::Rand variant
 			if filter.iter().any(|prop| matches!(prop, PulseProperty::Rand(_))) {
