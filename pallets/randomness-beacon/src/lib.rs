@@ -175,7 +175,6 @@ pub mod pallet {
 		GenesisRoundAlreadySet,
 		/// There must be at least one signature to construct an asig
 		ZeroHeightProvided,
-		/// There number of aggregated signatures exceeds the maximum rounds we can verify per
 		/// block.
 		ExcessiveHeightProvided,
 		/// Only one aggregated signature can be provided per block
@@ -252,7 +251,7 @@ pub mod pallet {
 			T::WeightInfo::on_finalize()
 		}
 
-		/// At the end of block execution, the `on_finalize` hook checks that the timestamp was
+		/// At the end of block execution, the `on_finalize` hook checks that the asig was
 		/// updated. Upon success, it removes the boolean value from storage. If the value resolves
 		/// to `false`, the pallet will panic.
 		///

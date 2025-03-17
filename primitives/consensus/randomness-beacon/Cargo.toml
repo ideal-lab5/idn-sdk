@@ -38,7 +38,12 @@ prost-build = "0.13.4"
 default = ["std"]
 std = [
 	"async-trait",
+	"codec/std",
+	"scale-info/std",
+	"serde/std",
 	"sp-inherents/std",
 	"prost/std",
+	"ark-bls12-381/std",
+	"ark-serialize/std",
 ]
 host-arkworks = ["sp-ark-bls12-381"]

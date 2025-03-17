@@ -14,50 +14,10 @@ cargo build
 
 ## Testing
 
-We maintain a minimum of 85% coverage on all new code. You can check coverage with tarpauling by running 
-
-``` shell
-cargo tarpaulin --rustflags="-C opt-level=0"
-```
-
 ### Unit Tests
 
 ``` shell
 cargo test
-```
-
-### Benchmarks
-
-The pallet can be benchmarked with a substrate node that adds the pallet to it's runtime, such as the solochain example included in this repo.
-
-``` shell
-cd examples/solochain
-# build the node with benchmarks enables
-cargo build --release --features runtime-benchmarks
-# run the pallet benchmarks
-./target/release/solochain-template-node benchmark pallet \
-    --runtime ./target/release/wbuild/solochain-template-runtime/solochain_template_runtime.compact.compressed.wasm \
-    --genesis-builder runtime \
-    --wasm-execution=compiled \
-    --pallet pallet_randomness_beacon \
-    --extrinsic "*" \
-    --steps 50 \
-    --repeat 20 \
-    --output ./weights.rs \
-    --allow-missing-host-functions
-
-
-./target/release/solochain-template-node benchmark pallet \
-    --runtime /home/driemworks/ideal/idn-sdk/benchmarking/solochain/target/release/wbuild/solochain-template-runtime/solochain_template_runtime.compact.compressed.wasm \
-    --genesis-builder runtime \
-    --wasm-execution=compiled \
-    --pallet pallet_randomness_beacon \
-    --extrinsic "*" \
-    --steps 50 \
-    --repeat 20 \
-    --output ./weights.rs \
-    --allow-missing-host-functions
-
 ```
 
 ## License

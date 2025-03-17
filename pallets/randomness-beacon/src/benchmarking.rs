@@ -18,7 +18,6 @@
 #![cfg(feature = "runtime-benchmarks")]
 use super::*;
 
-#[allow(unused)]
 use crate::{pallet as pallet_randomness_beacon, Pallet};
 use ark_bls12_381::G1Affine as G1AffineOpt;
 use ark_serialize::CanonicalDeserialize;

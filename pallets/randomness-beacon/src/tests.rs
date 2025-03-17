@@ -15,8 +15,7 @@
  */
 
 use crate::{
-	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound,
-	LatestRound,
+	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound, LatestRound,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 
@@ -132,7 +131,6 @@ fn can_fail_to_calls_to_try_submit_asig_per_block() {
 	let round1 = 1000u64;
 
 	let (asig1, _apk1) = get(vec![PULSE1000, PULSE1001]);
-	let (_asig2, _apk2) = get(vec![PULSE1002, PULSE1003]);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
