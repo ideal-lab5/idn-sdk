@@ -14,68 +14,102 @@
  * limitations under the License.
  */
 
-//! Benchmarking setup for pallet-drand
+//! Benchmarking setup for pallet-randomness-beacon
+#![cfg(feature = "runtime-benchmarks")]
 use super::*;
 
-#[allow(unused)]
-use crate::{pallet as pallet_drand, Pallet as Drand};
-use ark_ec::Group;
-use ark_std::{ops::Mul, UniformRand};
-use frame_benchmarking::v2::*;
-use frame_support::BoundedVec;
+use crate::{pallet as pallet_randomness_beacon, Pallet};
+use ark_bls12_381::G1Affine as G1AffineOpt;
+use ark_serialize::CanonicalDeserialize;
+use frame_benchmarking::{benchmarking::add_to_whitelist, v2::*};
 use frame_system::RawOrigin;
-use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
 
 #[benchmarks]
 mod benchmarks {
 	use super::*;
-	use ark_std::test_rng;
 
-	#[benchmark]
-	fn set_beacon_config() {
-		let config = drand_quicknet_config();
+	type RawPulse = (u64, [u8; 96]);
+	const PULSE1000: RawPulse = (1000u64, *b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39");
+	const PULSE1001: RawPulse = (1001u64, *b"b33bf3667cbd5a82de3a24b4e0e9fe5513cc1a0e840368c6e31f5fcfa79bea03f73896b25883abf2853d10337fb8fa41");
+	const PULSE1002: RawPulse = (1002u64, *b"ab066f9c12dd6de1336fca0f925192fb0c72a771c3e4c82ede1fd362c1a770f9eb05843c6308ce2530b53a99c0281a6e");
+	const PULSE1003: RawPulse = (1003u64, *b"b104c82771698f45fd8dcfead083d482694c31ab519bcef077f126f3736fe98c8392fd5d45d88aeb76b56ccfcb0296d7");
 
-		#[extrinsic_call]
-		_(RawOrigin::Root, config.clone());
+	// output the asig + apk
+	fn get(pulse_data: Vec<RawPulse>) -> (OpaqueSignature, OpaqueSignature) {
+		let mut apk = zero_on_g1();
+		let mut asig = zero_on_g1();
 
-		assert_eq!(BeaconConfig::<T>::get(), Some(config));
-	}
+		for pulse in pulse_data {
+			let sig_bytes = hex::decode(&pulse.1).unwrap();
+			let sig = G1AffineOpt::deserialize_compressed(&mut sig_bytes.as_slice()).unwrap();
+			asig = (asig + sig).into();
 
-	#[benchmark]
-	fn try_submit_asig() {
-		// we mock drand here
-		let sk = <TinyBLS381 as EngineBLS>::Scalar::rand(&mut test_rng());
-		let pk = <TinyBLS381 as EngineBLS>::PublicKeyGroup::generator().mul(sk);
-		let mut pk_bytes = Vec::new();
-		pk.serialize_compressed(&mut pk_bytes).unwrap();
-
-		let mut config = drand_quicknet_config();
-		config.public_key = BoundedVec::truncate_from(pk_bytes);
-
-		pallet_drand::BeaconConfig::<T>::set(Some(config));
-
-		let block_number: BlockNumberFor<T> = 1u32.into();
-		let start = 1;
-		let num_rounds = 1;
-
-		let mut asig = crate::verifier::zero_on_g1();
-		for round in start..start + num_rounds {
-			let q_id = crate::verifier::compute_round_on_g1(round).unwrap();
-			asig = (asig + (q_id.mul(sk))).into();
+			let pk = crate::aggregator::compute_round_on_g1(pulse.0).unwrap();
+			apk = (apk + pk).into();
 		}
 
 		let mut asig_bytes = Vec::new();
 		asig.serialize_compressed(&mut asig_bytes).unwrap();
-		let bounded_asig = BoundedVec::truncate_from(asig_bytes);
+		let asig_out = OpaqueSignature::truncate_from(asig_bytes);
 
-		#[extrinsic_call]
-		_(RawOrigin::None, bounded_asig.clone(), start.clone(), num_rounds.clone());
+		let mut apk_bytes = Vec::new();
+		apk.serialize_compressed(&mut apk_bytes).unwrap();
+		let apk_out = OpaqueSignature::truncate_from(apk_bytes);
 
-		assert_eq!(
-			AggregatedSignatures::<T>::get(block_number),
-			Some((bounded_asig, start, num_rounds))
-		);
+		(asig_out, apk_out)
 	}
 
-	impl_benchmark_test_suite!(Drand, crate::mock::new_test_ext(), crate::mock::Test);
+	fn test(n: u8) -> (OpaqueSignature, OpaqueSignature) {
+		let (asig, apk) = match n {
+			1 => get(vec![PULSE1000]),
+			2 => get(vec![PULSE1000, PULSE1001]),
+			3 => get(vec![PULSE1000, PULSE1001, PULSE1002]),
+			4 => get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003]),
+			_ => panic!("exceeds max round"),
+		};
+
+		(asig, apk)
+	}
+
+	#[benchmark]
+	fn try_submit_asig() -> Result<(), BenchmarkError> {
+		let r = T::MaxSigsPerBlock::get();
+		let (asig, apk) = test(r as u8);
+
+		#[extrinsic_call]
+		_(RawOrigin::None, asig.clone(), r.into(), Some(1000u64));
+
+		assert_eq!(
+			AggregatedSignature::<T>::get(),
+			Some(Aggregate { signature: asig, message_hash: apk }),
+		);
+
+		Ok(())
+	}
+
+	#[benchmark]
+	fn on_finalize() -> Result<(), BenchmarkError> {
+		let block_number: u32 = 1u32;
+
+		// submit an asig
+		let (asig, _apk) = test(2 as u8);
+		Pallet::<T>::try_submit_asig(RawOrigin::None.into(), asig.clone(), 2, Some(1000u64))
+			.unwrap();
+
+		assert!(DidUpdate::<T>::exists(), "Asig was not updated.");
+		// Ignore read/write to `DidUpdate` since it is transient.
+		let did_update_key = DidUpdate::<T>::hashed_key().to_vec();
+		add_to_whitelist(did_update_key.into());
+
+		#[block]
+		{
+			Pallet::<T>::on_finalize(block_number.into());
+		}
+
+		assert!(!DidUpdate::<T>::exists(), "Asig was not removed.");
+
+		Ok(())
+	}
+
+	impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
 }

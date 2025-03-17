@@ -29,7 +29,7 @@
 //!
 //! ``` no_run
 //! use sc_consensus_randomness_beacon::gossipsub::GossipsubNetwork;
-//! use sc_consensus_randomness_beacon::types::*;
+//! use sp_consensus_randomness_beacon::types::*;
 //! use futures::StreamExt;
 //! use libp2p::{
 //! 		gossipsub,
@@ -64,7 +64,6 @@
 //! 	}
 //! });
 //! ```
-use crate::types::*;
 use futures::StreamExt;
 use libp2p::{
 	gossipsub,
@@ -77,6 +76,7 @@ use libp2p::{
 };
 use prost::Message;
 use sc_utils::mpsc::TracingUnboundedSender;
+use sp_consensus_randomness_beacon::types::*;
 
 /// The default address instructing libp2p to choose a random open port on the local machine
 const RAND_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/0";
@@ -328,37 +328,31 @@ mod tests {
 		let topic_str = "test";
 		let (mut node, _rx) = build_node();
 
-		let mut is_err: bool = false;
-
 		tokio::spawn(async move {
 			if let Err(_e) = node.run(topic_str, vec![]).await {
-				is_err = true;
+				panic!("There should be no error");
 			}
 		});
 
 		sleep(Duration::from_secs(1)).await;
-
-		assert!(!is_err, "There should be no errors.");
+		// if it did not panic, we are good
 	}
 
 	#[tokio::test]
-	async fn can_build_node_and_fail_with_random_peers() {
+	async fn can_build_node_and_dial_random_peers() {
 		let topic_str = "test";
 		let (mut node, _rx) = build_node();
 
 		let fake_peer: Multiaddr = Multiaddr::empty().with_p2p(libp2p::PeerId::random()).unwrap();
 
-		let mut is_err: bool = false;
-
 		tokio::spawn(async move {
 			if let Err(_e) = node.run(topic_str, vec![fake_peer]).await {
-				is_err = true;
+				panic!("There should be no error");
 			}
 		});
 
 		sleep(Duration::from_secs(2)).await;
-
-		assert!(!is_err, "There should not be an error.");
+		// if it did not panic, we are good
 	}
 
 	#[tokio::test]

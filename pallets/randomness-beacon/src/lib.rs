@@ -90,7 +90,7 @@ extern crate alloc;
 use alloc::{vec, vec::Vec};
 use ark_serialize::CanonicalSerialize;
 use frame_support::pallet_prelude::*;
-use sc_consensus_randomness_beacon::types::OpaquePulse;
+use sp_consensus_randomness_beacon::types::OpaquePulse;
 
 pub mod aggregator;
 pub mod bls12_381;
@@ -99,7 +99,7 @@ pub mod weights;
 pub use weights::*;
 
 use aggregator::{zero_on_g1, SignatureAggregator};
-use types::*;
+pub use types::*;
 
 #[cfg(test)]
 mod mock;
@@ -167,23 +167,14 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The input data could not be decoded or was empty
-		InvalidInput,
 		/// The pulse could not be verified
 		VerificationFailed,
-		/// The next round number is invalid (either too high or too low)
-		InvalidNextRound,
-		/// The network is at block 0.
-		NetworkTooEarly,
-		/// There must be at least one pulse provided.
-		NonPositiveHeight,
 		/// The genesis round is zero.
 		GenesisRoundNotSet,
 		/// The genesis is already set.
 		GenesisRoundAlreadySet,
 		/// There must be at least one signature to construct an asig
 		ZeroHeightProvided,
-		/// The number of aggregated signatures exceeds the maximum rounds that we can verify per
 		/// block.
 		ExcessiveHeightProvided,
 		/// Only one aggregated signature can be provided per block

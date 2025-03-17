@@ -16,16 +16,34 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 async-trait = { optional = true, workspace = true }
+codec.workspace = true
+prost.workspace = true
+scale-info.workspace = true
+serde = { workspace = true, features = ["derive"] }
 sp-inherents.workspace = true
 
+# arkworks dependencies
+sp-ark-bls12-381 = { workspace = true, optional = true }
+ark-bls12-381.workspace = true
+ark-serialize.workspace = true
 
 [dev-dependencies]
 array-bytes = "=6.2.3"
 tokio.workspace = true
 
+[build-dependencies]
+prost-build = "0.13.4"
+
 [features]
 default = ["std"]
 std = [
 	"async-trait",
+	"codec/std",
+	"scale-info/std",
+	"serde/std",
 	"sp-inherents/std",
+	"prost/std",
+	"ark-bls12-381/std",
+	"ark-serialize/std",
 ]
+host-arkworks = ["sp-ark-bls12-381"]

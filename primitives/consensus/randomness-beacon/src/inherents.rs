@@ -88,7 +88,6 @@ mod tests {
 	#[tokio::test]
 	pub async fn try_handle_error_returns_none() {
 		let extra_data = vec![vec![1]];
-		let mut inherent_data = InherentData::new();
 		let provider = RandInherentDataProvider::new(extra_data.clone());
 		let res = provider.try_handle_error(&[1u8; 8], &vec![1]).await;
 		assert!(res.is_none());

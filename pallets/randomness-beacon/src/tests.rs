@@ -15,8 +15,7 @@
  */
 
 use crate::{
-	aggregator::test::*, mock::*, weights::*, AggregatedSignature, Call, Error, GenesisRound,
-	LatestRound,
+	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound, LatestRound,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 
@@ -130,12 +129,8 @@ fn can_submit_valid_sigs_in_sequence() {
 #[test]
 fn can_fail_to_calls_to_try_submit_asig_per_block() {
 	let round1 = 1000u64;
-	let round2 = 1004u64;
 
 	let (asig1, _apk1) = get(vec![PULSE1000, PULSE1001]);
-	let (asig2, _apk2) = get(vec![PULSE1002, PULSE1003]);
-	// the aggregated values
-	let (asig, apk) = get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003]);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
@@ -190,8 +185,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 /*
 	Inherents Tests
 */
-use sc_consensus_randomness_beacon::types::OpaquePulse;
-use sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
+use sp_consensus_randomness_beacon::{inherents::INHERENT_IDENTIFIER, types::OpaquePulse};
 use sp_inherents::InherentData;
 
 #[test]
