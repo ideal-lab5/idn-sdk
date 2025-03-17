@@ -416,6 +416,7 @@ pub mod pallet {
 			let subscriber = ensure_signed(origin)?;
 
 			// make sure the filter does not filter on random values
+			// see the [Pulse Filtering Security](#pulse-filtering-security) section
 			Self::ensure_filter_no_rand(&pulse_filter)?;
 
 			Self::create_subscription_internal(
@@ -485,6 +486,7 @@ pub mod pallet {
 			let subscriber = ensure_signed(origin)?;
 
 			// make sure the filter does not filter on random values
+			// see the [Pulse Filtering Security](#pulse-filtering-security) section
 			Self::ensure_filter_no_rand(&pulse_filter)?;
 
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
@@ -575,6 +577,7 @@ impl<T: Config> Pallet<T> {
 					(sub.last_delivered.is_none() ||
 					current_block >= sub.last_delivered.unwrap() + sub.frequency) &&
  					// The pulse passes the custom filter
+					// see the [Pulse Filtering Security](#pulse-filtering-security) section
 					Self::custom_filter(&sub.pulse_filter, &pulse)
 				) {
 					return Ok(()); // Skip this subscription
