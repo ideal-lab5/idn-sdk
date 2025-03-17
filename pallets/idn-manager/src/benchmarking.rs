@@ -100,7 +100,7 @@ mod benchmarks {
 		_(origin, sub_id);
 
 		// assert that the subscription state is correct
-		let (_, sub) = Subscriptions::<T>::iter().next().unwrap();
+		let sub = Subscriptions::<T>::get(sub_id).unwrap();
 		assert_eq!(sub.state, SubscriptionState::Paused);
 	}
 
@@ -180,15 +180,53 @@ mod benchmarks {
 		_(origin, sub_id, new_credits, new_frequency, new_pulse_filter.clone());
 
 		// assert that the subscription state is correct
-		let (_, sub) = Subscriptions::<T>::iter().next().unwrap();
+		let sub = Subscriptions::<T>::get(sub_id).unwrap();
 		assert_eq!(sub.credits, new_credits);
 		assert_eq!(sub.frequency, new_frequency);
 		assert_eq!(sub.pulse_filter, new_pulse_filter);
 	}
 
 	#[benchmark]
-	fn update_subscription() {
-		todo!()
+	fn reactivate_subscription() {
+		let subscriber: T::AccountId = whitelisted_caller();
+		let origin = RawOrigin::Signed(subscriber.clone());
+		let credits: T::Credits = 100u64.into();
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let call_index = [1; 2];
+		let frequency: BlockNumberFor<T> = 1u32.into();
+		let metadata = None;
+		let pulse_filter = None;
+
+		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+
+		let _ = IdnManager::<T>::create_subscription(
+			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
+			credits,
+			target.clone(),
+			call_index,
+			frequency,
+			metadata,
+			pulse_filter,
+		);
+
+		// assert that the subscription state is correct
+		let (sub_id, sub) = Subscriptions::<T>::iter().next().unwrap();
+		assert_eq!(sub.state, SubscriptionState::Active);
+
+		let _ = IdnManager::<T>::pause_subscription(
+			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
+			sub_id,
+		);
+
+		let sub = Subscriptions::<T>::get(sub_id).unwrap();
+		assert_eq!(sub.state, SubscriptionState::Paused);
+
+		#[extrinsic_call]
+		_(origin, sub_id);
+
+		// assert that the subscription state is correct
+		let sub = Subscriptions::<T>::get(sub_id).unwrap();
+		assert_eq!(sub.state, SubscriptionState::Active);
 	}
 
 	impl_benchmark_test_suite!(
