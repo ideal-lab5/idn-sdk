@@ -20,10 +20,13 @@ use super::*;
 
 #[allow(unused)]
 use crate::{pallet as pallet_randomness_beacon, Pallet};
+#[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::G1Affine as G1AffineOpt;
 use ark_serialize::CanonicalDeserialize;
 use frame_benchmarking::{benchmarking::add_to_whitelist, v2::*};
 use frame_system::RawOrigin;
+#[cfg(feature = "host-arkworks")]
+use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 #[benchmarks]
 mod benchmarks {

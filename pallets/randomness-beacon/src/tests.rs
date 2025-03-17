@@ -15,8 +15,7 @@
  */
 
 use crate::{
-	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound,
-	LatestRound,
+	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound, LatestRound,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 

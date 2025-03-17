@@ -228,9 +228,7 @@ pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<OpaquePulse, Error> {
 mod tests {
 	use super::*;
 	use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
-	use tokio::{
-		time::{sleep, Duration},
-	};
+	use tokio::time::{sleep, Duration};
 
 	#[test]
 	fn can_convert_valid_data_to_opaque_pulse() {
