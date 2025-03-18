@@ -1,8 +1,8 @@
 [package]
 name = "idn-sdk-kitchensink-runtime"
-description = "A solochain runtime template built with Substrate, part of Polkadot Sdk."
+description = "A Kitchensink runtime for the IDN Sdk."
 version = "0.1.0"
-license = "Unlicense"
+license.workspace = true
 authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -11,23 +11,45 @@ publish = false
 
 [dependencies]
 codec = { workspace = true }
+frame-benchmarking = { optional = true, workspace = true }
 scale-info = { workspace = true }
 polkadot-sdk = { workspace = true, features = ["pallet-balances", "pallet-sudo", "pallet-timestamp", "pallet-transaction-payment", "pallet-transaction-payment-rpc-runtime-api", "runtime", "experimental"] }
 serde_json = { workspace = true, default-features = false, features = ["alloc"] }
 
 # IDN Deps
-# pallet-randomness-beacon.workspace = true
-# sp-consensus-randomness-beacon.workspace = true
-# hex.workspace = true
+pallet-randomness-beacon.workspace = true
+sp-consensus-randomness-beacon.workspace = true
+hex.workspace = true
 
 [build-dependencies]
 polkadot-sdk = { optional = true, workspace = true, features = ["substrate-wasm-builder"] }
 
 [features]
 default = ["std"]
+
 std = [
 	"codec/std",
+	"frame-benchmarking?/std",
 	"polkadot-sdk/std",
 	"scale-info/std",
 	"serde_json/std",
+	"pallet-randomness-beacon/std",
 ]
+
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"pallet-randomness-beacon/runtime-benchmarks",
+]
+
+# Enable the metadata hash generation.
+#
+# This is hidden behind a feature because it increases the compile time.
+# The wasm binary needs to be compiled twice, once to fetch the metadata,
+# generate the metadata hash and then a second time with the
+# `RUNTIME_METADATA_HASH` environment variable set for the `CheckMetadataHash`
+# extension.
+# metadata-hash = ["polkadot-sdk/metadata-hash"]
+
+# A convenience feature for enabling things when doing a build
+# for an on-chain release.
+# on-chain-release-build = ["metadata-hash", "sp-api/disable-logging"]

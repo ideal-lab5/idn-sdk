@@ -1,6 +1,6 @@
 # Benchmarking
 
-This module contains various utilities for benchmarking the IDN's pallets. It contains a 'kitchensink' runtime suitable for running benchmarks.
+This document explains how to run the benchmarks for the IDN SDK pallets and generate the weights.rs file.
 
 ## Prerequisites
 
@@ -11,7 +11,6 @@ Install the frame-omni-benchmarker tool: `cargo install frame-omni-bencher`
 Briefly:
 
 0. Add necessary dependencies to Cargo toml files.
-<!-- 1. Configure the pallet in ./solochain/runtime/src/configs/mod.rs -->
 1. Configure the pallet and add it to the runtime in ../kitchensink/runtime/src/lib.rs
 2. Configure pallet benchmarks in ../kitchensink/runtime/src/benchmarks.rs
 
@@ -19,20 +18,20 @@ For an in-depth guide, follow the [official guide from Parity](https://docs.polk
 
 ## Build
 
-Build the node with benchmarks enabled:
+Build the kitchensink with benchmarks enabled:
 
-`cargo build --release --features runtime-benchmarks`
+`cargo build -p idn-sdk-kitchensink-runtime --release --features runtime-benchmarks`
 
 ## Execute Benchmarks
 
-Execute benchmarks to generate new weights for a given set (or all) pallets that are configured as benchmarks. From `benchmarking/solochain`, execute:
+Execute benchmarks to generate new weights for a given pallet that is configured in the Kitchensink. From the pallet's root folder, execute:
 
-``` shell
+```shell
 # run the pallet benchmarks
 frame-omni-bencher v1 benchmark pallet \
-    --runtime INSERT_PATH_TO_WASM_COMPACT_COMPRESSED_RUNTIME \
+    --runtime ../../target/release/wbuild/idn-sdk-kitchensink-runtime/idn_sdk_kitchensink_runtime.compact.compressed.wasm \
     --pallet INSERT_NAME_OF_PALLET \
     --extrinsic "" \
-    --template ./frame-weight-template.hbs \
+    --template ../../kitchensink/benchmarking/frame-weight-template.hbs \
     --output weights.rs
 ```

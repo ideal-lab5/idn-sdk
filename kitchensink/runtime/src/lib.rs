@@ -1,19 +1,18 @@
-// This file is part of Substrate.
-
-// Copyright (C) Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// 	http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Copyright 2025 by Ideal Labs, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -21,9 +20,13 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarks;
+
 extern crate alloc;
 
 use alloc::vec::Vec;
+use pallet_randomness_beacon::{BeaconConfiguration, Metadata, OpaqueHash, OpaquePublicKey};
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_sdk::{
 	polkadot_sdk_frame::{
@@ -158,6 +161,10 @@ mod runtime {
 	/// Provides the ability to charge for extrinsic execution.
 	#[runtime::pallet_index(4)]
 	pub type TransactionPayment = pallet_transaction_payment::Pallet<Runtime>;
+
+	/// Provides a way to ingest randomness.
+	#[runtime::pallet_index(5)]
+	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -219,6 +226,34 @@ pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
 		"bls-unchained-g1-rfc9380",
 		"quicknet"
 	)
+}
+
+/// build a beacon configuration struct
+fn build_beacon_configuration(
+	pk_hex: &str,
+	period: u32,
+	genesis_time: u32,
+	hash_hex: &str,
+	group_hash_hex: &str,
+	scheme_id: &str,
+	beacon_id: &str,
+) -> BeaconConfiguration {
+	let pk = hex::decode(pk_hex).expect("Valid hex");
+	let hash = hex::decode(hash_hex).expect("Valid hex");
+	let group_hash = hex::decode(group_hash_hex).expect("Valid hex");
+
+	let public_key: OpaquePublicKey = BoundedVec::try_from(pk).expect("Public key within bounds");
+	let hash: OpaqueHash = BoundedVec::try_from(hash).expect("Hash within bounds");
+	let group_hash: OpaqueHash =
+		BoundedVec::try_from(group_hash).expect("Group hash within bounds");
+	let scheme_id: OpaqueHash =
+		BoundedVec::try_from(scheme_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
+	let beacon_id: OpaqueHash =
+		BoundedVec::try_from(beacon_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
+
+	let metadata = Metadata { beacon_id };
+
+	BeaconConfiguration { public_key, period, genesis_time, hash, group_hash, scheme_id, metadata }
 }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;
@@ -341,13 +376,41 @@ impl_runtime_apis! {
 			self::genesis_config_presets::preset_names()
 		}
 	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	impl frame_benchmarking::Benchmark<Block> for Runtime {
+		fn benchmark_metadata(extra: bool) -> (
+			Vec<frame_benchmarking::BenchmarkList>,
+			Vec<frame_support::traits::StorageInfo>,
+		) {
+			use frame_benchmarking::{Benchmarking, BenchmarkList};
+			use frame_support::traits::StorageInfoTrait;
+
+			let mut list = Vec::<BenchmarkList>::new();
+			list_benchmarks!(list, extra);
+
+			let storage_info = AllPalletsWithSystem::storage_info();
+			(list, storage_info)
+		}
+
+		fn dispatch_benchmark(
+			config: frame_benchmarking::BenchmarkConfig
+		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, alloc::string::String> {
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch};
+			use sp_storage::TrackedStorageKey;
+
+			use frame_support::traits::WhitelistedStorageKeys;
+			let whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
+
+			let mut batches = Vec::<BenchmarkBatch>::new();
+			let params = (&config, &whitelist);
+			add_benchmarks!(params, batches);
+
+			Ok(batches)
+		}
+	}
 }
 
-/// Some re-exports that the node side code needs to know. Some are useful in this context as well.
-///
-/// Other types should preferably be private.
-// TODO: this should be standardized in some way, see:
-// https://github.com/paritytech/substrate/issues/10579#issuecomment-1600537558
 pub mod interface {
 	use super::Runtime;
 	use polkadot_sdk::{polkadot_sdk_frame as frame, *};

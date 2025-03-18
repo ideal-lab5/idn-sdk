@@ -8,4 +8,4 @@ The IDN SDK Kitchensink Runtime is a comprehensive testing and benchmarking envi
 - Prototype new features in a complete runtime context
 
 See the [main Kitchensink README](../README.md) to learn how to spin up a network with the Kitchensink runtime.
-Also learn how to run the [benchmarks](../../pallets/BENCHMARKING.md) against this runtim.
+Also learn how to run the [benchmarks](../benchmarking/README.md) against this runtime.

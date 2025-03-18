@@ -14,9 +14,4 @@
  * limitations under the License.
  */
 
-fn main() {
-	#[cfg(feature = "std")]
-	{
-		polkadot_sdk::substrate_wasm_builder::WasmBuilder::build_using_defaults();
-	}
-}
+frame_benchmarking::define_benchmarks!([pallet_randomness_beacon, RandBeacon]);

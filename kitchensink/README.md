@@ -70,3 +70,7 @@ zombienet --provider native spawn zombienet-omni-node.toml
 ### Connect with the Polkadot-JS Apps Front-End
 
 You can interact with your local node using the hosted version of the [Polkadot/Substrate Portal](https://polkadot.js.org/apps/#/explorer?rpc=ws://localhost:9944).
+
+## Benchmarking
+
+Learn how to run the benchmarks [here](./benchmarking/README.md) against this chain's runtime.
