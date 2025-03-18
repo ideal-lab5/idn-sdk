@@ -15,6 +15,11 @@ scale-info = { workspace = true }
 polkadot-sdk = { workspace = true, features = ["pallet-balances", "pallet-sudo", "pallet-timestamp", "pallet-transaction-payment", "pallet-transaction-payment-rpc-runtime-api", "runtime", "experimental"] }
 serde_json = { workspace = true, default-features = false, features = ["alloc"] }
 
+# IDN Deps
+# pallet-randomness-beacon.workspace = true
+# sp-consensus-randomness-beacon.workspace = true
+# hex.workspace = true
+
 [build-dependencies]
 polkadot-sdk = { optional = true, workspace = true, features = ["substrate-wasm-builder"] }
 

@@ -158,10 +158,6 @@ mod runtime {
 	/// Provides the ability to charge for extrinsic execution.
 	#[runtime::pallet_index(4)]
 	pub type TransactionPayment = pallet_transaction_payment::Pallet<Runtime>;
-
-	// /// A minimal pallet template.
-	// #[runtime::pallet_index(5)]
-	// pub type Template = pallet_minimal_template::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -201,8 +197,29 @@ impl pallet_transaction_payment::Config for Runtime {
 	type LengthToFee = FixedFee<1, <Self as pallet_balances::Config>::Balance>;
 }
 
-// Implements the types required for the template pallet.
-// impl pallet_minimal_template::Config for Runtime {}
+parameter_types! {
+	pub QuicknetBeaconConfig: BeaconConfiguration = drand_quicknet_config();
+}
+
+impl pallet_randomness_beacon::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
+	type BeaconConfig = QuicknetBeaconConfig;
+	type SignatureAggregator = pallet_randomness_beacon::aggregator::QuicknetAggregator;
+	type MaxSigsPerBlock = ConstU8<2>;
+}
+
+pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
+	build_beacon_configuration(
+		"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",
+		3,
+		1692803367,
+		"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+		"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e",
+		"bls-unchained-g1-rfc9380",
+		"quicknet"
+	)
+}
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;
 type Header = HeaderFor<Runtime>;
