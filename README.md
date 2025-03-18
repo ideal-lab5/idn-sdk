@@ -16,7 +16,6 @@ The `contracts` directory contains ink! smart contracts (version 5.1.1) that can
 
 ### Available Contracts and Libraries
 
-- **flipper**: A simple toggle contract that demonstrates basic ink! functionality
 - **idn-client**: A library that enables contracts on other parachains to interact with IDN services via XCM
 - **example-consumer**: An example contract showing how to use the idn-client library to subscribe to randomness
 

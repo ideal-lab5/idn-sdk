@@ -4,7 +4,6 @@ This directory contains ink! smart contracts for the Ideal Network.
 
 ## Current Contracts
 
-- **flipper**: A simple contract that can flip a boolean value. This serves as a template and example for more complex contracts.
 - **idn-client**: A client library for interacting with the Ideal Network services via XCM, focusing on randomness subscriptions.
 - **example-consumer**: An example contract that demonstrates how to use the idn-client library to subscribe to and receive randomness.
 
