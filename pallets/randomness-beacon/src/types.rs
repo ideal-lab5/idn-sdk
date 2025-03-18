@@ -108,20 +108,22 @@ pub mod test {
 		assert_eq!(max_len, expected_max_len);
 	}
 
+	
 	#[test]
-	fn test_aggregate_type_info() {
-		// Get the TypeId for Metadata
-		let type_id = TypeId::of::<Aggregate>();
+    fn test_aggregate_type_info() {
+        // Get the TypeId for Metadata
+        let type_id = TypeId::of::<Aggregate>();
 
-		// Ensure that the TypeId is consistent and matches the expected TypeId
-		// The TypeId of `Metadata` should be unique, and you can check against itself
-		assert_eq!(type_id, TypeId::of::<Aggregate>());
+        // Ensure that the TypeId is consistent and matches the expected TypeId
+        // The TypeId of `Metadata` should be unique, and you can check against itself
+        assert_eq!(type_id, TypeId::of::<Aggregate>());
+        
+        // Optionally, check the type name to ensure the correct type is used
+        let type_name = core::any::type_name::<Aggregate>();
+        assert_eq!(type_name, "pallet_randomness_beacon::types::Aggregate");
+    }
 
-		// Optionally, check the type name to ensure the correct type is used
-		let type_name = core::any::type_name::<Aggregate>();
-		assert_eq!(type_name, "pallet_randomness_beacon::types::Aggregate");
-	}
-
+	
 	#[test]
 	fn test_metadata_max_encoded_len() {
 		// Get the max encoded length of the Aggregate struct
@@ -135,16 +137,16 @@ pub mod test {
 	}
 
 	#[test]
-	fn test_metadata_type_info() {
-		// Get the TypeId for Metadata
-		let type_id = TypeId::of::<Metadata>();
+    fn test_metadata_type_info() {
+        // Get the TypeId for Metadata
+        let type_id = TypeId::of::<Metadata>();
 
-		// Ensure that the TypeId is consistent and matches the expected TypeId
-		// The TypeId of `Metadata` should be unique, and you can check against itself
-		assert_eq!(type_id, TypeId::of::<Metadata>());
-
-		// Optionally, check the type name to ensure the correct type is used
-		let type_name = core::any::type_name::<Metadata>();
-		assert_eq!(type_name, "pallet_randomness_beacon::types::Metadata");
-	}
+        // Ensure that the TypeId is consistent and matches the expected TypeId
+        // The TypeId of `Metadata` should be unique, and you can check against itself
+        assert_eq!(type_id, TypeId::of::<Metadata>());
+        
+        // Optionally, check the type name to ensure the correct type is used
+        let type_name = core::any::type_name::<Metadata>();
+        assert_eq!(type_name, "pallet_randomness_beacon::types::Metadata");
+    }
 }

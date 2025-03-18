@@ -28,7 +28,7 @@
 // benchmark
 // pallet
 // --runtime
-// ./target/release/wbuild/solochain-template-runtime/solochain_template_runtime.compact.compressed.wasm
+// /home/driemworks/ideal/idn-sdk/benchmarking/solochain/target/release/wbuild/solochain-template-runtime/solochain_template_runtime.compact.compressed.wasm
 // --pallet
 // pallet_randomness_beacon
 // --extrinsic
