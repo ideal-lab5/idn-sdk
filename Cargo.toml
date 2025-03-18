@@ -5,7 +5,6 @@ members = [
     "pallets/randomness-beacon",
     "pallets/idn-manager",
     "support/traits",
-    "contracts/flipper",
     "contracts/idn-client",
     "contracts/example-consumer",
 ]
