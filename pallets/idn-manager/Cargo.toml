@@ -32,6 +32,7 @@ idn-traits.workspace = true
 
 [dev-dependencies]
 pallet-balances.workspace = true
+sp-version.workspace = true
 
 [features]
 default = ["std"]
