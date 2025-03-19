@@ -173,7 +173,7 @@ pub mod pallet {
 		GenesisRoundNotSet,
 		/// There must be at least one signature to construct an asig
 		ZeroHeightProvided,
-		/// block.
+		/// The height exceeds the maximum allowed signatures per block
 		ExcessiveHeightProvided,
 		/// Only one aggregated signature can be provided per block
 		SignatureAlreadyVerified,
