@@ -28,7 +28,7 @@
 // benchmark
 // pallet
 // --runtime
-// /home/driemworks/ideal/idn-sdk/benchmarking/solochain/target/release/wbuild/solochain-template-runtime/solochain_template_runtime.compact.compressed.wasm
+// ./target/release/wbuild/solochain-template-runtime/solochain_template_runtime.compact.compressed.wasm
 // --pallet
 // pallet_randomness_beacon
 // --extrinsic
@@ -36,7 +36,7 @@
 // --template
 // frame-weight-template.hbs
 // --output
-// ../../pallets/randomness-beacon/generated-weights.rs
+// ../../pallets/randomness-beacon/weights.rs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
