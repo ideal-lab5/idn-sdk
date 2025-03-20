@@ -15,10 +15,8 @@
  */
 
 use idn_sdk_kitchensink_runtime::WASM_BINARY;
-use polkadot_sdk::{
-	sc_service::{ChainType, Properties},
-	*,
-};
+// use polkadot_sdk::*;
+use sc_service::{ChainType, Properties};
 
 /// This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_service::GenericChainSpec;
