@@ -6,6 +6,7 @@ members = [
     "pallets/randomness-beacon",
     "pallets/idn-manager",
     "kitchensink/runtime",
+    "kitchensink/node",
 ]
 resolver = "2"
 
