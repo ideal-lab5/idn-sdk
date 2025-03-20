@@ -25,7 +25,12 @@ mod benchmarks;
 
 extern crate alloc;
 
+use crate::sp_runtime::AccountId32;
 use alloc::vec::Vec;
+use pallet_idn_manager::{
+	impls::{DepositCalculatorImpl, FeesManagerImpl},
+	SubscriptionOf,
+};
 use pallet_randomness_beacon::{BeaconConfiguration, Metadata, OpaqueHash, OpaquePublicKey};
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_sdk::{
@@ -165,6 +170,10 @@ mod runtime {
 	/// Provides a way to ingest randomness.
 	#[runtime::pallet_index(5)]
 	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
+
+	/// Provides a way to manage randomness pulses.
+	#[runtime::pallet_index(6)]
+	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -296,10 +305,10 @@ impl idn_traits::pulse::Pulse for Pulse {
 	}
 }
 
-impl pallet_idn_manager::Config for Test {
+impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Test>, Balances>;
+	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;

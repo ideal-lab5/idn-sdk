@@ -30,8 +30,8 @@ Execute benchmarks to generate new weights for a given pallet that is configured
 # run the pallet benchmarks
 frame-omni-bencher v1 benchmark pallet \
     --runtime ../../target/release/wbuild/idn-sdk-kitchensink-runtime/idn_sdk_kitchensink_runtime.compact.compressed.wasm \
-    --pallet INSERT_NAME_OF_PALLET \
+    --pallet pallet-idn-manager \
     --extrinsic "" \
     --template ../../kitchensink/benchmarking/weight-template.hbs \
-    --output weights.rs
+    --output src/weights.rs
 ```
