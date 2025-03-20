@@ -292,14 +292,15 @@ pub mod pallet {
 
 			let config = T::BeaconConfig::get();
 			// if the genesis round is not configured, do it on the first pass through
-			let genesis_round: RoundNumber = GenesisRound::<T>::get().unwrap_or_else(|| {
-				// return 0 if round is not provided and genesis round not set
-				let r = round.unwrap_or(0);
-				GenesisRound::<T>::set(round);
-				r
-			});
-
-			ensure!(genesis_round > 0, Error::<T>::GenesisRoundNotSet);
+			let genesis_round: RoundNumber = match GenesisRound::<T>::get() {
+				Some(gr) => gr,
+				None => {
+					// error if the genesis round is not set and a round is not provided
+					let r = round.ok_or(Error::<T>::GenesisRoundNotSet)?;
+					GenesisRound::<T>::set(round);
+					r
+				},
+			};
 
 			let latest_round = LatestRound::<T>::get().unwrap_or(genesis_round);
 			// aggregate old asig/apk with the new one and verify the aggregation
