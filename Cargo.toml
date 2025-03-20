@@ -113,6 +113,7 @@ codec = { package = "parity-scale-codec", version = "=3.7.4", default-features =
 scale-info = { version = "=2.11.6", default-features = false, features = ["derive"] }
 
 # IDN
+pallet-idn-manager = { path = "./pallets/idn-manager", default-features = false }
 pallet-randomness-beacon = { path = "./pallets/randomness-beacon", default-features = false }
 sc-consensus-randomness-beacon = { path = "./client/consensus/randomness-beacon", default-features = false }
 sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }

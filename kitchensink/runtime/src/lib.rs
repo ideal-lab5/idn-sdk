@@ -256,6 +256,61 @@ fn build_beacon_configuration(
 	BeaconConfiguration { public_key, period, genesis_time, hash, group_hash, scheme_id, metadata }
 }
 
+parameter_types! {
+	pub const MaxSubscriptionDuration: u64 = 100;
+	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
+	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
+	pub const BaseFee: u64 = 10;
+	pub const SDMultiplier: u64 = 10;
+	pub const PulseFilterLen: u32 = 100;
+}
+
+#[derive(TypeInfo)]
+pub struct SubMetadataLen;
+
+impl Get<u32> for SubMetadataLen {
+	fn get() -> u32 {
+		8
+	}
+}
+
+type Rand = [u8; 32];
+type Round = u64;
+
+#[derive(Encode, Clone, Copy)]
+pub struct Pulse {
+	pub rand: Rand,
+	pub round: Round,
+}
+
+impl idn_traits::pulse::Pulse for Pulse {
+	type Rand = Rand;
+	type Round = Round;
+
+	fn rand(&self) -> Self::Rand {
+		self.rand
+	}
+
+	fn round(&self) -> Self::Round {
+		self.round
+	}
+}
+
+impl pallet_idn_manager::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Test>, Balances>;
+	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
+	type PalletId = PalletId;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type Pulse = Pulse;
+	type WeightInfo = ();
+	type Xcm = ();
+	type SubMetadataLen = SubMetadataLen;
+	type Credits = u64;
+	type PulseFilterLen = PulseFilterLen;
+}
+
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;
 type Header = HeaderFor<Runtime>;
 
