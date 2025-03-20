@@ -138,11 +138,11 @@ pub mod pallet {
 
 	/// A first round number for which a pulse was observed
 	#[pallet::storage]
-	pub type GenesisRound<T: Config> = StorageValue<_, RoundNumber, ValueQuery>;
+	pub type GenesisRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
 
 	/// The latest observed round
 	#[pallet::storage]
-	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, ValueQuery>;
+	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
 
 	/// The aggregated signature and aggregated public key (identifier) of all observed pulses of
 	/// randomness
@@ -161,7 +161,7 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// The genesis round has been changed by a root address
 		GenesisRoundChanged,
-		/// Siganture verification succeeded for signatures associated with the given rounds.
+		/// Signature verification succeeded for the provided rounds.
 		SignatureVerificationSuccess,
 	}
 
@@ -171,11 +171,9 @@ pub mod pallet {
 		VerificationFailed,
 		/// The genesis round is zero.
 		GenesisRoundNotSet,
-		/// The genesis is already set.
-		GenesisRoundAlreadySet,
 		/// There must be at least one signature to construct an asig
 		ZeroHeightProvided,
-		/// block.
+		/// The height exceeds the maximum allowed signatures per block
 		ExcessiveHeightProvided,
 		/// Only one aggregated signature can be provided per block
 		SignatureAlreadyVerified,
@@ -209,7 +207,7 @@ pub mod pallet {
 					.expect("The signature is well formatted.");
 
 				// if the genesis round is not configured, then the first call sets it
-				let round = (GenesisRound::<T>::get() == 0)
+				let round = (GenesisRound::<T>::get().is_none())
 					.then(|| {
 						// get the round from the first pulse observed
 						raw_pulses.iter().find_map(|rp| {
@@ -260,7 +258,7 @@ pub mod pallet {
 		fn on_finalize(_n: BlockNumberFor<T>) {
 			assert!(
 				DidUpdate::<T>::take(),
-				"The aggregated siganture must be updated once in the block"
+				"The aggregated signature must be updated once in the block"
 			);
 		}
 	}
@@ -283,28 +281,28 @@ pub mod pallet {
 			round: Option<RoundNumber>,
 		) -> DispatchResult {
 			ensure_none(origin)?;
-			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified,);
-
-			let config = T::BeaconConfig::get();
-			let mut genesis_round = GenesisRound::<T>::get();
-			let mut latest_round = LatestRound::<T>::get();
-
+			// the extrinsic can only be successfully executed once per block
+			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
+			// ensure the height is within [1, T::MaxSigsPerBlock]
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
 			ensure!(
 				height <= T::MaxSigsPerBlock::get() as u64,
 				Error::<T>::ExcessiveHeightProvided
 			);
 
-			if let Some(r) = round {
-				// if a round is provided and the genesis round is not set
-				ensure!(genesis_round == 0, Error::<T>::GenesisRoundAlreadySet);
-				GenesisRound::<T>::set(r);
-				genesis_round = r;
-				latest_round = genesis_round;
-			} else {
-				//  if the genesis round is not set and a round is not provided
-				ensure!(GenesisRound::<T>::get() > 0, Error::<T>::GenesisRoundNotSet);
-			}
+			let config = T::BeaconConfig::get();
+			// if the genesis round is not configured, do it on the first pass through
+			let genesis_round: RoundNumber = match GenesisRound::<T>::get() {
+				Some(gr) => gr,
+				None => {
+					// error if the genesis round is not set and a round is not provided
+					let r = round.ok_or(Error::<T>::GenesisRoundNotSet)?;
+					GenesisRound::<T>::set(round);
+					r
+				},
+			};
+
+			let latest_round = LatestRound::<T>::get().unwrap_or(genesis_round);
 			// aggregate old asig/apk with the new one and verify the aggregation
 			// TODO: do we care about the entire linear history of message hashes?
 			// https://github.com/ideal-lab5/idn-sdk/issues/119
@@ -317,7 +315,7 @@ pub mod pallet {
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
 
-			LatestRound::<T>::set(latest_round.saturating_add(height));
+			LatestRound::<T>::set(Some(latest_round.saturating_add(height)));
 			AggregatedSignature::<T>::set(Some(aggr));
 			DidUpdate::<T>::put(true);
 

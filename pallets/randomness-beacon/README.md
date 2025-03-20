@@ -20,6 +20,12 @@ cargo build
 cargo test
 ```
 
+We use  [nextest](https://nexte.st/) and [llvm-cov](https://llvm.org/docs/CommandGuide/llvm-cov.html) for code coverage reporting. To produce an html report, run:
+
+``` shell
+cargo llvm-cov --html nextest
+```
+
 ## License
 
 Apache-2.0
