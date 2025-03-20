@@ -134,6 +134,9 @@ pub mod pallet {
 		type SignatureAggregator: SignatureAggregator;
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;
+		/// The number of historical missed blocks that we store.
+		/// Once the limit is reached, historical missed blocks are pruned as a FIFO queue. 
+		type MissedBlocksHistoryDepth: Get<u32>;
 	}
 
 	/// A first round number for which a pulse was observed
@@ -148,6 +151,10 @@ pub mod pallet {
 	/// randomness
 	#[pallet::storage]
 	pub type AggregatedSignature<T: Config> = StorageValue<_, Aggregate, OptionQuery>;
+
+	/// The collection of blocks for which collators could not report an aggregated signature
+	#[pallet::storage]
+	pub type MissedBlocks<T: Config> = StorageValue<_, BoundedVec<u8, T::MissedBlocksHistoryDepth>, OptionQuery>;
 
 	/// Whether the asig has been updated in this block.
 	///
@@ -251,15 +258,24 @@ pub mod pallet {
 
 		/// At the end of block execution, the `on_finalize` hook checks that the asig was
 		/// updated. Upon success, it removes the boolean value from storage. If the value resolves
-		/// to `false`, the pallet will panic.
+		/// to `false`, then either:
+		/// (1) the collator refused to provide data for the inherent
+		/// (2) drand was unavailable while the block was being built
+		/// in which case simply log an error for now
 		///
 		/// ## Complexity
 		/// - `O(1)`
-		fn on_finalize(_n: BlockNumberFor<T>) {
-			assert!(
-				DidUpdate::<T>::take(),
-				"The aggregated signature must be updated once in the block"
-			);
+		fn on_finalize(n: BlockNumberFor<T>) {
+			if !DidUpdate::<T>::take() {
+				// this implies we did not ingest randomness from drand during this block
+				log::error!("Failed to ingest pulses during lifetime of block {:?}", n);
+				// we simply notify the runtime - we ingested nothing during this block
+				MissedBlocks::<T>::mutate(|blocks| {
+					if let Some(b) = blocks {
+						b.push(n);
+					}
+				}); 
+			}
 		}
 	}
 
