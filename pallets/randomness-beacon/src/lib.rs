@@ -135,7 +135,7 @@ pub mod pallet {
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;
 		/// The number of historical missed blocks that we store.
-		/// Once the limit is reached, historical missed blocks are pruned as a FIFO queue. 
+		/// Once the limit is reached, historical missed blocks are pruned as a FIFO queue.
 		type MissedBlocksHistoryDepth: Get<u32>;
 	}
 
@@ -154,7 +154,8 @@ pub mod pallet {
 
 	/// The collection of blocks for which collators could not report an aggregated signature
 	#[pallet::storage]
-	pub type MissedBlocks<T: Config> = StorageValue<_, BoundedVec<u8, T::MissedBlocksHistoryDepth>, OptionQuery>;
+	pub type MissedBlocks<T: Config> =
+		StorageValue<_, BoundedVec<BlockNumberFor<T>, T::MissedBlocksHistoryDepth>, ValueQuery>;
 
 	/// Whether the asig has been updated in this block.
 	///
@@ -271,10 +272,15 @@ pub mod pallet {
 				log::error!("Failed to ingest pulses during lifetime of block {:?}", n);
 				// we simply notify the runtime - we ingested nothing during this block
 				MissedBlocks::<T>::mutate(|blocks| {
-					if let Some(b) = blocks {
-						b.push(n);
+					// remove old missed blocks if the history depth is reached
+					if blocks.len() as u32 == T::MissedBlocksHistoryDepth::get() {
+						blocks.remove(0);
 					}
-				}); 
+
+					let _ = blocks.try_push(n).map_err(|e| {
+						log::error!("Failed to update historic missed blocks for block number {:?} due to {:?}", n, e)
+					});
+				});
 			}
 		}
 	}
