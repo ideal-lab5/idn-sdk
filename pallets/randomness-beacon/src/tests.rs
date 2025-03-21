@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{
+ use crate::{
 	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound, LatestRound,
 	MissedBlocks,
 };

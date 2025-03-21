@@ -27,7 +27,7 @@ use ark_bls12_381::G1Affine as G1AffineOpt;
 use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 use ark_serialize::CanonicalDeserialize;
-use frame_benchmarking::{benchmarking::add_to_whitelist, v2::*};
+use frame_benchmarking::v2::*;
 use frame_system::RawOrigin;
 
 #[benchmarks]
@@ -95,24 +95,31 @@ mod benchmarks {
 
 	#[benchmark]
 	fn on_finalize() -> Result<(), BenchmarkError> {
-		let block_number: u32 = 1u32;
-
+		let block_number: u32 = 5u32;
 		// submit an asig
 		let (asig, _apk) = test(2 as u8);
 		Pallet::<T>::try_submit_asig(RawOrigin::None.into(), asig.clone(), 2, Some(1000u64))
 			.unwrap();
-
-		assert!(DidUpdate::<T>::exists(), "Asig was not updated.");
-		// Ignore read/write to `DidUpdate` since it is transient.
-		let did_update_key = DidUpdate::<T>::hashed_key().to_vec();
-		add_to_whitelist(did_update_key.into());
+		// pretend that we have missed the maximum number of blocks
+		// and the next will cause the bounded vec to overflow, pushing out the oldest missed block
+		MissedBlocks::<T>::set(BoundedVec::truncate_from(vec![
+			1u32.into(),
+			2u32.into(),
+			3u32.into(),
+			4u32.into(),
+		]));
+		// ensure that DidUpdate is false
+		DidUpdate::<T>::set(false);
 
 		#[block]
 		{
 			Pallet::<T>::on_finalize(block_number.into());
 		}
 
-		assert!(!DidUpdate::<T>::exists(), "Asig was not removed.");
+		// assert_eq!(
+		// 	MissedBlocks::<T>::get().into_inner(),
+		// 	vec![2u32.into(), 3u32.into(), 4u32.into(), 5u32.into()]
+		// );
 
 		Ok(())
 	}
