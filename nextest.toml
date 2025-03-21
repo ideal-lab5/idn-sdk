@@ -5,9 +5,9 @@
 [profile.default.ignore]
 lines = ["///"]
 
-# Exclude benchmarks/solochain directory from testing
+# Exclude kitchensink directory from testing
 [profile.default.exclude]
-path = ["benchmarks/solochain/**", "**/weights.rs"]
+path = ["kitchensink/**", "**/weights.rs"]
 
 # Enable concurrency for faster testing
 [profile.default.run-override]

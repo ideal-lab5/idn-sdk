@@ -82,6 +82,9 @@
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
 pub mod impls;
 pub mod traits;
 pub mod weights;
@@ -110,7 +113,7 @@ use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::{traits::One, Saturating};
-use sp_std::fmt::Debug;
+use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use traits::{
 	BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
 	Subscription as SubscriptionTrait,

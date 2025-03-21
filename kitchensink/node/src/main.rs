@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 
-//! # Tests parent module
-//!
-//! Find tests in the submodules.
+//! IDN SDK Kitchensink Node.
+#![warn(missing_docs)]
 
-mod fee_examples;
-pub(crate) mod mock;
-mod pallet;
+mod chain_spec;
+mod cli;
+mod command;
+mod rpc;
+mod service;
+
+fn main() -> sc_cli::Result<()> {
+	command::run()
+}

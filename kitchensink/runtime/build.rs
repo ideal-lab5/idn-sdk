@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-//! # Tests parent module
-//!
-//! Find tests in the submodules.
-
-mod fee_examples;
-pub(crate) mod mock;
-mod pallet;
+fn main() {
+	#[cfg(feature = "std")]
+	{
+		polkadot_sdk::substrate_wasm_builder::WasmBuilder::build_using_defaults();
+	}
+}

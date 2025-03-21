@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-//! # Tests parent module
-//!
-//! Find tests in the submodules.
+use substrate_build_script_utils::{generate_cargo_keys, rerun_if_git_head_changed};
 
-mod fee_examples;
-pub(crate) mod mock;
-mod pallet;
+fn main() {
+	generate_cargo_keys();
+	rerun_if_git_head_changed();
+}

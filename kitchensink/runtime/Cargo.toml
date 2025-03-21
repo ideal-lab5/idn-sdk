@@ -1,0 +1,46 @@
+[package]
+name = "idn-sdk-kitchensink-runtime"
+description = "A Kitchensink runtime for the IDN Sdk."
+version = "0.1.0"
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+codec.workspace = true
+frame-benchmarking = { optional = true, workspace = true }
+scale-info.workspace = true
+polkadot-sdk = { workspace = true, features = ["pallet-balances", "pallet-sudo", "pallet-timestamp", "pallet-transaction-payment", "pallet-transaction-payment-rpc-runtime-api", "runtime", "experimental"] }
+serde_json = { workspace = true, default-features = false, features = ["alloc"] }
+
+# IDN Deps
+idn-traits.workspace = true
+pallet-idn-manager.workspace = true
+pallet-randomness-beacon.workspace = true
+sp-consensus-randomness-beacon.workspace = true
+hex.workspace = true
+
+[build-dependencies]
+polkadot-sdk = { optional = true, workspace = true, features = ["substrate-wasm-builder"] }
+
+[features]
+default = ["std"]
+
+std = [
+	"codec/std",
+	"frame-benchmarking?/std",
+	"polkadot-sdk/std",
+	"scale-info/std",
+	"serde_json/std",
+	"pallet-idn-manager/std",
+	"pallet-randomness-beacon/std",
+]
+
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"pallet-idn-manager/runtime-benchmarks",
+	"pallet-randomness-beacon/runtime-benchmarks",
+]
