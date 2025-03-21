@@ -28,26 +28,24 @@ jobs:
         toolchain: nightly
         override: false
 
-    - name: Setup stable toolchain components
-      run: |
-        rustup component add llvm-tools-preview rust-src --toolchain stable-x86_64-unknown-linux-gnu
-        rustup target add wasm32-unknown-unknown --toolchain stable-x86_64-unknown-linux-gnu
-
+    # - name: Setup stable toolchain components
+    #   run: |
+    #     rustup component add llvm-tools-preview rust-src --toolchain stable-x86_64-unknown-linux-gnu
+    #     rustup target add wasm32-unknown-unknown --toolchain stable-x86_64-unknown-linux-gnu
     - name: Setup nightly toolchain components
-      run: |
-        rustup component add rustfmt rust-src --toolchain nightly
-        rustup target add wasm32-unknown-unknown --toolchain nightly-x86_64-unknown-linux-gnu
+      run: rustup component add rustfmt --toolchain nightly
+    # - name: Setup nightly toolchain components
+    #   run: |
+    #     rustup component add rustfmt rust-src --toolchain nightly
+    #     rustup target add wasm32-unknown-unknown --toolchain nightly-x86_64-unknown-linux-gnu
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y protobuf-compiler
+    # - name: Install dependencies
+    #   run: |
+    #     sudo apt-get update
+    #     sudo apt-get install -y protobuf-compiler
 
-    - name: Install Rust dependencies
-      run: cargo fetch
-
-    - name: Build
-      run: cargo build --verbose
+    # - name: Install Rust dependencies
+    #   run: cargo fetch
 
     - name: Run cargo fmt
       run: cargo +nightly fmt -- --check
@@ -55,11 +53,52 @@ jobs:
     - name: Run cargo clippy
       run: cargo clippy -- -D warnings
 
+    - name: Build
+      run: cargo build --all-features --verbose
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: false
+
+
+
+        # - name: Setup stable toolchain components
+        # run: |
+        #   rustup component add llvm-tools-preview rust-src --toolchain stable-x86_64-unknown-linux-gnu
+        #   rustup target add wasm32-unknown-unknown --toolchain stable-x86_64-unknown-linux-gnu
+  
+      # - name: Setup nightly toolchain components
+      #   run: |
+      #     rustup component add rustfmt rust-src --toolchain nightly
+      #     rustup target add wasm32-unknown-unknown --toolchain nightly-x86_64-unknown-linux-gnu
+  
+      # - name: Install dependencies
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y protobuf-compiler
+  
+      # - name: Install Rust dependencies
+      #   run: cargo fetch
+
+
+
     - name: Install llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
 
     - name: Run Tests
-      run: cargo +nightly llvm-cov --workspace --all-features --doctests --cobertura --output-path cobertura.xml
+      run: |
+        cargo +nightly llvm-cov --workspace --all-features --doctests \
+          --cobertura --output-path cobertura.xml \
+          --ignore-filename-regex "(kitchensink|benchmarking|weights)"
 
     - name: Generate Code Coverage Summary
       uses: irongut/CodeCoverageSummary@v1.3.0
