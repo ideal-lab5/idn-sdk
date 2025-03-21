@@ -21,8 +21,10 @@ runs:
         rustup target add wasm32-unknown-unknown --toolchain stable-x86_64-unknown-linux-gnu
         rustup component add rust-src --toolchain nightly
         rustup target add wasm32-unknown-unknown --toolchain nightly-x86_64-unknown-linux-gnu
+      shell: bash
 
     - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y protobuf-compiler
+      shell: bash
