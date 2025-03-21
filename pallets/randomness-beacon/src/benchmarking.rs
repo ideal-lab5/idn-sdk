@@ -116,10 +116,10 @@ mod benchmarks {
 			Pallet::<T>::on_finalize(block_number.into());
 		}
 
-		// assert_eq!(
-		// 	MissedBlocks::<T>::get().into_inner(),
-		// 	vec![2u32.into(), 3u32.into(), 4u32.into(), 5u32.into()]
-		// );
+		assert_eq!(
+			MissedBlocks::<T>::get().into_inner(),
+			vec![2u32.into(), 3u32.into(), 4u32.into(), 5u32.into()]
+		);
 
 		Ok(())
 	}
