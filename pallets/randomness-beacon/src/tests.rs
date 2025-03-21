@@ -16,6 +16,7 @@
 
 use crate::{
 	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound, LatestRound,
+	MissedBlocks,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 
@@ -175,6 +176,33 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 
 		let actual_latest = LatestRound::<Test>::get();
 		assert_eq!(1002, actual_latest.unwrap());
+	});
+}
+
+#[test]
+fn can_track_missed_blocks() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		Drand::on_finalize(1);
+
+		let missed_blocks = MissedBlocks::<Test>::get();
+		assert_eq!(missed_blocks.len(), 1);
+		assert_eq!(missed_blocks.into_inner(), vec![1]);
+	});
+}
+
+#[test]
+fn can_track_missed_block_and_manage_overflow() {
+	new_test_ext().execute_with(|| {
+		(1..6).for_each(|i| {
+			Drand::on_finalize(i);
+		});
+
+		let missed_blocks = MissedBlocks::<Test>::get();
+		assert_eq!(missed_blocks.len(), 4);
+		// block '1' was pruned
+		assert_eq!(missed_blocks.into_inner(), vec![2, 3, 4, 5]);
 	});
 }
 
