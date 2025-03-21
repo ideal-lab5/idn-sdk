@@ -1,0 +1,32 @@
+name: 'Setup Rust Environment'
+description: 'Sets up Rust toolchains and dependencies'
+runs:
+  using: "composite"
+  steps:
+    - name: Install Rust stable
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+      shell: bash
+
+    - name: Install Rust nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: false
+      shell: bash
+
+    - name: Setup toolchains
+      run: |
+        rustup component add rust-src --toolchain stable-x86_64-unknown-linux-gnu
+        rustup target add wasm32-unknown-unknown --toolchain stable-x86_64-unknown-linux-gnu
+        rustup component add rust-src --toolchain nightly
+        rustup target add wasm32-unknown-unknown --toolchain nightly-x86_64-unknown-linux-gnu
+      shell: bash
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler
+      shell: bash
