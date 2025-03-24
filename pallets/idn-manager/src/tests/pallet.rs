@@ -239,7 +239,8 @@ fn create_subscription_fails_if_filtering_randomness() {
 				Some(
 					BoundedVec::try_from(vec![
 						PulsePropertyOf::<Test>::Round(1),
-						PulsePropertyOf::<Test>::Rand([1u8; 32])
+						PulsePropertyOf::<Test>::Rand([1u8; 32]),
+						PulsePropertyOf::<Test>::Sig([1u8; 64])
 					])
 					.unwrap()
 				)
@@ -539,7 +540,8 @@ fn update_subscription_fails_if_filtering_randomness() {
 				Some(
 					BoundedVec::try_from(vec![
 						PulsePropertyOf::<Test>::Round(1),
-						PulsePropertyOf::<Test>::Rand([1u8; 32])
+						PulsePropertyOf::<Test>::Rand([1u8; 32]),
+						PulsePropertyOf::<Test>::Sig([1u8; 64])
 					])
 					.unwrap()
 				)
@@ -562,7 +564,7 @@ fn test_credits_consumption_and_cleanup() {
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000;
 		let mut treasury_balance = 0;
-		let pulse = mock::Pulse { rand: [0u8; 32], round: 0 };
+		let pulse = mock::Pulse { rand: [0u8; 32], round: 0, sig: [1u8; 64] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -673,7 +675,7 @@ fn test_credits_consumption_not_enogh_balance() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], round: 0 };
+		let pulse = mock::Pulse { rand: [0u8; 32], round: 0, sig: [1u8; 64] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -728,7 +730,7 @@ fn test_credits_consumption_frequency() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 3; // Every 3 blocks
 		let initial_balance = 10_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], round: 0 };
+		let pulse = mock::Pulse { rand: [0u8; 32], round: 0, sig: [1u8; 64] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -1512,7 +1514,7 @@ fn test_pulse_filter_functionality() {
 			let round = block + 1;
 
 			// Create pulse with current round
-			let pulse = mock::Pulse { rand: [block as u8; 32], round };
+			let pulse = mock::Pulse { rand: [block as u8; 32], round, sig: [1u8; 64] };
 
 			// Clear previous events
 			System::reset_events();
@@ -1605,7 +1607,7 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 			let round = block + 1;
 
 			// Create pulse with current round
-			let pulse = mock::Pulse { rand: [block as u8; 32], round };
+			let pulse = mock::Pulse { rand: [block as u8; 32], round, sig: [1u8; 64] };
 
 			// Clear previous events
 			System::reset_events();

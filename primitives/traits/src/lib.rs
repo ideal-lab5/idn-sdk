@@ -75,11 +75,13 @@ pub mod pulse {
 	/// commonly used in filtering logic to specify which property and value subscriptions should
 	/// match against.
 	#[derive(Encode, Decode, TypeInfo, MaxEncodedLen, Debug, PartialEq, Clone)]
-	pub enum PulseProperty<RandType, RoundType> {
+	pub enum PulseProperty<RandType, RoundType, SigType> {
 		/// The random value for a pulse.
 		Rand(RandType),
 		/// The round number for a pulse.
 		Round(RoundType),
+		/// The signature for a pulse.
+		Sig(SigType),
 	}
 
 	/// A trait defining the interface for randomness beacon pulses
@@ -91,6 +93,7 @@ pub mod pulse {
 	/// ## Type Parameters
 	/// - `Rand`: The type representing the random value
 	/// - `Round`: The type representing the round number
+	/// - `Sig`: The type representing the signature
 	///
 	/// ## Usage
 	/// This trait is used throughout the IDN ecosystem to:
@@ -110,6 +113,12 @@ pub mod pulse {
 		/// identifier for this pulse from the randomness beacon.
 		type Round: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
 
+		/// The type of the signature contained in this pulse
+		///
+		/// This is typically a  byte array or a specific signature type
+		/// that represents the signature for this pulse.
+		type Sig: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
+
 		/// Get the random value from this pulse
 		///
 		/// Returns the random value contained in this pulse.
@@ -120,6 +129,11 @@ pub mod pulse {
 		/// Returns the sequential identifier for this pulse in the randomness beacon sequence.
 		/// Round numbers typically increase monotonically.
 		fn round(&self) -> Self::Round;
+
+		/// Get the signature from this pulse
+		///
+		/// Returns the signature contained in this pulse.
+		fn sig(&self) -> Self::Sig;
 	}
 
 	/// A trait for matching pulse properties against specific values
@@ -151,15 +165,18 @@ pub mod pulse {
 	/// struct MyPulse {
 	///     rand: [u8; 3],
 	///     round: u8,
+	///     signature: [u8; 8],
 	/// }
 	/// impl Pulse for MyPulse {
 	///     type Rand = [u8; 3];
 	///     type Round = u8;
+	///     type Sig = [u8; 8];
 	///     fn rand(&self) -> Self::Rand { self.rand }
 	///     fn round(&self) -> Self::Round { self.round }
+	/// 	fn sig(&self) -> Self::Sig { self.signature }
 	/// }
 	///
-	/// let my_pulse = MyPulse { rand: [1, 2, 3], round: 42 };
+	/// let my_pulse = MyPulse { rand: [1, 2, 3], round: 42, signature: [1, 2, 3, 4, 5, 6, 7, 8] };
 	///
 	/// // Check if pulse matches a specific round
 	/// assert!(my_pulse.match_prop(PulseProperty::Round(42)));
@@ -169,6 +186,9 @@ pub mod pulse {
 	///
 	/// // Check if pulse matches a specific random value
 	/// assert!(my_pulse.match_prop(PulseProperty::Rand([1, 2, 3])));
+	///
+	/// // Chedk if pulse matches a specific signature
+	/// assert!(my_pulse.match_prop(PulseProperty::Sig([1, 2, 3, 4, 5, 6, 7, 8])));
 	/// ```
 	///
 	/// ## Customization
@@ -183,10 +203,11 @@ pub mod pulse {
 		/// # Returns
 		/// * `true` - If the pulse matches the property value
 		/// * `false` - If the pulse does not match the property value
-		fn match_prop(&self, prop: PulseProperty<Self::Rand, Self::Round>) -> bool {
+		fn match_prop(&self, prop: PulseProperty<Self::Rand, Self::Round, Self::Sig>) -> bool {
 			match prop {
 				PulseProperty::Rand(rand) => self.rand() == rand,
 				PulseProperty::Round(round) => self.round() == round,
+				PulseProperty::Sig(sig) => self.sig() == sig,
 			}
 		}
 	}

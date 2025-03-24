@@ -78,17 +78,24 @@ impl Get<u32> for SubMetadataLen {
 }
 
 type Rand = [u8; 32];
+type Sig = [u8; 64];
 type Round = u64;
 
 #[derive(Encode, Clone, Copy)]
 pub struct Pulse {
 	pub rand: Rand,
 	pub round: Round,
+	pub sig: Sig,
 }
 
 impl idn_traits::pulse::Pulse for Pulse {
 	type Rand = Rand;
 	type Round = Round;
+	type Sig = Sig;
+
+	fn sig(&self) -> Self::Sig {
+		self.sig
+	}
 
 	fn rand(&self) -> Self::Rand {
 		self.rand
