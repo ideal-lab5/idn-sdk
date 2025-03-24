@@ -1,0 +1,20 @@
+[package]
+name = "idn-sdk-e2e-tests"
+description = "IDN SDK E2E tests."
+version = "0.0.0"
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+zombienet-sdk = { workspace = true }
+
+[features]
+e2e = []
