@@ -134,6 +134,11 @@ pub mod pulse {
 		///
 		/// Returns the signature contained in this pulse.
 		fn sig(&self) -> Self::Sig;
+
+		/// Verifies a pulse validity
+		///
+		/// Returns `true` when valid, `false` otherwise.
+		fn valid(&self) -> bool;
 	}
 
 	/// A trait for matching pulse properties against specific values
@@ -174,6 +179,7 @@ pub mod pulse {
 	///     fn rand(&self) -> Self::Rand { self.rand }
 	///     fn round(&self) -> Self::Round { self.round }
 	/// 	fn sig(&self) -> Self::Sig { self.signature }
+	/// 	fn valid(&self) -> bool { true }
 	/// }
 	///
 	/// let my_pulse = MyPulse { rand: [1, 2, 3], round: 42, signature: [1, 2, 3, 4, 5, 6, 7, 8] };

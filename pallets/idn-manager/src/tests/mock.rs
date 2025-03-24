@@ -104,6 +104,10 @@ impl idn_traits::pulse::Pulse for Pulse {
 	fn round(&self) -> Self::Round {
 		self.round
 	}
+
+	fn valid(&self) -> bool {
+		true
+	}
 }
 
 impl pallet_idn_manager::Config for Test {
