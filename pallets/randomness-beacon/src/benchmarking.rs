@@ -28,7 +28,7 @@ use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 use ark_serialize::CanonicalDeserialize;
 use frame_benchmarking::v2::*;
-use frame_system::RawOrigin;
+use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 
 #[benchmarks]
 mod benchmarks {
@@ -95,19 +95,21 @@ mod benchmarks {
 
 	#[benchmark]
 	fn on_finalize() -> Result<(), BenchmarkError> {
-		let block_number: u32 = 5u32;
-		// submit an asig
+		let history_depth = T::MissedBlocksHistoryDepth::get();
+		let block_number: u32 = (history_depth) as u32;
+		// submit an asig (height unimportant)
 		let (asig, _apk) = test(2 as u8);
 		Pallet::<T>::try_submit_asig(RawOrigin::None.into(), asig.clone(), 2, Some(1000u64))
 			.unwrap();
+		
+		let mut history: Vec<BlockNumberFor<T>> = Vec::new();
+		(0..history_depth).for_each(|i| history.push(i.into())); 
+		// we add one more value and 'push out' the oldest one
+		let mut expected_final_history: Vec<BlockNumberFor<T>> = Vec::new();
+		(1..history_depth + 1).for_each(|i| expected_final_history.push(i.into()));
 		// pretend that we have missed the maximum number of blocks
 		// and the next will cause the bounded vec to overflow, pushing out the oldest missed block
-		MissedBlocks::<T>::set(BoundedVec::truncate_from(vec![
-			1u32.into(),
-			2u32.into(),
-			3u32.into(),
-			4u32.into(),
-		]));
+		MissedBlocks::<T>::set(BoundedVec::truncate_from(history));
 		// ensure that DidUpdate is false
 		DidUpdate::<T>::set(false);
 
@@ -118,7 +120,7 @@ mod benchmarks {
 
 		assert_eq!(
 			MissedBlocks::<T>::get().into_inner(),
-			vec![2u32.into(), 3u32.into(), 4u32.into(), 5u32.into()]
+			expected_final_history
 		);
 
 		Ok(())

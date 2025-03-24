@@ -17,8 +17,9 @@
 use crate::{
 	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound, LatestRound,
 	MissedBlocks,
-};
+}; 
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
+use frame_system::pallet_prelude::BlockNumberFor;
 
 #[test]
 fn can_construct_pallet_and_set_genesis_params() {
@@ -195,14 +196,18 @@ fn can_track_missed_blocks() {
 #[test]
 fn can_track_missed_block_and_manage_overflow() {
 	new_test_ext().execute_with(|| {
-		(1..6).for_each(|i| {
-			Drand::on_finalize(i);
+
+		let mut expected_final_history: Vec<BlockNumberFor<Test>> = Vec::new();
+		(1.. u8::MAX as u32 + 1).for_each(|i| expected_final_history.push(i.into()));
+
+		(0..u8::MAX as u32 + 1).for_each(|i| {
+			Drand::on_finalize(i as u64);
 		});
 
 		let missed_blocks = MissedBlocks::<Test>::get();
-		assert_eq!(missed_blocks.len(), 4);
+		assert_eq!(missed_blocks.len(), u8::MAX as usize);
 		// block '1' was pruned
-		assert_eq!(missed_blocks.into_inner(), vec![2, 3, 4, 5]);
+		assert_eq!(missed_blocks.into_inner(), expected_final_history);
 	});
 }
 

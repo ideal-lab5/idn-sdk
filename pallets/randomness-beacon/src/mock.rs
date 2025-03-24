@@ -64,7 +64,7 @@ impl pallet_drand_bridge::Config for Test {
 	type BeaconConfig = QuicknetBeaconConfig;
 	type SignatureAggregator = QuicknetAggregator;
 	type MaxSigsPerBlock = ConstU8<4>;
-	type MissedBlocksHistoryDepth = ConstU32<4>;
+	type MissedBlocksHistoryDepth = ConstU32<{u8::MAX as u32}>;
 }
 
 // Build genesis storage according to the mock runtime.
