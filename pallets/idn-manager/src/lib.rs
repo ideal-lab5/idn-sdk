@@ -176,7 +176,7 @@ pub type PulsePropertyOf<T> = PulseProperty<
 /// # Usage
 /// ```rust
 /// use idn_traits::pulse::PulseProperty as PulsePropertyTrait;
-/// type PulseProperty = PulsePropertyTrait<[u8; 32], u64, [u8; 64]>;
+/// type PulseProperty = PulsePropertyTrait<[u8; 32], u64, [u8; 48]>;
 /// // Create a filter for even-numbered rounds only
 /// let filter = vec![
 ///     PulseProperty::Round(2),

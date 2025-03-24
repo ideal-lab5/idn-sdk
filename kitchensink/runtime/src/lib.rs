@@ -285,7 +285,7 @@ impl Get<u32> for SubMetadataLen {
 
 type Rand = [u8; 32];
 type Round = u64;
-type Sig = [u8; 64];
+type Sig = [u8; 48];
 
 #[derive(Encode, Clone, Copy)]
 pub struct Pulse {
