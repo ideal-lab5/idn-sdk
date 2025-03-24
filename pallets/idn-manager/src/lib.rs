@@ -192,6 +192,7 @@ pub type PulseFilterOf<T> = BoundedVec<PulsePropertyOf<T>, <T as Config>::PulseF
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter> {
+	id: SubscriptionId,
 	details: SubscriptionDetails<AccountId, Metadata>,
 	// Number of random values left to distribute
 	credits_left: Credits,
@@ -242,29 +243,10 @@ pub struct SubscriptionDetails<AccountId, Metadata> {
 	pub metadata: Metadata,
 }
 
-impl<AccountId, BlockNumber, Credits, Metadata, PulseFilter>
-	Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter>
-where
-	AccountId: Encode,
-	BlockNumber: Encode + Copy,
-	Metadata: Encode + Clone,
-{
-	pub fn id(&self) -> SubscriptionId {
-		let id_tuple = (
-			self.created_at,
-			&self.details.subscriber,
-			self.details.target.clone(),
-			self.details.call_index,
-			self.details.metadata.clone(),
-		);
-		// Encode the tuple using SCALE codec.
-		let encoded = id_tuple.encode();
-		// Hash the encoded bytes using blake2_256.
-		H256::from_slice(&blake2_256(&encoded))
-	}
-}
+pub type SubscriptionDetailsOf<T> =
+	SubscriptionDetails<<T as frame_system::Config>::AccountId, MetadataOf<T>>;
 
-pub type SubscriptionId = H256;
+pub type SubscriptionId = [u8; 32];
 
 #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
 pub enum SubscriptionState {
@@ -416,6 +398,8 @@ pub mod pallet {
 			metadata: Option<MetadataOf<T>>,
 			// Optional Pulse Filter
 			pulse_filter: Option<PulseFilterOf<T>>,
+			// Optional Subscription Id
+			sub_id: Option<SubscriptionId>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
 
@@ -431,6 +415,7 @@ pub mod pallet {
 				frequency,
 				metadata,
 				pulse_filter,
+				sub_id,
 			)
 		}
 
@@ -625,7 +610,7 @@ impl<T: Config> Pallet<T> {
 			FeesError::NotEnoughBalance { .. } => DispatchError::Other("NotEnoughBalance"),
 			FeesError::Other(de) => de,
 		})?;
-		Self::deposit_event(Event::FeesCollected { sub_id: sub.id(), fees });
+		Self::deposit_event(Event::FeesCollected { sub_id: sub.id, fees });
 		Ok(())
 	}
 
@@ -665,12 +650,8 @@ impl<T: Config> Pallet<T> {
 		frequency: BlockNumberFor<T>,
 		metadata: Option<MetadataOf<T>>,
 		pulse_filter: Option<PulseFilterOf<T>>,
+		sub_id: Option<SubscriptionId>,
 	) -> DispatchResult {
-		// Calculate and hold the subscription fees
-		let fees = Self::calculate_subscription_fees(&credits);
-
-		Self::hold_fees(&subscriber, fees)?;
-
 		let current_block = frame_system::Pallet::<T>::block_number();
 		let details = SubscriptionDetails {
 			subscriber: subscriber.clone(),
@@ -678,7 +659,13 @@ impl<T: Config> Pallet<T> {
 			call_index,
 			metadata: metadata.unwrap_or_default(),
 		};
+
+		let sub_id = sub_id.unwrap_or(Self::generate_sub_id(&details, &current_block));
+
+		ensure!(!Subscriptions::<T>::contains_key(sub_id), Error::<T>::SubscriptionAlreadyExists);
+
 		let subscription = Subscription {
+			id: sub_id,
 			state: SubscriptionState::Active,
 			credits_left: credits,
 			details,
@@ -690,20 +677,38 @@ impl<T: Config> Pallet<T> {
 			pulse_filter,
 		};
 
+		// Calculate and hold the subscription fees
+		let fees = Self::calculate_subscription_fees(&credits);
+
+		Self::hold_fees(&subscriber, fees)?;
+
 		Self::hold_deposit(
 			&subscriber,
 			T::DepositCalculator::calculate_storage_deposit(&subscription),
 		)?;
-
-		let sub_id = subscription.id();
-
-		ensure!(!Subscriptions::<T>::contains_key(sub_id), Error::<T>::SubscriptionAlreadyExists);
 
 		Subscriptions::<T>::insert(sub_id, subscription);
 
 		Self::deposit_event(Event::SubscriptionCreated { sub_id });
 
 		Ok(())
+	}
+
+	fn generate_sub_id(
+		sub_details: &SubscriptionDetailsOf<T>,
+		current_block: &BlockNumberFor<T>,
+	) -> SubscriptionId {
+		let id_tuple = (
+			current_block,
+			&sub_details.subscriber,
+			sub_details.target.clone(),
+			sub_details.call_index,
+			sub_details.metadata.clone(),
+		);
+		// Encode the tuple using SCALE codec.
+		let encoded = id_tuple.encode();
+		// Hash the encoded bytes using blake2_256.
+		H256::from_slice(&blake2_256(&encoded)).into()
 	}
 
 	fn hold_fees(subscriber: &T::AccountId, fees: BalanceOf<T>) -> DispatchResult {

@@ -51,10 +51,12 @@ mod benchmarks {
 			)
 			.unwrap(),
 		);
+		let sub_id = None;
+
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
 		#[extrinsic_call]
-		_(origin, credits, target.clone(), call_index, frequency, metadata, pulse_filter);
+		_(origin, credits, target.clone(), call_index, frequency, metadata, pulse_filter, sub_id);
 
 		// assert that the subscription details are correct
 		let (_, sub) = Subscriptions::<T>::iter().next().unwrap();
@@ -78,6 +80,7 @@ mod benchmarks {
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let pulse_filter = None;
+		let sub_id = None;
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
@@ -89,6 +92,7 @@ mod benchmarks {
 			frequency,
 			metadata,
 			pulse_filter,
+			sub_id,
 		);
 
 		// assert that the subscription state is correct
@@ -113,6 +117,7 @@ mod benchmarks {
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let pulse_filter = None;
+		let sub_id = None;
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
@@ -124,6 +129,7 @@ mod benchmarks {
 			frequency,
 			metadata,
 			pulse_filter,
+			sub_id,
 		);
 
 		// assert that the subscription was created
@@ -147,6 +153,7 @@ mod benchmarks {
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let pulse_filter = None;
+		let sub_id = None;
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
@@ -158,6 +165,7 @@ mod benchmarks {
 			frequency,
 			metadata,
 			pulse_filter,
+			sub_id,
 		);
 
 		// assert that the subscription state is correct
@@ -195,6 +203,7 @@ mod benchmarks {
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let pulse_filter = None;
+		let sub_id = None;
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
@@ -206,6 +215,7 @@ mod benchmarks {
 			frequency,
 			metadata,
 			pulse_filter,
+			sub_id,
 		);
 
 		// assert that the subscription state is correct

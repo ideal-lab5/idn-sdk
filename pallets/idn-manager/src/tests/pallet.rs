@@ -33,7 +33,6 @@ use frame_support::{
 	BoundedVec,
 };
 use idn_traits::pulse::Dispatcher;
-use sp_core::H256;
 use sp_runtime::{AccountId32, DispatchError, TokenError};
 use xcm::v5::{Junction, Location};
 
@@ -70,7 +69,8 @@ fn update_subscription(
 		[1; 2],
 		original_frequency,
 		metadata.clone(),
-		None
+		None,
+		None,
 	));
 
 	// Get the sub_id from the last emitted event
@@ -187,7 +187,8 @@ fn create_subscription_works() {
 			[1; 2],
 			frequency,
 			None,
-			Some(mock_rounds_filter(&rounds))
+			Some(mock_rounds_filter(&rounds)),
+			None,
 		));
 
 		assert_eq!(Subscriptions::<Test>::iter().count(), 1);
@@ -219,6 +220,47 @@ fn create_subscription_works() {
 }
 
 #[test]
+fn create_subscription_with_custom_id_works() {
+	ExtBuilder::build().execute_with(|| {
+		let credits: u64 = 50;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 10;
+		let initial_balance = 10_000_000;
+		let custom_id = [7u8; 32];
+
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// assert Subscriptions storage map is empty before creating a subscription
+		assert_eq!(Subscriptions::<Test>::iter().count(), 0);
+
+		let rounds = vec![0u64, 1, 2];
+
+		// assert that the subscription has been created
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			credits,
+			target.clone(),
+			[1; 2],
+			frequency,
+			None,
+			Some(mock_rounds_filter(&rounds)),
+			Some(custom_id),
+		));
+
+		assert_eq!(Subscriptions::<Test>::iter().count(), 1);
+
+		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+
+		// assert that the correct event has been emitted
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated {
+			sub_id: custom_id,
+		}));
+
+		assert_eq!(sub_id, custom_id);
+	});
+}
+
+#[test]
 fn create_subscription_fails_if_filtering_randomness() {
 	ExtBuilder::build().execute_with(|| {
 		let credits: u64 = 50;
@@ -243,13 +285,17 @@ fn create_subscription_fails_if_filtering_randomness() {
 						PulsePropertyOf::<Test>::Sig([1u8; 64])
 					])
 					.unwrap()
-				)
+				),
+				None,
 			),
 			Error::<Test>::FilterRandNotPermitted
 		);
 
 		// Assert the SubscriptionCreated event was not emitted
-		assert!(event_not_emitted(Event::<Test>::SubscriptionCreated { sub_id: H256::zero() }));
+		assert!(!System::events().iter().any(|record| matches!(
+			record.event,
+			RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated { sub_id: _ })
+		)));
 	});
 }
 
@@ -270,7 +316,8 @@ fn create_subscription_fails_if_insufficient_balance() {
 				[1; 2],
 				frequency,
 				None,
-				None
+				None,
+				None,
 			),
 			TokenError::FundsUnavailable
 		);
@@ -299,7 +346,8 @@ fn create_subscription_fails_if_sub_already_exists() {
 			[1; 2],
 			frequency,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// erase all events
@@ -313,7 +361,8 @@ fn create_subscription_fails_if_sub_already_exists() {
 				[1; 2],
 				frequency,
 				None,
-				None
+				None,
+				None,
 			),
 			Error::<Test>::SubscriptionAlreadyExists
 		);
@@ -344,7 +393,8 @@ fn test_kill_subscription() {
 			[1; 2],
 			frequency,
 			metadata.clone(),
-			None
+			None,
+			None,
 		));
 
 		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
@@ -372,7 +422,7 @@ fn test_kill_subscription() {
 #[test]
 fn kill_subscription_fails_if_sub_does_not_exist() {
 	ExtBuilder::build().execute_with(|| {
-		let sub_id = H256::from_slice(&[1; 32]);
+		let sub_id = [0xff; 32];
 
 		assert_noop!(
 			IdnManager::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id),
@@ -402,7 +452,8 @@ fn on_finalize_removes_zero_credit_subscriptions() {
 			[1; 2],
 			frequency,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// Get the subscription ID
@@ -490,7 +541,7 @@ fn test_update_subscription() {
 #[test]
 fn update_subscription_fails_if_sub_does_not_exists() {
 	ExtBuilder::build().execute_with(|| {
-		let sub_id = H256::from_slice(&[1; 32]);
+		let sub_id = [0xff; 32];
 		let new_credits = 20;
 		let new_frequency = 4;
 
@@ -526,7 +577,8 @@ fn update_subscription_fails_if_filtering_randomness() {
 			[1; 2],
 			frequency,
 			None,
-			None
+			None,
+			None,
 		));
 
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
@@ -578,7 +630,8 @@ fn test_credits_consumption_and_cleanup() {
 			[1; 2],
 			frequency,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// Get subscription details
@@ -688,7 +741,8 @@ fn test_credits_consumption_not_enogh_balance() {
 			[1; 2],
 			frequency,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// Get subscription details
@@ -743,7 +797,8 @@ fn test_credits_consumption_frequency() {
 			[1; 2],
 			frequency,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// Get the subscription ID
@@ -812,7 +867,8 @@ fn test_pause_reactivate_subscription() {
 			[1; 2],
 			frequency,
 			metadata.clone(),
-			None
+			None,
+			None,
 		));
 
 		let free_balance = Balances::free_balance(&ALICE);
@@ -846,7 +902,7 @@ fn test_pause_reactivate_subscription() {
 #[test]
 fn pause_subscription_fails_if_sub_does_not_exists() {
 	ExtBuilder::build().execute_with(|| {
-		let sub_id = H256::from_slice(&[1; 32]);
+		let sub_id = [0xff; 32];
 
 		assert_noop!(
 			IdnManager::pause_subscription(RuntimeOrigin::signed(ALICE), sub_id),
@@ -875,7 +931,8 @@ fn pause_subscription_fails_if_sub_already_paused() {
 			[1; 2],
 			frequency,
 			metadata.clone(),
-			None
+			None,
+			None,
 		));
 
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
@@ -898,7 +955,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 #[test]
 fn reactivate_subscription_fails_if_sub_does_not_exists() {
 	ExtBuilder::build().execute_with(|| {
-		let sub_id = H256::from_slice(&[1; 32]);
+		let sub_id = [1; 32];
 
 		assert_noop!(
 			IdnManager::reactivate_subscription(RuntimeOrigin::signed(ALICE), sub_id),
@@ -927,7 +984,8 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 			[1; 2],
 			frequency,
 			metadata.clone(),
-			None
+			None,
+			None,
 		));
 
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
@@ -963,7 +1021,8 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 			[1; 2],
 			frequency,
 			metadata.clone(),
-			None
+			None,
+			None,
 		));
 
 		// Retrieve the subscription ID created
@@ -1032,7 +1091,8 @@ fn test_on_finalize_removes_finished_subscriptions() {
 			[1; 2],
 			frequency,
 			None,
-			None
+			None,
+			None,
 		));
 
 		let (sub_id, mut subscription) = Subscriptions::<Test>::iter().next().unwrap();
@@ -1217,7 +1277,8 @@ fn test_get_subscription() {
 			[1; 2],
 			frequency,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// Retrieve the subscription ID created
@@ -1234,7 +1295,7 @@ fn test_get_subscription() {
 		assert_eq!(sub.details.target, target);
 
 		// Test get_subscription with invalid ID
-		let invalid_sub_id = H256::from_slice(&[0xff; 32]);
+		let invalid_sub_id = [0xff; 32];
 		let invalid_subscription = IdnManager::get_subscription(&invalid_sub_id);
 		assert!(invalid_subscription.is_none(), "Invalid subscription ID should return None");
 	});
@@ -1259,7 +1320,8 @@ fn test_get_subscriptions_for_subscriber() {
 			[1; 2],
 			10,
 			None,
-			None
+			None,
+			None,
 		));
 
 		assert_ok!(IdnManager::create_subscription(
@@ -1269,7 +1331,8 @@ fn test_get_subscriptions_for_subscriber() {
 			[1; 2],
 			20,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// Create a subscription for BOB
@@ -1280,7 +1343,8 @@ fn test_get_subscriptions_for_subscriber() {
 			[1; 2],
 			15,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// Test get_subscriptions_for_subscriber with ALICE
@@ -1362,7 +1426,8 @@ fn test_runtime_api_get_subscription() {
 			[1; 2],
 			frequency,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// Retrieve the subscription ID created
@@ -1379,7 +1444,7 @@ fn test_runtime_api_get_subscription() {
 		assert_eq!(sub.details.target, target);
 
 		// Test get_subscription with invalid ID
-		let invalid_sub_id = H256::from_slice(&[0xff; 32]);
+		let invalid_sub_id = [0xff; 32];
 		let invalid_subscription = Test::get_subscription(invalid_sub_id);
 		assert!(invalid_subscription.is_none(), "Invalid subscription ID should return None");
 	});
@@ -1404,7 +1469,8 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 			[1; 2],
 			10,
 			None,
-			None
+			None,
+			None,
 		));
 
 		assert_ok!(IdnManager::create_subscription(
@@ -1414,7 +1480,8 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 			[1; 2],
 			20,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// Create a subscription for BOB
@@ -1425,7 +1492,8 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 			[1; 2],
 			15,
 			None,
-			None
+			None,
+			None,
 		));
 
 		// Test get_subscriptions_for_subscriber with ALICE
@@ -1490,7 +1558,8 @@ fn test_pulse_filter_functionality() {
 			call_index,
 			frequency,
 			None,
-			Some(rounds_filter)
+			Some(rounds_filter),
+			None,
 		));
 
 		// Get subscription ID
@@ -1582,7 +1651,8 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 			call_index,
 			frequency,
 			None,
-			Some(rounds_filter)
+			Some(rounds_filter),
+			None,
 		));
 
 		// Get subscription ID
