@@ -178,8 +178,8 @@ pub mod pulse {
 	///     type Sig = [u8; 8];
 	///     fn rand(&self) -> Self::Rand { self.rand }
 	///     fn round(&self) -> Self::Round { self.round }
-	/// 	fn sig(&self) -> Self::Sig { self.signature }
-	/// 	fn valid(&self) -> bool { true }
+	///     fn sig(&self) -> Self::Sig { self.signature }
+	///     fn valid(&self) -> bool { true }
 	/// }
 	///
 	/// let my_pulse = MyPulse { rand: [1, 2, 3], round: 42, signature: [1, 2, 3, 4, 5, 6, 7, 8] };
