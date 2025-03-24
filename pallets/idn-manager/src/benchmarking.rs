@@ -35,7 +35,7 @@ mod benchmarks {
 	use super::*;
 
 	#[benchmark]
-	fn create_subscription() {
+	fn create_subscription(l: Linear<1, { T::PulseFilterLen::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits = 100u64.into();
@@ -43,15 +43,11 @@ mod benchmarks {
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
-		let pulse_filter_len = T::PulseFilterLen::get() as usize;
-		let pulse_filter = Some(
-			BoundedVec::try_from(
-				// make the vec as big as possible
-				vec![PulsePropertyOf::<T>::Round(1u64.into()); pulse_filter_len],
-			)
-			.unwrap(),
-		);
 		let sub_id = None;
+
+		let pulse_filter_vec =
+			(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+		let pulse_filter = Some(BoundedVec::try_from(pulse_filter_vec).unwrap());
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
@@ -158,7 +154,7 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn update_subscription() {
+	fn update_subscription(l: Linear<1, { T::PulseFilterLen::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
@@ -188,16 +184,12 @@ mod benchmarks {
 		let (sub_id, sub) = Subscriptions::<T>::iter().next().unwrap();
 		assert_eq!(sub.state, SubscriptionState::Active);
 
-		let pulse_filter_len = T::PulseFilterLen::get() as usize;
 		let new_credits: T::Credits = 200u64.into();
 		let new_frequency: BlockNumberFor<T> = 2u32.into();
-		let new_pulse_filter = Some(
-			BoundedVec::try_from(
-				// make the vec as big as possible
-				vec![PulsePropertyOf::<T>::Round(1u64.into()); pulse_filter_len],
-			)
-			.unwrap(),
-		);
+
+		let new_pulse_filter_vec =
+			(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+		let new_pulse_filter = Some(BoundedVec::try_from(new_pulse_filter_vec).unwrap());
 
 		let params = UpdateSubParamsOf::<T> {
 			sub_id,
