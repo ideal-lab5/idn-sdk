@@ -17,7 +17,7 @@
 use crate::{
 	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, GenesisRound, LatestRound,
 	MissedBlocks,
-}; 
+};
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 use frame_system::pallet_prelude::BlockNumberFor;
 
@@ -196,9 +196,8 @@ fn can_track_missed_blocks() {
 #[test]
 fn can_track_missed_block_and_manage_overflow() {
 	new_test_ext().execute_with(|| {
-
 		let mut expected_final_history: Vec<BlockNumberFor<Test>> = Vec::new();
-		(1.. u8::MAX as u32 + 1).for_each(|i| expected_final_history.push(i.into()));
+		(1..u8::MAX as u32 + 1).for_each(|i| expected_final_history.push(i.into()));
 
 		(0..u8::MAX as u32 + 1).for_each(|i| {
 			Drand::on_finalize(i as u64);

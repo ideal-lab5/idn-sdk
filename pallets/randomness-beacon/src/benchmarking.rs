@@ -101,9 +101,9 @@ mod benchmarks {
 		let (asig, _apk) = test(2 as u8);
 		Pallet::<T>::try_submit_asig(RawOrigin::None.into(), asig.clone(), 2, Some(1000u64))
 			.unwrap();
-		
+
 		let mut history: Vec<BlockNumberFor<T>> = Vec::new();
-		(0..history_depth).for_each(|i| history.push(i.into())); 
+		(0..history_depth).for_each(|i| history.push(i.into()));
 		// we add one more value and 'push out' the oldest one
 		let mut expected_final_history: Vec<BlockNumberFor<T>> = Vec::new();
 		(1..history_depth + 1).for_each(|i| expected_final_history.push(i.into()));
@@ -118,10 +118,7 @@ mod benchmarks {
 			Pallet::<T>::on_finalize(block_number.into());
 		}
 
-		assert_eq!(
-			MissedBlocks::<T>::get().into_inner(),
-			expected_final_history
-		);
+		assert_eq!(MissedBlocks::<T>::get().into_inner(), expected_final_history);
 
 		Ok(())
 	}

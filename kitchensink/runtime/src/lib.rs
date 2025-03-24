@@ -223,7 +223,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type BeaconConfig = QuicknetBeaconConfig;
 	type SignatureAggregator = pallet_randomness_beacon::aggregator::QuicknetAggregator;
 	type MaxSigsPerBlock = ConstU8<4>;
-	type MissedBlocksHistoryDepth = ConstU32<{u8::MAX as u32}>;
+	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
 }
 
 pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
