@@ -248,14 +248,22 @@ pub type SubscriptionDetailsOf<T> =
 
 pub type SubscriptionId = [u8; 32];
 
+/// Parameters for creating a new subscription
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
 pub struct CreateSubParams<Credits, BlockNumber, Metadata, PulseFilter> {
+	// Number of random values to receive
 	pub credits: Credits,
+	// XCM multilocation for random value delivery
 	pub target: Location,
+	// Call index for XCM message
 	pub call_index: CallIndex,
+	// Distribution interval for random values
 	pub frequency: BlockNumber,
+	// Bounded vector for additional data
 	pub metadata: Option<Metadata>,
+	// Optional Pulse Filter
 	pub pulse_filter: Option<PulseFilter>,
+	// Optional Subscription Id, if None, a new one will be generated
 	pub sub_id: Option<SubscriptionId>,
 }
 
@@ -266,8 +274,10 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 	PulseFilterOf<T>,
 >;
 
+/// Parameters for updating an existing subscription
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
 pub struct UpdateSubParams<SubId, Credits, Frequency, PulseFilter> {
+	// The Subscription Id
 	pub sub_id: SubId,
 	// New number of random values
 	pub credits: Credits,
