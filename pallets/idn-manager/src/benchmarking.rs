@@ -35,7 +35,7 @@ mod benchmarks {
 	use super::*;
 
 	#[benchmark]
-	fn create_subscription(l: Linear<1, { T::PulseFilterLen::get() }>) {
+	fn create_subscription(l: Linear<0, { T::PulseFilterLen::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits = 100u64.into();
@@ -45,9 +45,13 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		let pulse_filter_vec =
-			(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
-		let pulse_filter = Some(BoundedVec::try_from(pulse_filter_vec).unwrap());
+		let pulse_filter = if l == 0 {
+			None
+		} else {
+			let pulse_filter_vec =
+				(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
+		};
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
@@ -154,7 +158,7 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn update_subscription(l: Linear<1, { T::PulseFilterLen::get() }>) {
+	fn update_subscription(l: Linear<0, { T::PulseFilterLen::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
@@ -187,9 +191,13 @@ mod benchmarks {
 		let new_credits: T::Credits = 200u64.into();
 		let new_frequency: BlockNumberFor<T> = 2u32.into();
 
-		let new_pulse_filter_vec =
-			(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
-		let new_pulse_filter = Some(BoundedVec::try_from(new_pulse_filter_vec).unwrap());
+		let new_pulse_filter = if l == 0 {
+			None
+		} else {
+			let pulse_filter_vec =
+				(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
+		};
 
 		let params = UpdateSubParamsOf::<T> {
 			sub_id,

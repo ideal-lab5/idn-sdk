@@ -92,8 +92,8 @@ pub mod weights;
 use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
-		ensure, Blake2_128Concat, DispatchError, DispatchResult, Hooks, IsType, OptionQuery,
-		StorageMap, Zero,
+		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo, Hooks,
+		IsType, OptionQuery, StorageMap, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
@@ -425,18 +425,63 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Creates a subscription for one or multiple blocks
 		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::create_subscription())]
+		#[pallet::weight(T::WeightInfo::create_subscription(T::PulseFilterLen::get()))]
 		pub fn create_subscription(
 			origin: OriginFor<T>,
 			params: CreateSubParamsOf<T>,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			let subscriber = ensure_signed(origin)?;
 
 			// make sure the filter does not filter on random values
 			// see the [Pulse Filtering Security](#pulse-filtering-security) section
 			Self::ensure_filter_no_rand(&params.pulse_filter)?;
 
-			Self::create_subscription_internal(subscriber, params)
+			let current_block = frame_system::Pallet::<T>::block_number();
+
+			let details = SubscriptionDetails {
+				subscriber: subscriber.clone(),
+				target: params.target.clone(),
+				call_index: params.call_index,
+				metadata: params.metadata.unwrap_or_default(),
+			};
+	
+			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(&details, &current_block));
+	
+			ensure!(!Subscriptions::<T>::contains_key(sub_id), Error::<T>::SubscriptionAlreadyExists);
+	
+			let subscription = Subscription {
+				id: sub_id,
+				state: SubscriptionState::Active,
+				credits_left: params.credits,
+				details,
+				created_at: current_block,
+				updated_at: current_block,
+				credits: params.credits,
+				frequency: params.frequency,
+				last_delivered: None,
+				pulse_filter: params.pulse_filter,
+			};
+	
+			// Calculate and hold the subscription fees
+			let fees = Self::calculate_subscription_fees(&params.credits);
+
+			Self::hold_fees(&subscriber, fees)?;
+
+			Self::hold_deposit(
+				&subscriber,
+				T::DepositCalculator::calculate_storage_deposit(&subscription),
+			)?;
+
+			Subscriptions::<T>::insert(sub_id, subscription);
+
+			Self::deposit_event(Event::SubscriptionCreated { sub_id });
+
+			Ok(Some(T::WeightInfo::create_subscription(if let Some(pf) = pulse_filter {
+				pf.len().try_into().unwrap_or(T::PulseFilterLen::get())
+			} else {
+				0
+			}))
+			.into())
 		}
 
 		/// Temporarily halts randomness distribution
@@ -480,12 +525,12 @@ pub mod pallet {
 
 		/// Updates a subscription
 		#[pallet::call_index(3)]
-		#[pallet::weight(T::WeightInfo::update_subscription())]
+		#[pallet::weight(T::WeightInfo::update_subscription(T::PulseFilterLen::get()))]
 		pub fn update_subscription(
 			// Must match the subscription's original caller
 			origin: OriginFor<T>,
 			params: UpdateSubParamsOf<T>,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			let subscriber = ensure_signed(origin)?;
 
 			// make sure the filter does not filter on random values
@@ -501,7 +546,7 @@ pub mod pallet {
 
 				sub.credits = params.credits;
 				sub.frequency = params.frequency;
-				sub.pulse_filter = params.pulse_filter;
+				sub.pulse_filter = params.pulse_filter.clone;
 				sub.updated_at = frame_system::Pallet::<T>::block_number();
 
 				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(sub, &old_sub);
@@ -511,8 +556,15 @@ pub mod pallet {
 				// Hold or refund diff deposit
 				Self::manage_diff_deposit(&subscriber, &deposit_diff)?;
 				Self::deposit_event(Event::SubscriptionUpdated { sub_id: params.sub_id });
-				Ok(())
-			})
+				Ok::<(), DispatchError>(())
+			})?;
+
+			Ok(Some(T::WeightInfo::update_subscription(if let Some(pf) = pulse_filter {
+				pf.len().try_into().unwrap_or(T::PulseFilterLen::get())
+			} else {
+				0
+			}))
+			.into())
 		}
 
 		/// Reactivates a paused subscription
@@ -653,53 +705,6 @@ impl<T: Config> Pallet<T> {
 			Some(filter) => filter.iter().any(|prop| pulse.match_prop(prop.clone())),
 			None => true,
 		}
-	}
-
-	/// Internal function to handle subscription creation
-	fn create_subscription_internal(
-		subscriber: T::AccountId,
-		params: CreateSubParamsOf<T>,
-	) -> DispatchResult {
-		let current_block = frame_system::Pallet::<T>::block_number();
-		let details = SubscriptionDetails {
-			subscriber: subscriber.clone(),
-			target: params.target.clone(),
-			call_index: params.call_index,
-			metadata: params.metadata.unwrap_or_default(),
-		};
-
-		let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(&details, &current_block));
-
-		ensure!(!Subscriptions::<T>::contains_key(sub_id), Error::<T>::SubscriptionAlreadyExists);
-
-		let subscription = Subscription {
-			id: sub_id,
-			state: SubscriptionState::Active,
-			credits_left: params.credits,
-			details,
-			created_at: current_block,
-			updated_at: current_block,
-			credits: params.credits,
-			frequency: params.frequency,
-			last_delivered: None,
-			pulse_filter: params.pulse_filter,
-		};
-
-		// Calculate and hold the subscription fees
-		let fees = Self::calculate_subscription_fees(&params.credits);
-
-		Self::hold_fees(&subscriber, fees)?;
-
-		Self::hold_deposit(
-			&subscriber,
-			T::DepositCalculator::calculate_storage_deposit(&subscription),
-		)?;
-
-		Subscriptions::<T>::insert(sub_id, subscription);
-
-		Self::deposit_event(Event::SubscriptionCreated { sub_id });
-
-		Ok(())
 	}
 
 	fn generate_sub_id(
