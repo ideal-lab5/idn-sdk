@@ -93,7 +93,7 @@ use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo, Hooks,
-		IsType, OptionQuery, StorageMap, Zero,
+		IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
@@ -112,7 +112,7 @@ use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
-use sp_runtime::{traits::One, Saturating};
+use sp_runtime::traits::{One, Saturating};
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use traits::{
 	BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
@@ -356,11 +356,19 @@ pub mod pallet {
 
 		/// A type to define the amount of credits in a subscription
 		type Credits: Unsigned + Codec + TypeInfo + MaxEncodedLen + Debug + Saturating + Copy;
+
+		/// Maximum number of subscriptions allowed
+		type MaxSubscriptions: Get<u32>;
 	}
 
 	#[pallet::storage]
-	pub type Subscriptions<T: Config> =
+	pub(crate) type Subscriptions<T: Config> =
 		StorageMap<_, Blake2_128Concat, SubscriptionId, SubscriptionOf<T>, OptionQuery>;
+
+	/// Storage for the subscription counter. It keeps track of how many subscriptions are in
+	/// storage
+	#[pallet::storage]
+	pub(crate) type SubCounter<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -395,6 +403,8 @@ pub mod pallet {
 		NotSubscriber,
 		/// Can't filter out based on random values
 		FilterRandNotPermitted,
+		/// Too many subscriptions in storage
+		TooManySubscriptions,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -432,6 +442,11 @@ pub mod pallet {
 			params: CreateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
 			let subscriber = ensure_signed(origin)?;
+
+			ensure!(
+				SubCounter::<T>::get() < T::MaxSubscriptions::get(),
+				Error::<T>::TooManySubscriptions
+			);
 
 			// make sure the filter does not filter on random values
 			// see the [Pulse Filtering Security](#pulse-filtering-security) section
@@ -477,6 +492,9 @@ pub mod pallet {
 			)?;
 
 			Subscriptions::<T>::insert(sub_id, subscription);
+
+			// Increase the subscription counter
+			SubCounter::<T>::mutate(|c| c.saturating_inc());
 
 			Self::deposit_event(Event::SubscriptionCreated { sub_id });
 
@@ -612,6 +630,10 @@ impl<T: Config> Pallet<T> {
 		Self::deposit_event(Event::SubscriptionRemoved { sub_id });
 
 		Subscriptions::<T>::remove(sub_id);
+
+		// Decrease the subscription counter
+		SubCounter::<T>::mutate(|c| c.saturating_dec());
+
 		Self::deposit_event(Event::SubscriptionRemoved { sub_id });
 		Ok(())
 	}

@@ -392,6 +392,71 @@ fn create_subscription_fails_if_sub_already_exists() {
 }
 
 #[test]
+fn create_subscription_fails_if_too_many_subscriptions() {
+	ExtBuilder::build().execute_with(|| {
+		let credits: u64 = 50;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 10;
+		let initial_balance = 10_000_000;
+
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		for i in 0..MaxSubscriptions::get() {
+			assert_ok!(IdnManager::create_subscription(
+				RuntimeOrigin::signed(ALICE.clone()),
+				credits,
+				target.clone(),
+				[i.try_into().unwrap(); 2],
+				frequency,
+				None,
+				None,
+				None,
+			));
+		}
+
+		let (latest_sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+
+		// erase all events
+		System::reset_events();
+
+		assert_noop!(
+			IdnManager::create_subscription(
+				RuntimeOrigin::signed(ALICE),
+				credits,
+				target.clone(),
+				[1, 2],
+				frequency,
+				None,
+				None,
+				None,
+			),
+			Error::<Test>::TooManySubscriptions
+		);
+
+		// Assert the SubscriptionCreated event was not emitted
+		assert!(!System::events().iter().any(|record| matches!(
+			record.event,
+			RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated { sub_id: _ })
+		)));
+
+		// Kill latest_sub_id to free up space for future tests
+		assert_ok!(IdnManager::kill_subscription(RuntimeOrigin::signed(ALICE), latest_sub_id));
+
+		// After removing the subscription, we should be able to create a new one
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE),
+			credits,
+			target,
+			[1, 2],
+			frequency,
+			None,
+			None,
+			None,
+		));
+	});
+}
+
+#[test]
 fn test_kill_subscription() {
 	ExtBuilder::build().execute_with(|| {
 		let credits = 10;
