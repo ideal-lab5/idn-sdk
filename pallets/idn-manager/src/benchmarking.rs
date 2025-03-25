@@ -17,7 +17,7 @@
 //! Benchmarking setup for pallet-template
 
 use super::*;
-use crate::{pallet::Pallet as IdnManager, CreateSubParamsOf, PulsePropertyOf};
+use crate::{pallet::Pallet as IdnManager, CreateSubParamsOf, PulsePropertyOf, UpdateSubParamsOf};
 use frame_benchmarking::v2::*;
 use frame_support::{
 	traits::{fungible::Mutate, OriginTrait},
@@ -199,8 +199,15 @@ mod benchmarks {
 			.unwrap(),
 		);
 
+		let params = UpdateSubParamsOf::<T> {
+			sub_id,
+			credits: new_credits,
+			frequency: new_frequency,
+			pulse_filter: new_pulse_filter.clone(),
+		};
+
 		#[extrinsic_call]
-		_(origin, sub_id, new_credits, new_frequency, new_pulse_filter.clone());
+		_(origin, params);
 
 		// assert that the subscription state is correct
 		let sub = Subscriptions::<T>::get(sub_id).unwrap();

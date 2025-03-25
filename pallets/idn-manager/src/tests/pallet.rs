@@ -21,7 +21,7 @@ use crate::{
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
 	Config, CreateSubParamsOf, Error, Event, HoldReason, PulseFilterOf, PulsePropertyOf,
-	SubscriptionState, Subscriptions,
+	SubscriptionState, Subscriptions, UpdateSubParamsOf,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -116,10 +116,12 @@ fn update_subscription(
 
 	assert_ok!(IdnManager::update_subscription(
 		RuntimeOrigin::signed(subscriber.clone()),
-		sub_id,
-		new_credits,
-		new_frequency,
-		None
+		UpdateSubParamsOf::<Test> {
+			sub_id,
+			credits: new_credits,
+			frequency: new_frequency,
+			pulse_filter: None
+		}
 	));
 
 	let new_fees = <Test as Config>::FeesManager::calculate_subscription_fees(&new_credits);
@@ -566,10 +568,12 @@ fn update_subscription_fails_if_sub_does_not_exists() {
 		assert_noop!(
 			IdnManager::update_subscription(
 				RuntimeOrigin::signed(ALICE),
-				sub_id,
-				new_credits,
-				new_frequency,
-				None
+				UpdateSubParamsOf::<Test> {
+					sub_id,
+					credits: new_credits,
+					frequency: new_frequency,
+					pulse_filter: None
+				}
 			),
 			Error::<Test>::SubscriptionDoesNotExist
 		);
@@ -606,17 +610,19 @@ fn update_subscription_fails_if_filtering_randomness() {
 		assert_noop!(
 			IdnManager::update_subscription(
 				RuntimeOrigin::signed(ALICE),
-				sub_id,
-				credits,
-				frequency,
-				Some(
-					BoundedVec::try_from(vec![
-						PulsePropertyOf::<Test>::Round(1),
-						PulsePropertyOf::<Test>::Rand([1u8; 32]),
-						PulsePropertyOf::<Test>::Sig([1u8; 64])
-					])
-					.unwrap()
-				)
+				UpdateSubParamsOf::<Test> {
+					sub_id,
+					credits,
+					frequency,
+					pulse_filter: Some(
+						BoundedVec::try_from(vec![
+							PulsePropertyOf::<Test>::Round(1),
+							PulsePropertyOf::<Test>::Rand([1u8; 32]),
+							PulsePropertyOf::<Test>::Sig([1u8; 64])
+						])
+						.unwrap()
+					)
+				}
 			),
 			Error::<Test>::FilterRandNotPermitted
 		);
@@ -1089,10 +1095,12 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		assert_noop!(
 			IdnManager::update_subscription(
 				RuntimeOrigin::signed(BOB.clone()),
-				sub_id,
-				new_credits,
-				new_frequency,
-				None
+				UpdateSubParamsOf::<Test> {
+					sub_id,
+					credits: new_credits,
+					frequency: new_frequency,
+					pulse_filter: None
+				}
 			),
 			Error::<Test>::NotSubscriber
 		);

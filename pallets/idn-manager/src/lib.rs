@@ -268,22 +268,18 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
 pub struct UpdateSubParams<SubId, Credits, Frequency, PulseFilter> {
-	pub sub_id: SubscriptionId,
+	pub sub_id: SubId,
 	// New number of random values
-	pub credits: T::Credits,
+	pub credits: Credits,
 	// New distribution interval
-	pub frequency: BlockNumberFor<T>,
+	pub frequency: Frequency,
 	// New Pulse Filter
-	pub pulse_filter: Option<PulseFilterOf<T>>,
+	pub pulse_filter: Option<PulseFilter>,
 }
 
-// pub sub_id: SubscriptionId,
-// // New number of random values
-// pub credits: T::Credits,
-// // New distribution interval
-// pub frequency: BlockNumberFor<T>,
-// // New Pulse Filter
-// pub pulse_filter: Option<PulseFilterOf<T>>,
+pub type UpdateSubParamsOf<T> =
+	UpdateSubParams<SubscriptionId, <T as Config>::Credits, BlockNumberFor<T>, PulseFilterOf<T>>;
+
 #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
 pub enum SubscriptionState {
 	Active,
@@ -484,18 +480,18 @@ pub mod pallet {
 
 			// make sure the filter does not filter on random values
 			// see the [Pulse Filtering Security](#pulse-filtering-security) section
-			Self::ensure_filter_no_rand(&pulse_filter)?;
+			Self::ensure_filter_no_rand(&params.pulse_filter)?;
 
-			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
+			Subscriptions::<T>::try_mutate(params.sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 
-				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits, &credits);
+				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits, &params.credits);
 				let old_sub = sub.clone();
 
-				sub.credits = credits;
-				sub.frequency = frequency;
-				sub.pulse_filter = pulse_filter;
+				sub.credits = params.credits;
+				sub.frequency = params.frequency;
+				sub.pulse_filter = params.pulse_filter;
 				sub.updated_at = frame_system::Pallet::<T>::block_number();
 
 				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(sub, &old_sub);
@@ -504,7 +500,7 @@ pub mod pallet {
 				Self::manage_diff_fees(&subscriber, &fees_diff)?;
 				// Hold or refund diff deposit
 				Self::manage_diff_deposit(&subscriber, &deposit_diff)?;
-				Self::deposit_event(Event::SubscriptionUpdated { sub_id });
+				Self::deposit_event(Event::SubscriptionUpdated { sub_id: params.sub_id });
 				Ok(())
 			})
 		}
