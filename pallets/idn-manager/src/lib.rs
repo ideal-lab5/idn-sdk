@@ -94,6 +94,7 @@ use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo, Hooks,
 		IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Zero,
+		IsType, OptionQuery, StorageMap, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
@@ -578,6 +579,7 @@ pub mod pallet {
 				Self::manage_diff_fees(&subscriber, &fees_diff)?;
 				// Hold or refund diff deposit
 				Self::manage_diff_deposit(&subscriber, &deposit_diff)?;
+
 				Self::deposit_event(Event::SubscriptionUpdated { sub_id: params.sub_id });
 				Ok::<(), DispatchError>(())
 			})?;
