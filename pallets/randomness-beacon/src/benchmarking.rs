@@ -15,7 +15,6 @@
  */
 
 //! Benchmarking setup for pallet-randomness-beacon
-#![cfg(feature = "runtime-benchmarks")]
 use super::*;
 
 use crate::Pallet;
@@ -46,7 +45,7 @@ mod benchmarks {
 		let mut asig = zero_on_g1();
 
 		for pulse in pulse_data {
-			let sig_bytes = hex::decode(&pulse.1).unwrap();
+			let sig_bytes = hex::decode(pulse.1).unwrap();
 			let sig = G1AffineOpt::deserialize_compressed(&mut sig_bytes.as_slice()).unwrap();
 			asig = (asig + sig).into();
 
@@ -80,7 +79,7 @@ mod benchmarks {
 	#[benchmark]
 	fn try_submit_asig() -> Result<(), BenchmarkError> {
 		let r = T::MaxSigsPerBlock::get();
-		let (asig, apk) = test(r as u8);
+		let (asig, apk) = test(r);
 
 		#[extrinsic_call]
 		_(RawOrigin::None, asig.clone(), r.into(), Some(1000u64));

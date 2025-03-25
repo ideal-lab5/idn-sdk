@@ -40,5 +40,4 @@ runtime/wasm/target/
 substrate.code-workspace
 target*/
 *.profraw
-Cargo.lock
 *chain_spec.json
