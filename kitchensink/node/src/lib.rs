@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-//! # Tests parent module
-//!
-//! Find tests in the submodules.
-
-mod fee_examples;
-pub(crate) mod mock;
-mod pallet;
+pub mod chain_spec;
+pub(crate) mod cli;
+pub mod rpc;
+pub mod service;

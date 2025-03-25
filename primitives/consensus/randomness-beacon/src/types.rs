@@ -169,6 +169,13 @@ mod tests {
 	}
 
 	#[test]
+	fn test_deserialize_from_empty_data() {
+		let invalid_data = &[]; // 0 bytes
+		let result = OpaquePulse::deserialize_from_vec(invalid_data);
+		assert!(result.is_err(), "Failed to parse round");
+	}
+
+	#[test]
 	fn test_deserialize_from_invalid_length() {
 		let invalid_data = &[0; 50]; // Less than 56 bytes
 		let result = OpaquePulse::deserialize_from_vec(invalid_data);

@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-//! # Tests parent module
-//!
-//! Find tests in the submodules.
-
-mod fee_examples;
-pub(crate) mod mock;
-mod pallet;
+frame_benchmarking::define_benchmarks!(
+	[pallet_randomness_beacon, RandBeacon]
+	[pallet_idn_manager, IdnManager]
+);

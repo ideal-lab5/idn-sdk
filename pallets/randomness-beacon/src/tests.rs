@@ -23,7 +23,7 @@ use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::O
 fn can_construct_pallet_and_set_genesis_params() {
 	new_test_ext().execute_with(|| {
 		let actual_genesis_round = GenesisRound::<Test>::get();
-		assert_eq!(0, actual_genesis_round);
+		assert!(actual_genesis_round.is_none());
 	});
 }
 
@@ -51,7 +51,7 @@ fn can_submit_min_required_valid_pulses_on_genesis() {
 
 		// then the gensis round is set to `round`
 		let genesis_round = GenesisRound::<Test>::get();
-		assert_eq!(round, genesis_round);
+		assert_eq!(round, genesis_round.unwrap());
 
 		let maybe_res = AggregatedSignature::<Test>::get();
 		assert!(maybe_res.is_some());
@@ -112,7 +112,7 @@ fn can_submit_valid_sigs_in_sequence() {
 
 		// then the gensis round is set to `round`
 		let genesis_round = GenesisRound::<Test>::get();
-		assert_eq!(round1, genesis_round);
+		assert_eq!(round1, genesis_round.unwrap());
 
 		let maybe_res = AggregatedSignature::<Test>::get();
 		assert!(maybe_res.is_some());
@@ -122,7 +122,7 @@ fn can_submit_valid_sigs_in_sequence() {
 		assert_eq!(apk, aggr.message_hash);
 
 		let actual_latest = LatestRound::<Test>::get();
-		assert_eq!(round2, actual_latest);
+		assert_eq!(round2, actual_latest.unwrap());
 	});
 }
 
@@ -161,14 +161,10 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 			Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, None),
 			Error::<Test>::VerificationFailed,
 		);
-		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig1.clone(), 2, Some(round1)),
-			Error::<Test>::GenesisRoundAlreadySet,
-		);
 
 		// then the gensis round is set to `round`
 		let genesis_round = GenesisRound::<Test>::get();
-		assert_eq!(round1, genesis_round);
+		assert_eq!(round1, genesis_round.unwrap());
 
 		let maybe_res = AggregatedSignature::<Test>::get();
 		assert!(maybe_res.is_some());
@@ -178,7 +174,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 		assert_eq!(apk1, aggr.message_hash);
 
 		let actual_latest = LatestRound::<Test>::get();
-		assert_eq!(1002, actual_latest);
+		assert_eq!(1002, actual_latest.unwrap());
 	});
 }
 
@@ -229,7 +225,7 @@ fn can_create_inherent_when_genesis_round_is_set() {
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
 	new_test_ext().execute_with(|| {
-		GenesisRound::<Test>::set(999);
+		GenesisRound::<Test>::set(Some(999));
 		let result = Drand::create_inherent(&inherent_data);
 		if let Some(Call::try_submit_asig { asig: actual_asig, height, round: None }) = result {
 			assert_eq!(height, 2, "The asig height should equal the number of pulses.");
@@ -262,7 +258,7 @@ fn can_check_inherent() {
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
 	new_test_ext().execute_with(|| {
-		GenesisRound::<Test>::set(999);
+		GenesisRound::<Test>::set(Some(999));
 		let result = Drand::create_inherent(&inherent_data);
 		if let Some(call) = result {
 			assert!(Drand::is_inherent(&call), "The inherent should be allowed.");

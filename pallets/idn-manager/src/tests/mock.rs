@@ -22,14 +22,18 @@
 use crate::{
 	self as pallet_idn_manager,
 	impls::{DepositCalculatorImpl, FeesManagerImpl},
-	SubscriptionOf,
+	BalanceOf, SubscriptionOf,
 };
+use codec::Encode;
 use frame_support::{
 	construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage, traits::Get,
 };
 use frame_system as system;
 use scale_info::TypeInfo;
-use sp_runtime::{traits::IdentityLookup, AccountId32};
+use sp_runtime::{
+	traits::{Block as BlockT, IdentityLookup},
+	AccountId32,
+};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -61,6 +65,7 @@ parameter_types! {
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
+	pub const PulseFilterLen: u32 = 100;
 }
 
 #[derive(TypeInfo)]
@@ -72,6 +77,28 @@ impl Get<u32> for SubMetadataLen {
 	}
 }
 
+type Rand = [u8; 32];
+type Round = u64;
+
+#[derive(Encode, Clone, Copy)]
+pub struct Pulse {
+	pub rand: Rand,
+	pub round: Round,
+}
+
+impl idn_traits::pulse::Pulse for Pulse {
+	type Rand = Rand;
+	type Round = Round;
+
+	fn rand(&self) -> Self::Rand {
+		self.rand
+	}
+
+	fn round(&self) -> Self::Round {
+		self.round
+	}
+}
+
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -79,11 +106,48 @@ impl pallet_idn_manager::Config for Test {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Rnd = [u8; 32];
+	type Pulse = Pulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type SubMetadataLen = SubMetadataLen;
 	type Credits = u64;
+	type PulseFilterLen = PulseFilterLen;
+}
+
+sp_api::impl_runtime_apis! {
+	impl pallet_idn_manager::IdnManagerApi<
+			Block,
+			BalanceOf<Test>,
+			u64,
+			AccountId32,
+			SubscriptionOf<Test>
+		> for Test {
+		fn calculate_subscription_fees(credits: u64) -> BalanceOf<Test> {
+			pallet_idn_manager::Pallet::<Test>::calculate_subscription_fees(&credits)
+		}
+		fn get_subscription(
+			sub_id: pallet_idn_manager::SubscriptionId
+		) -> Option<SubscriptionOf<Test>> {
+			pallet_idn_manager::Pallet::<Test>::get_subscription(&sub_id)
+		}
+		fn get_subscriptions_for_subscriber(
+			subscriber: AccountId32
+		) -> Vec<SubscriptionOf<Test>> {
+			pallet_idn_manager::Pallet::<Test>::get_subscriptions_for_subscriber(&subscriber)
+		}
+	}
+
+	impl sp_api::Core<Block> for Test {
+		fn version() -> sp_version::RuntimeVersion {
+			unimplemented!()
+		}
+		fn execute_block(_: Block) {
+			unimplemented!()
+		}
+		fn initialize_block(_: &<Block as BlockT>::Header) -> sp_runtime::ExtrinsicInclusionMode {
+			unimplemented!()
+		}
+	}
 }
 
 pub struct ExtBuilder;
