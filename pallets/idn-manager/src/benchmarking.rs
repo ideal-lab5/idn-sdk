@@ -15,7 +15,6 @@
  */
 
 //! Benchmarking setup for pallet-template
-#![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
 use crate::{pallet::Pallet as IdnManager, PulsePropertyOf};
