@@ -1,20 +1,19 @@
 [package]
 name = "example-consumer"
 version = "0.1.0"
-authors = ["Ideal Labs <dev@ideal.org>"]
+authors = ["Ideal Labs <hello@idealabs.network>"]
 edition = "2021"
 license = "Apache-2.0"
 
 [dependencies]
 ink = { workspace = true, default-features = false }
-codec = { workspace = true, default-features = false, features = ["derive"] }
+scale = { package = "parity-scale-codec", workspace = true, default-features = false, features = ["derive"] }
 scale-info = { workspace = true, default-features = false, features = ["derive"] }
-
-# Import our IDN client library
 idn-client = { path = "../idn-client", default-features = false }
 
 [dev-dependencies]
 ink_e2e = { workspace = true }
+serde_json = { workspace = true }
 
 [lib]
 path = "lib.rs"
@@ -29,8 +28,9 @@ crate-type = [
 default = ["std"]
 std = [
     "ink/std",
-    "codec/std",
+    "scale/std",
     "scale-info/std",
     "idn-client/std",
 ]
+ink-as-dependency = []
 e2e-tests = []

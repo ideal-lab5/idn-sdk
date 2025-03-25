@@ -28,7 +28,7 @@ mod example_consumer {
     }
 
     /// Errors that can occur in the Example Consumer contract
-    #[derive(Debug, PartialEq, Eq, codec::Encode, codec::Decode)]
+    #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum ContractError {
         /// Error from the IDN Client

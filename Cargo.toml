@@ -7,7 +7,6 @@ members = [
     "pallets/idn-manager",
     "kitchensink/runtime",
     "kitchensink/node",
-    "support/traits",
     "contracts/idn-client",
     "contracts/example-consumer",
 ]
@@ -74,7 +73,7 @@ array-bytes = { version = "=6.2.2", default-features = false }
 hex = { version = "=0.4", features = ["serde"], default-features = false }
 prost = { version = "=0.13.4", default-features = false, features = ["prost-derive"] }
 serde = { version = "=1.0.219", default-features = false }
-serde_json = { version = "=1.0.132", default-features = false }
+serde_json = "=1.0.133"
 
 # Polkadot & Substrate
 frame-benchmarking = { version = "=39.0.0", default-features = false }
@@ -131,6 +130,7 @@ jsonrpsee = { version = "0.24.3" }
 log = { version = "=0.4.26", default-features = false }
 
 # Parity SCALE Codec
+scale = { package = "parity-scale-codec", version = "=3.7.4", default-features = false, features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "=3.7.4", default-features = false, features = ["derive"] }
 scale-info = { version = "=2.11.6", default-features = false, features = ["derive"] }
 

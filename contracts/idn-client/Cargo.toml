@@ -1,7 +1,7 @@
 [package]
 name = "idn-client"
 version = "0.1.0"
-authors = ["Ideal Labs <dev@ideal.org>"]
+authors = ["Ideal Labs <hello@idealabs.network>"]
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
@@ -9,11 +9,12 @@ description = "A client library for interacting with Ideal Network services"
 
 [dependencies]
 ink = { workspace = true, default-features = false }
-codec = { workspace = true, default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", workspace = true, default-features = false, features = ["derive"] }
 scale-info = { workspace = true, default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 ink_e2e = { workspace = true }
+serde_json = { workspace = true }
 
 [lib]
 name = "idn_client"
