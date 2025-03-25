@@ -97,7 +97,7 @@ mod benchmarks {
 		let history_depth = T::MissedBlocksHistoryDepth::get();
 		let block_number: u32 = history_depth;
 		// submit an asig (height unimportant)
-		let (asig, _apk) = test(2u8 );
+		let (asig, _apk) = test(2u8);
 		Pallet::<T>::try_submit_asig(RawOrigin::None.into(), asig.clone(), 2, Some(1000u64))
 			.unwrap();
 
