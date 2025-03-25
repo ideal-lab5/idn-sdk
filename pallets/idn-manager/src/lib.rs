@@ -94,7 +94,6 @@ use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo, Hooks,
 		IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Zero,
-		IsType, OptionQuery, StorageMap, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
