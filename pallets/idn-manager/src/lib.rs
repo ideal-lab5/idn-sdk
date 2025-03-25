@@ -266,6 +266,24 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 	PulseFilterOf<T>,
 >;
 
+#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
+pub struct UpdateSubParams<SubId, Credits, Frequency, PulseFilter> {
+	pub sub_id: SubscriptionId,
+	// New number of random values
+	pub credits: T::Credits,
+	// New distribution interval
+	pub frequency: BlockNumberFor<T>,
+	// New Pulse Filter
+	pub pulse_filter: Option<PulseFilterOf<T>>,
+}
+
+// pub sub_id: SubscriptionId,
+// // New number of random values
+// pub credits: T::Credits,
+// // New distribution interval
+// pub frequency: BlockNumberFor<T>,
+// // New Pulse Filter
+// pub pulse_filter: Option<PulseFilterOf<T>>,
 #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
 pub enum SubscriptionState {
 	Active,
@@ -460,13 +478,7 @@ pub mod pallet {
 		pub fn update_subscription(
 			// Must match the subscription's original caller
 			origin: OriginFor<T>,
-			sub_id: SubscriptionId,
-			// New number of random values
-			credits: T::Credits,
-			// New distribution interval
-			frequency: BlockNumberFor<T>,
-			// New Pulse Filter
-			pulse_filter: Option<PulseFilterOf<T>>,
+			params: UpdateSubParamsOf<T>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
 
