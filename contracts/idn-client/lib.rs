@@ -67,6 +67,9 @@ pub type BlockNumber = u32;
 /// Metadata is optional additional information for a subscription
 pub type Metadata = Vec<u8>;
 
+/// Pulse filter is an optional filter for pulses
+pub type PulseFilter = Vec<u8>;
+
 /// Represents the state of a subscription
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -77,17 +80,18 @@ pub enum SubscriptionState {
     Paused,
 }
 
-/// IDN Client provides functionality to interact with the IDN Manager pallet
+/// Client trait for interacting with the IDN Manager pallet
 pub trait IdnClient {
-    /// Creates a new randomness subscription
+    /// Creates a new subscription for randomness delivery
     /// 
     /// # Arguments
     /// 
     /// * `credits` - Number of random values to receive
-    /// * `ideal_network_para_id` - Parachain ID of the Ideal Network
-    /// * `call_index` - Call index for the function to receive randomness
+    /// * `target` - XCM multilocation for random value delivery
+    /// * `call_index` - Call index for XCM message
     /// * `frequency` - Distribution interval for random values (in blocks)
     /// * `metadata` - Optional metadata for the subscription
+    /// * `pulse_filter` - Optional filter for pulses
     /// 
     /// # Returns
     /// 
@@ -95,10 +99,11 @@ pub trait IdnClient {
     fn create_subscription(
         &mut self,
         credits: u32,
-        ideal_network_para_id: u32,
+        target: Location,
         call_index: CallIndex,
         frequency: BlockNumber,
         metadata: Option<Metadata>,
+        pulse_filter: Option<PulseFilter>,
     ) -> Result<SubscriptionId>;
 
     /// Pauses an active subscription
@@ -106,7 +111,6 @@ pub trait IdnClient {
     /// # Arguments
     /// 
     /// * `subscription_id` - ID of the subscription to pause
-    /// * `ideal_network_para_id` - Parachain ID of the Ideal Network
     /// 
     /// # Returns
     /// 
@@ -114,7 +118,6 @@ pub trait IdnClient {
     fn pause_subscription(
         &mut self,
         subscription_id: SubscriptionId,
-        ideal_network_para_id: u32,
     ) -> Result<()>;
 
     /// Reactivates a paused subscription
@@ -122,7 +125,6 @@ pub trait IdnClient {
     /// # Arguments
     /// 
     /// * `subscription_id` - ID of the subscription to reactivate
-    /// * `ideal_network_para_id` - Parachain ID of the Ideal Network
     /// 
     /// # Returns
     /// 
@@ -130,7 +132,6 @@ pub trait IdnClient {
     fn reactivate_subscription(
         &mut self,
         subscription_id: SubscriptionId,
-        ideal_network_para_id: u32,
     ) -> Result<()>;
 
     /// Updates an existing subscription
@@ -138,9 +139,9 @@ pub trait IdnClient {
     /// # Arguments
     /// 
     /// * `subscription_id` - ID of the subscription to update
-    /// * `ideal_network_para_id` - Parachain ID of the Ideal Network
-    /// * `credits` - New number of random values to receive
-    /// * `frequency` - New distribution interval for random values
+    /// * `credits` - New number of credits
+    /// * `frequency` - New distribution interval
+    /// * `pulse_filter` - New pulse filter
     /// 
     /// # Returns
     /// 
@@ -148,17 +149,16 @@ pub trait IdnClient {
     fn update_subscription(
         &mut self,
         subscription_id: SubscriptionId,
-        ideal_network_para_id: u32,
         credits: u32,
         frequency: BlockNumber,
+        pulse_filter: Option<PulseFilter>,
     ) -> Result<()>;
 
-    /// Cancels an existing subscription
+    /// Kills (cancels) a subscription before its natural conclusion
     /// 
     /// # Arguments
     /// 
-    /// * `subscription_id` - ID of the subscription to cancel
-    /// * `ideal_network_para_id` - Parachain ID of the Ideal Network
+    /// * `subscription_id` - ID of the subscription to kill
     /// 
     /// # Returns
     /// 
@@ -166,7 +166,6 @@ pub trait IdnClient {
     fn kill_subscription(
         &mut self,
         subscription_id: SubscriptionId,
-        ideal_network_para_id: u32,
     ) -> Result<()>;
 }
 
@@ -202,6 +201,7 @@ impl IdnClientImpl {
         call_index: CallIndex,
         frequency: BlockNumber,
         metadata: Option<Metadata>,
+        pulse_filter: Option<PulseFilter>,
     ) -> Xcm<()> {
         // The pallet index and call index for the IDN Manager pallet
         let idn_manager_pallet_index = 42; // Example value, should be replaced with actual
@@ -209,11 +209,13 @@ impl IdnClientImpl {
 
         // Encode the parameters for create_subscription call
         let metadata = metadata.unwrap_or_default();
+        let pulse_filter = pulse_filter.unwrap_or_default();
         let encoded_params = codec::Encode::encode(&(
             credits,
             frequency,
             call_index,
             metadata,
+            pulse_filter,
         ));
 
         // Create the XCM program to call the create_subscription function
@@ -292,16 +294,19 @@ impl IdnClientImpl {
         subscription_id: SubscriptionId,
         credits: u32,
         frequency: BlockNumber,
+        pulse_filter: Option<PulseFilter>,
     ) -> Xcm<()> {
         // The pallet index and call index for the IDN Manager pallet
         let idn_manager_pallet_index = 42; // Example value, should be replaced with actual
         let idn_manager_update_sub_index = 3; // Example value, should be replaced with actual
 
         // Encode the parameters for update_subscription call
+        let pulse_filter = pulse_filter.unwrap_or_default();
         let encoded_params = codec::Encode::encode(&(
             subscription_id,
             credits,
             frequency,
+            pulse_filter,
         ));
 
         // Create the XCM program to call the update_subscription function
@@ -352,10 +357,11 @@ impl IdnClient for IdnClientImpl {
     fn create_subscription(
         &mut self,
         credits: u32,
-        ideal_network_para_id: u32,
+        target: Location,
         call_index: CallIndex,
         frequency: BlockNumber,
         metadata: Option<Metadata>,
+        pulse_filter: Option<PulseFilter>,
     ) -> Result<SubscriptionId> {
         // Create the XCM message
         let message = self.construct_create_subscription_xcm(
@@ -363,10 +369,11 @@ impl IdnClient for IdnClientImpl {
             call_index,
             frequency,
             metadata,
+            pulse_filter,
         );
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(ideal_network_para_id);
+        let junction = Junction::Parachain(2000); // Example value, should be replaced with actual
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -393,13 +400,12 @@ impl IdnClient for IdnClientImpl {
     fn pause_subscription(
         &mut self,
         subscription_id: SubscriptionId,
-        ideal_network_para_id: u32,
     ) -> Result<()> {
         // Create the XCM message
         let message = self.construct_pause_subscription_xcm(subscription_id);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(ideal_network_para_id);
+        let junction = Junction::Parachain(2000); // Example value, should be replaced with actual
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -420,13 +426,12 @@ impl IdnClient for IdnClientImpl {
     fn reactivate_subscription(
         &mut self,
         subscription_id: SubscriptionId,
-        ideal_network_para_id: u32,
     ) -> Result<()> {
         // Create the XCM message
         let message = self.construct_reactivate_subscription_xcm(subscription_id);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(ideal_network_para_id);
+        let junction = Junction::Parachain(2000); // Example value, should be replaced with actual
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -447,19 +452,20 @@ impl IdnClient for IdnClientImpl {
     fn update_subscription(
         &mut self,
         subscription_id: SubscriptionId,
-        ideal_network_para_id: u32,
         credits: u32,
         frequency: BlockNumber,
+        pulse_filter: Option<PulseFilter>,
     ) -> Result<()> {
         // Create the XCM message
         let message = self.construct_update_subscription_xcm(
             subscription_id,
             credits,
             frequency,
+            pulse_filter,
         );
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(ideal_network_para_id);
+        let junction = Junction::Parachain(2000); // Example value, should be replaced with actual
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -480,13 +486,12 @@ impl IdnClient for IdnClientImpl {
     fn kill_subscription(
         &mut self,
         subscription_id: SubscriptionId,
-        ideal_network_para_id: u32,
     ) -> Result<()> {
         // Create the XCM message
         let message = self.construct_kill_subscription_xcm(subscription_id);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(ideal_network_para_id);
+        let junction = Junction::Parachain(2000); // Example value, should be replaced with actual
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -519,6 +524,7 @@ mod tests {
             [0, 1], // call_index
             5, // frequency
             None, // metadata
+            None, // pulse_filter
         );
         assert!(matches!(create_message, Xcm::<()> { .. }));
 
@@ -531,7 +537,7 @@ mod tests {
         assert!(matches!(reactivate_message, Xcm::<()> { .. }));
 
         // Test updating a subscription XCM message
-        let update_message = client.construct_update_subscription_xcm(123, 20, 10);
+        let update_message = client.construct_update_subscription_xcm(123, 20, 10, None);
         assert!(matches!(update_message, Xcm::<()> { .. }));
 
         // Test canceling a subscription XCM message
@@ -551,6 +557,7 @@ mod tests {
             credits,
             call_index,
             frequency,
+            None,
             None,
         );
         
@@ -584,6 +591,7 @@ mod tests {
             [0, 1],
             5,
             None,
+            None,
         );
         
         // Verify message was created correctly
@@ -600,6 +608,7 @@ mod tests {
             [0, 0],
             0, // Zero frequency
             None,
+            None,
         );
         assert!(matches!(zero_credits_message, Xcm::<()> { .. }));
         
@@ -609,6 +618,7 @@ mod tests {
             [255, 255],
             u32::MAX,
             Some(vec![255; 1000]), // Large metadata
+            Some(vec![255; 1000]), // Large pulse filter
         );
         assert!(matches!(large_values_message, Xcm::<()> { .. }));
     }

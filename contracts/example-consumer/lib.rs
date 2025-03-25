@@ -4,9 +4,11 @@
 #[ink::contract]
 mod example_consumer {
     use ink::prelude::vec::Vec;
+    use std::sync::Arc;
+    use ink::xcm::prelude::*;
     use idn_client::{
         CallIndex, Error, IdnClient, IdnClientImpl, 
-        RandomnessReceiver, Result, SubscriptionId
+        RandomnessReceiver, Result, SubscriptionId,
     };
 
     /// The Example Consumer contract demonstrates how to use the IDN Client
@@ -93,16 +95,24 @@ mod example_consumer {
                 return Err(ContractError::Other);
             }
 
-            // Use the IDN client to send the XCM message
-            // to the IDN Network to create the subscription
+            // Create the target location
+            let junction = Junction::Parachain(self.ideal_network_para_id);
+            let junctions_array = [junction; 1];
+            let target = Location {
+                parents: 1, // Parent (relay chain)
+                interior: Junctions::X1(Arc::new(junctions_array)),
+            };
+
+            // Create subscription through IDN client
             let subscription_id = self.idn_client.create_subscription(
                 credits,
-                self.ideal_network_para_id,
+                target,
                 self.randomness_call_index,
                 frequency,
                 metadata,
-            )?;
-            
+                None, // No pulse filter
+            ).map_err(ContractError::IdnClientError)?;
+
             // Update contract state with the new subscription
             self.subscription_id = Some(subscription_id);
             
@@ -115,17 +125,17 @@ mod example_consumer {
         /// 
         /// * `Result<(), ContractError>` - Success or error
         #[ink(message)]
-        pub fn pause_subscription(&mut self) -> core::result::Result<(), ContractError> {
-            let subscription_id = self.subscription_id
-                .ok_or(ContractError::NoActiveSubscription)?;
-                
-            // Use the IDN client to send the XCM message
-            // to the IDN Network to pause the subscription
-            self.idn_client.pause_subscription(
-                subscription_id, 
-                self.ideal_network_para_id
-            )?;
-            
+        pub fn pause_subscription(
+            &mut self,
+            subscription_id: SubscriptionId,
+        ) -> core::result::Result<(), ContractError> {
+            // Ensure caller is authorized
+            self.ensure_authorized()?;
+
+            // Pause subscription through IDN client
+            self.idn_client.pause_subscription(subscription_id)
+                .map_err(ContractError::IdnClientError)?;
+
             Ok(())
         }
 
@@ -135,17 +145,17 @@ mod example_consumer {
         /// 
         /// * `Result<(), ContractError>` - Success or error
         #[ink(message)]
-        pub fn reactivate_subscription(&mut self) -> core::result::Result<(), ContractError> {
-            let subscription_id = self.subscription_id
-                .ok_or(ContractError::NoActiveSubscription)?;
-                
-            // Use the IDN client to send the XCM message
-            // to the IDN Network to reactivate the subscription
-            self.idn_client.reactivate_subscription(
-                subscription_id,
-                self.ideal_network_para_id
-            )?;
-            
+        pub fn reactivate_subscription(
+            &mut self,
+            subscription_id: SubscriptionId,
+        ) -> core::result::Result<(), ContractError> {
+            // Ensure caller is authorized
+            self.ensure_authorized()?;
+
+            // Reactivate subscription through IDN client
+            self.idn_client.reactivate_subscription(subscription_id)
+                .map_err(ContractError::IdnClientError)?;
+
             Ok(())
         }
 
@@ -162,21 +172,21 @@ mod example_consumer {
         #[ink(message)]
         pub fn update_subscription(
             &mut self,
+            subscription_id: SubscriptionId,
             credits: u32,
             frequency: u32,
         ) -> core::result::Result<(), ContractError> {
-            let subscription_id = self.subscription_id
-                .ok_or(ContractError::NoActiveSubscription)?;
-                
-            // Use the IDN client to send the XCM message
-            // to the IDN Network to update the subscription
+            // Ensure caller is authorized
+            self.ensure_authorized()?;
+
+            // Update subscription through IDN client
             self.idn_client.update_subscription(
                 subscription_id,
-                self.ideal_network_para_id,
                 credits,
                 frequency,
-            )?;
-            
+                None, // No pulse filter
+            ).map_err(ContractError::IdnClientError)?;
+
             Ok(())
         }
 
@@ -186,17 +196,17 @@ mod example_consumer {
         /// 
         /// * `Result<(), ContractError>` - Success or error
         #[ink(message)]
-        pub fn cancel_subscription(&mut self) -> core::result::Result<(), ContractError> {
-            let subscription_id = self.subscription_id
-                .ok_or(ContractError::NoActiveSubscription)?;
-                
-            // Use the IDN client to send the XCM message
-            // to the IDN Network to kill the subscription
-            self.idn_client.kill_subscription(
-                subscription_id,
-                self.ideal_network_para_id,
-            )?;
-            
+        pub fn kill_subscription(
+            &mut self,
+            subscription_id: SubscriptionId,
+        ) -> core::result::Result<(), ContractError> {
+            // Ensure caller is authorized
+            self.ensure_authorized()?;
+
+            // Kill subscription through IDN client
+            self.idn_client.kill_subscription(subscription_id)
+                .map_err(ContractError::IdnClientError)?;
+
             // Clear the subscription ID and other state
             self.subscription_id = None;
             
@@ -267,6 +277,11 @@ mod example_consumer {
             self.last_randomness = Some(randomness);
             self.randomness_history.push(randomness);
             
+            Ok(())
+        }
+
+        fn ensure_authorized(&self) -> core::result::Result<(), ContractError> {
+            // TO DO: implement authorization logic
             Ok(())
         }
     }
@@ -525,11 +540,11 @@ mod example_consumer {
             
             // Cancel the subscription
             let cancel_sub = build_message::<ExampleConsumerRef>(contract_id.clone())
-                .call(|contract| contract.cancel_subscription());
+                .call(|contract| contract.kill_subscription());
             let result = client
                 .call(&ink_e2e::alice(), cancel_sub, 0, None)
                 .await
-                .expect("cancel_subscription failed");
+                .expect("kill_subscription failed");
             assert!(result.return_value().is_ok());
             
             Ok(())
