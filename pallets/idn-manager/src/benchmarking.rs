@@ -17,7 +17,7 @@
 //! Benchmarking setup for pallet-template
 
 use super::*;
-use crate::{pallet::Pallet as IdnManager, PulsePropertyOf};
+use crate::{pallet::Pallet as IdnManager, CreateSubParamsOf, PulsePropertyOf};
 use frame_benchmarking::v2::*;
 use frame_support::{
 	traits::{fungible::Mutate, OriginTrait},
@@ -55,8 +55,18 @@ mod benchmarks {
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
+		let params = CreateSubParamsOf::<T> {
+			credits,
+			target: target.clone(),
+			call_index,
+			frequency,
+			metadata,
+			pulse_filter,
+			sub_id,
+		};
+
 		#[extrinsic_call]
-		_(origin, credits, target.clone(), call_index, frequency, metadata, pulse_filter, sub_id);
+		_(origin, params);
 
 		// assert that the subscription details are correct
 		let (_, sub) = Subscriptions::<T>::iter().next().unwrap();
@@ -86,13 +96,15 @@ mod benchmarks {
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-			credits,
-			target.clone(),
-			call_index,
-			frequency,
-			metadata,
-			pulse_filter,
-			sub_id,
+			CreateSubParamsOf::<T> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata,
+				pulse_filter,
+				sub_id,
+			},
 		);
 
 		// assert that the subscription state is correct
@@ -123,13 +135,15 @@ mod benchmarks {
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-			credits,
-			target.clone(),
-			call_index,
-			frequency,
-			metadata,
-			pulse_filter,
-			sub_id,
+			CreateSubParamsOf::<T> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata,
+				pulse_filter,
+				sub_id,
+			},
 		);
 
 		// assert that the subscription was created
@@ -159,13 +173,15 @@ mod benchmarks {
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-			credits,
-			target.clone(),
-			call_index,
-			frequency,
-			metadata,
-			pulse_filter,
-			sub_id,
+			CreateSubParamsOf::<T> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata,
+				pulse_filter,
+				sub_id,
+			},
 		);
 
 		// assert that the subscription state is correct
@@ -209,13 +225,15 @@ mod benchmarks {
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-			credits,
-			target.clone(),
-			call_index,
-			frequency,
-			metadata,
-			pulse_filter,
-			sub_id,
+			CreateSubParamsOf::<T> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata,
+				pulse_filter,
+				sub_id,
+			},
 		);
 
 		// assert that the subscription state is correct

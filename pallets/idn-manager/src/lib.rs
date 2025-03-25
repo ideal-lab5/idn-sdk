@@ -248,6 +248,24 @@ pub type SubscriptionDetailsOf<T> =
 
 pub type SubscriptionId = [u8; 32];
 
+#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
+pub struct CreateSubParams<Credits, BlockNumber, Metadata, PulseFilter> {
+	pub credits: Credits,
+	pub target: Location,
+	pub call_index: CallIndex,
+	pub frequency: BlockNumber,
+	pub metadata: Option<Metadata>,
+	pub pulse_filter: Option<PulseFilter>,
+	pub sub_id: Option<SubscriptionId>,
+}
+
+pub type CreateSubParamsOf<T> = CreateSubParams<
+	<T as pallet::Config>::Credits,
+	BlockNumberFor<T>,
+	MetadataOf<T>,
+	PulseFilterOf<T>,
+>;
+
 #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
 pub enum SubscriptionState {
 	Active,
@@ -386,37 +404,15 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::create_subscription())]
 		pub fn create_subscription(
 			origin: OriginFor<T>,
-			// Number of random values to receive
-			credits: T::Credits,
-			// XCM multilocation for random value delivery
-			target: Location,
-			// Call index for XCM message
-			call_index: CallIndex,
-			// Distribution interval for random values
-			frequency: BlockNumberFor<T>,
-			// Bounded vector for additional data
-			metadata: Option<MetadataOf<T>>,
-			// Optional Pulse Filter
-			pulse_filter: Option<PulseFilterOf<T>>,
-			// Optional Subscription Id
-			sub_id: Option<SubscriptionId>,
+			params: CreateSubParamsOf<T>,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
 
 			// make sure the filter does not filter on random values
 			// see the [Pulse Filtering Security](#pulse-filtering-security) section
-			Self::ensure_filter_no_rand(&pulse_filter)?;
+			Self::ensure_filter_no_rand(&params.pulse_filter)?;
 
-			Self::create_subscription_internal(
-				subscriber,
-				credits,
-				target,
-				call_index,
-				frequency,
-				metadata,
-				pulse_filter,
-				sub_id,
-			)
+			Self::create_subscription_internal(subscriber, params)
 		}
 
 		/// Temporarily halts randomness distribution
@@ -644,41 +640,35 @@ impl<T: Config> Pallet<T> {
 	/// Internal function to handle subscription creation
 	fn create_subscription_internal(
 		subscriber: T::AccountId,
-		credits: T::Credits,
-		target: Location,
-		call_index: CallIndex,
-		frequency: BlockNumberFor<T>,
-		metadata: Option<MetadataOf<T>>,
-		pulse_filter: Option<PulseFilterOf<T>>,
-		sub_id: Option<SubscriptionId>,
+		params: CreateSubParamsOf<T>,
 	) -> DispatchResult {
 		let current_block = frame_system::Pallet::<T>::block_number();
 		let details = SubscriptionDetails {
 			subscriber: subscriber.clone(),
-			target: target.clone(),
-			call_index,
-			metadata: metadata.unwrap_or_default(),
+			target: params.target.clone(),
+			call_index: params.call_index,
+			metadata: params.metadata.unwrap_or_default(),
 		};
 
-		let sub_id = sub_id.unwrap_or(Self::generate_sub_id(&details, &current_block));
+		let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(&details, &current_block));
 
 		ensure!(!Subscriptions::<T>::contains_key(sub_id), Error::<T>::SubscriptionAlreadyExists);
 
 		let subscription = Subscription {
 			id: sub_id,
 			state: SubscriptionState::Active,
-			credits_left: credits,
+			credits_left: params.credits,
 			details,
 			created_at: current_block,
 			updated_at: current_block,
-			credits,
-			frequency,
+			credits: params.credits,
+			frequency: params.frequency,
 			last_delivered: None,
-			pulse_filter,
+			pulse_filter: params.pulse_filter,
 		};
 
 		// Calculate and hold the subscription fees
-		let fees = Self::calculate_subscription_fees(&credits);
+		let fees = Self::calculate_subscription_fees(&params.credits);
 
 		Self::hold_fees(&subscriber, fees)?;
 
