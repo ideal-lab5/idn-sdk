@@ -160,6 +160,7 @@ pub type SubscriptionOf<T> = Subscription<
 pub type PulsePropertyOf<T> = PulseProperty<
 	<<T as pallet::Config>::Pulse as Pulse>::Rand,
 	<<T as pallet::Config>::Pulse as Pulse>::Round,
+	<<T as pallet::Config>::Pulse as Pulse>::Sig,
 >;
 
 /// A filter that controls which pulses are delivered to a subscription
@@ -175,7 +176,7 @@ pub type PulsePropertyOf<T> = PulseProperty<
 /// # Usage
 /// ```rust
 /// use idn_traits::pulse::PulseProperty as PulsePropertyTrait;
-/// type PulseProperty = PulsePropertyTrait<[u8; 32], u64>;
+/// type PulseProperty = PulsePropertyTrait<[u8; 32], u64, [u8; 48]>;
 /// // Create a filter for even-numbered rounds only
 /// let filter = vec![
 ///     PulseProperty::Round(2),
@@ -741,10 +742,10 @@ impl<T: Config> Pallet<T> {
 
 	/// Ensures that a pulse filter doesn't attempt to filter on random values
 	///
-	/// This function checks that the filter doesn't use the `PulseProperty::Rand` variant
-	/// for filtering. Filtering based on randomness is not permitted because it would
-	/// contradict the purpose of randomness distribution - clients shouldn't be able
-	/// to selectively receive only certain random values.
+	/// This function checks that the filter doesn't use the `PulseProperty::Rand` or
+	/// `PulseProperty::Sig` variant for filtering. Filtering based on randomness is not permitted
+	/// because it would contradict the purpose of randomness distribution - clients shouldn't be
+	/// able to selectively receive only certain random values.
 	///
 	/// # Parameters
 	/// * `pulse_filter` - The optional pulse filter to validate
@@ -759,8 +760,10 @@ impl<T: Config> Pallet<T> {
 	/// match specific patterns.
 	pub fn ensure_filter_no_rand(pulse_filter: &Option<PulseFilterOf<T>>) -> DispatchResult {
 		if let Some(filter) = pulse_filter {
-			// Check if any item in the filter is a PulseProperty::Rand variant
-			if filter.iter().any(|prop| matches!(prop, PulseProperty::Rand(_))) {
+			// Check if any item in the filter is a Rand or Sig variant
+			if filter.iter().any(|prop| {
+				matches!(prop, PulseProperty::Rand(_)) || matches!(prop, PulseProperty::Sig(_))
+			}) {
 				return Err(Error::<T>::FilterRandNotPermitted.into());
 			}
 		}
