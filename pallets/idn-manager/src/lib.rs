@@ -426,6 +426,7 @@ pub mod pallet {
 		/// Creates a subscription for one or multiple blocks
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::create_subscription(T::PulseFilterLen::get()))]
+		#[allow(clippy::useless_conversion)]
 		pub fn create_subscription(
 			origin: OriginFor<T>,
 			params: CreateSubParamsOf<T>,
@@ -529,6 +530,7 @@ pub mod pallet {
 		/// Updates a subscription
 		#[pallet::call_index(3)]
 		#[pallet::weight(T::WeightInfo::update_subscription(T::PulseFilterLen::get()))]
+		#[allow(clippy::useless_conversion)]
 		pub fn update_subscription(
 			// Must match the subscription's original caller
 			origin: OriginFor<T>,
