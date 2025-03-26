@@ -8025,6 +8025,7 @@ dependencies = [
  "pallet-xcm",
  "parity-scale-codec",
  "scale-info",
+ "simple-mermaid",
  "sp-api",
  "sp-arithmetic",
  "sp-core",
