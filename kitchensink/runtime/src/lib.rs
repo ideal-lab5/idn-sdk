@@ -222,7 +222,8 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type WeightInfo = ();
 	type BeaconConfig = QuicknetBeaconConfig;
 	type SignatureAggregator = pallet_randomness_beacon::aggregator::QuicknetAggregator;
-	type MaxSigsPerBlock = ConstU8<2>;
+	type MaxSigsPerBlock = ConstU8<4>;
+	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
 }
 
 pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
@@ -285,16 +286,19 @@ impl Get<u32> for SubMetadataLen {
 
 type Rand = [u8; 32];
 type Round = u64;
+type Sig = [u8; 48];
 
 #[derive(Encode, Clone, Copy)]
 pub struct Pulse {
 	pub rand: Rand,
 	pub round: Round,
+	pub sig: Sig,
 }
 
 impl idn_traits::pulse::Pulse for Pulse {
 	type Rand = Rand;
 	type Round = Round;
+	type Sig = Sig;
 
 	fn rand(&self) -> Self::Rand {
 		self.rand
@@ -302,6 +306,14 @@ impl idn_traits::pulse::Pulse for Pulse {
 
 	fn round(&self) -> Self::Round {
 		self.round
+	}
+
+	fn sig(&self) -> Self::Sig {
+		self.sig
+	}
+
+	fn valid(&self) -> bool {
+		true
 	}
 }
 

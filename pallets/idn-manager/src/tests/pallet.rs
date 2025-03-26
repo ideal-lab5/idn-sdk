@@ -20,8 +20,8 @@ use crate::{
 	runtime_decl_for_idn_manager_api::IdnManagerApiV1,
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
-	Config, Error, Event, HoldReason, PulseFilterOf, PulsePropertyOf, SubscriptionState,
-	Subscriptions,
+	Config, CreateSubParamsOf, Error, Event, HoldReason, PulseFilterOf, PulsePropertyOf,
+	SubscriptionState, Subscriptions, UpdateSubParamsOf,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -33,7 +33,6 @@ use frame_support::{
 	BoundedVec,
 };
 use idn_traits::pulse::Dispatcher;
-use sp_core::H256;
 use sp_runtime::{AccountId32, DispatchError, TokenError};
 use xcm::v5::{Junction, Location};
 
@@ -65,12 +64,15 @@ fn update_subscription(
 
 	assert_ok!(IdnManager::create_subscription(
 		RuntimeOrigin::signed(subscriber.clone()),
-		original_credits,
-		target.clone(),
-		[1; 2],
-		original_frequency,
-		metadata.clone(),
-		None
+		CreateSubParamsOf::<Test> {
+			credits: original_credits,
+			target: target.clone(),
+			call_index: [1; 2],
+			frequency: original_frequency,
+			metadata: metadata.clone(),
+			pulse_filter: None,
+			sub_id: None,
+		}
 	));
 
 	// Get the sub_id from the last emitted event
@@ -114,10 +116,12 @@ fn update_subscription(
 
 	assert_ok!(IdnManager::update_subscription(
 		RuntimeOrigin::signed(subscriber.clone()),
-		sub_id,
-		new_credits,
-		new_frequency,
-		None
+		UpdateSubParamsOf::<Test> {
+			sub_id,
+			credits: new_credits,
+			frequency: new_frequency,
+			pulse_filter: None
+		}
 	));
 
 	let new_fees = <Test as Config>::FeesManager::calculate_subscription_fees(&new_credits);
@@ -182,12 +186,15 @@ fn create_subscription_works() {
 		// assert that the subscription has been created
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None,
-			Some(mock_rounds_filter(&rounds))
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: Some(mock_rounds_filter(&rounds)),
+				sub_id: None,
+			}
 		));
 
 		assert_eq!(Subscriptions::<Test>::iter().count(), 1);
@@ -219,6 +226,49 @@ fn create_subscription_works() {
 }
 
 #[test]
+fn create_subscription_with_custom_id_works() {
+	ExtBuilder::build().execute_with(|| {
+		let credits: u64 = 50;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 10;
+		let initial_balance = 10_000_000;
+		let custom_id = [7u8; 32];
+
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// assert Subscriptions storage map is empty before creating a subscription
+		assert_eq!(Subscriptions::<Test>::iter().count(), 0);
+
+		let rounds = vec![0u64, 1, 2];
+
+		// assert that the subscription has been created
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: Some(mock_rounds_filter(&rounds)),
+				sub_id: Some(custom_id),
+			}
+		));
+
+		assert_eq!(Subscriptions::<Test>::iter().count(), 1);
+
+		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+
+		// assert that the correct event has been emitted
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated {
+			sub_id: custom_id,
+		}));
+
+		assert_eq!(sub_id, custom_id);
+	});
+}
+
+#[test]
 fn create_subscription_fails_if_filtering_randomness() {
 	ExtBuilder::build().execute_with(|| {
 		let credits: u64 = 50;
@@ -231,24 +281,31 @@ fn create_subscription_fails_if_filtering_randomness() {
 		assert_noop!(
 			IdnManager::create_subscription(
 				RuntimeOrigin::signed(ALICE.clone()),
-				credits,
-				target.clone(),
-				[1; 2],
-				frequency,
-				None,
-				Some(
-					BoundedVec::try_from(vec![
-						PulsePropertyOf::<Test>::Round(1),
-						PulsePropertyOf::<Test>::Rand([1u8; 32])
-					])
-					.unwrap()
-				)
+				CreateSubParamsOf::<Test> {
+					credits,
+					target: target.clone(),
+					call_index: [1; 2],
+					frequency,
+					metadata: None,
+					pulse_filter: Some(
+						BoundedVec::try_from(vec![
+							PulsePropertyOf::<Test>::Round(1),
+							PulsePropertyOf::<Test>::Rand([1u8; 32]),
+							PulsePropertyOf::<Test>::Sig([1u8; 64])
+						])
+						.unwrap()
+					),
+					sub_id: None,
+				}
 			),
 			Error::<Test>::FilterRandNotPermitted
 		);
 
 		// Assert the SubscriptionCreated event was not emitted
-		assert!(event_not_emitted(Event::<Test>::SubscriptionCreated { sub_id: H256::zero() }));
+		assert!(!System::events().iter().any(|record| matches!(
+			record.event,
+			RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated { sub_id: _ })
+		)));
 	});
 }
 
@@ -264,12 +321,15 @@ fn create_subscription_fails_if_insufficient_balance() {
 		assert_noop!(
 			IdnManager::create_subscription(
 				RuntimeOrigin::signed(ALICE),
-				credits,
-				target,
-				[1; 2],
-				frequency,
-				None,
-				None
+				CreateSubParamsOf::<Test> {
+					credits,
+					target,
+					call_index: [1; 2],
+					frequency,
+					metadata: None,
+					pulse_filter: None,
+					sub_id: None,
+				}
 			),
 			TokenError::FundsUnavailable
 		);
@@ -293,12 +353,15 @@ fn create_subscription_fails_if_sub_already_exists() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// erase all events
@@ -307,12 +370,15 @@ fn create_subscription_fails_if_sub_already_exists() {
 		assert_noop!(
 			IdnManager::create_subscription(
 				RuntimeOrigin::signed(ALICE),
-				credits,
-				target,
-				[1; 2],
-				frequency,
-				None,
-				None
+				CreateSubParamsOf::<Test> {
+					credits,
+					target,
+					call_index: [1; 2],
+					frequency,
+					metadata: None,
+					pulse_filter: None,
+					sub_id: None,
+				}
 			),
 			Error::<Test>::SubscriptionAlreadyExists
 		);
@@ -338,12 +404,15 @@ fn test_kill_subscription() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			metadata.clone(),
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: metadata.clone(),
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		let (sub_id, subscription) = Subscriptions::<Test>::iter().next().unwrap();
@@ -371,7 +440,7 @@ fn test_kill_subscription() {
 #[test]
 fn kill_subscription_fails_if_sub_does_not_exist() {
 	ExtBuilder::build().execute_with(|| {
-		let sub_id = H256::from_slice(&[1; 32]);
+		let sub_id = [0xff; 32];
 
 		assert_noop!(
 			IdnManager::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id),
@@ -396,12 +465,15 @@ fn on_finalize_removes_zero_credit_subscriptions() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Get the subscription ID
@@ -489,17 +561,19 @@ fn test_update_subscription() {
 #[test]
 fn update_subscription_fails_if_sub_does_not_exists() {
 	ExtBuilder::build().execute_with(|| {
-		let sub_id = H256::from_slice(&[1; 32]);
+		let sub_id = [0xff; 32];
 		let new_credits = 20;
 		let new_frequency = 4;
 
 		assert_noop!(
 			IdnManager::update_subscription(
 				RuntimeOrigin::signed(ALICE),
-				sub_id,
-				new_credits,
-				new_frequency,
-				None
+				UpdateSubParamsOf::<Test> {
+					sub_id,
+					credits: new_credits,
+					frequency: new_frequency,
+					pulse_filter: None
+				}
 			),
 			Error::<Test>::SubscriptionDoesNotExist
 		);
@@ -520,12 +594,15 @@ fn update_subscription_fails_if_filtering_randomness() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
@@ -533,16 +610,19 @@ fn update_subscription_fails_if_filtering_randomness() {
 		assert_noop!(
 			IdnManager::update_subscription(
 				RuntimeOrigin::signed(ALICE),
-				sub_id,
-				credits,
-				frequency,
-				Some(
-					BoundedVec::try_from(vec![
-						PulsePropertyOf::<Test>::Round(1),
-						PulsePropertyOf::<Test>::Rand([1u8; 32])
-					])
-					.unwrap()
-				)
+				UpdateSubParamsOf::<Test> {
+					sub_id,
+					credits,
+					frequency,
+					pulse_filter: Some(
+						BoundedVec::try_from(vec![
+							PulsePropertyOf::<Test>::Round(1),
+							PulsePropertyOf::<Test>::Rand([1u8; 32]),
+							PulsePropertyOf::<Test>::Sig([1u8; 64])
+						])
+						.unwrap()
+					)
+				}
 			),
 			Error::<Test>::FilterRandNotPermitted
 		);
@@ -562,7 +642,7 @@ fn test_credits_consumption_and_cleanup() {
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000;
 		let mut treasury_balance = 0;
-		let pulse = mock::Pulse { rand: [0u8; 32], round: 0 };
+		let pulse = mock::Pulse { rand: [0u8; 32], round: 0, sig: [1u8; 64] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -571,12 +651,15 @@ fn test_credits_consumption_and_cleanup() {
 		// Create subscription
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Get subscription details
@@ -673,7 +756,7 @@ fn test_credits_consumption_not_enogh_balance() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], round: 0 };
+		let pulse = mock::Pulse { rand: [0u8; 32], round: 0, sig: [1u8; 64] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -681,12 +764,15 @@ fn test_credits_consumption_not_enogh_balance() {
 		// Create subscription
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Get subscription details
@@ -728,7 +814,7 @@ fn test_credits_consumption_frequency() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 3; // Every 3 blocks
 		let initial_balance = 10_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], round: 0 };
+		let pulse = mock::Pulse { rand: [0u8; 32], round: 0, sig: [1u8; 64] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -736,12 +822,15 @@ fn test_credits_consumption_frequency() {
 		// Create subscription
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Get the subscription ID
@@ -805,12 +894,15 @@ fn test_pause_reactivate_subscription() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			metadata.clone(),
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: metadata.clone(),
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		let free_balance = Balances::free_balance(&ALICE);
@@ -844,7 +936,7 @@ fn test_pause_reactivate_subscription() {
 #[test]
 fn pause_subscription_fails_if_sub_does_not_exists() {
 	ExtBuilder::build().execute_with(|| {
-		let sub_id = H256::from_slice(&[1; 32]);
+		let sub_id = [0xff; 32];
 
 		assert_noop!(
 			IdnManager::pause_subscription(RuntimeOrigin::signed(ALICE), sub_id),
@@ -868,12 +960,15 @@ fn pause_subscription_fails_if_sub_already_paused() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			metadata.clone(),
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: metadata.clone(),
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
@@ -896,7 +991,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 #[test]
 fn reactivate_subscription_fails_if_sub_does_not_exists() {
 	ExtBuilder::build().execute_with(|| {
-		let sub_id = H256::from_slice(&[1; 32]);
+		let sub_id = [1; 32];
 
 		assert_noop!(
 			IdnManager::reactivate_subscription(RuntimeOrigin::signed(ALICE), sub_id),
@@ -920,12 +1015,15 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			metadata.clone(),
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: metadata.clone(),
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
@@ -956,12 +1054,15 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		// Create subscription for Alice
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			metadata.clone(),
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: metadata.clone(),
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Retrieve the subscription ID created
@@ -994,10 +1095,12 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		assert_noop!(
 			IdnManager::update_subscription(
 				RuntimeOrigin::signed(BOB.clone()),
-				sub_id,
-				new_credits,
-				new_frequency,
-				None
+				UpdateSubParamsOf::<Test> {
+					sub_id,
+					credits: new_credits,
+					frequency: new_frequency,
+					pulse_filter: None
+				}
 			),
 			Error::<Test>::NotSubscriber
 		);
@@ -1025,12 +1128,15 @@ fn test_on_finalize_removes_finished_subscriptions() {
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		let (sub_id, mut subscription) = Subscriptions::<Test>::iter().next().unwrap();
@@ -1210,12 +1316,15 @@ fn test_get_subscription() {
 		// Create a subscription
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Retrieve the subscription ID created
@@ -1232,7 +1341,7 @@ fn test_get_subscription() {
 		assert_eq!(sub.details.target, target);
 
 		// Test get_subscription with invalid ID
-		let invalid_sub_id = H256::from_slice(&[0xff; 32]);
+		let invalid_sub_id = [0xff; 32];
 		let invalid_subscription = IdnManager::get_subscription(&invalid_sub_id);
 		assert!(invalid_subscription.is_none(), "Invalid subscription ID should return None");
 	});
@@ -1252,33 +1361,42 @@ fn test_get_subscriptions_for_subscriber() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			50,
-			target1.clone(),
-			[1; 2],
-			10,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits: 50,
+				target: target1.clone(),
+				call_index: [1; 2],
+				frequency: 10,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			100,
-			target2.clone(),
-			[1; 2],
-			20,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits: 100,
+				target: target2.clone(),
+				call_index: [1; 2],
+				frequency: 20,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Create a subscription for BOB
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(BOB.clone()),
-			75,
-			target3.clone(),
-			[1; 2],
-			15,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits: 75,
+				target: target3.clone(),
+				call_index: [1; 2],
+				frequency: 15,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Test get_subscriptions_for_subscriber with ALICE
@@ -1355,12 +1473,15 @@ fn test_runtime_api_get_subscription() {
 		// Create a subscription
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			[1; 2],
-			frequency,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Retrieve the subscription ID created
@@ -1377,7 +1498,7 @@ fn test_runtime_api_get_subscription() {
 		assert_eq!(sub.details.target, target);
 
 		// Test get_subscription with invalid ID
-		let invalid_sub_id = H256::from_slice(&[0xff; 32]);
+		let invalid_sub_id = [0xff; 32];
 		let invalid_subscription = Test::get_subscription(invalid_sub_id);
 		assert!(invalid_subscription.is_none(), "Invalid subscription ID should return None");
 	});
@@ -1397,33 +1518,42 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			50,
-			target1.clone(),
-			[1; 2],
-			10,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits: 50,
+				target: target1.clone(),
+				call_index: [1; 2],
+				frequency: 10,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			100,
-			target2.clone(),
-			[1; 2],
-			20,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits: 100,
+				target: target2.clone(),
+				call_index: [1; 2],
+				frequency: 20,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Create a subscription for BOB
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(BOB.clone()),
-			75,
-			target3.clone(),
-			[1; 2],
-			15,
-			None,
-			None
+			CreateSubParamsOf::<Test> {
+				credits: 75,
+				target: target3.clone(),
+				call_index: [1; 2],
+				frequency: 15,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 
 		// Test get_subscriptions_for_subscriber with ALICE
@@ -1483,12 +1613,15 @@ fn test_pulse_filter_functionality() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			call_index,
-			frequency,
-			None,
-			Some(rounds_filter)
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata: None,
+				pulse_filter: Some(rounds_filter),
+				sub_id: None,
+			}
 		));
 
 		// Get subscription ID
@@ -1512,7 +1645,7 @@ fn test_pulse_filter_functionality() {
 			let round = block + 1;
 
 			// Create pulse with current round
-			let pulse = mock::Pulse { rand: [block as u8; 32], round };
+			let pulse = mock::Pulse { rand: [block as u8; 32], round, sig: [1u8; 64] };
 
 			// Clear previous events
 			System::reset_events();
@@ -1575,12 +1708,15 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
-			credits,
-			target.clone(),
-			call_index,
-			frequency,
-			None,
-			Some(rounds_filter)
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata: None,
+				pulse_filter: Some(rounds_filter),
+				sub_id: None,
+			}
 		));
 
 		// Get subscription ID
@@ -1605,7 +1741,7 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 			let round = block + 1;
 
 			// Create pulse with current round
-			let pulse = mock::Pulse { rand: [block as u8; 32], round };
+			let pulse = mock::Pulse { rand: [block as u8; 32], round, sig: [1u8; 64] };
 
 			// Clear previous events
 			System::reset_events();

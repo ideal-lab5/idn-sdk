@@ -92,8 +92,8 @@ pub mod weights;
 use codec::{Codec, Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
-		ensure, Blake2_128Concat, DispatchError, DispatchResult, Hooks, IsType, OptionQuery,
-		StorageMap, Zero,
+		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo, Hooks,
+		IsType, OptionQuery, StorageMap, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
@@ -160,6 +160,7 @@ pub type SubscriptionOf<T> = Subscription<
 pub type PulsePropertyOf<T> = PulseProperty<
 	<<T as pallet::Config>::Pulse as Pulse>::Rand,
 	<<T as pallet::Config>::Pulse as Pulse>::Round,
+	<<T as pallet::Config>::Pulse as Pulse>::Sig,
 >;
 
 /// A filter that controls which pulses are delivered to a subscription
@@ -175,7 +176,7 @@ pub type PulsePropertyOf<T> = PulseProperty<
 /// # Usage
 /// ```rust
 /// use idn_traits::pulse::PulseProperty as PulsePropertyTrait;
-/// type PulseProperty = PulsePropertyTrait<[u8; 32], u64>;
+/// type PulseProperty = PulsePropertyTrait<[u8; 32], u64, [u8; 48]>;
 /// // Create a filter for even-numbered rounds only
 /// let filter = vec![
 ///     PulseProperty::Round(2),
@@ -191,6 +192,7 @@ pub type PulseFilterOf<T> = BoundedVec<PulsePropertyOf<T>, <T as Config>::PulseF
 
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
 pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter> {
+	id: SubscriptionId,
 	details: SubscriptionDetails<AccountId, Metadata>,
 	// Number of random values left to distribute
 	credits_left: Credits,
@@ -241,29 +243,52 @@ pub struct SubscriptionDetails<AccountId, Metadata> {
 	pub metadata: Metadata,
 }
 
-impl<AccountId, BlockNumber, Credits, Metadata, PulseFilter>
-	Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter>
-where
-	AccountId: Encode,
-	BlockNumber: Encode + Copy,
-	Metadata: Encode + Clone,
-{
-	pub fn id(&self) -> SubscriptionId {
-		let id_tuple = (
-			self.created_at,
-			&self.details.subscriber,
-			self.details.target.clone(),
-			self.details.call_index,
-			self.details.metadata.clone(),
-		);
-		// Encode the tuple using SCALE codec.
-		let encoded = id_tuple.encode();
-		// Hash the encoded bytes using blake2_256.
-		H256::from_slice(&blake2_256(&encoded))
-	}
+pub type SubscriptionDetailsOf<T> =
+	SubscriptionDetails<<T as frame_system::Config>::AccountId, MetadataOf<T>>;
+
+pub type SubscriptionId = [u8; 32];
+
+/// Parameters for creating a new subscription
+#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
+pub struct CreateSubParams<Credits, BlockNumber, Metadata, PulseFilter> {
+	// Number of random values to receive
+	pub credits: Credits,
+	// XCM multilocation for random value delivery
+	pub target: Location,
+	// Call index for XCM message
+	pub call_index: CallIndex,
+	// Distribution interval for random values
+	pub frequency: BlockNumber,
+	// Bounded vector for additional data
+	pub metadata: Option<Metadata>,
+	// Optional Pulse Filter
+	pub pulse_filter: Option<PulseFilter>,
+	// Optional Subscription Id, if None, a new one will be generated
+	pub sub_id: Option<SubscriptionId>,
 }
 
-pub type SubscriptionId = H256;
+pub type CreateSubParamsOf<T> = CreateSubParams<
+	<T as pallet::Config>::Credits,
+	BlockNumberFor<T>,
+	MetadataOf<T>,
+	PulseFilterOf<T>,
+>;
+
+/// Parameters for updating an existing subscription
+#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
+pub struct UpdateSubParams<SubId, Credits, Frequency, PulseFilter> {
+	// The Subscription Id
+	pub sub_id: SubId,
+	// New number of random values
+	pub credits: Credits,
+	// New distribution interval
+	pub frequency: Frequency,
+	// New Pulse Filter
+	pub pulse_filter: Option<PulseFilter>,
+}
+
+pub type UpdateSubParamsOf<T> =
+	UpdateSubParams<SubscriptionId, <T as Config>::Credits, BlockNumberFor<T>, PulseFilterOf<T>>;
 
 #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
 pub enum SubscriptionState {
@@ -400,37 +425,67 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Creates a subscription for one or multiple blocks
 		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::create_subscription())]
+		#[pallet::weight(T::WeightInfo::create_subscription(T::PulseFilterLen::get()))]
+		#[allow(clippy::useless_conversion)]
 		pub fn create_subscription(
 			origin: OriginFor<T>,
-			// Number of random values to receive
-			credits: T::Credits,
-			// XCM multilocation for random value delivery
-			target: Location,
-			// Call index for XCM message
-			call_index: CallIndex,
-			// Distribution interval for random values
-			frequency: BlockNumberFor<T>,
-			// Bounded vector for additional data
-			metadata: Option<MetadataOf<T>>,
-			// Optional Pulse Filter
-			pulse_filter: Option<PulseFilterOf<T>>,
-		) -> DispatchResult {
+			params: CreateSubParamsOf<T>,
+		) -> DispatchResultWithPostInfo {
 			let subscriber = ensure_signed(origin)?;
 
 			// make sure the filter does not filter on random values
 			// see the [Pulse Filtering Security](#pulse-filtering-security) section
-			Self::ensure_filter_no_rand(&pulse_filter)?;
+			Self::ensure_filter_no_rand(&params.pulse_filter)?;
 
-			Self::create_subscription_internal(
-				subscriber,
-				credits,
-				target,
-				call_index,
-				frequency,
-				metadata,
-				pulse_filter,
-			)
+			let current_block = frame_system::Pallet::<T>::block_number();
+
+			let details = SubscriptionDetails {
+				subscriber: subscriber.clone(),
+				target: params.target.clone(),
+				call_index: params.call_index,
+				metadata: params.metadata.unwrap_or_default(),
+			};
+
+			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(&details, &current_block));
+
+			ensure!(
+				!Subscriptions::<T>::contains_key(sub_id),
+				Error::<T>::SubscriptionAlreadyExists
+			);
+
+			let subscription = Subscription {
+				id: sub_id,
+				state: SubscriptionState::Active,
+				credits_left: params.credits,
+				details,
+				created_at: current_block,
+				updated_at: current_block,
+				credits: params.credits,
+				frequency: params.frequency,
+				last_delivered: None,
+				pulse_filter: params.pulse_filter.clone(),
+			};
+
+			// Calculate and hold the subscription fees
+			let fees = Self::calculate_subscription_fees(&params.credits);
+
+			Self::hold_fees(&subscriber, fees)?;
+
+			Self::hold_deposit(
+				&subscriber,
+				T::DepositCalculator::calculate_storage_deposit(&subscription),
+			)?;
+
+			Subscriptions::<T>::insert(sub_id, subscription);
+
+			Self::deposit_event(Event::SubscriptionCreated { sub_id });
+
+			Ok(Some(T::WeightInfo::create_subscription(if let Some(pf) = params.pulse_filter {
+				pf.len().try_into().unwrap_or(T::PulseFilterLen::get())
+			} else {
+				0
+			}))
+			.into())
 		}
 
 		/// Temporarily halts randomness distribution
@@ -474,34 +529,29 @@ pub mod pallet {
 
 		/// Updates a subscription
 		#[pallet::call_index(3)]
-		#[pallet::weight(T::WeightInfo::update_subscription())]
+		#[pallet::weight(T::WeightInfo::update_subscription(T::PulseFilterLen::get()))]
+		#[allow(clippy::useless_conversion)]
 		pub fn update_subscription(
 			// Must match the subscription's original caller
 			origin: OriginFor<T>,
-			sub_id: SubscriptionId,
-			// New number of random values
-			credits: T::Credits,
-			// New distribution interval
-			frequency: BlockNumberFor<T>,
-			// New Pulse Filter
-			pulse_filter: Option<PulseFilterOf<T>>,
-		) -> DispatchResult {
+			params: UpdateSubParamsOf<T>,
+		) -> DispatchResultWithPostInfo {
 			let subscriber = ensure_signed(origin)?;
 
 			// make sure the filter does not filter on random values
 			// see the [Pulse Filtering Security](#pulse-filtering-security) section
-			Self::ensure_filter_no_rand(&pulse_filter)?;
+			Self::ensure_filter_no_rand(&params.pulse_filter)?;
 
-			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
+			Subscriptions::<T>::try_mutate(params.sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 
-				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits, &credits);
+				let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits, &params.credits);
 				let old_sub = sub.clone();
 
-				sub.credits = credits;
-				sub.frequency = frequency;
-				sub.pulse_filter = pulse_filter;
+				sub.credits = params.credits;
+				sub.frequency = params.frequency;
+				sub.pulse_filter = params.pulse_filter.clone();
 				sub.updated_at = frame_system::Pallet::<T>::block_number();
 
 				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(sub, &old_sub);
@@ -510,9 +560,16 @@ pub mod pallet {
 				Self::manage_diff_fees(&subscriber, &fees_diff)?;
 				// Hold or refund diff deposit
 				Self::manage_diff_deposit(&subscriber, &deposit_diff)?;
-				Self::deposit_event(Event::SubscriptionUpdated { sub_id });
-				Ok(())
-			})
+				Self::deposit_event(Event::SubscriptionUpdated { sub_id: params.sub_id });
+				Ok::<(), DispatchError>(())
+			})?;
+
+			Ok(Some(T::WeightInfo::update_subscription(if let Some(pf) = params.pulse_filter {
+				pf.len().try_into().unwrap_or(T::PulseFilterLen::get())
+			} else {
+				0
+			}))
+			.into())
 		}
 
 		/// Reactivates a paused subscription
@@ -624,7 +681,7 @@ impl<T: Config> Pallet<T> {
 			FeesError::NotEnoughBalance { .. } => DispatchError::Other("NotEnoughBalance"),
 			FeesError::Other(de) => de,
 		})?;
-		Self::deposit_event(Event::FeesCollected { sub_id: sub.id(), fees });
+		Self::deposit_event(Event::FeesCollected { sub_id: sub.id, fees });
 		Ok(())
 	}
 
@@ -655,54 +712,21 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// Internal function to handle subscription creation
-	fn create_subscription_internal(
-		subscriber: T::AccountId,
-		credits: T::Credits,
-		target: Location,
-		call_index: CallIndex,
-		frequency: BlockNumberFor<T>,
-		metadata: Option<MetadataOf<T>>,
-		pulse_filter: Option<PulseFilterOf<T>>,
-	) -> DispatchResult {
-		// Calculate and hold the subscription fees
-		let fees = Self::calculate_subscription_fees(&credits);
-
-		Self::hold_fees(&subscriber, fees)?;
-
-		let current_block = frame_system::Pallet::<T>::block_number();
-		let details = SubscriptionDetails {
-			subscriber: subscriber.clone(),
-			target: target.clone(),
-			call_index,
-			metadata: metadata.unwrap_or_default(),
-		};
-		let subscription = Subscription {
-			state: SubscriptionState::Active,
-			credits_left: credits,
-			details,
-			created_at: current_block,
-			updated_at: current_block,
-			credits,
-			frequency,
-			last_delivered: None,
-			pulse_filter,
-		};
-
-		Self::hold_deposit(
-			&subscriber,
-			T::DepositCalculator::calculate_storage_deposit(&subscription),
-		)?;
-
-		let sub_id = subscription.id();
-
-		ensure!(!Subscriptions::<T>::contains_key(sub_id), Error::<T>::SubscriptionAlreadyExists);
-
-		Subscriptions::<T>::insert(sub_id, subscription);
-
-		Self::deposit_event(Event::SubscriptionCreated { sub_id });
-
-		Ok(())
+	fn generate_sub_id(
+		sub_details: &SubscriptionDetailsOf<T>,
+		current_block: &BlockNumberFor<T>,
+	) -> SubscriptionId {
+		let id_tuple = (
+			current_block,
+			&sub_details.subscriber,
+			sub_details.target.clone(),
+			sub_details.call_index,
+			sub_details.metadata.clone(),
+		);
+		// Encode the tuple using SCALE codec.
+		let encoded = id_tuple.encode();
+		// Hash the encoded bytes using blake2_256.
+		H256::from_slice(&blake2_256(&encoded)).into()
 	}
 
 	fn hold_fees(subscriber: &T::AccountId, fees: BalanceOf<T>) -> DispatchResult {
@@ -741,10 +765,10 @@ impl<T: Config> Pallet<T> {
 
 	/// Ensures that a pulse filter doesn't attempt to filter on random values
 	///
-	/// This function checks that the filter doesn't use the `PulseProperty::Rand` variant
-	/// for filtering. Filtering based on randomness is not permitted because it would
-	/// contradict the purpose of randomness distribution - clients shouldn't be able
-	/// to selectively receive only certain random values.
+	/// This function checks that the filter doesn't use the `PulseProperty::Rand` or
+	/// `PulseProperty::Sig` variant for filtering. Filtering based on randomness is not permitted
+	/// because it would contradict the purpose of randomness distribution - clients shouldn't be
+	/// able to selectively receive only certain random values.
 	///
 	/// # Parameters
 	/// * `pulse_filter` - The optional pulse filter to validate
@@ -759,8 +783,10 @@ impl<T: Config> Pallet<T> {
 	/// match specific patterns.
 	pub fn ensure_filter_no_rand(pulse_filter: &Option<PulseFilterOf<T>>) -> DispatchResult {
 		if let Some(filter) = pulse_filter {
-			// Check if any item in the filter is a PulseProperty::Rand variant
-			if filter.iter().any(|prop| matches!(prop, PulseProperty::Rand(_))) {
+			// Check if any item in the filter is a Rand or Sig variant
+			if filter.iter().any(|prop| {
+				matches!(prop, PulseProperty::Rand(_)) || matches!(prop, PulseProperty::Sig(_))
+			}) {
 				return Err(Error::<T>::FilterRandNotPermitted.into());
 			}
 		}
