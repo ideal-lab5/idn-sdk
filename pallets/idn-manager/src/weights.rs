@@ -60,64 +60,64 @@ pub trait WeightInfo {
 /// Weights for `pallet_idn_manager` using the IDN SDK Kitchensink Runtime and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
+	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
+	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5662), added: 8137, mode: `MaxEncodedLen`)
 	/// Storage: `Balances::Holds` (r:1 w:1)
 	/// Proof: `Balances::Holds` (`max_values`: None, `max_size`: Some(69), added: 2544, mode: `MaxEncodedLen`)
-	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
-	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5630), added: 8105, mode: `MaxEncodedLen`)
 	fn create_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `42`
-		//  Estimated: `9095`
-		// Minimum execution time: 92_000_000 picoseconds.
-		Weight::from_parts(94_000_000, 9095)
+		//  Estimated: `9127`
+		// Minimum execution time: 94_000_000 picoseconds.
+		Weight::from_parts(95_000_000, 9127)
 			.saturating_add(T::DbWeight::get().reads(2_u64))
 			.saturating_add(T::DbWeight::get().writes(2_u64))
 	}
 	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
-	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5630), added: 8105, mode: `MaxEncodedLen`)
+	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5662), added: 8137, mode: `MaxEncodedLen`)
 	fn pause_subscription() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `189`
-		//  Estimated: `9095`
+		//  Measured:  `221`
+		//  Estimated: `9127`
 		// Minimum execution time: 14_000_000 picoseconds.
-		Weight::from_parts(15_000_000, 9095)
+		Weight::from_parts(15_000_000, 9127)
 			.saturating_add(T::DbWeight::get().reads(1_u64))
 			.saturating_add(T::DbWeight::get().writes(1_u64))
 	}
 	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
-	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5630), added: 8105, mode: `MaxEncodedLen`)
+	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5662), added: 8137, mode: `MaxEncodedLen`)
 	/// Storage: `Balances::Holds` (r:1 w:1)
 	/// Proof: `Balances::Holds` (`max_values`: None, `max_size`: Some(69), added: 2544, mode: `MaxEncodedLen`)
 	fn kill_subscription() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `247`
-		//  Estimated: `9095`
+		//  Measured:  `279`
+		//  Estimated: `9127`
 		// Minimum execution time: 77_000_000 picoseconds.
-		Weight::from_parts(79_000_000, 9095)
+		Weight::from_parts(79_000_000, 9127)
 			.saturating_add(T::DbWeight::get().reads(2_u64))
 			.saturating_add(T::DbWeight::get().writes(2_u64))
 	}
 	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
-	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5630), added: 8105, mode: `MaxEncodedLen`)
+	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5662), added: 8137, mode: `MaxEncodedLen`)
 	/// Storage: `Balances::Holds` (r:1 w:1)
 	/// Proof: `Balances::Holds` (`max_values`: None, `max_size`: Some(69), added: 2544, mode: `MaxEncodedLen`)
 	fn update_subscription() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `247`
-		//  Estimated: `9095`
+		//  Measured:  `279`
+		//  Estimated: `9127`
 		// Minimum execution time: 77_000_000 picoseconds.
-		Weight::from_parts(78_000_000, 9095)
+		Weight::from_parts(78_000_000, 9127)
 			.saturating_add(T::DbWeight::get().reads(2_u64))
 			.saturating_add(T::DbWeight::get().writes(2_u64))
 	}
 	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
-	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5630), added: 8105, mode: `MaxEncodedLen`)
+	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5662), added: 8137, mode: `MaxEncodedLen`)
 	fn reactivate_subscription() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `189`
-		//  Estimated: `9095`
+		//  Measured:  `221`
+		//  Estimated: `9127`
 		// Minimum execution time: 14_000_000 picoseconds.
-		Weight::from_parts(15_000_000, 9095)
+		Weight::from_parts(15_000_000, 9127)
 			.saturating_add(T::DbWeight::get().reads(1_u64))
 			.saturating_add(T::DbWeight::get().writes(1_u64))
 	}
@@ -125,64 +125,64 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 
 // For backwards compatibility and tests.
 impl WeightInfo for () {
+	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
+	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5662), added: 8137, mode: `MaxEncodedLen`)
 	/// Storage: `Balances::Holds` (r:1 w:1)
 	/// Proof: `Balances::Holds` (`max_values`: None, `max_size`: Some(69), added: 2544, mode: `MaxEncodedLen`)
-	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
-	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5630), added: 8105, mode: `MaxEncodedLen`)
 	fn create_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `42`
-		//  Estimated: `9095`
-		// Minimum execution time: 92_000_000 picoseconds.
-		Weight::from_parts(94_000_000, 9095)
+		//  Estimated: `9127`
+		// Minimum execution time: 94_000_000 picoseconds.
+		Weight::from_parts(95_000_000, 9127)
 			.saturating_add(RocksDbWeight::get().reads(2_u64))
 			.saturating_add(RocksDbWeight::get().writes(2_u64))
 	}
 	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
-	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5630), added: 8105, mode: `MaxEncodedLen`)
+	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5662), added: 8137, mode: `MaxEncodedLen`)
 	fn pause_subscription() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `189`
-		//  Estimated: `9095`
+		//  Measured:  `221`
+		//  Estimated: `9127`
 		// Minimum execution time: 14_000_000 picoseconds.
-		Weight::from_parts(15_000_000, 9095)
+		Weight::from_parts(15_000_000, 9127)
 			.saturating_add(RocksDbWeight::get().reads(1_u64))
 			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
 	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
-	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5630), added: 8105, mode: `MaxEncodedLen`)
+	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5662), added: 8137, mode: `MaxEncodedLen`)
 	/// Storage: `Balances::Holds` (r:1 w:1)
 	/// Proof: `Balances::Holds` (`max_values`: None, `max_size`: Some(69), added: 2544, mode: `MaxEncodedLen`)
 	fn kill_subscription() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `247`
-		//  Estimated: `9095`
+		//  Measured:  `279`
+		//  Estimated: `9127`
 		// Minimum execution time: 77_000_000 picoseconds.
-		Weight::from_parts(79_000_000, 9095)
+		Weight::from_parts(79_000_000, 9127)
 			.saturating_add(RocksDbWeight::get().reads(2_u64))
 			.saturating_add(RocksDbWeight::get().writes(2_u64))
 	}
 	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
-	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5630), added: 8105, mode: `MaxEncodedLen`)
+	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5662), added: 8137, mode: `MaxEncodedLen`)
 	/// Storage: `Balances::Holds` (r:1 w:1)
 	/// Proof: `Balances::Holds` (`max_values`: None, `max_size`: Some(69), added: 2544, mode: `MaxEncodedLen`)
 	fn update_subscription() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `247`
-		//  Estimated: `9095`
+		//  Measured:  `279`
+		//  Estimated: `9127`
 		// Minimum execution time: 77_000_000 picoseconds.
-		Weight::from_parts(78_000_000, 9095)
+		Weight::from_parts(78_000_000, 9127)
 			.saturating_add(RocksDbWeight::get().reads(2_u64))
 			.saturating_add(RocksDbWeight::get().writes(2_u64))
 	}
 	/// Storage: `IdnManager::Subscriptions` (r:1 w:1)
-	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5630), added: 8105, mode: `MaxEncodedLen`)
+	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5662), added: 8137, mode: `MaxEncodedLen`)
 	fn reactivate_subscription() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `189`
-		//  Estimated: `9095`
+		//  Measured:  `221`
+		//  Estimated: `9127`
 		// Minimum execution time: 14_000_000 picoseconds.
-		Weight::from_parts(15_000_000, 9095)
+		Weight::from_parts(15_000_000, 9127)
 			.saturating_add(RocksDbWeight::get().reads(1_u64))
 			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
