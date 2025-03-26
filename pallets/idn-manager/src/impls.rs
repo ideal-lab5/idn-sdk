@@ -98,9 +98,9 @@ where
 	fn calculate_subscription_fees(credits: &u64) -> Balances::Balance {
 		// Define tier boundaries and their respective discount rates (in basis points)
 		const TIERS: [(u64, u64); 5] = [
-			(1, 0),           // 0-10_000: 0% discount
-			(10_001, 5),      // 10_001-10_000: 5% discount
-			(100_001, 10),    // 100_001-1000_000: 10% discount
+			(1, 0),           // 1-10_000: 0% discount
+			(10_001, 5),      // 10_001-100_000: 5% discount
+			(100_001, 10),    // 100_001-1_000_000: 10% discount
 			(1_000_001, 20),  // 1_000_001-10_000_000: 20% discount
 			(10_000_001, 30), // 10_000_001+: 30% discount
 		];
