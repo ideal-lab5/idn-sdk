@@ -444,11 +444,14 @@ pub mod pallet {
 				call_index: params.call_index,
 				metadata: params.metadata.unwrap_or_default(),
 			};
-	
+
 			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(&details, &current_block));
-	
-			ensure!(!Subscriptions::<T>::contains_key(sub_id), Error::<T>::SubscriptionAlreadyExists);
-	
+
+			ensure!(
+				!Subscriptions::<T>::contains_key(sub_id),
+				Error::<T>::SubscriptionAlreadyExists
+			);
+
 			let subscription = Subscription {
 				id: sub_id,
 				state: SubscriptionState::Active,
@@ -459,9 +462,9 @@ pub mod pallet {
 				credits: params.credits,
 				frequency: params.frequency,
 				last_delivered: None,
-				pulse_filter: params.pulse_filter,
+				pulse_filter: params.pulse_filter.clone(),
 			};
-	
+
 			// Calculate and hold the subscription fees
 			let fees = Self::calculate_subscription_fees(&params.credits);
 
@@ -476,7 +479,7 @@ pub mod pallet {
 
 			Self::deposit_event(Event::SubscriptionCreated { sub_id });
 
-			Ok(Some(T::WeightInfo::create_subscription(if let Some(pf) = pulse_filter {
+			Ok(Some(T::WeightInfo::create_subscription(if let Some(pf) = params.pulse_filter {
 				pf.len().try_into().unwrap_or(T::PulseFilterLen::get())
 			} else {
 				0
@@ -546,7 +549,7 @@ pub mod pallet {
 
 				sub.credits = params.credits;
 				sub.frequency = params.frequency;
-				sub.pulse_filter = params.pulse_filter.clone;
+				sub.pulse_filter = params.pulse_filter.clone();
 				sub.updated_at = frame_system::Pallet::<T>::block_number();
 
 				let deposit_diff = T::DepositCalculator::calculate_diff_deposit(sub, &old_sub);
@@ -559,7 +562,7 @@ pub mod pallet {
 				Ok::<(), DispatchError>(())
 			})?;
 
-			Ok(Some(T::WeightInfo::update_subscription(if let Some(pf) = pulse_filter {
+			Ok(Some(T::WeightInfo::update_subscription(if let Some(pf) = params.pulse_filter {
 				pf.len().try_into().unwrap_or(T::PulseFilterLen::get())
 			} else {
 				0
