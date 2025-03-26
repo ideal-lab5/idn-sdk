@@ -404,13 +404,15 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 		for i in 0..MaxSubscriptions::get() {
 			assert_ok!(IdnManager::create_subscription(
 				RuntimeOrigin::signed(ALICE.clone()),
-				credits,
-				target.clone(),
-				[i.try_into().unwrap(); 2],
-				frequency,
-				None,
-				None,
-				None,
+				CreateSubParamsOf::<Test> {
+					credits,
+					target: target.clone(),
+					call_index: [i.try_into().unwrap(); 2],
+					frequency,
+					metadata: None,
+					pulse_filter: None,
+					sub_id: None,
+				}
 			));
 		}
 
@@ -422,13 +424,15 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 		assert_noop!(
 			IdnManager::create_subscription(
 				RuntimeOrigin::signed(ALICE),
-				credits,
-				target.clone(),
-				[1, 2],
-				frequency,
-				None,
-				None,
-				None,
+				CreateSubParamsOf::<Test> {
+					credits,
+					target: target.clone(),
+					call_index: [1, 2],
+					frequency,
+					metadata: None,
+					pulse_filter: None,
+					sub_id: None,
+				}
 			),
 			Error::<Test>::TooManySubscriptions
 		);
@@ -445,13 +449,15 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 		// After removing the subscription, we should be able to create a new one
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE),
-			credits,
-			target,
-			[1, 2],
-			frequency,
-			None,
-			None,
-			None,
+			CreateSubParamsOf::<Test> {
+				credits,
+				target,
+				call_index: [1, 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
 		));
 	});
 }
