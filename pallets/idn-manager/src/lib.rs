@@ -112,7 +112,7 @@ use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
-use sp_runtime::traits::{One, Saturating};
+use sp_runtime::traits::Saturating;
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use traits::{
 	BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
@@ -653,39 +653,46 @@ impl<T: Config> Pallet<T> {
 			|(sub_id, mut sub): (SubscriptionId, SubscriptionOf<T>)| -> DispatchResult {
 				// Filter for active subscriptions that are eligible for delivery based on frequency
 				// and custom filter criteria
-				if !(
-					// Subscription must be active
-					sub.state == SubscriptionState::Active  &&
+				if
+				// Subscription must be active
+				sub.state ==   SubscriptionState::Active   &&
 					// And either never delivered before, or enough blocks have passed since last delivery
 					(sub.last_delivered.is_none() ||
 					current_block >= sub.last_delivered.unwrap() + sub.frequency) &&
  					// The pulse passes the custom filter
 					// see the [Pulse Filtering Security](#pulse-filtering-security) section
 					Self::custom_filter(&sub.pulse_filter, &pulse)
-				) {
-					return Ok(()); // Skip this subscription
-				}
+				{
+					let msg = Self::construct_randomness_xcm(&pulse, sub.details.call_index);
+					let versioned_target: Box<VersionedLocation> =
+						Box::new(sub.details.target.clone().into());
+					let versioned_msg: Box<VersionedXcm<()>> =
+						Box::new(xcm::VersionedXcm::V5(msg.into()));
+					let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
 
-				let msg = Self::construct_randomness_xcm(&pulse, sub.details.call_index);
-				let versioned_target: Box<VersionedLocation> =
-					Box::new(sub.details.target.clone().into());
-				let versioned_msg: Box<VersionedXcm<()>> =
-					Box::new(xcm::VersionedXcm::V5(msg.into()));
-				let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
-
-				if T::Xcm::send(origin.into(), versioned_target, versioned_msg).is_ok() {
-					// We consume a fixed one credit per distribution
-					let credits_consumed = One::one();
-					Self::collect_fees(&sub, credits_consumed)?;
+					// Make sure credits are consumed before sending the XCM message
+					let consume_credits = T::FeesManager::get_consume_credits(&sub);
+					Self::collect_fees(&sub, T::FeesManager::get_consume_credits(&sub))?;
 
 					// Update subscription with consumed credits and last_delivered block number
-					sub.credits_left = sub.credits_left.saturating_sub(credits_consumed);
+					sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
 					sub.last_delivered = Some(current_block);
 
 					// Store the updated subscription
-					Subscriptions::<T>::insert(sub_id, sub);
+					Subscriptions::<T>::insert(sub_id, &sub);
+
+					// Send the XCM message
+					T::Xcm::send(origin.into(), versioned_target, versioned_msg)?;
 
 					Self::deposit_event(Event::RandomnessDistributed { sub_id });
+				} else {
+					let idle_credits = T::FeesManager::get_idle_credits(&sub);
+					// Collect fees for idle block
+					Self::collect_fees(&sub, idle_credits)?;
+					// Update subscription with consumed credits
+					sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
+					// Store the updated subscription
+					Subscriptions::<T>::insert(sub_id, &sub);
 				}
 				Ok(())
 			},
@@ -695,6 +702,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn collect_fees(sub: &SubscriptionOf<T>, credits_consumed: T::Credits) -> DispatchResult {
+		if credits_consumed.is_zero() {
+			return Ok(());
+		}
 		let fees_to_collect = T::FeesManager::calculate_diff_fees(
 			&sub.credits_left,
 			&sub.credits_left.saturating_sub(credits_consumed),
