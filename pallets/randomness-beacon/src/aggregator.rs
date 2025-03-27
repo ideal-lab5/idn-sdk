@@ -94,16 +94,11 @@ impl SignatureAggregator for QuicknetAggregator {
 		let beacon_pk = decode_g2(&beacon_pk_bytes)?;
 		// apk = 0, asig = new_sig
 		let mut apk = zero_on_g1();
-
-		// let mut asig = decode_g1(&next_sig_bytes)?;
-		// get aggregated signature
+		// aggregate signatures
 		let mut asig = next_sig_bytes
 			.iter()
-			.filter_map(|mut rp: &OpaqueSignature| decode_g1(&rp).ok())
-			// .filter_map(|pulse| pulse.signature_point().ok())
+			.filter_map(|rp: &OpaqueSignature| decode_g1(rp).ok())
 			.fold(zero_on_g1(), |acc, sig| (acc + sig).into());
-
-
 		// if a previous signature and pubkey were provided
 		// then we start there
 		if let Some(aggr) = prev_sig_and_msg {
