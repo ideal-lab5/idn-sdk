@@ -39,13 +39,18 @@ mod example_consumer {
         NoActiveSubscription,
         /// Caller is not authorized
         Unauthorized,
+        /// Subscription system at capacity
+        SystemAtCapacity,
         /// Other error
         Other,
     }
 
     impl From<Error> for ContractError {
         fn from(error: Error) -> Self {
-            ContractError::IdnClientError(error)
+            match error {
+                Error::TooManySubscriptions => ContractError::SystemAtCapacity,
+                _ => ContractError::IdnClientError(error),
+            }
         }
     }
 
@@ -314,6 +319,7 @@ mod example_consumer {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use idn_client::Error;
         
         /// Test receiving randomness functionality without XCM
         #[ink::test]
@@ -487,6 +493,77 @@ mod example_consumer {
             assert_eq!(contract.randomness_history.len(), 10);
             for i in 0..10 {
                 assert_eq!(contract.randomness_history[i as usize], [i; 32]);
+            }
+        }
+        
+        /// Test error propagation from IDN Client
+        #[ink::test]
+        fn test_error_propagation() {
+            // Create a new mock testing helper to test error propagation
+            struct MockErrorTest;
+            
+            impl MockErrorTest {
+                fn test_too_many_subscriptions_error() -> core::result::Result<(), ContractError> {
+                    // Simulate IDN client returning TooManySubscriptions error
+                    let error = Error::TooManySubscriptions;
+                    // Convert to ContractError and return
+                    Err(error.into())
+                }
+            }
+            
+            // Test error conversion and propagation
+            let result = MockErrorTest::test_too_many_subscriptions_error();
+            
+            // Verify the error is correctly converted
+            assert!(result.is_err());
+            match result {
+                Err(ContractError::SystemAtCapacity) => {
+                    // This is the expected error
+                    assert!(true);
+                },
+                _ => {
+                    // Any other error is incorrect
+                    assert!(false, "Expected SystemAtCapacity error");
+                }
+            }
+            
+            // Test with other errors
+            let other_errors = [
+                Error::XcmExecutionFailed,
+                Error::InvalidParameters,
+                Error::SubscriptionNotFound,
+            ];
+            
+            for err in other_errors.iter() {
+                // Create a new error of the same variant instead of trying to clone
+                let test_error = match err {
+                    Error::XcmExecutionFailed => Error::XcmExecutionFailed,
+                    Error::InvalidParameters => Error::InvalidParameters,
+                    Error::SubscriptionNotFound => Error::SubscriptionNotFound,
+                    _ => Error::Other,
+                };
+                
+                let converted_err: ContractError = test_error.into();
+                
+                // These should all convert to IdnClientError variant
+                match converted_err {
+                    ContractError::IdnClientError(original_err) => {
+                        assert_eq!(match original_err {
+                            Error::XcmExecutionFailed => "XcmExecutionFailed",
+                            Error::InvalidParameters => "InvalidParameters",
+                            Error::SubscriptionNotFound => "SubscriptionNotFound",
+                            _ => "Other"
+                        }, match err {
+                            Error::XcmExecutionFailed => "XcmExecutionFailed",
+                            Error::InvalidParameters => "InvalidParameters",
+                            Error::SubscriptionNotFound => "SubscriptionNotFound",
+                            _ => "Other"
+                        });
+                    },
+                    _ => {
+                        assert!(false, "Expected IdnClientError variant");
+                    }
+                }
             }
         }
     }

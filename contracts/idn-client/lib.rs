@@ -36,6 +36,8 @@ pub enum Error {
     SubscriptionInactive,
     /// Randomness generation failed
     RandomnessGenerationFailed,
+    /// The system has reached its maximum subscription capacity
+    TooManySubscriptions,
     /// Other errors
     Other,
 }
@@ -87,7 +89,7 @@ pub trait IdnClient {
     /// # Arguments
     /// 
     /// * `credits` - Number of random values to receive
-    /// * `target` - XCM multilocation for random value delivery
+    /// * `_target` - XCM multilocation for random value delivery
     /// * `call_index` - Call index for XCM message
     /// * `frequency` - Distribution interval for random values (in blocks)
     /// * `metadata` - Optional metadata for the subscription
@@ -96,10 +98,17 @@ pub trait IdnClient {
     /// # Returns
     /// 
     /// * `Result<SubscriptionId>` - Subscription ID if successful
+    /// 
+    /// # Errors
+    /// 
+    /// This function can fail with:
+    /// * `Error::TooManySubscriptions` - If the IDN network has reached its maximum subscription capacity
+    /// * `Error::XcmSendFailed` - If there was a problem sending the XCM message
+    /// * `Error::InvalidParameters` - If the provided parameters are invalid
     fn create_subscription(
         &mut self,
         credits: u32,
-        target: Location,
+        _target: Location,
         call_index: CallIndex,
         frequency: BlockNumber,
         metadata: Option<Metadata>,
@@ -357,7 +366,7 @@ impl IdnClient for IdnClientImpl {
     fn create_subscription(
         &mut self,
         credits: u32,
-        target: Location,
+        _target: Location,
         call_index: CallIndex,
         frequency: BlockNumber,
         metadata: Option<Metadata>,
@@ -621,5 +630,18 @@ mod tests {
             Some(vec![255; 1000]), // Large pulse filter
         );
         assert!(matches!(large_values_message, Xcm::<()> { .. }));
+    }
+    
+    #[test]
+    fn test_error_handling() {
+        // Verify TooManySubscriptions error is distinct from other errors
+        assert_ne!(Error::TooManySubscriptions, Error::Other);
+        assert_ne!(Error::TooManySubscriptions, Error::XcmSendFailed);
+        
+        // Verify that XCM-specific errors are properly handled in the From implementation
+        // This only tests that our Error enum has the right variants for the XCM errors
+        // since we can't easily construct the actual XCM errors in unit tests
+        assert_ne!(Error::XcmExecutionFailed, Error::XcmSendFailed);
+        assert_ne!(Error::XcmExecutionFailed, Error::Other);
     }
 }
