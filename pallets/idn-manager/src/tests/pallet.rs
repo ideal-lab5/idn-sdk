@@ -1247,6 +1247,7 @@ fn test_on_finalize_removes_finished_subscriptions() {
 }
 
 #[test]
+#[docify::export_content]
 fn hold_deposit_works() {
 	ExtBuilder::build().execute_with(|| {
 		let initial_balance = 10_000_000;
@@ -1269,6 +1270,7 @@ fn hold_deposit_works() {
 }
 
 #[test]
+#[docify::export_content]
 fn release_deposit_works() {
 	ExtBuilder::build().execute_with(|| {
 		let initial_balance = 10_000_000;
@@ -1365,9 +1367,11 @@ fn hold_deposit_fails_with_insufficient_balance() {
 }
 
 #[test]
+#[docify::export_content]
 fn test_calculate_subscription_fees() {
 	ExtBuilder::build().execute_with(|| {
 		// Test with different credit amounts
+		// The tuples in these cases are (credits, expected_fee)
 		let test_cases = vec![
 			(0, 0),                  // Zero credits
 			(1_000, 100_000),        // 1k credits

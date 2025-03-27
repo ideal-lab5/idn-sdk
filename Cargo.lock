@@ -8017,6 +8017,7 @@ dependencies = [
 name = "pallet-idn-manager"
 version = "0.0.1-dev"
 dependencies = [
+ "docify",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
