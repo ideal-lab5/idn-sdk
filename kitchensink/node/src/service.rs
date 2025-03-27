@@ -15,18 +15,30 @@
  */
 
 use crate::cli::Consensus;
-use futures::FutureExt;
+use futures::{FutureExt, StreamExt};
 use idn_sdk_kitchensink_runtime::{interface::OpaqueBlock as Block, RuntimeApi};
-// use polkadot_sdk::{
+use libp2p::{
+	gossipsub,
+	gossipsub::{
+		Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
+	},
+	identity::Keypair,
+	swarm::{Swarm, SwarmEvent},
+	Multiaddr, SwarmBuilder,
+};
+use log;
+use prost::Message;
+use sc_client_api::backend::Backend;
+use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, GossipsubNetwork};
 use sc_executor::WasmExecutor;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
+use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
+use sp_consensus_randomness_beacon::types::*;
 use sp_runtime::traits::Block as BlockT;
-// 	*,
-// };
-use sc_client_api::backend::Backend;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 type HostFunctions = sp_io::SubstrateHostFunctions;
 
@@ -178,6 +190,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 		})
 	};
 
+	let is_authority = config.role.is_authority().clone();
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
@@ -203,6 +216,34 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 		telemetry.as_ref().map(|x| x.handle()),
 	);
 
+	// setup gossipsub network if you are an authority
+	// if is_authority {
+	let topic_str: &str =
+		"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
+	let maddr1: Multiaddr =
+		"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
+			.parse()
+			.expect("The string is a well-formatted multiaddress. qed.");
+	let maddr2: Multiaddr =
+		"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
+			.parse()
+			.expect("The string is a well-formatted multiaddress. qed.");
+
+	let local_identity: Keypair = Keypair::generate_ed25519();
+	
+	let (tx, mut rx) = tracing_unbounded("drand-notification-channel", 10000);
+
+	let drand_receiver = DrandReceiver::new(rx);
+
+	let gossipsub_config = GossipsubConfig::default();
+	let mut gossipsub = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None).unwrap();
+
+	tokio::spawn(async move {
+		if let Err(e) = gossipsub.run(topic_str, vec![maddr1, maddr2]).await {
+			log::error!("Failed to run gossipsub network: {:?}", e);
+		}
+	});
+
 	match consensus {
 		Consensus::InstantSeal => {
 			let params = sc_consensus_manual_seal::InstantSealParams {
@@ -212,8 +253,20 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 				pool: transaction_pool,
 				select_chain,
 				consensus_data_provider: None,
-				create_inherent_data_providers: move |_, ()| async move {
-					Ok(sp_timestamp::InherentDataProvider::from_system_time())
+				create_inherent_data_providers: move |_, ()| {
+					let drand_receiver = drand_receiver.clone();
+					async move {
+						let pulses = drand_receiver.take_pulses().await; // Read & reset pulses
+						let serialized_pulses: Vec<Vec<u8>> =
+							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect();
+
+						let beacon_inherent =
+							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
+								serialized_pulses,
+							);
+
+						Ok((sp_timestamp::InherentDataProvider::from_system_time(), beacon_inherent))
+					}
 				},
 			};
 
@@ -248,8 +301,20 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 				select_chain,
 				commands_stream: Box::pin(commands_stream),
 				consensus_data_provider: None,
-				create_inherent_data_providers: move |_, ()| async move {
-					Ok(sp_timestamp::InherentDataProvider::from_system_time())
+				create_inherent_data_providers: move |_, ()| {
+					let drand_receiver = drand_receiver.clone();
+					async move {
+						let pulses = drand_receiver.take_pulses().await; // Read & reset pulses
+						let serialized_pulses: Vec<Vec<u8>> =
+							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect();
+
+						let beacon_inherent =
+							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
+								serialized_pulses,
+							);
+
+						Ok((sp_timestamp::InherentDataProvider::from_system_time(), beacon_inherent))
+					}
 				},
 			};
 			let authorship_future = sc_consensus_manual_seal::run_manual_seal(params);

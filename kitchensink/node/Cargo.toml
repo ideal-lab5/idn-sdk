@@ -19,12 +19,17 @@ clap = { features = ["derive"], workspace = true }
 futures = { features = ["thread-pool"], workspace = true }
 futures-timer.workspace = true
 jsonrpsee = { features = ["server"], workspace = true }
+libp2p = { workspace = true }
+log.workspace = true 
+prost = { workspace = true }
 serde_json = { workspace = true, default-features = true }
+tokio.workspace = true
 sc-basic-authorship = { workspace = true, default-features = false }
 sc-cli = { workspace = true, default-features = false }
 sc-client-api = { workspace = true, default-features = false }
 sc-consensus = { workspace = true, default-features = false }
 sc-consensus-manual-seal = { workspace = true, default-features = false }
+sc-consensus-randomness-beacon = { workspace = true, default-features = false }
 sc-executor = { workspace = true, default-features = false }
 sc-offchain = { workspace = true, default-features = false }
 sc-service = { workspace = true, default-features = false }
@@ -32,9 +37,11 @@ sc-telemetry = { workspace = true, default-features = false }
 sc-transaction-pool = { workspace = true, default-features = false }
 sc-transaction-pool-api = { workspace = true, default-features = false }
 sc-network = { workspace = true, default-features = false }
+sc-utils = { workspace = true, default-features = false }
 sp-api = { workspace = true, default-features = false }
 sp-blockchain = { workspace = true, default-features = false }
 sp-block-builder = { workspace = true, default-features = false }
+sp-consensus-randomness-beacon = { workspace = true, default-features = false }
 sp-genesis-builder = { workspace = true, default-features = false }
 sp-io = { workspace = true, default-features = false }
 sp-runtime = { workspace = true, default-features = false }

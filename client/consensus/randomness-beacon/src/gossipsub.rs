@@ -75,8 +75,10 @@ use libp2p::{
 	Multiaddr, SwarmBuilder,
 };
 use prost::Message;
-use sc_utils::mpsc::TracingUnboundedSender;
+use sc_utils::mpsc::{TracingUnboundedReceiver, TracingUnboundedSender};
 use sp_consensus_randomness_beacon::types::*;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// The default address instructing libp2p to choose a random open port on the local machine
 const RAND_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/0";
@@ -94,6 +96,39 @@ pub enum Error {
 	InvalidMultiaddress { who: Multiaddr },
 	/// The swarm could not listen on the given port
 	SwarmListenFailure,
+}
+
+/// receive messages from drand
+#[derive(Clone)]
+pub struct DrandReceiver {
+	/// A collection of received and unconsumed pulses
+	pulses: Arc<Mutex<Vec<OpaquePulse>>>,
+}
+
+impl DrandReceiver {
+	/// Constructs a new DrandReceiver and starts receiving pulses
+	///
+	/// * `rx`: A [`TracingUnboundedReceiver`] to which [`OpaquePulses`] are written
+	///  
+	pub fn new(mut rx: TracingUnboundedReceiver<OpaquePulse>) -> Self {
+		let pulses = Arc::new(Mutex::new(Vec::new()));
+		let pulses_clone = pulses.clone();
+		tokio::spawn(async move {
+			while let Some(pulse) = rx.next().await {
+				let mut locked_pulses = pulses_clone.lock().await;
+				locked_pulses.push(pulse);
+				log::info!("New pulse received and stored.");
+			}
+		});
+
+		DrandReceiver { pulses }
+	}
+ 
+	/// Consume pulse data from storage
+	pub async fn take_pulses(&self) -> Vec<OpaquePulse> {
+		let mut pulses = self.pulses.lock().await;
+		std::mem::take(&mut *pulses)
+	}
 }
 
 /// A gossipsub network with any behaviour and shared state
@@ -201,7 +236,9 @@ impl GossipsubNetwork {
 				Some(SwarmEvent::Behaviour(gossipsub::Event::Message { message, .. })) => {
 					match try_handle_pulse(&message.data) {
 						Ok(pulse) => {
-							self.sender.unbounded_send(pulse.clone()).unwrap();
+							if let Err(e) = self.sender.unbounded_send(pulse.clone()) {
+								log::error!("Unable to send message to the queue. err = {}", e);
+							}
 						},
 						Err(_) => {
 							// handle non-decodable messages: https://github.com/ideal-lab5/idn-sdk/issues/60
@@ -381,4 +418,31 @@ mod tests {
 		let result = GossipsubNetwork::new(&key, config, tx, Some(&invalid_addr));
 		assert!(result.is_err(), "Expected failure due to invalid listen address");
 	}
+
+	/* drand receiver tests */
+	#[tokio::test]
+	async fn test_can_build_new_drand_receiver() {
+		let (tx, rx) = tracing_unbounded("test", 10000);
+		let receiver = DrandReceiver::new(rx);
+
+		let pulse = Pulse {
+			round: 14475418,
+			signature: [
+				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
+				95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49,
+				223, 95, 22, 186, 113, 163, 202, 195, 230, 117,
+			]
+			.to_vec(),
+		};
+		let opaque: OpaquePulse = pulse.clone().try_into().unwrap();
+		// write an opaque pulse
+		tx.unbounded_send(opaque).unwrap();
+		
+		sleep(Duration::from_secs(1)).await;
+
+		assert_eq!(receiver.pulses.lock().await.len(), 1, "There should be one opaque pulse in the vec");
+	}
+
+
+
 }

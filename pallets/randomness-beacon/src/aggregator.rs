@@ -99,7 +99,7 @@ impl SignatureAggregator for QuicknetAggregator {
 		// get aggregated signature
 		let mut asig = next_sig_bytes
 			.iter()
-			.filter_map(|mut rp: &OpaqueSignature| decode_g1(&rp).ok())
+			.filter_map(|rp: &OpaqueSignature| decode_g1(rp).ok())
 			// .filter_map(|pulse| pulse.signature_point().ok())
 			.fold(zero_on_g1(), |acc, sig| (acc + sig).into());
 
