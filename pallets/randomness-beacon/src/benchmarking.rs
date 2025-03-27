@@ -18,7 +18,7 @@
 use super::*;
 
 use crate::{
-	aggregator::{compute_round_on_g1, zero_on_g1},
+	verifier::{compute_round_on_g1, zero_on_g1},
 	Pallet,
 };
 
@@ -59,7 +59,7 @@ mod benchmarks {
 		let mut sigs = vec![];
 
 		for pulse in pulse_data {
-			let sig_bytes = hex::decode(&pulse.1).unwrap();
+			let sig_bytes = hex::decode(pulse.1).unwrap();
 			sigs.push(OpaqueSignature::truncate_from(sig_bytes.clone()));
 			let sig = G1AffineOpt::deserialize_compressed(&mut sig_bytes.as_slice()).unwrap();
 			asig = (asig + sig).into();

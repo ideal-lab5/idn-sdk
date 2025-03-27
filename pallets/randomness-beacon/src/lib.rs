@@ -91,13 +91,13 @@ use alloc::{vec, vec::Vec};
 use frame_support::pallet_prelude::*;
 use sp_consensus_randomness_beacon::types::OpaquePulse;
 
-pub mod aggregator;
+pub mod verifier;
 pub mod bls12_381;
 pub mod types;
 pub mod weights;
 pub use weights::*;
 
-use aggregator::SignatureVerifier;
+use verifier::SignatureVerifier;
 pub use types::*;
 
 #[cfg(test)]
@@ -294,7 +294,6 @@ pub mod pallet {
 			AggregatedSignature::<T>::set(Some(aggr));
 			DidUpdate::<T>::put(true);
 
-			// dispatch XCM via idn manager pallet here
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 			// successful verification is beneficial to the network, so we do not charge when the
 			// siganture is correct
