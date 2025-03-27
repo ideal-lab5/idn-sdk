@@ -54,6 +54,12 @@ impl FeesManager<u32, u32, (), (), ()> for LinearFeeCalculator {
 		// In this case, we don't need to do anything with the fees, so we just return them
 		Ok(*fees)
 	}
+	fn get_consume_credits(_sub: &()) -> u32 {
+		1000
+	}
+	fn get_idle_credits(_sub: &()) -> u32 {
+		10
+	}
 }
 
 /// Tiered fee calculator with predefined discount tiers
@@ -116,6 +122,12 @@ impl FeesManager<u32, u32, (), (), ()> for SteppedTieredFeeCalculator {
 	fn collect_fees(fees: &u32, _: &()) -> Result<u32, crate::traits::FeesError<u32, ()>> {
 		// In this case, we don't need to do anything with the fees, so we just return them
 		Ok(*fees)
+	}
+	fn get_consume_credits(_sub: &()) -> u32 {
+		1000
+	}
+	fn get_idle_credits(_sub: &()) -> u32 {
+		10
 	}
 }
 
