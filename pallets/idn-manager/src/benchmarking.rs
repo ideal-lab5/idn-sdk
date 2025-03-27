@@ -17,7 +17,7 @@
 //! Benchmarking setup for pallet-template
 
 use super::*;
-use crate::{pallet::Pallet as IdnManager, PulsePropertyOf};
+use crate::{pallet::Pallet as IdnManager, CreateSubParamsOf, PulsePropertyOf, UpdateSubParamsOf};
 use frame_benchmarking::v2::*;
 use frame_support::{
 	traits::{fungible::Mutate, OriginTrait},
@@ -35,7 +35,7 @@ mod benchmarks {
 	use super::*;
 
 	#[benchmark]
-	fn create_subscription() {
+	fn create_subscription(l: Linear<0, { T::PulseFilterLen::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits = 100u64.into();
@@ -43,18 +43,30 @@ mod benchmarks {
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
-		let pulse_filter_len = T::PulseFilterLen::get() as usize;
-		let pulse_filter = Some(
-			BoundedVec::try_from(
-				// make the vec as big as possible
-				vec![PulsePropertyOf::<T>::Round(1u64.into()); pulse_filter_len],
-			)
-			.unwrap(),
-		);
+		let sub_id = None;
+
+		let pulse_filter = if l == 0 {
+			None
+		} else {
+			let pulse_filter_vec =
+				(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
+		};
+
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
+		let params = CreateSubParamsOf::<T> {
+			credits,
+			target: target.clone(),
+			call_index,
+			frequency,
+			metadata,
+			pulse_filter,
+			sub_id,
+		};
+
 		#[extrinsic_call]
-		_(origin, credits, target.clone(), call_index, frequency, metadata, pulse_filter);
+		_(origin, params);
 
 		// assert that the subscription details are correct
 		let (_, sub) = Subscriptions::<T>::iter().next().unwrap();
@@ -78,17 +90,21 @@ mod benchmarks {
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let pulse_filter = None;
+		let sub_id = None;
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-			credits,
-			target.clone(),
-			call_index,
-			frequency,
-			metadata,
-			pulse_filter,
+			CreateSubParamsOf::<T> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata,
+				pulse_filter,
+				sub_id,
+			},
 		);
 
 		// assert that the subscription state is correct
@@ -113,17 +129,21 @@ mod benchmarks {
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let pulse_filter = None;
+		let sub_id = None;
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-			credits,
-			target.clone(),
-			call_index,
-			frequency,
-			metadata,
-			pulse_filter,
+			CreateSubParamsOf::<T> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata,
+				pulse_filter,
+				sub_id,
+			},
 		);
 
 		// assert that the subscription was created
@@ -138,7 +158,7 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn update_subscription() {
+	fn update_subscription(l: Linear<0, { T::PulseFilterLen::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
@@ -147,36 +167,47 @@ mod benchmarks {
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let pulse_filter = None;
+		let sub_id = None;
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-			credits,
-			target.clone(),
-			call_index,
-			frequency,
-			metadata,
-			pulse_filter,
+			CreateSubParamsOf::<T> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata,
+				pulse_filter,
+				sub_id,
+			},
 		);
 
 		// assert that the subscription state is correct
 		let (sub_id, sub) = Subscriptions::<T>::iter().next().unwrap();
 		assert_eq!(sub.state, SubscriptionState::Active);
 
-		let pulse_filter_len = T::PulseFilterLen::get() as usize;
 		let new_credits: T::Credits = 200u64.into();
 		let new_frequency: BlockNumberFor<T> = 2u32.into();
-		let new_pulse_filter = Some(
-			BoundedVec::try_from(
-				// make the vec as big as possible
-				vec![PulsePropertyOf::<T>::Round(1u64.into()); pulse_filter_len],
-			)
-			.unwrap(),
-		);
+
+		let new_pulse_filter = if l == 0 {
+			None
+		} else {
+			let pulse_filter_vec =
+				(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
+		};
+
+		let params = UpdateSubParamsOf::<T> {
+			sub_id,
+			credits: new_credits,
+			frequency: new_frequency,
+			pulse_filter: new_pulse_filter.clone(),
+		};
 
 		#[extrinsic_call]
-		_(origin, sub_id, new_credits, new_frequency, new_pulse_filter.clone());
+		_(origin, params);
 
 		// assert that the subscription state is correct
 		let sub = Subscriptions::<T>::get(sub_id).unwrap();
@@ -195,17 +226,21 @@ mod benchmarks {
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let pulse_filter = None;
+		let sub_id = None;
 
 		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-			credits,
-			target.clone(),
-			call_index,
-			frequency,
-			metadata,
-			pulse_filter,
+			CreateSubParamsOf::<T> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata,
+				pulse_filter,
+				sub_id,
+			},
 		);
 
 		// assert that the subscription state is correct

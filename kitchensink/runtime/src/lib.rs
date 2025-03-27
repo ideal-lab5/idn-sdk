@@ -274,6 +274,7 @@ parameter_types! {
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
 	pub const PulseFilterLen: u32 = 100;
+	pub const MaxSubscriptions: u32 = 1_000_000;
 }
 
 #[derive(TypeInfo)]
@@ -331,6 +332,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type SubMetadataLen = SubMetadataLen;
 	type Credits = u64;
 	type PulseFilterLen = PulseFilterLen;
+	type MaxSubscriptions = MaxSubscriptions;
 }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;
