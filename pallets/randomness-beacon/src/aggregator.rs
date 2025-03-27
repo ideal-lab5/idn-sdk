@@ -37,7 +37,6 @@ pub trait SignatureVerifier {
 	/// * `beacon_pk_bytes`:  The public key of the randomness beacon
 	/// * `next_sig_bytes`: A vector of signatures to be aggregated and verified
 	/// * `start`: The earliest round for which next_sig_bytes has a signature
-	///
 	fn verify(
 		beacon_pk_bytes: OpaquePublicKey,
 		next_sig_bytes: Vec<OpaqueSignature>,
