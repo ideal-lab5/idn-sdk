@@ -739,7 +739,7 @@ impl<T: Config> Pallet<T> {
 					// see the [Pulse Filtering Security](#pulse-filtering-security) section
 					Self::custom_filter(&sub.pulse_filter, &pulse)
 				{
-					let msg = Self::construct_randomness_xcm(&pulse, sub.details.call_index);
+					let msg = Self::construct_xcm_msg(&pulse, sub.details.call_index);
 					let versioned_target: Box<VersionedLocation> =
 						Box::new(sub.details.target.clone().into());
 					let versioned_msg: Box<VersionedXcm<()>> =
@@ -949,7 +949,7 @@ impl<T: Config> Pallet<T> {
 	/// 2. Execute a call on the destination chain using the provided call index and randomness data
 	///    ([`Transact`])
 	/// 3. Expect successful execution and check status code (ExpectTransactStatus)
-	fn construct_randomness_xcm(pulse: &T::Pulse, call_index: CallIndex) -> Xcm<()> {
+	fn construct_xcm_msg(pulse: &T::Pulse, call_index: CallIndex) -> Xcm<()> {
 		Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			Transact {
