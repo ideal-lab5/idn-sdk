@@ -17,7 +17,10 @@
 //! Benchmarking setup for pallet-randomness-beacon
 use super::*;
 
-use crate::{Pallet, aggregator::{compute_round_on_g1, zero_on_g1}};
+use crate::{
+	aggregator::{compute_round_on_g1, zero_on_g1},
+	Pallet,
+};
 
 #[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::G1Affine as G1AffineOpt;
@@ -45,9 +48,11 @@ mod benchmarks {
 	pub(crate) const PULSE1007: RawPulse = (1007u64, *b"994c9dae8790b815d64d0bd263f5d043f777a5d4cc2ca56343dc22844a582434c5111a1f3bfd2cbfb4b074177eba8258");
 	pub(crate) const PULSE1008: RawPulse = (1008u64, *b"ae1fed99b1562bfd7cabcc6f33c5e4ee9145647228a3321495cee8ce2ae23c1b0c1371c8e880da0d6d9123ff0aa9f8f8");
 	pub(crate) const PULSE1009: RawPulse = (1009u64, *b"88d9f128dbb0646d8ea1574d27e3405d26bfc1507821e762a33746df8796f2afc4bf0997baf39512cfca5cf5e2d3e04d");
-	
+
 	// output the asig + apk
-	pub(crate) fn get(pulse_data: Vec<RawPulse>) -> (OpaqueSignature, OpaqueSignature, Vec<OpaqueSignature>) {
+	pub(crate) fn get(
+		pulse_data: Vec<RawPulse>,
+	) -> (OpaqueSignature, OpaqueSignature, Vec<OpaqueSignature>) {
 		let mut apk = zero_on_g1();
 		let mut asig = zero_on_g1();
 
@@ -81,16 +86,29 @@ mod benchmarks {
 			4 => get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003]),
 			5 => get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003, PULSE1004]),
 			6 => get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003, PULSE1004, PULSE1005]),
-			7 => get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003, PULSE1004, PULSE1005, PULSE1006]),
-			8 => get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003, PULSE1004, PULSE1005, PULSE1006, PULSE1007]),
-			9 => get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003, PULSE1004, PULSE1005, PULSE1006, PULSE1007, PULSE1008]),
-			10 => get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003, PULSE1004, PULSE1005, PULSE1006, PULSE1007, PULSE1008, PULSE1009]),
+			7 => get(vec![
+				PULSE1000, PULSE1001, PULSE1002, PULSE1003, PULSE1004, PULSE1005, PULSE1006,
+			]),
+			8 => get(vec![
+				PULSE1000, PULSE1001, PULSE1002, PULSE1003, PULSE1004, PULSE1005, PULSE1006,
+				PULSE1007,
+			]),
+			9 => get(vec![
+				PULSE1000, PULSE1001, PULSE1002, PULSE1003, PULSE1004, PULSE1005, PULSE1006,
+				PULSE1007, PULSE1008,
+			]),
+			10 => get(vec![
+				PULSE1000, PULSE1001, PULSE1002, PULSE1003, PULSE1004, PULSE1005, PULSE1006,
+				PULSE1007, PULSE1008, PULSE1009,
+			]),
 			_ => panic!("exceeds max round"),
 		}
 	}
 
 	#[benchmark]
-	fn try_submit_asig(r: Linear<1, { T::MaxSigsPerBlock::get().into() }>) -> Result<(), BenchmarkError> {
+	fn try_submit_asig(
+		r: Linear<1, { T::MaxSigsPerBlock::get().into() }>,
+	) -> Result<(), BenchmarkError> {
 		// let r = T::MaxSigsPerBlock::get();
 		let (asig, apk, sigs) = test(r as u8);
 
@@ -111,8 +129,7 @@ mod benchmarks {
 		let block_number: u32 = history_depth;
 		// submit an asig (height unimportant)
 		let (_asig, _apk, sigs) = test(2u8);
-		Pallet::<T>::try_submit_asig(RawOrigin::None.into(), sigs)
-			.unwrap();
+		Pallet::<T>::try_submit_asig(RawOrigin::None.into(), sigs).unwrap();
 
 		let mut history: Vec<BlockNumberFor<T>> = Vec::new();
 		(0..history_depth).for_each(|i| history.push(i.into()));

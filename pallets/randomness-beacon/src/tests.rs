@@ -15,8 +15,8 @@
  */
 
 use crate::{
-	aggregator::test::*, mock::*, AggregatedSignature, Call, Error, LatestRound,
-	MissedBlocks, types::*,
+	aggregator::test::*, mock::*, types::*, AggregatedSignature, Call, Error, LatestRound,
+	MissedBlocks,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 use frame_system::pallet_prelude::BlockNumberFor;

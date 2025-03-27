@@ -1,5 +1,5 @@
 use crate as pallet_drand_bridge;
-use crate::{aggregator::QuicknetAggregator, *};
+use crate::{aggregator::QuicknetVerifier, *};
 use frame_support::{
 	derive_impl, parameter_types,
 	traits::{ConstU16, ConstU64, ConstU8},
@@ -59,11 +59,11 @@ parameter_types! {
 }
 
 impl pallet_drand_bridge::Config for Test {
-	type RuntimeEvent = RuntimeEvent; 
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type BeaconConfig = QuicknetBeaconConfig;
 	type GenesisRound = ConstU64<1000>;
-	type SignatureAggregator = QuicknetAggregator;
+	type SignatureVerifier = QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<10>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
 }
