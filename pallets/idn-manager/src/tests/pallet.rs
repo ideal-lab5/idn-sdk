@@ -708,10 +708,10 @@ fn update_subscription_fails_if_filtering_randomness() {
 fn test_credits_consumption_and_cleanup() {
 	ExtBuilder::build().execute_with(|| {
 		// Setup initial conditions
-		let credits: u64 = 1010;
+		let credits: u64 = 1_010_000;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 		let mut treasury_balance = 0;
 		let pulse = mock::Pulse { rand: [0u8; 32], round: 0, sig: [1u8; 64] };
 
@@ -752,7 +752,7 @@ fn test_credits_consumption_and_cleanup() {
 		assert_eq!(subscription.credits_left, credits);
 
 		// Consume credits one by one
-		for i in 0..credits {
+		for i in 0..credits / 1000 {
 			// Advance block and run hooks
 			System::set_block_number(System::block_number() + 1);
 
@@ -765,12 +765,19 @@ fn test_credits_consumption_and_cleanup() {
 
 			// Verify credit consumption
 			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
-			assert_eq!(sub.credits_left, credits - i - 1, "Credit not consumed correctly");
+
+			let consume_credits = <Test as Config>::FeesManager::get_consume_credits(&sub);
+
+			assert_eq!(
+				sub.credits_left,
+				credits - (i + 1) * consume_credits,
+				"Credit not consumed correctly"
+			);
 
 			// Verify fees movement to treasury
 			let fees = <Test as Config>::FeesManager::calculate_diff_fees(
-				&(credits - i),
-				&(credits - i - 1),
+				&(credits - i * consume_credits),
+				&(credits - (i + 1) * consume_credits),
 			)
 			.balance;
 
@@ -823,10 +830,10 @@ fn test_credits_consumption_and_cleanup() {
 fn test_credits_consumption_not_enogh_balance() {
 	ExtBuilder::build().execute_with(|| {
 		// Setup initial conditions
-		let credits: u64 = 1010;
+		let credits: u64 = 1_010_000;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 		let pulse = mock::Pulse { rand: [0u8; 32], round: 0, sig: [1u8; 64] };
 
 		// Set up account
@@ -881,7 +888,7 @@ fn test_credits_consumption_not_enogh_balance() {
 fn test_credits_consumption_frequency() {
 	ExtBuilder::build().execute_with(|| {
 		// Setup initial conditions
-		let credits: u64 = 10;
+		let credits: u64 = 10_180; // 10 active blocks (at 1k credits each) + 18 idle blocks (at 10 credits each)
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 3; // Every 3 blocks
 		let initial_balance = 10_000_000;
@@ -910,7 +917,7 @@ fn test_credits_consumption_frequency() {
 		assert_eq!(sub.credits_left, credits);
 		assert!(sub.last_delivered.is_none());
 
-		let deliveries = (credits - 1) * frequency;
+		let deliveries = 27;
 		// Run through the test blocks
 		for i in 0..=deliveries {
 			// Set the block number
@@ -934,11 +941,17 @@ fn test_credits_consumption_frequency() {
 				System::assert_last_event(RuntimeEvent::IdnManager(
 					Event::<Test>::RandomnessDistributed { sub_id },
 				));
-				assert_eq!(sub.credits_left, credits_left - 1);
+				assert_eq!(
+					sub.credits_left,
+					credits_left - <Test as Config>::FeesManager::get_consume_credits(&sub)
+				);
 			} else {
 				// Verify events
 				assert!(event_not_emitted(Event::<Test>::RandomnessDistributed { sub_id }));
-				assert_eq!(sub.credits_left, credits_left);
+				assert_eq!(
+					sub.credits_left,
+					credits_left - <Test as Config>::FeesManager::get_idle_credits(&sub)
+				);
 			}
 
 			if i == deliveries {
@@ -1356,12 +1369,12 @@ fn test_calculate_subscription_fees() {
 	ExtBuilder::build().execute_with(|| {
 		// Test with different credit amounts
 		let test_cases = vec![
-			(0, 0),     // Zero credits
-			(1, 100),   // One credit (base fee)
-			(10, 1000), // Ten credits
-			(50, 4800), // Fifty credits, 5% discount over 10
-			(1000, 90550),
-			(1001, 90630),
+			(0, 0),                  // Zero credits
+			(1_000, 100_000),        // 1k credits
+			(10_000, 1_000_000),     // 10k credits
+			(50_000, 4_800_000),     // 50k credits, 5% off over 10k
+			(1_000_000, 90_550_000), // 1M credits, 5% off over 50k, 10% over 10k
+			(1_000_001, 90_550_080), // 1M + 1credits, 5% off over 50k, 10% over 10k, 20% over 1M
 		];
 
 		for (credits, expected_fee) in test_cases {
@@ -1513,12 +1526,12 @@ fn test_runtime_api_calculate_subscription_fees() {
 	ExtBuilder::build().execute_with(|| {
 		// Test with different credit amounts
 		let test_cases = vec![
-			(0, 0),     // Zero credits
-			(1, 100),   // One credit (base fee)
-			(10, 1000), // Ten credits
-			(50, 4800), // Fifty credits, 5% discount over 10
-			(1000, 90550),
-			(1001, 90630),
+			(0, 0),                  // Zero credits
+			(1_000, 100_000),        // 1k credits
+			(10_000, 1_000_000),     // 10k credits
+			(50_000, 4_800_000),     // 50k credits, 5% off over 10k
+			(1_000_000, 90_550_000), // 1M credits, 5% off over 50k, 10% over 10k
+			(1_000_001, 90_550_080), // 1M + 1credits, 5% off over 50k, 10% over 10k, 20% over 1M
 		];
 
 		for (credits, expected_fee) in test_cases {
@@ -1670,7 +1683,7 @@ fn test_pulse_filter_functionality() {
 	ExtBuilder::build().execute_with(|| {
 		// Setup common parameters
 		let initial_balance = 10_000_000;
-		let credits: u64 = 100;
+		let credits: u64 = 100_000;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let call_index = [1; 2];
 		let frequency = 1; // Every block
@@ -1696,7 +1709,7 @@ fn test_pulse_filter_functionality() {
 		));
 
 		// Get subscription ID
-		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+		let (sub_id, sub) = Subscriptions::<Test>::iter().next().unwrap();
 
 		// Helper to get current credits left for a subscription
 		let credits_left =
@@ -1706,6 +1719,9 @@ fn test_pulse_filter_functionality() {
 		assert_eq!(credits_left(), credits);
 
 		let mut credits_consumed = 0u64;
+
+		let mut count_active_rounds = 0;
+		let mut count_idle_rounds = 0;
 
 		// Process 10 blocks with pulses of increasing rounds
 		for block in 0..10 {
@@ -1730,16 +1746,19 @@ fn test_pulse_filter_functionality() {
 
 			// Verify credits consumption
 			if should_distribute {
-				credits_consumed += 1;
+				credits_consumed += <Test as Config>::FeesManager::get_consume_credits(&sub);
 				System::assert_has_event(RuntimeEvent::IdnManager(
 					Event::<Test>::RandomnessDistributed { sub_id },
 				));
+				count_active_rounds += 1;
 			} else {
+				credits_consumed += <Test as Config>::FeesManager::get_idle_credits(&sub);
 				assert!(
 					event_not_emitted(Event::<Test>::RandomnessDistributed { sub_id }),
 					"Randomness should not be distributed for round {}",
 					round
 				);
+				count_idle_rounds += 1;
 			}
 
 			assert_eq!(
@@ -1754,7 +1773,13 @@ fn test_pulse_filter_functionality() {
 		}
 
 		// Verify the subscription credits were consumed correctly
-		assert_eq!(credits_left(), credits - rounds.len() as u64);
+		assert_eq!(
+			credits_left(),
+			credits -
+				(count_active_rounds * <Test as Config>::FeesManager::get_consume_credits(&sub) +
+					count_idle_rounds * <Test as Config>::FeesManager::get_idle_credits(&sub))
+					as u64
+		);
 	});
 }
 
@@ -1763,7 +1788,7 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 	ExtBuilder::build().execute_with(|| {
 		// Setup common parameters
 		let initial_balance = 10_000_000;
-		let credits: u64 = 100;
+		let credits: u64 = 100_000;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let call_index = [1; 2];
 		// With this frequency we should miss some pulses even if they are in the desired rounds
@@ -1791,7 +1816,7 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 		));
 
 		// Get subscription ID
-		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+		let (sub_id, sub) = Subscriptions::<Test>::iter().next().unwrap();
 
 		// Helper to get current credits left for a subscription
 		let credits_left =
@@ -1802,6 +1827,8 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 
 		let mut credits_consumed = 0u64;
 		let mut prev_dist = 0;
+		let mut count_active_rounds = 0;
+		let mut count_idle_rounds = 0;
 
 		// Process 10 blocks with pulses of increasing rounds
 		for block in 0..10 {
@@ -1826,17 +1853,20 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 
 			// Verify credits consumption
 			if should_distribute {
-				credits_consumed += 1;
+				credits_consumed += <Test as Config>::FeesManager::get_consume_credits(&sub);
 				prev_dist = round;
 				System::assert_has_event(RuntimeEvent::IdnManager(
 					Event::<Test>::RandomnessDistributed { sub_id },
 				));
+				count_active_rounds += 1;
 			} else {
+				credits_consumed += <Test as Config>::FeesManager::get_idle_credits(&sub);
 				assert!(
 					event_not_emitted(Event::<Test>::RandomnessDistributed { sub_id }),
-					"Randomness should not be distributed for odd round {}",
+					"Randomness should not be distributed for round {}",
 					round
 				);
+				count_idle_rounds += 1;
 			}
 
 			assert_eq!(
@@ -1851,7 +1881,12 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 		}
 
 		// Verify the subscription credits were consumed correctly
-		assert_eq!(credits_consumed, rounds.len() as u64 - 1); // the last -1 is for the missed
-		                                                 // 5th round
+		assert_eq!(
+			credits_left(),
+			credits -
+				(count_active_rounds * <Test as Config>::FeesManager::get_consume_credits(&sub) +
+					count_idle_rounds * <Test as Config>::FeesManager::get_idle_credits(&sub))
+					as u64
+		);
 	});
 }
