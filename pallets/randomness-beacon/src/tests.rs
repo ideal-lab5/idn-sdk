@@ -15,7 +15,7 @@
  */
 
 use crate::{
-	verifier::test::*, mock::*, types::*, AggregatedSignature, Call, Error, LatestRound,
+	mock::*, types::*, verifier::test::*, AggregatedSignature, Call, Error, LatestRound,
 	MissedBlocks,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};

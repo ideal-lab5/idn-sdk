@@ -91,14 +91,14 @@ use alloc::{vec, vec::Vec};
 use frame_support::pallet_prelude::*;
 use sp_consensus_randomness_beacon::types::OpaquePulse;
 
-pub mod verifier;
 pub mod bls12_381;
 pub mod types;
+pub mod verifier;
 pub mod weights;
 pub use weights::*;
 
-use verifier::SignatureVerifier;
 pub use types::*;
+use verifier::SignatureVerifier;
 
 #[cfg(test)]
 mod mock;
