@@ -16,9 +16,8 @@
 
 //! # Traits for the IDN Manager Pallet
 //!
-//! This file defines the traits that enable the IDN Manager pallet to interact seamlessly with
-//! other components within the blockchain ecosystem. These traits abstract key functionalities,
-//! promoting modularity, flexibility, and testability.
+//! This file defines the traits that enable the IDN Manager pallet to interact with other modules.
+//! These traits abstract key functionalities.
 //!
 //! ## Core Concepts:
 //!
@@ -30,61 +29,66 @@
 //!
 //! ## Key Traits:
 //!
-//! ### `FeesManager`
+//! ### [`FeesManager`]
 //! Manages the economic aspects of subscriptions, including fee calculation, collection, and
 //! distribution.
 //!
 //! **Methods:**
-//!   - `calculate_subscription_fees`: Determines the initial fee for a subscription based on the
-//!     requested credits.
-//!   - `calculate_diff_fees`: Calculates the difference in fees when a subscription is modified
-//!     (e.g., credits are added or removed).
-//!   - `collect_fees`: Transfers fees from the subscriber's account to the designated treasury.
-//!   - `get_consume_credits`: Returns the amount of credits consumed when a subscription receives a
-//!     pulse.
-//!   - `get_idle_credits`: Returns the amount of credits consumed when a subscription skips
-//!     receiving a pulse.
+//!   - [`calculate_subscription_fees`](FeesManager::calculate_subscription_fees): Determines the
+//!     initial fee for a subscription based on the requested credits.
+//!   - [`calculate_diff_fees`](FeesManager::calculate_diff_fees): Calculates the difference in fees
+//!     when a subscription is modified (e.g., credits are added or removed).
+//!   - [`collect_fees`](FeesManager::collect_fees): Transfers fees from the subscriber's account to
+//!     the designated treasury.
+//!   - [`get_consume_credits`](FeesManager::get_consume_credits): Returns the amount of credits
+//!     that should be consumed when a subscription receives a pulse.
+//!   - [`get_idle_credits`](FeesManager::get_idle_credits): Returns the amount of credits that
+//!     should be consumed when a subscription skips receiving a pulse.
 //!
-//! ### `Subscription`
-//! Provides a simple interface for accessing the subscriber associated with a subscription.
+//! ### [`Subscription`]
+//! Provides an interface for accessing the subscriber associated with a subscription.
 //!
 //! **Methods:**
-//!   - `subscriber`: Returns the account ID of the subscriber.
+//!   - [`subscriber`](Subscription::subscriber): Returns the account ID of the subscriber.
 //!
-//! ### `DepositCalculator`
+//! ### [`DepositCalculator`]
 //! Manages the storage deposits required for subscriptions, ensuring that sufficient funds are
 //! reserved to cover the cost of storing subscription data.
 //!
 //! **Methods:**
-//!   - `calculate_storage_deposit`: Calculates the storage deposit required for a given
-//!     subscription.
-//!   - `calculate_diff_deposit`: Calculates the difference in storage deposit between two
-//!     subscriptions (e.g., when a subscription is updated).
+//!   - [`calculate_storage_deposit`](DepositCalculator::calculate_storage_deposit): Calculates the
+//!     storage deposit required for a given subscription.
+//!   - [`calculate_diff_deposit`](DepositCalculator::calculate_diff_deposit): Calculates the
+//!     difference in storage deposit between two subscriptions (e.g., when a subscription is
+//!     updated).
 //!
 //! ## Data Structures:
 //!
-//! ### `FeesError`
+//! ### [`FeesError`]
 //! Represents potential errors that can occur during fees management.
 //!
 //! **Variants:**
-//!   - `NotEnoughBalance`: Indicates that the subscriber's account has insufficient funds to cover
-//!     the required fees.
-//!   - `Other`: Represents a generic error with an associated context.
+//!   - [`NotEnoughBalance`](FeesError::NotEnoughBalance): Indicates that the subscriber's account
+//!     has insufficient funds to cover the required fees.
+//!   - [`Other`](FeesError::Other): Represents a generic error with an associated context.
 //!
-//! ### `BalanceDirection`
+//! ### [`BalanceDirection`]
 //! Specifies the direction of balance movement (either collecting or releasing funds).
 //!
 //! **Variants:**
-//!   - `Collect`: Indicates that funds should be collected from the subscriber.
-//!   - `Release`: Indicates that funds should be released to the subscriber.
-//!   - `None`: Indicates that no balance movement is required.
+//!   - [`Collect`](BalanceDirection::Collect): Indicates that funds should be collected from the
+//!     subscriber.
+//!   - [`Release`](BalanceDirection::Release): Indicates that funds should be released to the
+//!     subscriber.
+//!   - [`None`](BalanceDirection::None): Indicates that no balance movement is required.
 //!
-//! ### `DiffBalance`
+//! ### [`DiffBalance`]
 //! Represents a change in balance, including the amount and direction of the change.
 //!
 //! **Fields:**
-//!   - `balance`: The amount of balance being moved.
-//!   - `direction`: The direction of the balance movement (using the `BalanceDirection` enum).
+//!   - [`balance`](DiffBalance::balance): The amount of balance being moved.
+//!   - [`direction`](DiffBalance::direction): The direction of the balance movement (using the
+//!     `BalanceDirection` enum).
 
 /// Error type for fees management
 ///

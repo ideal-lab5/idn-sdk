@@ -167,7 +167,7 @@ pub type PulsePropertyOf<T> = PulseProperty<
 ///
 /// # Implementation
 /// - Uses a bounded vector to limit the maximum number of filter conditions
-/// - Each element is a `PulseProperty` that can match against `round` (but not `rand` values)
+/// - Each element is a [`PulseProperty`] that can match against `round` (but not `rand` values)
 /// - A pulse passes the filter if it matches ANY of the properties in the filter
 ///
 /// # Usage
@@ -293,8 +293,10 @@ pub type UpdateSubParamsOf<T> =
 /// This enum defines the possible states of a subscription, which can be either active or paused.
 ///
 /// # Variants
-/// * `Active` - The subscription is active and randomness is being distributed.
-/// * `Paused` - The subscription is paused and randomness distribution is temporarily suspended.
+/// * [`Active`](SubscriptionState::Active) - The subscription is active and randomness is being
+///   distributed.
+/// * [`Paused`](SubscriptionState::Paused) - The subscription is paused and randomness distribution
+///   is temporarily suspended.
 ///
 /// See [Subscription State Lifecycle](./index.html#subscription-state-lifecycle) for more details.
 #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
@@ -450,12 +452,16 @@ pub mod pallet {
 		/// index, frequency, metadata, and an optional pulse filter.
 		///
 		/// # Errors
-		/// * `TooManySubscriptions` - If the maximum number of subscriptions has been reached.
-		/// * `FilterNoRand` - If the pulse filter contains pulses.
-		/// * `SubscriptionAlreadyExists` - If a subscription with the specified ID already exists.
+		/// * [`TooManySubscriptions`](Error::TooManySubscriptions) - If the maximum number of
+		///   subscriptions has been reached.
+		/// * [`FilterRandNotPermitted`](Error::FilterRandNotPermitted) - If the pulse filter
+		///   contains pulses.
+		/// * [`SubscriptionAlreadyExists`](Error::SubscriptionAlreadyExists) - If a subscription
+		///   with the specified ID already exists.
 		///
 		/// # Events
-		/// * `SubscriptionCreated` - A new subscription has been created.
+		/// * [`SubscriptionCreated`](Event::SubscriptionCreated) - A new subscription has been
+		///   created.
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::create_subscription(T::PulseFilterLen::get()))]
 		#[allow(clippy::useless_conversion)]
@@ -534,12 +540,15 @@ pub mod pallet {
 		/// which temporarily halts the distribution of pulses.
 		///
 		/// # Errors
-		/// * `SubscriptionDoesNotExist` - If a subscription with the specified ID does not exist.
-		/// * `NotSubscriber` - If the origin is not the subscriber of the specified subscription.
-		/// * `SubscriptionAlreadyPaused` - If the subscription is already paused.
+		/// * [`SubscriptionDoesNotExist`](Error::SubscriptionDoesNotExist) - If a subscription with
+		///   the specified ID does not exist.
+		/// * [`NotSubscriber`](Error::NotSubscriber) - If the origin is not the subscriber of the
+		///   specified subscription.
+		/// * [`SubscriptionAlreadyPaused`](Error::SubscriptionAlreadyPaused) - If the subscription
+		///   is already paused.
 		///
 		/// # Events
-		/// * `SubscriptionPaused` - A subscription has been paused.
+		/// * [`SubscriptionPaused`](Event::SubscriptionPaused) - A subscription has been paused.
 		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::pause_subscription())]
 		pub fn pause_subscription(
@@ -567,11 +576,14 @@ pub mod pallet {
 		/// which stops the distribution of pulses and refunds any unused credits.
 		///
 		/// # Errors
-		/// * `SubscriptionDoesNotExist` - If a subscription with the specified ID does not exist.
-		/// * `NotSubscriber` - If the origin is not the subscriber of the specified subscription.
+		/// * [`SubscriptionDoesNotExist`](Error::SubscriptionDoesNotExist) - If a subscription with
+		///   the specified ID does not exist.
+		/// * [`NotSubscriber`](Error::NotSubscriber) - If the origin is not the subscriber of the
+		///   specified subscription.
 		///
 		/// # Events
-		/// * `SubscriptionRemoved` - A subscription has been terminated.
+		/// * [`SubscriptionRemoved`](Event::SubscriptionRemoved) - A subscription has been
+		///   terminated.
 		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::kill_subscription())]
 		pub fn kill_subscription(
@@ -594,12 +606,15 @@ pub mod pallet {
 		/// such as the number of credits, distribution interval, and pulse filter.
 		///
 		/// # Errors
-		/// * `SubscriptionDoesNotExist` - If a subscription with the specified ID does not exist.
-		/// * `NotSubscriber` - If the origin is not the subscriber of the specified subscription.
-		/// * `FilterNoRand` - If the pulse filter contains random values.
+		/// * [`SubscriptionDoesNotExist`](Error::SubscriptionDoesNotExist) - If a subscription with
+		///   the specified ID does not exist.
+		/// * [`NotSubscriber`](Error::NotSubscriber) - If the origin is not the subscriber of the
+		///   specified subscription.
+		/// * [`FilterRandNotPermitted`](Error::FilterRandNotPermitted) - If the pulse filter
+		///   contains random values.
 		///
 		/// # Events
-		/// * `SubscriptionUpdated` - A subscription has been updated.
+		/// * [`SubscriptionUpdated`](Event::SubscriptionUpdated) - A subscription has been updated.
 		#[pallet::call_index(3)]
 		#[pallet::weight(T::WeightInfo::update_subscription(T::PulseFilterLen::get()))]
 		#[allow(clippy::useless_conversion)]
@@ -650,11 +665,9 @@ pub mod pallet {
 		/// This function allows the subscriber to resume a paused subscription,
 		/// which restarts the distribution of pulses.
 		///
-		/// # Parameters
-		/// * `origin` - The origin of the transaction, must be a signed account.
-		/// * `sub_id` - The ID of the subscription to reactivate.
 		/// # Events
-		/// * `SubscriptionReactivated` - A subscription has been reactivated.
+		/// * [`SubscriptionReactivated`](Event::SubscriptionReactivated) - A subscription has been
+		///   reactivated.
 		#[pallet::call_index(4)]
 		#[pallet::weight(T::WeightInfo::reactivate_subscription())]
 		pub fn reactivate_subscription(
@@ -769,19 +782,15 @@ impl<T: Config> Pallet<T> {
 	/// This internal helper function calculates and collects fees from a subscription based on
 	/// the number of credits consumed. If no credits are consumed, no fees are collected.
 	///
-	/// It calculates the fees to collect using `T::FeesManager::calculate_diff_fees`, which
-	/// determines the difference between the current credits left and the credits left after
-	/// consumption.
-	/// It collects the fees using `T::FeesManager::collect_fees`, transferring the fees from the
-	/// subscriber's account to the treasury.
-	///
-	/// # Errors
-	/// * `DispatchError::Other("NotEnoughBalance")` - If the subscriber does not have enough
-	///   balance to pay the fees.
-	/// * `FeesError::Other(de)` - If there is another error during fee collection.
+	/// It calculates the fees to collect using
+	/// [`T::FeesManager::calculate_diff_fees`](FeesManager::calculate_diff_fees), which determines
+	/// the difference between the current credits left and the credits left after consumption.
+	/// It collects the fees using [`T::FeesManager::collect_fees`](FeesManager::collect_fees),
+	/// transferring the fees from the subscriber's account to the treasury.
 	///
 	/// # Events
-	/// * `FeesCollected` - Emitted when fees are successfully collected from the subscription.
+	/// * [`FeesCollected`](Event::FeesCollected) - Emitted when fees are successfully collected
+	///   from the subscription.
 	fn collect_fees(sub: &SubscriptionOf<T>, credits_consumed: T::Credits) -> DispatchResult {
 		if credits_consumed.is_zero() {
 			return Ok(());
@@ -897,8 +906,8 @@ impl<T: Config> Pallet<T> {
 
 	/// Ensures that a pulse filter doesn't attempt to filter on pulses
 	///
-	/// This function checks that the filter doesn't use the `PulseProperty::Rand` or
-	/// `PulseProperty::Sig` variant for filtering. Filtering based on randomness is not permitted
+	/// This function checks that the filter doesn't use the [`PulseProperty::Rand`] or
+	/// [`PulseProperty::Sig`] variant for filtering. Filtering based on randomness is not permitted
 	/// because it would contradict the purpose of randomness distribution - clients shouldn't be
 	/// able to selectively receive only certain pulses.
 	///
@@ -936,9 +945,9 @@ impl<T: Config> Pallet<T> {
 	/// Constructs an XCM message for delivering randomness to a subscriber
 	///
 	/// This function creates a complete XCM message that will:
-	/// 1. Execute without payment at the destination chain (UnpaidExecution)
+	/// 1. Execute without payment at the destination chain ([`UnpaidExecution`])
 	/// 2. Execute a call on the destination chain using the provided call index and randomness data
-	///    (Transact)
+	///    ([`Transact`])
 	/// 3. Expect successful execution and check status code (ExpectTransactStatus)
 	fn construct_randomness_xcm(pulse: &T::Pulse, call_index: CallIndex) -> Xcm<()> {
 		Xcm(vec![
@@ -960,7 +969,7 @@ impl<T: Config> Pallet<T> {
 	/// Computes the fee for a given number of credits.
 	///
 	/// This function calculates the subscription fee based on the specified number of credits
-	/// using the `FeesManager` implementation.
+	/// using the [`FeesManager`] implementation.
 	pub fn calculate_subscription_fees(credits: &T::Credits) -> BalanceOf<T> {
 		T::FeesManager::calculate_subscription_fees(credits)
 	}

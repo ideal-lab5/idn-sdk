@@ -2,7 +2,7 @@
 
 ## Overview
 
-The IDN Manager pallet provides functionality for managing subscriptions to a decentralized randomness service. It allows users to create, update, pause, and terminate subscriptions, as well as configure fees and storage deposits. This pallet is designed to be modular and extensible, allowing for different implementations of key components such as the fees manager and deposit calculator.
+The IDN Manager pallet provides functionality for managing subscriptions to randomness pulses. It allows users to create, update, pause, and terminate subscriptions, as well as configure fees and storage deposits. This pallet is designed to be modular and extensible, allowing for different implementations of key components such as the fees manager and deposit calculator.
 
 ## Key Features
 

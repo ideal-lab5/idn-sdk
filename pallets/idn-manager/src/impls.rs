@@ -22,11 +22,11 @@
 //!
 //! ## Key Implementations:
 //!
-//! - `SubscriptionTrait`: Implemented for the `Subscription` struct, providing access to
-//!   subscription details such as the subscriber account.
-//! - `FeesManager`: Implemented by `FeesManagerImpl`, providing the logic for calculating
+//! - [`Subscription Trait`](SubscriptionTrait): Implemented for the [`Subscription`] struct,
+//!   providing access to subscription details such as the subscriber account.
+//! - [`FeesManager`]: Implemented by [`FeesManagerImpl`], providing the logic for calculating
 //!   subscription fees, managing fee differences, and collecting fees from subscribers.
-//! - `DepositCalculator`: Implemented by `DepositCalculatorImpl`, providing the logic for
+//! - [`DepositCalculator`]: Implemented by [`DepositCalculatorImpl`], providing the logic for
 //!   calculating storage deposits and managing deposit differences.
 
 use crate::{
@@ -42,6 +42,7 @@ use frame_support::{
 		Get,
 	},
 };
+use pallet_idn_manager::{DepositCalculator, FeesManager};
 use sp_arithmetic::traits::Unsigned;
 use sp_runtime::{traits::Zero, AccountId32, Saturating};
 use sp_std::{cmp::Ordering, marker::PhantomData};
@@ -91,7 +92,7 @@ impl<
 		B: Get<Balances::Balance>,
 		S: SubscriptionTrait<AccountId32>,
 		Balances: Mutate<AccountId32>,
-	> pallet_idn_manager::FeesManager<Balances::Balance, u64, S, DispatchError, AccountId32>
+	> FeesManager<Balances::Balance, u64, S, DispatchError, AccountId32>
 	for FeesManagerImpl<T, B, S, Balances>
 where
 	Balances::Reason: From<HoldReason>,
@@ -185,9 +186,11 @@ where
 	/// 3. Returns the actual amount collected or an appropriate error
 	///
 	/// # Notes
-	/// - This function uses `transfer_on_hold` which transfers from the subscriber's held balance
-	/// - The fees are held under the `HoldReason::Fees` reason code
-	/// - The transfer uses `Precision::BestEffort` which allows partial transfers if full amount
+	/// - This function uses
+	///   [`transfer_on_hold`](frame_support::traits::tokens::fungible::hold::Mutate::transfer_on_hold)
+	///   which transfers from the subscriber's held balance
+	/// - The fees are held under the [`HoldReason::Fees`] reason code
+	/// - The transfer uses [`Precision::BestEffort`] which allows partial transfers if full amount
 	///   isn't available
 	/// - Despite using best effort, this function will return an error if less than the requested
 	///   amount is collected
@@ -247,8 +250,7 @@ impl<
 		S: SubscriptionTrait<AccountId32> + Encode,
 		SDMultiplier: Get<Deposit>,
 		Deposit: Saturating + From<u64> + Ord,
-	> pallet_idn_manager::DepositCalculator<Deposit, S>
-	for DepositCalculatorImpl<SDMultiplier, Deposit>
+	> DepositCalculator<Deposit, S> for DepositCalculatorImpl<SDMultiplier, Deposit>
 {
 	/// Calculate the storage deposit required for a subscription.
 	///
