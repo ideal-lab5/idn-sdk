@@ -88,7 +88,6 @@ pub use pallet::*;
 extern crate alloc;
 
 use alloc::{vec, vec::Vec};
-use ark_serialize::CanonicalSerialize;
 use frame_support::pallet_prelude::*;
 use sp_consensus_randomness_beacon::types::OpaquePulse;
 
@@ -98,7 +97,7 @@ pub mod types;
 pub mod weights;
 pub use weights::*;
 
-use aggregator::{zero_on_g1, SignatureAggregator};
+use aggregator::SignatureAggregator;
 pub use types::*;
 
 #[cfg(test)]
@@ -109,9 +108,6 @@ mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-
-/// The buffer size required to represent an element of the signature group
-const SERIALIZED_SIG_SIZE: usize = 48;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -130,6 +126,8 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 		/// The beacon configuration for which this pallet is defined.
 		type BeaconConfig: Get<BeaconConfiguration>;
+		/// The round in which we will start consuming randomness
+		type GenesisRound: Get<RoundNumber>;
 		/// something that knows how to aggregate and verify beacon pulses.
 		type SignatureAggregator: SignatureAggregator;
 		/// The number of signatures per block.
@@ -138,10 +136,6 @@ pub mod pallet {
 		/// Once the limit is reached, historical missed blocks are pruned as a FIFO queue.
 		type MissedBlocksHistoryDepth: Get<u32>;
 	}
-
-	/// A first round number for which a pulse was observed
-	#[pallet::storage]
-	pub type GenesisRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
 
 	/// The latest observed round
 	#[pallet::storage]
@@ -167,8 +161,6 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// The genesis round has been changed by a root address
-		GenesisRoundChanged,
 		/// Signature verification succeeded for the provided rounds.
 		SignatureVerificationSuccess,
 	}
@@ -177,8 +169,6 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// The pulse could not be verified
 		VerificationFailed,
-		/// The genesis round is zero.
-		GenesisRoundNotSet,
 		/// There must be at least one signature to construct an asig
 		ZeroHeightProvided,
 		/// The height exceeds the maximum allowed signatures per block
@@ -199,39 +189,19 @@ pub mod pallet {
 			// if we do not find any pulse data, then do nothing
 			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 			{
-				// ignores non-deserializable messages
-				// if all messages are invalid, it outputs 0 on the G1 curve (so serialization of
-				// asig always works)
-				let asig = raw_pulses
+				// ignores non-deserializable messages and pulses with invalid signature lengths
+				let sigs: Vec<OpaqueSignature> = raw_pulses
 					.iter()
 					.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
-					.filter_map(|pulse| pulse.signature_point().ok())
-					.fold(zero_on_g1(), |acc, sig| (acc + sig).into());
-
-				let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-				// [SRLABS]: This error is untestable since we know the signature is correct here.
-				//  Is it reasonable to use an expect?
-				asig.serialize_compressed(&mut asig_bytes)
-					.expect("The signature is well formatted.");
-
-				// if the genesis round is not configured, then the first call sets it
-				let round = (GenesisRound::<T>::get().is_none())
-					.then(|| {
-						// get the round from the first pulse observed
-						raw_pulses.iter().find_map(|rp| {
-							OpaquePulse::deserialize_from_vec(rp).ok().map(|p| p.round)
-						})
+					.map(|op| {
+						OpaqueSignature::truncate_from(op.signature.as_slice().to_vec())
 					})
-					.unwrap_or(None);
+					.collect::<Vec<_>>();
 
-				return Some(Call::try_submit_asig {
-					asig: OpaqueSignature::truncate_from(asig_bytes),
-					height: raw_pulses.len() as RoundNumber,
-					round,
-				});
-			} else {
-				log::info!("The node provided empty pulse data to the inherent!");
+				return Some(Call::try_submit_asig { sigs });
 			}
+
+			log::info!("The node provided empty pulse data to the inherent!");
 
 			None
 		}
@@ -298,39 +268,24 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::try_submit_asig())]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
-			asig: OpaqueSignature,
-			height: RoundNumber,
-			round: Option<RoundNumber>,
+			sigs: Vec<OpaqueSignature>,
 		) -> DispatchResult {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
-			// ensure the height is within [1, T::MaxSigsPerBlock]
+			// 0 < num_sigs <= MaxSigsPerBlock 
+			let height: u64 = sigs.len() as u64;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
 			ensure!(
 				height <= T::MaxSigsPerBlock::get() as u64,
 				Error::<T>::ExcessiveHeightProvided
 			);
-
 			let config = T::BeaconConfig::get();
-			// if the genesis round is not configured, do it on the first pass through
-			let genesis_round: RoundNumber = match GenesisRound::<T>::get() {
-				Some(gr) => gr,
-				None => {
-					// error if the genesis round is not set and a round is not provided
-					let r = round.ok_or(Error::<T>::GenesisRoundNotSet)?;
-					GenesisRound::<T>::set(round);
-					r
-				},
-			};
-
-			let latest_round = LatestRound::<T>::get().unwrap_or(genesis_round);
+			let latest_round = LatestRound::<T>::get().unwrap_or(T::GenesisRound::get());
 			// aggregate old asig/apk with the new one and verify the aggregation
-			// TODO: do we care about the entire linear history of message hashes?
-			// https://github.com/ideal-lab5/idn-sdk/issues/119
-			let aggr = T::SignatureAggregator::aggregate_and_verify(
+			let aggr = T::SignatureAggregator::verify(
 				config.public_key,
-				asig,
+				sigs,
 				latest_round,
 				height,
 				AggregatedSignature::<T>::get(),
@@ -341,6 +296,7 @@ pub mod pallet {
 			AggregatedSignature::<T>::set(Some(aggr));
 			DidUpdate::<T>::put(true);
 
+			// dispatch XCM via idn manager pallet here
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 
 			Ok(())

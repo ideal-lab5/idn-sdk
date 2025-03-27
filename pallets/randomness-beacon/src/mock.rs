@@ -59,9 +59,10 @@ parameter_types! {
 }
 
 impl pallet_drand_bridge::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
+	type RuntimeEvent = RuntimeEvent; 
 	type WeightInfo = ();
 	type BeaconConfig = QuicknetBeaconConfig;
+	type GenesisRound = ConstU64<1000>;
 	type SignatureAggregator = QuicknetAggregator;
 	type MaxSigsPerBlock = ConstU8<4>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
