@@ -127,7 +127,7 @@ pub struct DiffBalance<Balance> {
 
 /// Trait for fees managing
 ///
-/// This is where the bussines model logic is specified. This logic is used to calculate, collect
+/// This is where the business model logic is specified. This logic is used to calculate, collect
 /// and distribute fees for subscriptions.
 ///
 /// You can check the a particular implementation of this trait in
