@@ -193,9 +193,7 @@ pub mod pallet {
 				let sigs: Vec<OpaqueSignature> = raw_pulses
 					.iter()
 					.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
-					.map(|op| {
-						OpaqueSignature::truncate_from(op.signature.as_slice().to_vec())
-					})
+					.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
 					.collect::<Vec<_>>();
 
 				return Some(Call::try_submit_asig { sigs });
@@ -265,15 +263,15 @@ pub mod pallet {
 		/// * `round`: An optional genesis round number. It can only be set if the existing genesis
 		///   round is 0.
 		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::try_submit_asig())]
+		#[pallet::weight(T::WeightInfo::try_submit_asig(T::MaxSigsPerBlock::get()))]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
 			sigs: Vec<OpaqueSignature>,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
-			// 0 < num_sigs <= MaxSigsPerBlock 
+			// 0 < num_sigs <= MaxSigsPerBlock
 			let height: u64 = sigs.len() as u64;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
 			ensure!(
@@ -298,8 +296,8 @@ pub mod pallet {
 
 			// dispatch XCM via idn manager pallet here
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
-
-			Ok(())
+			// successful verification is beneficial to the network, so we do not charge when the siganture is correct
+			Ok(Pays::No.into())
 		}
 	}
 }

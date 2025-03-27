@@ -90,9 +90,9 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn try_submit_asig() -> Result<(), BenchmarkError> {
-		let r = T::MaxSigsPerBlock::get();
-		let (asig, apk, sigs) = test(r);
+	fn try_submit_asig(r: Linear<1, { T::MaxSigsPerBlock::get().into() }>) -> Result<(), BenchmarkError> {
+		// let r = T::MaxSigsPerBlock::get();
+		let (asig, apk, sigs) = test(r as u8);
 
 		#[extrinsic_call]
 		_(RawOrigin::None, sigs);

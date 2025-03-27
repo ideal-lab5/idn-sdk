@@ -223,7 +223,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type BeaconConfig = QuicknetBeaconConfig;
 	type GenesisRound = ConstU64<1000>;
 	type SignatureAggregator = pallet_randomness_beacon::aggregator::QuicknetAggregator;
-	type MaxSigsPerBlock = ConstU8<4>;
+	type MaxSigsPerBlock = ConstU8<10>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
 }
 
