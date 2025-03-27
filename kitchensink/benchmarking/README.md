@@ -24,13 +24,23 @@ Build the kitchensink with benchmarks enabled:
 
 ## Execute Benchmarks
 
+Benchmarks can either be executed by directly invoking the `frame-omni-bencher` command or via the [run script](./run.sh). See Parity's benchmarking guide for the latest installation instructions.
+
+### Run script
+
+The run.sh script provides a basic wrapper around the frame-omni-bencher command. To execute the run, from this directory run:
+
+`./run.sh <pallet-name> <output directory>`
+
+### With frame-omni-bencher
+
 Execute benchmarks to generate new weights for a given pallet that is configured in the Kitchensink. From the pallet's root folder, execute:
 
 ```shell
 # run the pallet benchmarks
 frame-omni-bencher v1 benchmark pallet \
     --runtime ../../target/release/wbuild/idn-sdk-kitchensink-runtime/idn_sdk_kitchensink_runtime.compact.compressed.wasm \
-    --pallet pallet-idn-manager \
+    --pallet PALLET-NAME \
     --extrinsic "" \
     --template ../../kitchensink/benchmarking/weight-template.hbs \
     --output src/weights.rs

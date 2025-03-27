@@ -45,17 +45,21 @@ pub struct DiffBalance<Balance> {
 
 /// Trait for fees managing
 pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S> {
-	/// Calculate the fees for a subscription based on the credits of random values required.
+	/// Calculate the fees for a subscription based on the credits of pulses required.
 	fn calculate_subscription_fees(credits: &Credits) -> Fees;
 	/// Calculate how much fees should be held or release when a subscription changes.
 	///
-	/// * `old_credits` - the credits of random values required before the change.
-	/// * `new_credits` - the credits of random values required after the change, this will
-	///   represent the updated credits in an update operation. Or the credits actually consumed in
-	///   a kill operation.
+	/// * `old_credits` - the credits of pulses required before the change.
+	/// * `new_credits` - the credits of pulses required after the change, this will represent the
+	///   updated credits in an update operation. Or the credits actually consumed in a kill
+	///   operation.
 	fn calculate_diff_fees(old_credits: &Credits, new_credits: &Credits) -> DiffBalance<Fees>;
 	/// Distributes collected fees. Returns the fees that were effectively collected.
 	fn collect_fees(fees: &Fees, sub: &Sub) -> Result<Fees, FeesError<Fees, Err>>;
+	/// Returns how many credits this subscription pays for receiving a pulse
+	fn get_consume_credits(sub: &Sub) -> Credits;
+	/// Returns how many credits this subscription pays for skipping to receive a pulse
+	fn get_idle_credits(sub: &Sub) -> Credits;
 }
 
 pub trait Subscription<Subscriber> {

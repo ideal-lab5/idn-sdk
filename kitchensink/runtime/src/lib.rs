@@ -222,8 +222,8 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type WeightInfo = ();
 	type BeaconConfig = QuicknetBeaconConfig;
 	type GenesisRound = ConstU64<1000>;
-	type SignatureAggregator = pallet_randomness_beacon::aggregator::QuicknetAggregator;
-	type MaxSigsPerBlock = ConstU8<4>;
+	type SignatureVerifier = pallet_randomness_beacon::verifier::QuicknetVerifier;
+	type MaxSigsPerBlock = ConstU8<10>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
 }
 
@@ -274,6 +274,7 @@ parameter_types! {
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
 	pub const PulseFilterLen: u32 = 100;
+	pub const MaxSubscriptions: u32 = 1_000_000;
 }
 
 #[derive(TypeInfo)]
@@ -331,6 +332,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type SubMetadataLen = SubMetadataLen;
 	type Credits = u64;
 	type PulseFilterLen = PulseFilterLen;
+	type MaxSubscriptions = MaxSubscriptions;
 }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;

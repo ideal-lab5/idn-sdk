@@ -68,8 +68,8 @@ where
 	/// Calculate the subscription fees based on the number of requested credits.
 	///
 	/// This function implements a tiered pricing model with volume discounts:
-	/// - Tier 1 (1-10 credits): 100% of base fee per credit (no discount)
-	/// - Tier 2 (11-100 credits): 95% of base fee per credit (5% discount)
+	/// - Tier 1 (1-10_000 credits): 100% of base fee per credit (no discount)
+	/// - Tier 2 (10_001-100_000 credits): 95% of base fee per credit (5% discount)
 	/// - Tier 3 (101-1000 credits): 90% of base fee per credit (10% discount)
 	/// - Tier 4 (1001-10000 credits): 80% of base fee per credit (20% discount)
 	/// - Tier 5 (10001+ credits): 70% of base fee per credit (30% discount)
@@ -88,21 +88,21 @@ where
 	///
 	/// # Example
 	/// ```nocompile
-	/// // 100 credits would incur a fee of:
-	/// // - 10 credits at full price: 10 * 100 = 1000
-	/// // - 90 credits at 5% discount: 90 * 95 = 8550
-	/// // Total: 9550
+	/// // 100_000 credits would incur a fee of:
+	/// // - 10_000 credits at full price: 10_000 * 100 = 1_000_000
+	/// // - 90_000 credits at 5% discount: 90_000 * 95 = 8_550_000
+	/// // Total: 9_550_000
 	/// let fees = calculate_subscription_fees(&100u64);
-	/// assert_eq!(fees, 9550u64.into());
+	/// assert_eq!(fees, 9_550_000u64.into());
 	/// ```
 	fn calculate_subscription_fees(credits: &u64) -> Balances::Balance {
 		// Define tier boundaries and their respective discount rates (in basis points)
 		const TIERS: [(u64, u64); 5] = [
-			(1, 0),        // 0-10: 0% discount
-			(11, 500),     // 11-100: 5% discount
-			(101, 1000),   // 101-1000: 10% discount
-			(1001, 2000),  // 1001-10000: 20% discount
-			(10001, 3000), // 10001+: 30% discount
+			(1, 0),           // 1-10_000: 0% discount
+			(10_001, 5),      // 10_001-100_000: 5% discount
+			(100_001, 10),    // 100_001-1_000_000: 10% discount
+			(1_000_001, 20),  // 1_000_001-10_000_000: 20% discount
+			(10_000_001, 30), // 10_000_001+: 30% discount
 		];
 
 		const BASE_FEE: u64 = 100;
@@ -124,8 +124,8 @@ where
 
 			let tier_fee = BASE_FEE
 				.saturating_mul(credits_in_tier)
-				.saturating_mul(10_000 - current_tier_discount)
-				.saturating_div(10_000);
+				.saturating_mul(100 - current_tier_discount)
+				.saturating_div(100);
 
 			total_fee = total_fee.saturating_add(tier_fee);
 			remaining_credits = remaining_credits.saturating_sub(credits_in_tier);
@@ -161,20 +161,20 @@ where
 	/// # Examples
 	/// ```nocompile
 	/// // When increasing credits, additional fees are collected:
-	/// // Old: 10 credits (1000 fee), New: 50 credits (5000 fee)
-	/// let diff = calculate_diff_fees(&10, &50);
-	/// assert_eq!(diff.balance, 4000);
+	/// // Old: 10_000 credits (1_000 fee), New: 50_000 credits (5_000_000 fee)
+	/// let diff = calculate_diff_fees(&10_000, &50_000);
+	/// assert_eq!(diff.balance, 4_000_000);
 	/// assert_eq!(diff.direction, BalanceDirection::Collect);
 	///
 	/// // When decreasing credits, excess fees are released:
-	/// // Old: 100 credits (9550 fee), New: 10 credits (1000 fee)
-	/// let diff = calculate_diff_fees(&100, &10);
-	/// assert_eq!(diff.balance, 8550);
+	/// // Old: 100_000 credits (9_550_000 fee), New: 10_000 credits (1_000_000 fee)
+	/// let diff = calculate_diff_fees(&100_000, &10_000);
+	/// assert_eq!(diff.balance, 8_550_000);
 	/// assert_eq!(diff.direction, BalanceDirection::Release);
 	///
 	/// // When credits remain the same, no fee changes occur:
-	/// // Old: 50 credits (5000 fee), New: 50 credits (5000 fee)
-	/// let diff = calculate_diff_fees(&50, &50);
+	/// // Old: 50_000 credits (5_000_000 fee), New: 50_000 credits (5_000_000 fee)
+	/// let diff = calculate_diff_fees(&50_000, &50_000);
 	/// assert_eq!(diff.balance, 0);
 	/// assert_eq!(diff.direction, BalanceDirection::None);
 	/// ```
@@ -222,7 +222,7 @@ where
 	///
 	/// # Example
 	/// ```nocompile
-	/// let fees = 1000u64.into();
+	/// let fees = 1_000_000u64.into();
 	/// let result = FeesManagerImpl::<Treasury, BaseFee, Subscription, Balances>::collect_fees(
 	///     &fees,
 	///     &subscription
@@ -258,6 +258,28 @@ where
 		}
 
 		Ok(collected)
+	}
+
+	/// Get the number of credits consumed by a subscription when this one gets a pulse in a block.
+	///
+	/// # Parameters
+	/// * `_sub` - The subscription object
+	///
+	/// # Returns
+	/// The number of credits consumed
+	fn get_consume_credits(_sub: &S) -> u64 {
+		1000
+	}
+
+	/// Get the number of credits consumed by a subscription when this one is idle in a block.
+	///
+	/// # Parameters
+	/// * `_sub` - The subscription object
+	///
+	/// # Returns
+	/// The number of idle credits
+	fn get_idle_credits(_sub: &S) -> u64 {
+		10
 	}
 }
 
@@ -297,7 +319,7 @@ impl<
 	///
 	/// // If SDMultiplier is 2 and the subscription encodes to 100 bytes:
 	/// let deposit = DepositCalculatorImpl::<SDMultiplier, u64>::calculate_storage_deposit(&subscription);
-	/// assert_eq!(deposit, 200);
+	/// assert_eq!(deposit, 200_000);
 	/// ```
 	fn calculate_storage_deposit(sub: &S) -> Deposit {
 		// [SRLabs] Note: There is a theoretical edge case where if the `Deposit` type (e.g., u64)
@@ -338,20 +360,20 @@ impl<
 	/// let new_sub = /* same subscription with 150 bytes encoded size */;
 	///
 	/// // If SDMultiplier is 2:
-	/// // Old deposit = 2 * 100 = 200
-	/// // New deposit = 2 * 150 = 300
+	/// // Old deposit = 2 * 100_000 = 200_000
+	/// // New deposit = 2 * 150_000 = 300_000
 	/// let diff = DepositCalculatorImpl::<SDMultiplier, u64>::calculate_diff_deposit(&old_sub, &new_sub);
-	/// assert_eq!(diff.balance, 100); // 300 - 200 = 100 more needed
+	/// assert_eq!(diff.balance, 100_000); // 300_000 - 200_000 = 100_000 more needed
 	/// assert_eq!(diff.direction, BalanceDirection::Collect);
 	///
 	/// // When subscription size decreases (e.g., metadata removed):
 	/// let old_sub = /* subscription with 150 bytes encoded size */;
-	/// let new_sub = /* same subscription with 100 bytes encoded size */;
+	/// let new_sub = /* same subscription with 100_000 bytes encoded size */;
 	///
-	/// // Old deposit = 2 * 150 = 300
-	/// // New deposit = 2 * 100 = 200
+	/// // Old deposit = 2 * 150_000 = 300_000
+	/// // New deposit = 2 * 100_000 = 200_000
 	/// let diff = DepositCalculatorImpl::<SDMultiplier, u64>::calculate_diff_deposit(&old_sub, &new_sub);
-	/// assert_eq!(diff.balance, 100); // 300 - 200 = 100 to release
+	/// assert_eq!(diff.balance, 100_000); // 300_000 - 200_000 = 100_000 to release
 	/// assert_eq!(diff.direction, BalanceDirection::Release);
 	/// ```
 	fn calculate_diff_deposit(old_sub: &S, new_sub: &S) -> DiffBalance<Deposit> {

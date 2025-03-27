@@ -24,7 +24,7 @@
 //! ## Overview
 //!
 //! - Provides a mechanism to ingest randomness pulses from an external randomness beacon.
-//! - Aggregates and verifies pulses using the [`SignatureAggregator`] trait.
+//! - Aggregates and verifies pulses using the [`SignatureVerifier`] trait.
 //! - Ensures that the runtime only uses verified randomness for security-critical applications.
 //! - Stores the latest aggregated signature to enable efficient verification within the runtime.
 //!
@@ -41,7 +41,7 @@
 //!
 //! ## Implementation Details
 //!
-//! The pallet relies on a [`SignatureAggregator`] implementation to aggregate and verify randomness
+//! The pallet relies on a [`SignatureVerifier`] implementation to aggregate and verify randomness
 //! pulses. It maintains the latest observed rounds, validates incoming pulses, and aggregates valid
 //! signatures before storing them in runtime storage. It expects a monotonically increasing
 //! sequence of beacon pulses delivered in packets of size `T::SignatureToBlockRatio`, beginning at
@@ -91,14 +91,14 @@ use alloc::{vec, vec::Vec};
 use frame_support::pallet_prelude::*;
 use sp_consensus_randomness_beacon::types::OpaquePulse;
 
-pub mod aggregator;
 pub mod bls12_381;
 pub mod types;
+pub mod verifier;
 pub mod weights;
 pub use weights::*;
 
-use aggregator::SignatureAggregator;
 pub use types::*;
+use verifier::SignatureVerifier;
 
 #[cfg(test)]
 mod mock;
@@ -129,7 +129,7 @@ pub mod pallet {
 		/// The round in which we will start consuming randomness
 		type GenesisRound: Get<RoundNumber>;
 		/// something that knows how to aggregate and verify beacon pulses.
-		type SignatureAggregator: SignatureAggregator;
+		type SignatureVerifier: SignatureVerifier;
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;
 		/// The number of historical missed blocks that we store.
@@ -193,9 +193,7 @@ pub mod pallet {
 				let sigs: Vec<OpaqueSignature> = raw_pulses
 					.iter()
 					.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
-					.map(|op| {
-						OpaqueSignature::truncate_from(op.signature.as_slice().to_vec())
-					})
+					.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
 					.collect::<Vec<_>>();
 
 				return Some(Call::try_submit_asig { sigs });
@@ -265,15 +263,16 @@ pub mod pallet {
 		/// * `round`: An optional genesis round number. It can only be set if the existing genesis
 		///   round is 0.
 		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::try_submit_asig())]
+		#[pallet::weight(T::WeightInfo::try_submit_asig(T::MaxSigsPerBlock::get().into()))]
+		#[allow(clippy::useless_conversion)]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
 			sigs: Vec<OpaqueSignature>,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
-			// 0 < num_sigs <= MaxSigsPerBlock 
+			// 0 < num_sigs <= MaxSigsPerBlock
 			let height: u64 = sigs.len() as u64;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
 			ensure!(
@@ -283,11 +282,10 @@ pub mod pallet {
 			let config = T::BeaconConfig::get();
 			let latest_round = LatestRound::<T>::get().unwrap_or(T::GenesisRound::get());
 			// aggregate old asig/apk with the new one and verify the aggregation
-			let aggr = T::SignatureAggregator::verify(
+			let aggr = T::SignatureVerifier::verify(
 				config.public_key,
 				sigs,
 				latest_round,
-				height,
 				AggregatedSignature::<T>::get(),
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
@@ -296,10 +294,10 @@ pub mod pallet {
 			AggregatedSignature::<T>::set(Some(aggr));
 			DidUpdate::<T>::put(true);
 
-			// dispatch XCM via idn manager pallet here
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
-
-			Ok(())
+			// successful verification is beneficial to the network, so we do not charge when the
+			// siganture is correct
+			Ok(Pays::No.into())
 		}
 	}
 }
