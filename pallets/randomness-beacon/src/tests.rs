@@ -15,8 +15,8 @@
  */
 
 use crate::{
-	mock::*, types::*, verifier::test::*, AggregatedSignature, Call, Error, LatestRound,
-	MissedBlocks,
+	mock::*, types::*, verifier::test::*, AggregatedSignature, Call, Error, GenesisRound,
+	LatestRound, MissedBlocks,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 use frame_system::pallet_prelude::BlockNumberFor;
@@ -30,11 +30,37 @@ fn can_construct_pallet_and_set_genesis_params() {
 }
 
 #[test]
+fn can_fail_write_pulse_when_genesis_round_not_set() {
+	let (_asig, _apk, sigs) = get(vec![PULSE1000, PULSE1001]);
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		assert_noop!(
+			Drand::try_submit_asig(RuntimeOrigin::none(), sigs),
+			Error::<Test>::GenesisRoundNotSet,
+		);
+	});
+}
+
+#[test]
+fn can_set_genesis_round_once_as_root() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1));
+		assert_eq!(GenesisRound::<Test>::get().unwrap(), 1);
+		assert_noop!(
+			Drand::set_genesis_round(RuntimeOrigin::root(), 2),
+			Error::<Test>::GenesisRoundAlreadySet,
+		);
+	});
+}
+
+#[test]
 fn can_submit_valid_pulses_under_the_limit() {
 	let (asig, apk, sigs) = get(vec![PULSE1000, PULSE1001]);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
+		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs));
 
@@ -51,6 +77,7 @@ fn can_submit_valid_pulses_under_the_limit() {
 fn can_fail_when_sig_height_is_0() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
+		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
 		assert_noop!(
 			Drand::try_submit_asig(RuntimeOrigin::none(), vec![]),
 			Error::<Test>::ZeroHeightProvided
@@ -62,6 +89,7 @@ fn can_fail_when_sig_height_is_0() {
 fn can_fail_when_sig_height_is_exceeds_max() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
+		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
 		let too_many_sigs = (1..10000)
 			.map(|i| OpaqueSignature::truncate_from(vec![i as u8]))
 			.collect::<Vec<_>>();
@@ -83,6 +111,7 @@ fn can_submit_valid_sigs_in_sequence() {
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
+		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs1));
 
@@ -109,6 +138,7 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
+		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs.clone()));
 		assert_noop!(
@@ -124,6 +154,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
+		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs.clone()));
 
@@ -151,7 +182,6 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 fn can_track_missed_blocks() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-
 		Drand::on_finalize(1);
 
 		let missed_blocks = MissedBlocks::<Test>::get();
