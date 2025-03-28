@@ -207,7 +207,7 @@ pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter> 
 	// How often to receive pulses
 	frequency: BlockNumber,
 	// Optional metadata that can be used by the subscriber
-	metadata: Metadata,
+	metadata: Option<Metadata>,
 	// Last block in which a pulse was received
 	last_delivered: Option<BlockNumber>,
 	// A custom filter for receiving pulses
@@ -247,7 +247,7 @@ pub struct CreateSubParams<Credits, BlockNumber, Metadata, PulseFilter> {
 	// Distribution interval for pulses
 	pub frequency: BlockNumber,
 	// Bounded vector for additional data
-	pub metadata: Metadata,
+	pub metadata: Option<Metadata>,
 	// Optional Pulse Filter
 	pub pulse_filter: Option<PulseFilter>,
 	// Optional Subscription Id, if None, a new one will be generated
@@ -275,7 +275,7 @@ pub struct UpdateSubParams<SubId, Credits, Frequency, PulseFilter, Metadata> {
 	// New distribution interval
 	pub frequency: Option<Frequency>,
 	// Bounded vector for additional data
-	pub metadata: Option<Metadata>,
+	pub metadata: Option<Option<Metadata>>,
 	// New Pulse Filter
 	pub pulse_filter: Option<Option<PulseFilter>>,
 }
@@ -681,7 +681,7 @@ pub mod pallet {
 				} else {
 					0
 				},
-				if let Some(md) = params.metadata {
+				if let Some(Some(md)) = params.metadata {
 					md.len().try_into().unwrap_or(T::SubMetadataLen::get())
 				} else {
 					0
@@ -866,7 +866,7 @@ impl<T: Config> Pallet<T> {
 	/// current block number to ensure uniqueness and prevent collisions.
 	fn generate_sub_id(
 		sub_details: &SubscriptionDetailsOf<T>,
-		metadata: &MetadataOf<T>,
+		metadata: &Option<MetadataOf<T>>,
 		current_block: &BlockNumberFor<T>,
 	) -> SubscriptionId {
 		let id_tuple = (
