@@ -125,7 +125,7 @@ mod example_consumer {
 			// Create subscription through IDN client
 			let subscription_id = self
 				.idn_client
-				.create_subscription(params)
+				.create_subscription(self.ideal_network_para_id, params)
 				.map_err(ContractError::IdnClientError)?;
 
 			// Update contract state with the new subscription
@@ -149,7 +149,7 @@ mod example_consumer {
 
 			// Pause subscription through IDN client
 			self.idn_client
-				.pause_subscription(subscription_id)
+				.pause_subscription(self.ideal_network_para_id, subscription_id)
 				.map_err(ContractError::IdnClientError)?;
 
 			Ok(())
@@ -170,7 +170,7 @@ mod example_consumer {
 
 			// Reactivate subscription through IDN client
 			self.idn_client
-				.reactivate_subscription(subscription_id)
+				.reactivate_subscription(self.ideal_network_para_id, subscription_id)
 				.map_err(ContractError::IdnClientError)?;
 
 			Ok(())
@@ -211,7 +211,7 @@ mod example_consumer {
 
 			// Update subscription through IDN client
 			self.idn_client
-				.update_subscription(params)
+				.update_subscription(self.ideal_network_para_id, params)
 				.map_err(ContractError::IdnClientError)?;
 
 			Ok(())
@@ -232,7 +232,7 @@ mod example_consumer {
 
 			// Kill subscription through IDN client
 			self.idn_client
-				.kill_subscription(subscription_id)
+				.kill_subscription(self.ideal_network_para_id, subscription_id)
 				.map_err(ContractError::IdnClientError)?;
 
 			// Clear the subscription ID and other state

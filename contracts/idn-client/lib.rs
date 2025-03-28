@@ -13,10 +13,6 @@ use std::sync::Arc;
 #[cfg(not(feature = "std"))]
 use alloc::sync::Arc;
 
-/// Default parachain ID for the IDN Network
-/// This can be overridden during implementation with specific values
-pub const DEFAULT_IDN_PARACHAIN_ID: u32 = 2000;
-
 /// Default pallet index for the IDN Manager pallet
 /// This can be overridden during implementation with specific values
 pub const DEFAULT_IDN_MANAGER_PALLET_INDEX: u8 = 42;
@@ -145,6 +141,7 @@ pub trait IdnClient {
     /// 
     /// # Arguments
     /// 
+    /// * `ideal_network_para_id` - The parachain ID of the IDN network
     /// * `params` - Parameters for creating a subscription
     /// 
     /// # Returns
@@ -159,6 +156,7 @@ pub trait IdnClient {
     /// * `Error::InvalidParameters` - If the provided parameters are invalid
     fn create_subscription(
         &mut self,
+        ideal_network_para_id: u32,
         params: CreateSubParams,
     ) -> Result<SubscriptionId>;
 
@@ -166,6 +164,7 @@ pub trait IdnClient {
     /// 
     /// # Arguments
     /// 
+    /// * `ideal_network_para_id` - The parachain ID of the IDN network
     /// * `subscription_id` - ID of the subscription to pause
     /// 
     /// # Returns
@@ -173,6 +172,7 @@ pub trait IdnClient {
     /// * `Result<()>` - Success or error
     fn pause_subscription(
         &mut self,
+        ideal_network_para_id: u32,
         subscription_id: SubscriptionId,
     ) -> Result<()>;
 
@@ -180,6 +180,7 @@ pub trait IdnClient {
     /// 
     /// # Arguments
     /// 
+    /// * `ideal_network_para_id` - The parachain ID of the IDN network
     /// * `subscription_id` - ID of the subscription to reactivate
     /// 
     /// # Returns
@@ -187,6 +188,7 @@ pub trait IdnClient {
     /// * `Result<()>` - Success or error
     fn reactivate_subscription(
         &mut self,
+        ideal_network_para_id: u32,
         subscription_id: SubscriptionId,
     ) -> Result<()>;
 
@@ -194,6 +196,7 @@ pub trait IdnClient {
     /// 
     /// # Arguments
     /// 
+    /// * `ideal_network_para_id` - The parachain ID of the IDN network
     /// * `params` - Parameters for updating the subscription
     /// 
     /// # Returns
@@ -201,6 +204,7 @@ pub trait IdnClient {
     /// * `Result<()>` - Success or error
     fn update_subscription(
         &mut self,
+        ideal_network_para_id: u32,
         params: UpdateSubParams,
     ) -> Result<()>;
 
@@ -208,6 +212,7 @@ pub trait IdnClient {
     /// 
     /// # Arguments
     /// 
+    /// * `ideal_network_para_id` - The parachain ID of the IDN network
     /// * `subscription_id` - ID of the subscription to kill
     /// 
     /// # Returns
@@ -215,6 +220,7 @@ pub trait IdnClient {
     /// * `Result<()>` - Success or error
     fn kill_subscription(
         &mut self,
+        ideal_network_para_id: u32,
         subscription_id: SubscriptionId,
     ) -> Result<()>;
 }
@@ -416,6 +422,7 @@ impl IdnClientImpl {
 impl IdnClient for IdnClientImpl {
     fn create_subscription(
         &mut self,
+        ideal_network_para_id: u32,
         mut params: CreateSubParams,
     ) -> Result<SubscriptionId> {
         // Generate a subscription ID if not provided
@@ -430,7 +437,7 @@ impl IdnClient for IdnClientImpl {
         let message = self.construct_create_subscription_xcm(&params);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(DEFAULT_IDN_PARACHAIN_ID); 
+        let junction = Junction::Parachain(ideal_network_para_id); 
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -452,13 +459,14 @@ impl IdnClient for IdnClientImpl {
 
     fn pause_subscription(
         &mut self,
+        ideal_network_para_id: u32,
         subscription_id: SubscriptionId,
     ) -> Result<()> {
         // Create the XCM message
         let message = self.construct_pause_subscription_xcm(subscription_id);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(DEFAULT_IDN_PARACHAIN_ID); 
+        let junction = Junction::Parachain(ideal_network_para_id); 
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -478,13 +486,14 @@ impl IdnClient for IdnClientImpl {
 
     fn reactivate_subscription(
         &mut self,
+        ideal_network_para_id: u32,
         subscription_id: SubscriptionId,
     ) -> Result<()> {
         // Create the XCM message
         let message = self.construct_reactivate_subscription_xcm(subscription_id);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(DEFAULT_IDN_PARACHAIN_ID); 
+        let junction = Junction::Parachain(ideal_network_para_id); 
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -504,13 +513,14 @@ impl IdnClient for IdnClientImpl {
 
     fn update_subscription(
         &mut self,
+        ideal_network_para_id: u32,
         params: UpdateSubParams,
     ) -> Result<()> {
         // Create the XCM message
         let message = self.construct_update_subscription_xcm(&params);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(DEFAULT_IDN_PARACHAIN_ID); 
+        let junction = Junction::Parachain(ideal_network_para_id); 
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -530,13 +540,14 @@ impl IdnClient for IdnClientImpl {
 
     fn kill_subscription(
         &mut self,
+        ideal_network_para_id: u32,
         subscription_id: SubscriptionId,
     ) -> Result<()> {
         // Create the XCM message
         let message = self.construct_kill_subscription_xcm(subscription_id);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(DEFAULT_IDN_PARACHAIN_ID); 
+        let junction = Junction::Parachain(ideal_network_para_id); 
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
