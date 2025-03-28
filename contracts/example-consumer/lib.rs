@@ -20,6 +20,8 @@ mod example_consumer {
 		last_randomness: Option<[u8; 32]>,
 		/// The parachain ID of the Ideal Network
 		ideal_network_para_id: u32,
+		/// Contracts pallet index on the destination chain
+		contracts_pallet_index: u8,
 		/// The call index for receiving randomness
 		randomness_call_index: CallIndex,
 		/// History of received randomness values
@@ -59,18 +61,19 @@ mod example_consumer {
 		/// # Arguments
 		///
 		/// * `ideal_network_para_id` - The parachain ID of the Ideal Network
+		/// * `contracts_pallet_index` - The contracts pallet index on the destination chain
 		#[ink(constructor)]
-		pub fn new(ideal_network_para_id: u32) -> Self {
+		pub fn new(ideal_network_para_id: u32, contracts_pallet_index: u8) -> Self {
 			// The call index for delivering randomness to this contract
 			// First byte: The pallet index of the contracts pallet on the destination chain (e.g., 50)
-			// Second byte: The message ID for the receive_randomness function in our contract
-			// This is the 11th message function (starting from 0), so its ID is 10
-			let randomness_call_index: CallIndex = [50, 10]; // Should be adjusted based on chain configuration
+			// Second byte: The first byte of the fixed selector (0x01) for our receive_randomness function
+			let randomness_call_index: CallIndex = [contracts_pallet_index, 0x01]; // Contracts pallet index may vary by chain
 
 			Self {
 				subscription_id: None,
 				last_randomness: None,
 				ideal_network_para_id,
+				contracts_pallet_index,
 				randomness_call_index,
 				randomness_history: Vec::new(),
 				idn_client: IdnClientImpl,
@@ -109,7 +112,7 @@ mod example_consumer {
 					interior: Junctions::X3(
 						Arc::new([
 							Junction::Parachain(1000), // Destination parachain ID (should match your parachain)
-							Junction::PalletInstance(50), // Contracts pallet (index may vary per chain)
+							Junction::PalletInstance(self.contracts_pallet_index), // Contracts pallet (index may vary per chain)
 							Junction::AccountId32 {       // Your contract address
 								network: None,
 								id: *self.env().account_id().as_ref(),
@@ -311,7 +314,7 @@ mod example_consumer {
 
 		/// Public entry point for receiving randomness via XCM
 		/// This function is called by the IDN Network when delivering randomness
-		#[ink(message)]
+		#[ink(message, selector = 0x01000000)]
 		pub fn receive_randomness(&mut self, randomness: [u8; 32], subscription_id: SubscriptionId) 
 			-> core::result::Result<(), ContractError> 
 		{
@@ -359,7 +362,7 @@ mod example_consumer {
 		#[ink::test]
 		fn test_receive_and_store_randomness() {
 			// Create contract without actually creating a subscription
-			let mut contract = ExampleConsumer::new(2000);
+			let mut contract = ExampleConsumer::new(2000, 50);
 
 			// Manually set a subscription ID to simulate we have one
 			contract.subscription_id = Some(1);
@@ -392,7 +395,7 @@ mod example_consumer {
 		/// Test the randomness getters
 		#[ink::test]
 		fn test_randomness_getters() {
-			let mut contract = ExampleConsumer::new(2000);
+			let mut contract = ExampleConsumer::new(2000, 50);
 
 			// Initial state
 			assert!(contract.get_last_randomness().is_none());
@@ -413,7 +416,7 @@ mod example_consumer {
 		#[ink::test]
 		fn test_randomness_receiver_trait() {
 			// Create contract with manual subscription ID
-			let mut contract = ExampleConsumer::new(2000);
+			let mut contract = ExampleConsumer::new(2000, 50);
 			contract.subscription_id = Some(1);
 
 			// Initial state
@@ -442,7 +445,7 @@ mod example_consumer {
 		#[ink::test]
 		fn test_randomness_receiver_wrong_subscription() {
 			// Create contract with subscription ID 1
-			let mut contract = ExampleConsumer::new(2000);
+			let mut contract = ExampleConsumer::new(2000, 50);
 			contract.subscription_id = Some(1);
 
 			// Try to receive randomness for subscription ID 2
@@ -465,7 +468,7 @@ mod example_consumer {
 		#[ink::test]
 		fn test_simulate_randomness_received() {
 			// Create contract without actually creating a subscription
-			let mut contract = ExampleConsumer::new(2000);
+			let mut contract = ExampleConsumer::new(2000, 50);
 
 			// No randomness initially
 			assert!(contract.last_randomness.is_none());
@@ -494,14 +497,14 @@ mod example_consumer {
 		fn test_contract_initialization() {
 			// Test with different parachain IDs
 			let para_id_1 = 1000;
-			let contract_1 = ExampleConsumer::new(para_id_1);
+			let contract_1 = ExampleConsumer::new(para_id_1, 50);
 			assert_eq!(contract_1.ideal_network_para_id, para_id_1);
 			assert!(contract_1.subscription_id.is_none());
 			assert!(contract_1.last_randomness.is_none());
 			assert_eq!(contract_1.randomness_history.len(), 0);
 
 			let para_id_2 = 2000;
-			let contract_2 = ExampleConsumer::new(para_id_2);
+			let contract_2 = ExampleConsumer::new(para_id_2, 50);
 			assert_eq!(contract_2.ideal_network_para_id, para_id_2);
 		}
 
@@ -509,7 +512,7 @@ mod example_consumer {
 		#[ink::test]
 		fn test_randomness_history_capacity() {
 			// Create contract with a subscription
-			let mut contract = ExampleConsumer::new(2000);
+			let mut contract = ExampleConsumer::new(2000, 50);
 			contract.subscription_id = Some(1);
 
 			// Add multiple randomness values
@@ -613,7 +616,7 @@ mod example_consumer {
 		#[ink_e2e::test]
 		async fn test_subscription_lifecycle(mut client: ink_e2e::Client<C, E>) -> E2EResult<()> {
 			// Deploy the contract
-			let constructor = ExampleConsumerRef::new(2000);
+			let constructor = ExampleConsumerRef::new(2000, 50);
 			let contract_id = client
 				.instantiate("example_consumer", &ink_e2e::alice(), constructor, 0, None)
 				.await
