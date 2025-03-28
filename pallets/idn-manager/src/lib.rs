@@ -744,7 +744,7 @@ impl<T: Config> Pallet<T> {
 					// see the [Pulse Filtering Security](#pulse-filtering-security) section
 					Self::custom_filter(&sub.pulse_filter, &pulse)
 				{
-					let msg = Self::construct_xcm_msg(&pulse, sub.details.call_index);
+					let msg = Self::construct_xcm_msg(sub.details.call_index, &pulse, &sub_id);
 					let versioned_target: Box<VersionedLocation> =
 						Box::new(sub.details.target.clone().into());
 					let versioned_msg: Box<VersionedXcm<()>> =
@@ -932,7 +932,11 @@ impl<T: Config> Pallet<T> {
 	/// 2. Execute a call on the destination chain using the provided call index and randomness data
 	///    ([`Transact`])
 	/// 3. Expect successful execution and check status code (ExpectTransactStatus)
-	fn construct_xcm_msg(pulse: &T::Pulse, call_index: CallIndex) -> Xcm<()> {
+	fn construct_xcm_msg(
+		call_index: CallIndex,
+		pulse: &T::Pulse,
+		sub_id: &SubscriptionId,
+	) -> Xcm<()> {
 		Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			Transact {
@@ -942,8 +946,8 @@ impl<T: Config> Pallet<T> {
 				// to Vec<u8> The encoded data will be used by the receiving chain to:
 				// 1. Find the target pallet using first byte of call_index
 				// 2. Find the target function using second byte of call_index
-				// 3. Pass the pulse to that function
-				call: (call_index, pulse).encode().into(),
+				// 3. Pass the parameters to that function
+				call: (call_index, pulse, sub_id).encode().into(),
 			},
 			ExpectTransactStatus(MaybeErrorCode::Success),
 		])

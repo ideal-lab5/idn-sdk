@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use idn_traits::pulse::Consumer as IdnClient;
 #[cfg(test)]
 mod mock;
 
@@ -35,6 +36,8 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		/// The type for the randomness pulse
+		type Pulse: Pulse + Encode;
 	}
 
 	#[pallet::pallet]
@@ -57,14 +60,11 @@ pub mod pallet {
 	}
 
 	#[pallet::call]
-	impl<T: Config> Pallet<T> {
+	impl<T: Config> IdnClient for Pallet<T> {
 		/// Creates a subscription.
 		#[pallet::call_index(0)]
 		#[pallet::weight(Weight::from_parts(0, 0))]
-		pub fn create_subscription(
-			origin: OriginFor<T>,
-			something: u32,
-		) -> DispatchResultWithPostInfo {
+		pub fn consume(origin: OriginFor<T>, pulse: Pulse) -> DispatchResultWithPostInfo {
 			let _who = ensure_signed(origin)?;
 
 			Ok(().into())

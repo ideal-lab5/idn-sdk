@@ -69,6 +69,10 @@ pub mod pulse {
 		fn dispatch(pulse: P) -> O;
 	}
 
+	pub trait Consumer<P: Pulse, I, O> {
+		fn consume(pulse: P, sub_id: I) -> O;
+	}
+
 	/// An enum representing properties of a randomness pulse
 	///
 	/// This enum allows systems to refer to the properties of a pulse in a type-safe way. It's
