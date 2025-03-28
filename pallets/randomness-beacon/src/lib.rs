@@ -196,14 +196,21 @@ pub mod pallet {
 			// if we do not find any pulse data, then do nothing
 			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 			{
-				// ignores non-deserializable messages and pulses with invalid signature lengths
-				let sigs: Vec<OpaqueSignature> = raw_pulses
-					.iter()
-					.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
-					.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
-					.collect::<Vec<_>>();
+				if let Some(genesis_round) = GenesisRound::<T>::get() {
+					// ignores non-deserializable messages and pulses with invalid signature lengths
+					//  ignores rounds less than the genesis round
+					let sigs: Vec<OpaqueSignature> = raw_pulses
+						.iter()
+						.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
+						.filter(|op| op.round >= genesis_round)
+						.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
+						.collect::<Vec<_>>();
 
-				return Some(Call::try_submit_asig { sigs });
+					return Some(Call::try_submit_asig { sigs });
+				} else {
+					log::info!("We observed pulses but there is no genesis round set.");
+				}
+				
 			}
 
 			log::info!("The node provided empty pulse data to the inherent!");

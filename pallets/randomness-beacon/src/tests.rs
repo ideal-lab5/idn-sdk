@@ -216,19 +216,26 @@ use sp_inherents::InherentData;
 #[test]
 fn can_create_inherent() {
 	// setup the inherent data
+	let genesis = 1001;
 	let (asig1, _apk1, _sig1) = get(vec![PULSE1000]);
+	// this pulse will be ignored
 	let pulse1 = OpaquePulse { round: 1000u64, signature: asig1.to_vec().try_into().unwrap() };
 
 	let (asig2, _apk2, _sig2) = get(vec![PULSE1001]);
 	let pulse2 = OpaquePulse { round: 1001u64, signature: asig2.to_vec().try_into().unwrap() };
 
-	let (_asig, _apk, expected_sigs) = get(vec![PULSE1000, PULSE1001]);
+	let (asig3, _apk3, _sig3) = get(vec![PULSE1002]);
+	let pulse3 = OpaquePulse { round: 1001u64, signature: asig3.to_vec().try_into().unwrap() };
 
-	let bytes: Vec<Vec<u8>> = vec![pulse1.serialize_to_vec(), pulse2.serialize_to_vec()];
+	let (_asig, _apk, expected_sigs) = get(vec![PULSE1001, PULSE1002]);
+
+	let bytes: Vec<Vec<u8>> =
+		vec![pulse1.serialize_to_vec(), pulse2.serialize_to_vec(), pulse3.serialize_to_vec()];
 	let mut inherent_data = InherentData::new();
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
 	new_test_ext().execute_with(|| {
+		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), genesis));
 		let result = Drand::create_inherent(&inherent_data);
 		if let Some(Call::try_submit_asig { sigs }) = result {
 			assert_eq!(sigs, expected_sigs, "The output should match the aggregated input.");
@@ -239,9 +246,19 @@ fn can_create_inherent() {
 }
 
 #[test]
+fn can_not_create_inherent_when_genesis_round_is_none() {
+	let inherent_data = InherentData::new();
+	new_test_ext().execute_with(|| {
+		let result = Drand::create_inherent(&inherent_data);
+		assert!(result.is_none());
+	});
+}
+
+#[test]
 fn can_not_create_inherent_when_data_is_unavailable() {
 	let inherent_data = InherentData::new();
 	new_test_ext().execute_with(|| {
+		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
 		let result = Drand::create_inherent(&inherent_data);
 		assert!(result.is_none());
 	});
@@ -260,6 +277,7 @@ fn can_check_inherent() {
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
 	new_test_ext().execute_with(|| {
+		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
 		let result = Drand::create_inherent(&inherent_data);
 		if let Some(call) = result {
 			assert!(Drand::is_inherent(&call), "The inherent should be allowed.");
