@@ -54,6 +54,9 @@ impl frame_system::offchain::SigningTypes for Test {
 	type Signature = Signature;
 }
 
+// impl palleT_idn_manager::Config for test {
+// }
+
 parameter_types! {
 	pub QuicknetBeaconConfig: BeaconConfiguration = drand_quicknet_config();
 }
@@ -66,6 +69,8 @@ impl pallet_drand_bridge::Config for Test {
 	type SignatureVerifier = QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<10>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
+
+
 }
 
 // Build genesis storage according to the mock runtime.

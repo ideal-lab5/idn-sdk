@@ -90,6 +90,7 @@ extern crate alloc;
 use alloc::{vec, vec::Vec};
 use frame_support::pallet_prelude::*;
 use sp_consensus_randomness_beacon::types::OpaquePulse;
+use idn_traits::pulse::{Pulse as TPulse, PulseMatch, PulseProperty, Dispatchable};
 
 pub mod bls12_381;
 pub mod types;
@@ -133,8 +134,10 @@ pub mod pallet {
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;
 		/// The number of historical missed blocks that we store.
-		/// Once the limit is reached, historical missed blocks are pruned as a FIFO queue.
+		/// Once the limit is reached, historical missed fblocks are pruned as a FIFO queue.
 		type MissedBlocksHistoryDepth: Get<u32>;
+		type Pulse: TPulse + Encode; 
+		type Dispatchable: Dispatcher<Self::Pulse, DispatchResult>
 	}
 
 	/// The latest observed round
@@ -281,6 +284,9 @@ pub mod pallet {
 			);
 			let config = T::BeaconConfig::get();
 			let latest_round = LatestRound::<T>::get().unwrap_or(T::GenesisRound::get());
+
+			// 
+
 			// aggregate old asig/apk with the new one and verify the aggregation
 			let aggr = T::SignatureVerifier::verify(
 				config.public_key,
@@ -294,6 +300,9 @@ pub mod pallet {
 			AggregatedSignature::<T>::set(Some(aggr));
 			DidUpdate::<T>::put(true);
 
+			// build pulses
+
+
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 			// successful verification is beneficial to the network, so we do not charge when the
 			// siganture is correct
@@ -301,3 +310,18 @@ pub mod pallet {
 		}
 	}
 }
+
+// pub struct MyPulse {
+//     rand: Randomness,
+//     round: RoundNumber,
+//     signature: OpaqueSignature,
+// }
+// impl Pulse for MyPulse {
+//     type Rand = [u8; 3];
+//     type Round = u8;
+//     type Sig = [u8; 8];
+//     fn rand(&self) -> Self::Rand { self.rand }
+//     fn round(&self) -> Self::Round { self.round }
+//     fn sig(&self) -> Self::Sig { self.signature }
+//     fn valid(&self) -> bool { true }
+// }

@@ -26,6 +26,8 @@ pub type OpaqueSignature = BoundedVec<u8, ConstU32<48>>;
 pub type OpaqueHash = BoundedVec<u8, ConstU32<64>>;
 /// the round number to track rounds of the beacon
 pub type RoundNumber = u64;
+/// The randomness type (32 bits)
+pub type Randomness = BoundedVec<u8, ConstU32<32>>;
 
 /// Represents an aggregated signature and aggregated public key pair
 #[derive(
