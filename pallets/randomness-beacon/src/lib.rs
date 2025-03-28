@@ -210,7 +210,6 @@ pub mod pallet {
 				} else {
 					log::info!("We observed pulses but there is no genesis round set.");
 				}
-				
 			}
 
 			log::info!("The node provided empty pulse data to the inherent!");
