@@ -682,7 +682,7 @@ pub mod pallet {
 					0
 				},
 				if let Some(Some(md)) = params.metadata {
-					md.len().try_into().unwrap_or(T::PulseFilterLen::get())
+					md.len().try_into().unwrap_or(T::SubMetadataLen::get())
 				} else {
 					0
 				},
