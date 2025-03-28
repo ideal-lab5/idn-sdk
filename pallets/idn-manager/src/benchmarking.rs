@@ -42,7 +42,7 @@ mod benchmarks {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
-		let metadata = None;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 		let sub_id = None;
 
 		let pulse_filter = if l == 0 {
@@ -85,7 +85,7 @@ mod benchmarks {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
-		let metadata = None;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 		let pulse_filter = None;
 		let sub_id = None;
 
@@ -124,7 +124,7 @@ mod benchmarks {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
-		let metadata = None;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 		let pulse_filter = None;
 		let sub_id = None;
 
@@ -165,7 +165,7 @@ mod benchmarks {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
-		let metadata = None;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 		let pulse_filter = None;
 		let sub_id = None;
 
@@ -191,12 +191,7 @@ mod benchmarks {
 		let new_credits: T::Credits = 200u64.into();
 		let new_frequency: BlockNumberFor<T> = 2u32.into();
 
-		let new_metadata = if m == 0 {
-			None
-		} else {
-			let metadata_vec = (0..m).map(|_| 1u8).collect::<Vec<_>>();
-			Some(BoundedVec::try_from(metadata_vec).unwrap())
-		};
+		let new_metadata = BoundedVec::try_from((0..m).map(|_| 1u8).collect::<Vec<_>>()).unwrap();
 
 		let new_pulse_filter = if l == 0 {
 			None
@@ -232,7 +227,7 @@ mod benchmarks {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
-		let metadata = None;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 		let pulse_filter = None;
 		let sub_id = None;
 

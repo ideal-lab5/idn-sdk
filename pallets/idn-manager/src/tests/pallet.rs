@@ -52,14 +52,14 @@ fn event_not_emitted(event: Event<Test>) -> bool {
 fn update_subscription(
 	subscriber: AccountId32,
 	original_credits: u64,
-	original_metadata: Option<Vec<u8>>,
+	original_metadata: Vec<u8>,
 	original_frequency: u64,
 	new_credits: u64,
-	new_metadata: Option<Vec<u8>>,
+	new_metadata: Vec<u8>,
 	new_frequency: u64,
 ) {
 	let target = Location::new(1, [Junction::PalletInstance(1)]);
-	let metadata = original_metadata.map(|m| m.try_into().expect("Metadata too long")).clone();
+	let metadata = BoundedVec::try_from(original_metadata).unwrap();
 	let initial_balance = 99_990_000_000_000_000;
 
 	<Test as Config>::Currency::set_balance(&subscriber, initial_balance);
@@ -71,7 +71,7 @@ fn update_subscription(
 			target: target.clone(),
 			call_index: [1; 2],
 			frequency: original_frequency,
-			metadata: metadata.clone(),
+			metadata,
 			pulse_filter: None,
 			sub_id: None,
 		}
@@ -122,7 +122,7 @@ fn update_subscription(
 			sub_id,
 			credits: Some(new_credits),
 			frequency: Some(new_frequency),
-			metadata: Some(new_metadata.map(|m| m.try_into().expect("Metadata too long")).clone(),),
+			metadata: Some(BoundedVec::try_from(new_metadata).unwrap()),
 			pulse_filter: Some(None)
 		}
 	));
@@ -194,7 +194,7 @@ fn create_subscription_works() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: Some(mock_rounds_filter(&rounds)),
 				sub_id: None,
 			}
@@ -252,7 +252,7 @@ fn create_subscription_with_custom_id_works() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: Some(mock_rounds_filter(&rounds)),
 				sub_id: Some(custom_id),
 			}
@@ -289,7 +289,7 @@ fn create_subscription_fails_if_filtering_randomness() {
 					target: target.clone(),
 					call_index: [1; 2],
 					frequency,
-					metadata: None,
+					metadata: BoundedVec::try_from(vec![]).unwrap(),
 					pulse_filter: Some(
 						BoundedVec::try_from(vec![
 							PulsePropertyOf::<Test>::Round(1),
@@ -329,7 +329,7 @@ fn create_subscription_fails_if_insufficient_balance() {
 					target,
 					call_index: [1; 2],
 					frequency,
-					metadata: None,
+					metadata: BoundedVec::try_from(vec![]).unwrap(),
 					pulse_filter: None,
 					sub_id: None,
 				}
@@ -361,7 +361,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -378,7 +378,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 					target,
 					call_index: [1; 2],
 					frequency,
-					metadata: None,
+					metadata: BoundedVec::try_from(vec![]).unwrap(),
 					pulse_filter: None,
 					sub_id: None,
 				}
@@ -412,7 +412,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 					target: target.clone(),
 					call_index: [i.try_into().unwrap(); 2],
 					frequency,
-					metadata: None,
+					metadata: BoundedVec::try_from(vec![]).unwrap(),
 					pulse_filter: None,
 					sub_id: None,
 				}
@@ -432,7 +432,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 					target: target.clone(),
 					call_index: [1, 2],
 					frequency,
-					metadata: None,
+					metadata: BoundedVec::try_from(vec![]).unwrap(),
 					pulse_filter: None,
 					sub_id: None,
 				}
@@ -457,7 +457,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 				target,
 				call_index: [1, 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -471,7 +471,7 @@ fn test_kill_subscription() {
 		let credits = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let metadata = None;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 		let initial_balance = 10_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -483,7 +483,7 @@ fn test_kill_subscription() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: metadata.clone(),
+				metadata,
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -544,7 +544,7 @@ fn on_finalize_removes_zero_credit_subscriptions() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -591,7 +591,7 @@ fn test_update_subscription() {
 		struct SubParams {
 			credits: u64,
 			frequency: u64,
-			metadata: Option<Vec<u8>>,
+			metadata: Vec<u8>,
 		}
 		struct SubUpdate {
 			old: SubParams,
@@ -600,36 +600,32 @@ fn test_update_subscription() {
 
 		let updates: Vec<SubUpdate> = vec![
 			SubUpdate {
-				old: SubParams { credits: 10, frequency: 2, metadata: None },
-				new: SubParams {
-					credits: 20,
-					frequency: 4,
-					metadata: Some(vec![0x1, 0x2, 0x3, 0x4]),
-				},
+				old: SubParams { credits: 10, frequency: 2, metadata: vec![] },
+				new: SubParams { credits: 20, frequency: 4, metadata: vec![0x1, 0x2, 0x3, 0x4] },
 			},
 			SubUpdate {
-				old: SubParams { credits: 100, frequency: 20, metadata: Some(vec![0x1, 0xa]) },
-				new: SubParams { credits: 20, frequency: 4, metadata: None },
+				old: SubParams { credits: 100, frequency: 20, metadata: vec![0x1, 0xa] },
+				new: SubParams { credits: 20, frequency: 4, metadata: vec![] },
 			},
 			SubUpdate {
-				old: SubParams { credits: 100, frequency: 20, metadata: None },
-				new: SubParams { credits: 100, frequency: 20, metadata: None },
+				old: SubParams { credits: 100, frequency: 20, metadata: vec![] },
+				new: SubParams { credits: 100, frequency: 20, metadata: vec![] },
 			},
 			SubUpdate {
-				old: SubParams { credits: 100, frequency: 1, metadata: Some(vec![0x1, 0xa]) },
+				old: SubParams { credits: 100, frequency: 1, metadata: vec![0x1, 0xa] },
 				new: SubParams {
 					credits: 9_999_999_999_999,
 					frequency: 1,
-					metadata: Some(vec![0x1, 0xa]),
+					metadata: vec![0x1, 0xa],
 				},
 			},
 			SubUpdate {
 				old: SubParams {
 					credits: 9_999_999_999_999,
 					frequency: 1,
-					metadata: Some(vec![0x1, 0xa]),
+					metadata: vec![0x1, 0xa],
 				},
-				new: SubParams { credits: 100, frequency: 1, metadata: Some(vec![0x1, 0xa, 0x10]) },
+				new: SubParams { credits: 100, frequency: 1, metadata: vec![0x1, 0xa, 0x10] },
 			},
 		];
 		for i in 0..updates.len() {
@@ -653,7 +649,7 @@ fn update_does_not_update_when_params_are_none() {
 		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let metadata = Some(BoundedVec::<u8, SubMetadataLen>::try_from(vec![1, 2, 3]).unwrap());
+		let metadata = BoundedVec::try_from(vec![1, 2, 3]).unwrap();
 		let pulse_filter =
 			Some(BoundedVec::try_from(vec![PulsePropertyOf::<Test>::Round(1)]).unwrap());
 		let initial_balance = 10_000_000;
@@ -689,7 +685,7 @@ fn update_does_not_update_when_params_are_none() {
 		let sub = Subscriptions::<Test>::get(sub_id).unwrap();
 		assert_eq!(sub.credits, credits);
 		assert_eq!(sub.frequency, frequency);
-		assert_eq!(sub.metadata, metadata.unwrap_or_default());
+		assert_eq!(sub.metadata, metadata);
 		assert_eq!(sub.pulse_filter, pulse_filter);
 	});
 }
@@ -701,7 +697,7 @@ fn update_subscription_fails_if_sub_does_not_exists() {
 		let new_credits = 20;
 		let new_frequency = 4;
 		let new_pulse_filter = None;
-		let new_metadata = None;
+		let new_metadata = BoundedVec::try_from(vec![]).unwrap();
 
 		assert_noop!(
 			IdnManager::update_subscription(
@@ -727,6 +723,7 @@ fn update_subscription_fails_if_filtering_randomness() {
 		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 		let initial_balance = 10_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -738,7 +735,7 @@ fn update_subscription_fails_if_filtering_randomness() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -753,7 +750,7 @@ fn update_subscription_fails_if_filtering_randomness() {
 					sub_id,
 					credits: Some(credits),
 					frequency: Some(frequency),
-					metadata: None,
+					metadata: Some(metadata),
 					pulse_filter: Some(Some(
 						BoundedVec::try_from(vec![
 							PulsePropertyOf::<Test>::Round(1),
@@ -796,7 +793,7 @@ fn test_credits_consumption_and_cleanup() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -916,7 +913,7 @@ fn test_credits_consumption_not_enogh_balance() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -974,7 +971,7 @@ fn test_credits_consumption_frequency() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1041,7 +1038,7 @@ fn test_pause_reactivate_subscription() {
 		let credits = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let metadata = None;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 
 		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
 
@@ -1052,7 +1049,7 @@ fn test_pause_reactivate_subscription() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: metadata.clone(),
+				metadata,
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1107,7 +1104,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 		let credits = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let metadata = None;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 
 		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
 
@@ -1118,7 +1115,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: metadata.clone(),
+				metadata,
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1162,7 +1159,7 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 		let credits = 10;
 		let frequency = 2;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let metadata = None;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 
 		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
 
@@ -1173,7 +1170,7 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: metadata.clone(),
+				metadata,
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1197,7 +1194,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let metadata = None;
+		let metadata = BoundedVec::try_from(vec![]).unwrap();
 		let initial_balance = 10_000_000;
 
 		// Set balance for Alice and Bob
@@ -1212,7 +1209,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: metadata.clone(),
+				metadata,
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1287,7 +1284,7 @@ fn test_on_finalize_removes_finished_subscriptions() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1479,7 +1476,7 @@ fn test_get_subscription() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1524,7 +1521,7 @@ fn test_get_subscriptions_for_subscriber() {
 				target: target1.clone(),
 				call_index: [1; 2],
 				frequency: 10,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1537,7 +1534,7 @@ fn test_get_subscriptions_for_subscriber() {
 				target: target2.clone(),
 				call_index: [1; 2],
 				frequency: 20,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1551,7 +1548,7 @@ fn test_get_subscriptions_for_subscriber() {
 				target: target3.clone(),
 				call_index: [1; 2],
 				frequency: 15,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1636,7 +1633,7 @@ fn test_runtime_api_get_subscription() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1681,7 +1678,7 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 				target: target1.clone(),
 				call_index: [1; 2],
 				frequency: 10,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1694,7 +1691,7 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 				target: target2.clone(),
 				call_index: [1; 2],
 				frequency: 20,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1708,7 +1705,7 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 				target: target3.clone(),
 				call_index: [1; 2],
 				frequency: 15,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1776,7 +1773,7 @@ fn test_pulse_filter_functionality() {
 				target: target.clone(),
 				call_index,
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: Some(rounds_filter),
 				sub_id: None,
 			}
@@ -1883,7 +1880,7 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 				target: target.clone(),
 				call_index,
 				frequency,
-				metadata: None,
+				metadata: BoundedVec::try_from(vec![]).unwrap(),
 				pulse_filter: Some(rounds_filter),
 				sub_id: None,
 			}

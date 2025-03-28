@@ -247,7 +247,7 @@ pub struct CreateSubParams<Credits, BlockNumber, Metadata, PulseFilter> {
 	// Distribution interval for pulses
 	pub frequency: BlockNumber,
 	// Bounded vector for additional data
-	pub metadata: Option<Metadata>,
+	pub metadata: Metadata,
 	// Optional Pulse Filter
 	pub pulse_filter: Option<PulseFilter>,
 	// Optional Subscription Id, if None, a new one will be generated
@@ -275,7 +275,7 @@ pub struct UpdateSubParams<SubId, Credits, Frequency, PulseFilter, Metadata> {
 	// New distribution interval
 	pub frequency: Option<Frequency>,
 	// Bounded vector for additional data
-	pub metadata: Option<Option<Metadata>>,
+	pub metadata: Option<Metadata>,
 	// New Pulse Filter
 	pub pulse_filter: Option<Option<PulseFilter>>,
 }
@@ -472,7 +472,6 @@ pub mod pallet {
 			params: CreateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
 			let subscriber = ensure_signed(origin)?;
-			let metadata = params.metadata.unwrap_or_default();
 
 			ensure!(
 				SubCounter::<T>::get() < T::MaxSubscriptions::get(),
@@ -491,10 +490,11 @@ pub mod pallet {
 				call_index: params.call_index,
 			};
 
-			let sub_id =
-				params
-					.sub_id
-					.unwrap_or(Self::generate_sub_id(&details, &metadata, &current_block));
+			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(
+				&details,
+				&params.metadata,
+				&current_block,
+			));
 
 			ensure!(
 				!Subscriptions::<T>::contains_key(sub_id),
@@ -510,7 +510,7 @@ pub mod pallet {
 				updated_at: current_block,
 				credits: params.credits,
 				frequency: params.frequency,
-				metadata,
+				metadata: params.metadata,
 				last_delivered: None,
 				pulse_filter: params.pulse_filter.clone(),
 			};
@@ -658,7 +658,7 @@ pub mod pallet {
 					sub.pulse_filter = pulse_filter;
 				}
 				if let Some(metadata) = params.metadata.clone() {
-					sub.metadata = metadata.unwrap_or_default();
+					sub.metadata = metadata;
 				}
 				sub.updated_at = frame_system::Pallet::<T>::block_number();
 
@@ -681,7 +681,7 @@ pub mod pallet {
 				} else {
 					0
 				},
-				if let Some(Some(md)) = params.metadata {
+				if let Some(md) = params.metadata {
 					md.len().try_into().unwrap_or(T::SubMetadataLen::get())
 				} else {
 					0
