@@ -634,8 +634,7 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			let subscriber = ensure_signed(origin)?;
 
-			let inner_pulse_filter =
-				if let Some(pf) = params.pulse_filter.clone() { pf } else { None };
+			let inner_pulse_filter = params.pulse_filter.clone().unwrap_or_default();
 			// make sure the filter does not filter on random values
 			// see the [Pulse Filtering Security](#pulse-filtering-security) section
 			Self::ensure_filter_no_rand(&inner_pulse_filter)?;
