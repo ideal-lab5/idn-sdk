@@ -4,7 +4,8 @@
 #[ink::contract]
 mod example_consumer {
 	use idn_client::{
-		CallIndex, Error, IdnClient, IdnClientImpl, RandomnessReceiver, Result, SubscriptionId,
+		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, RandomnessReceiver,
+		Result, SubscriptionId, UpdateSubParams,
 	};
 	use ink::{prelude::vec::Vec, xcm::prelude::*};
 	use std::sync::Arc;
@@ -92,31 +93,40 @@ mod example_consumer {
 			credits: u32,
 			frequency: u32,
 			metadata: Option<Vec<u8>>,
+			pulse_filter: Option<Vec<u8>>,
 		) -> core::result::Result<(), ContractError> {
 			// Only allow creating a subscription if we don't already have one
 			if self.subscription_id.is_some() {
 				return Err(ContractError::Other);
 			}
 
-			// Create the target location
-			let junction = Junction::Parachain(self.ideal_network_para_id);
-			let junctions_array = [junction; 1];
-			let target = Location {
-				parents: 1, // Parent (relay chain)
-				interior: Junctions::X1(Arc::new(junctions_array)),
+			// Create subscription parameters
+			let params = CreateSubParams {
+				credits,
+				target: Location {
+					parents: 1, // Go up to the relay chain
+					interior: Junctions::X3(
+						Arc::new([
+							Junction::Parachain(1000), // Destination parachain ID (should match your parachain)
+							Junction::PalletInstance(50), // Contracts pallet (index may vary per chain)
+							Junction::AccountId32 {       // Your contract address
+								network: None,
+								id: *self.env().account_id().as_ref(),
+							},
+						]),
+					),
+				},
+				call_index: self.randomness_call_index,
+				frequency,
+				metadata,
+				pulse_filter,
+				sub_id: None, // Let the IDN client generate an ID
 			};
 
 			// Create subscription through IDN client
 			let subscription_id = self
 				.idn_client
-				.create_subscription(
-					credits,
-					target,
-					self.randomness_call_index,
-					frequency,
-					metadata,
-					None, // No pulse filter
-				)
+				.create_subscription(params)
 				.map_err(ContractError::IdnClientError)?;
 
 			// Update contract state with the new subscription
@@ -180,21 +190,29 @@ mod example_consumer {
 		#[ink(message)]
 		pub fn update_subscription(
 			&mut self,
-			subscription_id: SubscriptionId,
 			credits: u32,
 			frequency: u32,
+			pulse_filter: Option<Vec<u8>>,
 		) -> core::result::Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
 
+			// Get the active subscription ID
+			let subscription_id = self
+				.subscription_id
+				.ok_or(ContractError::NoActiveSubscription)?;
+
+			// Create update parameters
+			let params = UpdateSubParams {
+				sub_id: subscription_id,
+				credits,
+				frequency,
+				pulse_filter,
+			};
+
 			// Update subscription through IDN client
 			self.idn_client
-				.update_subscription(
-					subscription_id,
-					credits,
-					frequency,
-					None, // No pulse filter
-				)
+				.update_subscription(params)
 				.map_err(ContractError::IdnClientError)?;
 
 			Ok(())
@@ -593,7 +611,7 @@ mod example_consumer {
 
 			// Create a subscription
 			let create_sub = build_message::<ExampleConsumerRef>(contract_id.clone())
-				.call(|contract| contract.create_subscription(10, 5, None));
+				.call(|contract| contract.create_subscription(10, 5, None, None));
 			let result = client
 				.call(&ink_e2e::alice(), create_sub, 0, None)
 				.await
