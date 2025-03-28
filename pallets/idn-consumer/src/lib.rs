@@ -69,41 +69,32 @@ pub mod pallet {
 
 			Ok(().into())
 		}
+	}
+}
 
-		/// Pauses a subscription.
-		#[pallet::call_index(1)]
-		#[pallet::weight(Weight::from_parts(0, 0))]
-		pub fn pause_subscription(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-			let _who = ensure_signed(origin)?;
+impl<T: Config> Pallet<T> {
+	/// Creates a subscription.
+	pub fn create_subscription(origin: OriginFor<T>) -> Result<(), ()> {
+		todo!()
+	}
 
-			Ok(().into())
-		}
+	/// Pauses a subscription.
+	pub fn pause_subscription(origin: OriginFor<T>) -> Result<(), ()> {
+		todo!()
+	}
 
-		/// Kills a subscription.
-		#[pallet::call_index(2)]
-		#[pallet::weight(Weight::from_parts(0, 0))]
-		pub fn kill_subscription(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-			let _who = ensure_signed(origin)?;
+	/// Kills a subscription.
+	pub fn kill_subscription(origin: OriginFor<T>) -> Result<(), ()> {
+		todo!()
+	}
 
-			Ok(().into())
-		}
+	/// Updates a subscription.
+	pub fn update_subscription(origin: OriginFor<T>) -> Result<(), ()> {
+		todo!()
+	}
 
-		/// Updates a subscription.
-		#[pallet::call_index(3)]
-		#[pallet::weight(Weight::from_parts(0, 0))]
-		pub fn update_subscription(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-			let _who = ensure_signed(origin)?;
-
-			Ok(().into())
-		}
-
-		/// Reactivates a subscription.
-		#[pallet::call_index(4)]
-		#[pallet::weight(Weight::from_parts(0, 0))]
-		pub fn reactivate_subscription(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-			let _who = ensure_signed(origin)?;
-
-			Ok(().into())
-		}
+	/// Reactivates a subscription.
+	pub fn reactivate_subscription(origin: OriginFor<T>) -> Result<(), ()> {
+		todo!()
 	}
 }

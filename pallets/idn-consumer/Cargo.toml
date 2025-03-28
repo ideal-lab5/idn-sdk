@@ -1,6 +1,6 @@
 [package]
 name = "pallet-idn-consumer"
-description = "FRAME pallet for interfacing with IDN."
+description = "FRAME pallet for interfacing with IDN as a consumer."
 version = "0.0.1-dev"
 authors.workspace = true
 edition.workspace = true
