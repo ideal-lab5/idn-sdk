@@ -61,10 +61,11 @@ mod example_consumer {
 		/// * `ideal_network_para_id` - The parachain ID of the Ideal Network
 		#[ink(constructor)]
 		pub fn new(ideal_network_para_id: u32) -> Self {
-			// Use call index [0, 0] as an example for receiving randomness
-			// In a real implementation, this should match the callback function
-			// that you want the IDN Network to call with randomness
-			let randomness_call_index = [0, 0];
+			// The call index for delivering randomness to this contract
+			// First byte: The pallet index of the contracts pallet on the destination chain (e.g., 50)
+			// Second byte: The message ID for the receive_randomness function in our contract
+			// This is the 11th message function (starting from 0), so its ID is 10
+			let randomness_call_index: CallIndex = [50, 10]; // Should be adjusted based on chain configuration
 
 			Self {
 				subscription_id: None,
@@ -306,6 +307,16 @@ mod example_consumer {
 			self.randomness_history.push(randomness);
 
 			Ok(())
+		}
+
+		/// Public entry point for receiving randomness via XCM
+		/// This function is called by the IDN Network when delivering randomness
+		#[ink(message)]
+		pub fn receive_randomness(&mut self, randomness: [u8; 32], subscription_id: SubscriptionId) 
+			-> core::result::Result<(), ContractError> 
+		{
+			self.on_randomness_received(randomness, subscription_id)
+				.map_err(ContractError::IdnClientError)
 		}
 
 		fn ensure_authorized(&self) -> core::result::Result<(), ContractError> {
