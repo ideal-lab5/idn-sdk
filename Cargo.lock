@@ -8017,6 +8017,7 @@ dependencies = [
 name = "pallet-idn-manager"
 version = "0.0.1-dev"
 dependencies = [
+ "docify",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -8025,6 +8026,7 @@ dependencies = [
  "pallet-xcm",
  "parity-scale-codec",
  "scale-info",
+ "simple-mermaid",
  "sp-api",
  "sp-arithmetic",
  "sp-core",

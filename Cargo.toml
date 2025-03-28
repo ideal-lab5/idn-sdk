@@ -126,6 +126,7 @@ clap = { version = "4.5.13" }
 docify = { version = "0.2.9" }
 jsonrpsee = { version = "0.24.3" }
 log = { version = "=0.4.26", default-features = false }
+simple-mermaid = { version = "0.1.1" }
 
 # Parity SCALE Codec
 codec = { package = "parity-scale-codec", version = "=3.7.4", default-features = false, features = ["derive"] }

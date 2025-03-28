@@ -14,13 +14,95 @@
  * limitations under the License.
  */
 
-//! # Traits
+//! # Traits for the IDN Manager Pallet
+//!
+//! This file defines the traits that enable the IDN Manager pallet to interact with other modules.
+//! These traits abstract key functionalities.
+//!
+//! ## Core Concepts:
+//!
+//! - **Fees Management:** Governs the calculation, collection, and distribution of fees associated
+//!   with subscriptions.
+//! - **Subscription Handling:** Provides a standardized way to access subscriber information.
+//! - **Storage Deposit Calculation:** Defines the logic for determining and managing storage
+//!   deposits required for subscriptions.
+//!
+//! ## Key Traits:
+//!
+//! ### [`FeesManager`]
+//! Manages the economic aspects of subscriptions, including fee calculation, collection, and
+//! distribution.
+//!
+//! **Methods:**
+//!   - [`calculate_subscription_fees`](FeesManager::calculate_subscription_fees): Determines the
+//!     initial fee for a subscription based on the requested credits.
+//!   - [`calculate_diff_fees`](FeesManager::calculate_diff_fees): Calculates the difference in fees
+//!     when a subscription is modified (e.g., credits are added or removed).
+//!   - [`collect_fees`](FeesManager::collect_fees): Transfers fees from the subscriber's account to
+//!     the designated treasury.
+//!   - [`get_consume_credits`](FeesManager::get_consume_credits): Returns the amount of credits
+//!     that should be consumed when a subscription receives a pulse.
+//!   - [`get_idle_credits`](FeesManager::get_idle_credits): Returns the amount of credits that
+//!     should be consumed when a subscription skips receiving a pulse.
+//!
+//! ### [`Subscription`]
+//! Provides an interface for accessing the subscriber associated with a subscription.
+//!
+//! **Methods:**
+//!   - [`subscriber`](Subscription::subscriber): Returns the account ID of the subscriber.
+//!
+//! ### [`DepositCalculator`]
+//! Manages the storage deposits required for subscriptions, ensuring that sufficient funds are
+//! reserved to cover the cost of storing subscription data.
+//!
+//! **Methods:**
+//!   - [`calculate_storage_deposit`](DepositCalculator::calculate_storage_deposit): Calculates the
+//!     storage deposit required for a given subscription.
+//!   - [`calculate_diff_deposit`](DepositCalculator::calculate_diff_deposit): Calculates the
+//!     difference in storage deposit between two subscriptions (e.g., when a subscription is
+//!     updated).
+//!
+//! ## Data Structures:
+//!
+//! ### [`FeesError`]
+//! Represents potential errors that can occur during fees management.
+//!
+//! **Variants:**
+//!   - [`NotEnoughBalance`](FeesError::NotEnoughBalance): Indicates that the subscriber's account
+//!     has insufficient funds to cover the required fees.
+//!   - [`Other`](FeesError::Other): Represents a generic error with an associated context.
+//!
+//! ### [`BalanceDirection`]
+//! Specifies the direction of balance movement (either collecting or releasing funds).
+//!
+//! **Variants:**
+//!   - [`Collect`](BalanceDirection::Collect): Indicates that funds should be collected from the
+//!     subscriber.
+//!   - [`Release`](BalanceDirection::Release): Indicates that funds should be released to the
+//!     subscriber.
+//!   - [`None`](BalanceDirection::None): Indicates that no balance movement is required.
+//!
+//! ### [`DiffBalance`]
+//! Represents a change in balance, including the amount and direction of the change.
+//!
+//! **Fields:**
+//!   - [`balance`](DiffBalance::balance): The amount of balance being moved.
+//!   - [`direction`](DiffBalance::direction): The direction of the balance movement (using the
+//!     `BalanceDirection` enum).
 
 /// Error type for fees management
 ///
 /// Context is used to provide more information about uncategorized errors.
 pub enum FeesError<Fees, Context> {
-	NotEnoughBalance { needed: Fees, balance: Fees },
+	/// Error indicating that the balance is insufficient to cover the required fees.
+	///
+	/// # Variants
+	/// - `needed`: The amount of fees required.
+	/// - `balance`: The current balance available.
+	NotEnoughBalance {
+		needed: Fees,
+		balance: Fees,
+	},
 	Other(Context),
 }
 
@@ -44,6 +126,18 @@ pub struct DiffBalance<Balance> {
 }
 
 /// Trait for fees managing
+///
+/// This is where the business model logic is specified. This logic is used to calculate, collect
+/// and distribute fees for subscriptions.
+///
+/// You can check the a particular implementation of this trait in
+/// [FeesManagerImpl](crate::impls::FeesManagerImpl).
+///
+/// These are some examples of how this trait can be implemented:
+/// - Linear fee calculator: where the fees are calculated based on a linear function.
+#[doc = docify::embed!("./src/tests/fee_examples.rs", linear_fee_calculator)]
+/// - Tiered fee calculator: where the fees are calculated based on a tiered function.
+#[doc = docify::embed!("./src/tests/fee_examples.rs", tiered_fee_calculator)]
 pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S> {
 	/// Calculate the fees for a subscription based on the credits of pulses required.
 	fn calculate_subscription_fees(credits: &Credits) -> Fees;
@@ -62,7 +156,9 @@ pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S> {
 	fn get_idle_credits(sub: &Sub) -> Credits;
 }
 
+/// Trait for accessing subscription information.
 pub trait Subscription<Subscriber> {
+	/// Returns a reference to the subscriber associated with the subscription.
 	fn subscriber(&self) -> &Subscriber;
 }
 
