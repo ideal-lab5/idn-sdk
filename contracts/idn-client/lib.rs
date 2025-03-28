@@ -13,6 +13,29 @@ use std::sync::Arc;
 #[cfg(not(feature = "std"))]
 use alloc::sync::Arc;
 
+/// Default parachain ID for the IDN Network
+/// This can be overridden during implementation with specific values
+pub const DEFAULT_IDN_PARACHAIN_ID: u32 = 2000;
+
+/// Default pallet index for the IDN Manager pallet
+/// This can be overridden during implementation with specific values
+pub const DEFAULT_IDN_MANAGER_PALLET_INDEX: u8 = 42;
+
+/// Call index for the create_subscription function in the IDN Manager pallet
+pub const IDN_MANAGER_CREATE_SUB_INDEX: u8 = 0;
+
+/// Call index for the pause_subscription function in the IDN Manager pallet
+pub const IDN_MANAGER_PAUSE_SUB_INDEX: u8 = 1;
+
+/// Call index for the reactivate_subscription function in the IDN Manager pallet
+pub const IDN_MANAGER_REACTIVATE_SUB_INDEX: u8 = 2;
+
+/// Call index for the update_subscription function in the IDN Manager pallet
+pub const IDN_MANAGER_UPDATE_SUB_INDEX: u8 = 3;
+
+/// Call index for the kill_subscription function in the IDN Manager pallet
+pub const IDN_MANAGER_KILL_SUB_INDEX: u8 = 4;
+
 /// Call index is a pair of [pallet_index, call_index]
 pub type CallIndex = [u8; 2];
 
@@ -258,8 +281,8 @@ impl IdnClientImpl {
         params: &CreateSubParams,
     ) -> Xcm<()> {
         // The pallet index and call index for the IDN Manager pallet
-        let idn_manager_pallet_index = 42; // Example value, should be replaced with actual
-        let idn_manager_create_sub_index = 0; // Example value, should be replaced with actual
+        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX; 
+        let idn_manager_create_sub_index = IDN_MANAGER_CREATE_SUB_INDEX; 
 
         // Encode the parameters for create_subscription call
         let encoded_params = codec::Encode::encode(&params);
@@ -284,8 +307,8 @@ impl IdnClientImpl {
         subscription_id: SubscriptionId,
     ) -> Xcm<()> {
         // The pallet index and call index for the IDN Manager pallet
-        let idn_manager_pallet_index = 42; // Example value, should be replaced with actual
-        let idn_manager_pause_sub_index = 1; // Example value, should be replaced with actual
+        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX; 
+        let idn_manager_pause_sub_index = IDN_MANAGER_PAUSE_SUB_INDEX; 
 
         // Encode the parameters for pause_subscription call
         let encoded_params = codec::Encode::encode(&(
@@ -312,8 +335,8 @@ impl IdnClientImpl {
         subscription_id: SubscriptionId,
     ) -> Xcm<()> {
         // The pallet index and call index for the IDN Manager pallet
-        let idn_manager_pallet_index = 42; // Example value, should be replaced with actual
-        let idn_manager_reactivate_sub_index = 2; // Example value, should be replaced with actual
+        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX; 
+        let idn_manager_reactivate_sub_index = IDN_MANAGER_REACTIVATE_SUB_INDEX; 
 
         // Encode the parameters for reactivate_subscription call
         let encoded_params = codec::Encode::encode(&(
@@ -340,8 +363,8 @@ impl IdnClientImpl {
         params: &UpdateSubParams,
     ) -> Xcm<()> {
         // The pallet index and call index for the IDN Manager pallet
-        let idn_manager_pallet_index = 42; // Example value, should be replaced with actual
-        let idn_manager_update_sub_index = 3; // Example value, should be replaced with actual
+        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX; 
+        let idn_manager_update_sub_index = IDN_MANAGER_UPDATE_SUB_INDEX; 
 
         // Encode the parameters for update_subscription call
         let encoded_params = codec::Encode::encode(&params);
@@ -366,8 +389,8 @@ impl IdnClientImpl {
         subscription_id: SubscriptionId,
     ) -> Xcm<()> {
         // The pallet index and call index for the IDN Manager pallet
-        let idn_manager_pallet_index = 42; // Example value, should be replaced with actual
-        let idn_manager_kill_sub_index = 4; // Example value, should be replaced with actual
+        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX; 
+        let idn_manager_kill_sub_index = IDN_MANAGER_KILL_SUB_INDEX; 
 
         // Encode the parameters for kill_subscription call
         let encoded_params = codec::Encode::encode(&(
@@ -407,7 +430,7 @@ impl IdnClient for IdnClientImpl {
         let message = self.construct_create_subscription_xcm(&params);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(2000); // Example value, should be replaced with actual
+        let junction = Junction::Parachain(DEFAULT_IDN_PARACHAIN_ID); 
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -435,7 +458,7 @@ impl IdnClient for IdnClientImpl {
         let message = self.construct_pause_subscription_xcm(subscription_id);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(2000); // Example value, should be replaced with actual
+        let junction = Junction::Parachain(DEFAULT_IDN_PARACHAIN_ID); 
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -461,7 +484,7 @@ impl IdnClient for IdnClientImpl {
         let message = self.construct_reactivate_subscription_xcm(subscription_id);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(2000); // Example value, should be replaced with actual
+        let junction = Junction::Parachain(DEFAULT_IDN_PARACHAIN_ID); 
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -487,7 +510,7 @@ impl IdnClient for IdnClientImpl {
         let message = self.construct_update_subscription_xcm(&params);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(2000); // Example value, should be replaced with actual
+        let junction = Junction::Parachain(DEFAULT_IDN_PARACHAIN_ID); 
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
@@ -513,7 +536,7 @@ impl IdnClient for IdnClientImpl {
         let message = self.construct_kill_subscription_xcm(subscription_id);
 
         // Create the destination MultiLocation (IDN parachain)
-        let junction = Junction::Parachain(2000); // Example value, should be replaced with actual
+        let junction = Junction::Parachain(DEFAULT_IDN_PARACHAIN_ID); 
         let junctions_array = [junction; 1];
         let destinations = Arc::new(junctions_array);
         
