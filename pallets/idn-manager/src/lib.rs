@@ -275,7 +275,7 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 pub struct UpdateSubParams<SubId, Credits, Frequency, PulseFilter> {
 	// The Subscription Id
 	pub sub_id: SubId,
-	// New number of pulses
+	// New number of credits
 	pub credits: Credits,
 	// New distribution interval
 	pub frequency: Frequency,

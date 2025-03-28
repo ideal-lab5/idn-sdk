@@ -31,10 +31,6 @@ The subscription state lifecycle defines the different states a subscription can
 *   **Active:** The subscription is active and randomness is being distributed.
 *   **Paused:** The subscription is temporarily paused and randomness distribution is suspended.
 
-### Pulse Filtering Security
-
-To prevent malicious actors from manipulating the randomness distribution, filtering on `rand` values is explicitly prohibited. This ensures that subscribers cannot predict or influence the randomness they receive.
-
 ## Configuration
 
 The IDN Manager pallet can be configured using the following runtime parameters:
