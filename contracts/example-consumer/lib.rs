@@ -7,8 +7,7 @@ mod example_consumer {
 		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, RandomnessReceiver,
 		Result, SubscriptionId, UpdateSubParams,
 	};
-	use ink::{prelude::vec::Vec, xcm::prelude::*};
-	use std::sync::Arc;
+	use ink::{prelude::vec::Vec};
 
 	/// The Example Consumer contract demonstrates how to use the IDN Client
 	/// to interact with the IDN Network for randomness subscriptions.
@@ -111,19 +110,11 @@ mod example_consumer {
 			// Create subscription parameters
 			let params = CreateSubParams {
 				credits,
-				target: Location {
-					parents: 1, // Go up to the relay chain
-					interior: Junctions::X3(
-						Arc::new([
-							Junction::Parachain(self.destination_para_id), // Destination parachain ID (where this contract is deployed)
-							Junction::PalletInstance(self.contracts_pallet_index), // Contracts pallet (index may vary per chain)
-							Junction::AccountId32 {       // Your contract address
-								network: None,
-								id: *self.env().account_id().as_ref(),
-							},
-						]),
-					),
-				},
+				target: IdnClientImpl::create_contracts_target_location(
+					self.destination_para_id,
+					self.contracts_pallet_index,
+					self.env().account_id().as_ref(),
+				),
 				call_index: self.randomness_call_index,
 				frequency,
 				metadata,

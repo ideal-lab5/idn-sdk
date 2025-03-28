@@ -221,6 +221,37 @@ pub trait RandomnessReceiver {
 pub struct IdnClientImpl;
 
 impl IdnClientImpl {
+    /// Creates a target location for a contract on a parachain
+    /// 
+    /// # Arguments
+    /// 
+    /// * `destination_para_id` - The parachain ID where the contract is deployed
+    /// * `contracts_pallet_index` - The index of the contracts pallet on the destination chain
+    /// * `contract_account_id` - The account ID of the contract
+    /// 
+    /// # Returns
+    /// 
+    /// * A MultiLocation targeting the contract via XCM
+    pub fn create_contracts_target_location(
+        destination_para_id: u32,
+        contracts_pallet_index: u8,
+        contract_account_id: &[u8; 32],
+    ) -> Location {
+        Location {
+            parents: 1, // Go up to the relay chain
+            interior: Junctions::X3(
+                Arc::new([
+                    Junction::Parachain(destination_para_id), // Target parachain
+                    Junction::PalletInstance(contracts_pallet_index), // Contracts pallet
+                    Junction::AccountId32 { // Contract address
+                        network: None,
+                        id: *contract_account_id,
+                    },
+                ]),
+            ),
+        }
+    }
+
     /// Constructs an XCM message for creating a subscription
     fn construct_create_subscription_xcm(
         &self,
