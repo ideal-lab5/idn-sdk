@@ -109,7 +109,7 @@ mod benchmarks {
 	fn try_submit_asig(
 		r: Linear<1, { T::MaxSigsPerBlock::get().into() }>,
 	) -> Result<(), BenchmarkError> {
-		// let r = T::MaxSigsPerBlock::get();
+		Pallet::<T>::set_genesis_round(RawOrigin::Root.into(), 1000).unwrap();
 		let (asig, apk, sigs) = test(r as u8);
 
 		#[extrinsic_call]
@@ -129,6 +129,7 @@ mod benchmarks {
 		let block_number: u32 = history_depth;
 		// submit an asig (height unimportant)
 		let (_asig, _apk, sigs) = test(2u8);
+		Pallet::<T>::set_genesis_round(RawOrigin::Root.into(), 1000).unwrap();
 		Pallet::<T>::try_submit_asig(RawOrigin::None.into(), sigs).unwrap();
 
 		let mut history: Vec<BlockNumberFor<T>> = Vec::new();
@@ -148,6 +149,16 @@ mod benchmarks {
 		}
 
 		assert_eq!(MissedBlocks::<T>::get().into_inner(), expected_final_history);
+
+		Ok(())
+	}
+
+	#[benchmark]
+	fn set_genesis_round() -> Result<(), BenchmarkError> {
+		#[extrinsic_call]
+		_(RawOrigin::Root, 1000);
+
+		assert_eq!(GenesisRound::<T>::get().unwrap(), 1000);
 
 		Ok(())
 	}

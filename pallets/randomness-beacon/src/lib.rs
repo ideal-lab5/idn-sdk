@@ -126,8 +126,6 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 		/// The beacon configuration for which this pallet is defined.
 		type BeaconConfig: Get<BeaconConfiguration>;
-		/// The round in which we will start consuming randomness
-		type GenesisRound: Get<RoundNumber>;
 		/// something that knows how to aggregate and verify beacon pulses.
 		type SignatureVerifier: SignatureVerifier;
 		/// The number of signatures per block.
@@ -137,12 +135,15 @@ pub mod pallet {
 		type MissedBlocksHistoryDepth: Get<u32>;
 	}
 
+	/// The round when we start consuming pulses
+	#[pallet::storage]
+	pub type GenesisRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
+
 	/// The latest observed round
 	#[pallet::storage]
 	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
 
-	/// The aggregated signature and aggregated public key (identifier) of all observed pulses of
-	/// randomness
+	/// The aggregated signature and aggregated public key (identifier) of all observed pulses
 	#[pallet::storage]
 	pub type AggregatedSignature<T: Config> = StorageValue<_, Aggregate, OptionQuery>;
 
@@ -161,12 +162,18 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		/// The genesis round has been set by a root address
+		GenesisRoundSet,
 		/// Signature verification succeeded for the provided rounds.
 		SignatureVerificationSuccess,
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// The genesis round is already set
+		GenesisRoundAlreadySet,
+		/// The genesis round is not set
+		GenesisRoundNotSet,
 		/// The pulse could not be verified
 		VerificationFailed,
 		/// There must be at least one signature to construct an asig
@@ -189,14 +196,20 @@ pub mod pallet {
 			// if we do not find any pulse data, then do nothing
 			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 			{
-				// ignores non-deserializable messages and pulses with invalid signature lengths
-				let sigs: Vec<OpaqueSignature> = raw_pulses
-					.iter()
-					.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
-					.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
-					.collect::<Vec<_>>();
+				if let Some(genesis_round) = GenesisRound::<T>::get() {
+					// ignores non-deserializable messages and pulses with invalid signature lengths
+					//  ignores rounds less than the genesis round
+					let sigs: Vec<OpaqueSignature> = raw_pulses
+						.iter()
+						.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
+						.filter(|op| op.round >= genesis_round)
+						.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
+						.collect::<Vec<_>>();
 
-				return Some(Call::try_submit_asig { sigs });
+					return Some(Call::try_submit_asig { sigs });
+				} else {
+					log::info!("We observed pulses but there is no genesis round set.");
+				}
 			}
 
 			log::info!("The node provided empty pulse data to the inherent!");
@@ -272,6 +285,10 @@ pub mod pallet {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
+
+			let genesis_round: RoundNumber =
+				GenesisRound::<T>::get().ok_or(Error::<T>::GenesisRoundNotSet)?;
+
 			// 0 < num_sigs <= MaxSigsPerBlock
 			let height: u64 = sigs.len() as u64;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
@@ -280,7 +297,7 @@ pub mod pallet {
 				Error::<T>::ExcessiveHeightProvided
 			);
 			let config = T::BeaconConfig::get();
-			let latest_round = LatestRound::<T>::get().unwrap_or(T::GenesisRound::get());
+			let latest_round = LatestRound::<T>::get().unwrap_or(genesis_round);
 			// aggregate old asig/apk with the new one and verify the aggregation
 			let aggr = T::SignatureVerifier::verify(
 				config.public_key,
@@ -296,8 +313,28 @@ pub mod pallet {
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 			// successful verification is beneficial to the network, so we do not charge when the
-			// siganture is correct
+			// signature is correct
 			Ok(Pays::No.into())
+		}
+
+		/// Set the genesis round exactly once if you are root
+		///
+		/// * `origin`: A root origin
+		/// * `genesis_round`: A genesis round to set
+		#[pallet::call_index(1)]
+		#[pallet::weight(T::WeightInfo::set_genesis_round())]
+		pub fn set_genesis_round(
+			origin: OriginFor<T>,
+			genesis_round: RoundNumber,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			ensure!(GenesisRound::<T>::get().is_none(), Error::<T>::GenesisRoundAlreadySet);
+
+			GenesisRound::<T>::set(Some(genesis_round));
+
+			Self::deposit_event(Event::<T>::GenesisRoundSet);
+			Ok(())
 		}
 	}
 }
