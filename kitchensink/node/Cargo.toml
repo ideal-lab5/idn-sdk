@@ -21,7 +21,6 @@ futures-timer.workspace = true
 jsonrpsee = { features = ["server"], workspace = true }
 libp2p = { workspace = true }
 log.workspace = true 
-prost = { workspace = true }
 serde_json = { workspace = true, default-features = true }
 tokio.workspace = true
 sc-basic-authorship = { workspace = true, default-features = false }

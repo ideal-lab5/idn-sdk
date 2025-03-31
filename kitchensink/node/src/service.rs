@@ -15,30 +15,22 @@
  */
 
 use crate::cli::Consensus;
-use futures::{FutureExt, StreamExt};
+use futures::FutureExt;
 use idn_sdk_kitchensink_runtime::{interface::OpaqueBlock as Block, RuntimeApi};
 use libp2p::{
-	gossipsub,
-	gossipsub::{
-		Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
-	},
+	gossipsub::{Config as GossipsubConfig},
 	identity::Keypair,
-	swarm::{Swarm, SwarmEvent},
-	Multiaddr, SwarmBuilder,
+	Multiaddr,
 };
-use log;
-use prost::Message;
 use sc_client_api::backend::Backend;
 use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, GossipsubNetwork};
 use sc_executor::WasmExecutor;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
-use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
-use sp_consensus_randomness_beacon::types::*;
+use sc_utils::mpsc::tracing_unbounded;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 type HostFunctions = sp_io::SubstrateHostFunctions;
 
@@ -190,7 +182,6 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 		})
 	};
 
-	let is_authority = config.role.is_authority().clone();
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
@@ -231,11 +222,12 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 
 	let local_identity: Keypair = Keypair::generate_ed25519();
 	
-	let (tx, mut rx) = tracing_unbounded("drand-notification-channel", 10000);
+	let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
 
 	let drand_receiver = DrandReceiver::new(rx);
 
 	let gossipsub_config = GossipsubConfig::default();
+	
 	let mut gossipsub = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None).unwrap();
 
 	tokio::spawn(async move {
@@ -256,7 +248,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 				create_inherent_data_providers: move |_, ()| {
 					let drand_receiver = drand_receiver.clone();
 					async move {
-						let pulses = drand_receiver.take_pulses().await; // Read & reset pulses
+						let pulses = drand_receiver.take_pulses().await;
 						let serialized_pulses: Vec<Vec<u8>> =
 							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect();
 
@@ -304,7 +296,9 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 				create_inherent_data_providers: move |_, ()| {
 					let drand_receiver = drand_receiver.clone();
 					async move {
-						let pulses = drand_receiver.take_pulses().await; // Read & reset pulses
+
+						let pulses = drand_receiver.take_pulses().await;
+
 						let serialized_pulses: Vec<Vec<u8>> =
 							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect();
 

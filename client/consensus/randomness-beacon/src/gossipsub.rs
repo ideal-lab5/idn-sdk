@@ -123,7 +123,7 @@ impl DrandReceiver {
 
 		DrandReceiver { pulses }
 	}
- 
+
 	/// Consume pulse data from storage
 	pub async fn take_pulses(&self) -> Vec<OpaquePulse> {
 		let mut pulses = self.pulses.lock().await;
@@ -437,12 +437,13 @@ mod tests {
 		let opaque: OpaquePulse = pulse.clone().try_into().unwrap();
 		// write an opaque pulse
 		tx.unbounded_send(opaque).unwrap();
-		
+
 		sleep(Duration::from_secs(1)).await;
 
-		assert_eq!(receiver.pulses.lock().await.len(), 1, "There should be one opaque pulse in the vec");
+		assert_eq!(
+			receiver.pulses.lock().await.len(),
+			1,
+			"There should be one opaque pulse in the vec"
+		);
 	}
-
-
-
 }
