@@ -28,8 +28,8 @@ extern crate alloc;
 use crate::sp_runtime::AccountId32;
 use alloc::vec::Vec;
 use pallet_idn_manager::{
-	impls::{DepositCalculatorImpl, FeesManagerImpl},
-	SubscriptionOf,
+	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
+	BalanceOf, SubscriptionOf,
 };
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_sdk::{
@@ -286,6 +286,8 @@ impl pallet_idn_manager::Config for Runtime {
 	type Credits = u64;
 	type PulseFilterLen = PulseFilterLen;
 	type MaxSubscriptions = MaxSubscriptions;
+	type SubscriptionId = [u8; 32];
+	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
 }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;

@@ -51,22 +51,18 @@ mod linear_fee_calculator {
 	use super::*;
 	impl FeesManager<u32, u32, (), (), (), DiffBalanceImpl<u32>> for LinearFeeCalculator {
 		fn calculate_subscription_fees(credits: &u32) -> u32 {
-			BASE_FEE.saturating_mul(credits.clone().into())
+			BASE_FEE.saturating_mul(*credits)
 		}
 		fn calculate_diff_fees(old_credits: &u32, new_credits: &u32) -> DiffBalanceImpl<u32> {
 			let mut direction = BalanceDirection::None;
-			let fees = match new_credits.cmp(&old_credits) {
+			let fees = match new_credits.cmp(old_credits) {
 				Ordering::Greater => {
 					direction = BalanceDirection::Collect;
-					Self::calculate_subscription_fees(
-						&new_credits.clone().saturating_sub(old_credits.clone()),
-					)
+					Self::calculate_subscription_fees(&new_credits.saturating_sub(*old_credits))
 				},
 				Ordering::Less => {
 					direction = BalanceDirection::Release;
-					Self::calculate_subscription_fees(
-						&old_credits.clone().saturating_sub(new_credits.clone()),
-					)
+					Self::calculate_subscription_fees(&old_credits.saturating_sub(*new_credits))
 				},
 				Ordering::Equal => Zero::zero(),
 			};
@@ -120,7 +116,7 @@ mod tiered_fee_calculator {
 
 				let tier_fee = BASE_FEE
 					.saturating_mul(credits_in_tier)
-					.saturating_mul((10_000 - current_tier_discount) as u32)
+					.saturating_mul(10_000 - current_tier_discount)
 					.saturating_div(10_000);
 
 				total_fee = total_fee.saturating_add(tier_fee);

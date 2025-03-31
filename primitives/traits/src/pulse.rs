@@ -24,8 +24,6 @@
 //! * [`crate::pulse::Dispatcher`] - Trait for handling and distributing randomness
 //! * [`crate::pulse::PulseProperty`] - Enum for referencing pulse properties in a type-safe way
 
-#![cfg_attr(not(feature = "std"), no_std)]
-
 use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo};
 use sp_std::fmt::Debug;
 

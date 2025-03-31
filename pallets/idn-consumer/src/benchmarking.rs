@@ -16,7 +16,7 @@
 
 //! Benchmarking setup for pallet-idn-consumer
 use crate::Pallet as Template;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, whitelisted_caller};
+use frame_benchmarking::v2::*;
 use frame_system::RawOrigin;
 
 mod benchmarks {

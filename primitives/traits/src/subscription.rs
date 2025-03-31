@@ -130,9 +130,6 @@ pub trait DiffBalance<Balance> {
 /// This is where the business model logic is specified. This logic is used to calculate, collect
 /// and distribute fees for subscriptions.
 ///
-/// You can check the a particular implementation of this trait in
-/// [FeesManagerImpl](crate::impls::FeesManagerImpl).
-///
 /// These are some examples of how this trait can be implemented:
 /// - Linear fee calculator: where the fees are calculated based on a linear function.
 #[doc = docify::embed!("./src/example.rs", linear_fee_calculator)]
