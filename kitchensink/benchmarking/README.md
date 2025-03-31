@@ -24,7 +24,7 @@ Build the kitchensink with benchmarks enabled:
 
 ## Execute Benchmarks
 
-Benchmarks can either be executed by directly invoking the `frame-omni-bencher` command or via the [run script](./run.sh). See Parity's benchmarking guide for the latest installation instructions.
+Benchmarks can either be executed by directly invoking the `frame-omni-bencher` command or via the [run script](./run.sh). See [Polkadot's benchmarking guide](https://docs.polkadot.com/develop/parachains/testing/benchmarking/) for the latest installation instructions.
 
 ### Run script
 
