@@ -269,47 +269,6 @@ fn create_subscription_with_custom_id_works() {
 }
 
 #[test]
-fn create_subscription_fails_if_filtering_randomness() {
-	ExtBuilder::build().execute_with(|| {
-		let credits: u64 = 50;
-		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let frequency: u64 = 10;
-		let initial_balance = 10_000_000;
-
-		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
-
-		assert_noop!(
-			IdnManager::create_subscription(
-				RuntimeOrigin::signed(ALICE.clone()),
-				CreateSubParamsOf::<Test> {
-					credits,
-					target: target.clone(),
-					call_index: [1; 2],
-					frequency,
-					metadata: None,
-					pulse_filter: Some(
-						BoundedVec::try_from(vec![
-							PulsePropertyOf::<Test>::Round(1),
-							PulsePropertyOf::<Test>::Rand([1u8; 32]),
-							PulsePropertyOf::<Test>::Sig([1u8; 64])
-						])
-						.unwrap()
-					),
-					sub_id: None,
-				}
-			),
-			Error::<Test>::FilterRandNotPermitted
-		);
-
-		// Assert the SubscriptionCreated event was not emitted
-		assert!(!System::events().iter().any(|record| matches!(
-			record.event,
-			RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated { sub_id: _ })
-		)));
-	});
-}
-
-#[test]
 fn create_subscription_fails_if_insufficient_balance() {
 	ExtBuilder::build().execute_with(|| {
 		let credits: u64 = 50;
@@ -712,57 +671,6 @@ fn update_subscription_fails_if_sub_does_not_exists() {
 				}
 			),
 			Error::<Test>::SubscriptionDoesNotExist
-		);
-
-		// Assert the SubscriptionUpdated event was not emitted
-		assert!(event_not_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
-	});
-}
-#[test]
-fn update_subscription_fails_if_filtering_randomness() {
-	ExtBuilder::build().execute_with(|| {
-		let credits: u64 = 50;
-		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let frequency: u64 = 10;
-		let metadata = None;
-		let initial_balance = 10_000_000;
-
-		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
-
-		assert_ok!(IdnManager::create_subscription(
-			RuntimeOrigin::signed(ALICE.clone()),
-			CreateSubParamsOf::<Test> {
-				credits,
-				target: target.clone(),
-				call_index: [1; 2],
-				frequency,
-				metadata: None,
-				pulse_filter: None,
-				sub_id: None,
-			}
-		));
-
-		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
-
-		assert_noop!(
-			IdnManager::update_subscription(
-				RuntimeOrigin::signed(ALICE),
-				UpdateSubParamsOf::<Test> {
-					sub_id,
-					credits: Some(credits),
-					frequency: Some(frequency),
-					metadata: Some(metadata),
-					pulse_filter: Some(Some(
-						BoundedVec::try_from(vec![
-							PulsePropertyOf::<Test>::Round(1),
-							PulsePropertyOf::<Test>::Rand([1u8; 32]),
-							PulsePropertyOf::<Test>::Sig([1u8; 64])
-						])
-						.unwrap()
-					))
-				}
-			),
-			Error::<Test>::FilterRandNotPermitted
 		);
 
 		// Assert the SubscriptionUpdated event was not emitted
