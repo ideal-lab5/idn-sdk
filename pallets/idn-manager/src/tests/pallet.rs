@@ -31,7 +31,7 @@ use frame_support::{
 	},
 	BoundedVec,
 };
-use idn_traits::{
+use sp_idn_traits::{
 	pulse::Dispatcher,
 	subscription::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
 };

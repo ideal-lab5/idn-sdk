@@ -4765,7 +4765,6 @@ version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "hex",
- "idn-traits",
  "pallet-idn-manager",
  "pallet-randomness-beacon",
  "parity-scale-codec",
@@ -4773,18 +4772,7 @@ dependencies = [
  "scale-info",
  "serde_json",
  "sp-consensus-randomness-beacon",
-]
-
-[[package]]
-name = "idn-traits"
-version = "0.0.1"
-dependencies = [
- "docify",
- "frame-support",
- "parity-scale-codec",
- "scale-info",
- "sp-runtime",
- "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-idn-traits",
 ]
 
 [[package]]
@@ -8022,10 +8010,10 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "idn-traits",
  "parity-scale-codec",
  "scale-info",
  "sp-core",
+ "sp-idn-traits",
  "sp-io",
  "sp-runtime",
 ]
@@ -8038,7 +8026,6 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "idn-traits",
  "pallet-balances",
  "pallet-xcm",
  "parity-scale-codec",
@@ -8047,6 +8034,7 @@ dependencies = [
  "sp-api",
  "sp-arithmetic",
  "sp-core",
+ "sp-idn-traits",
  "sp-io",
  "sp-runtime",
  "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -13853,6 +13841,18 @@ dependencies = [
  "serde_json",
  "sp-api",
  "sp-runtime",
+]
+
+[[package]]
+name = "sp-idn-traits"
+version = "0.0.1"
+dependencies = [
+ "docify",
+ "frame-support",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
+ "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

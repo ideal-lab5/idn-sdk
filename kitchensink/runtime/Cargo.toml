@@ -17,7 +17,7 @@ polkadot-sdk = { workspace = true, features = ["pallet-balances", "pallet-sudo",
 serde_json = { workspace = true, default-features = false, features = ["alloc"] }
 
 # IDN Deps
-idn-traits.workspace = true
+sp-idn-traits.workspace = true
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
 sp-consensus-randomness-beacon.workspace = true

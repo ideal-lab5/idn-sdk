@@ -20,9 +20,9 @@
 
 use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
 use frame_system::pallet_prelude::*;
-use idn_traits::pulse::Pulse;
 use pallet::*;
 use scale_info::prelude::fmt::Debug;
+use sp_idn_traits::pulse::Pulse;
 
 #[cfg(test)]
 mod mock;
@@ -42,6 +42,7 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The type for the randomness pulse
 		type Pulse: Pulse + Encode + Debug + Decode + Clone + TypeInfo + PartialEq;
+		type SubscriptionId: Encode + Debug + Decode + Clone + TypeInfo + PartialEq;
 	}
 
 	#[pallet::pallet]
@@ -68,7 +69,11 @@ pub mod pallet {
 		/// Creates a subscription.
 		#[pallet::call_index(0)]
 		#[pallet::weight(Weight::from_parts(0, 0))]
-		pub fn consume(origin: OriginFor<T>, _pulse: T::Pulse) -> DispatchResultWithPostInfo {
+		pub fn consume(
+			origin: OriginFor<T>,
+			_pulse: T::Pulse,
+			_sub_id: T::SubscriptionId,
+		) -> DispatchResultWithPostInfo {
 			let _who = ensure_signed(origin)?;
 
 			Ok(().into())

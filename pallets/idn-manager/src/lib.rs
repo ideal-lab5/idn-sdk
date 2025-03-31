@@ -82,16 +82,16 @@ use frame_system::{
 	ensure_signed,
 	pallet_prelude::{BlockNumberFor, OriginFor},
 };
-use idn_traits::{
+use scale_info::TypeInfo;
+use sp_arithmetic::traits::Unsigned;
+use sp_core::H256;
+use sp_idn_traits::{
 	pulse::{Dispatcher, Pulse, PulseMatch, PulseProperty},
 	subscription::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
 		Subscription as SubscriptionTrait,
 	},
 };
-use scale_info::TypeInfo;
-use sp_arithmetic::traits::Unsigned;
-use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Saturating;
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
@@ -157,7 +157,7 @@ pub type PulsePropertyOf<T> = PulseProperty<
 ///
 /// # Usage
 /// ```rust
-/// use idn_traits::pulse::PulseProperty as PulsePropertyTrait;
+/// use sp_idn_traits::pulse::PulseProperty as PulsePropertyTrait;
 /// type PulseProperty = PulsePropertyTrait<[u8; 32], u64, [u8; 48]>;
 /// // Create a filter for even-numbered rounds only
 /// let filter = vec![

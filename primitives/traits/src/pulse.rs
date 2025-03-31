@@ -150,7 +150,7 @@ pub trait Pulse {
 ///
 /// ## Example
 /// ```rust
-/// use idn_traits::pulse::{Pulse, PulseMatch, PulseProperty};
+/// use sp_idn_traits::pulse::{Pulse, PulseMatch, PulseProperty};
 /// struct MyPulse {
 ///     rand: [u8; 3],
 ///     round: u8,

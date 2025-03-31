@@ -250,7 +250,7 @@ pub struct Pulse {
 	pub sig: Sig,
 }
 
-impl idn_traits::pulse::Pulse for Pulse {
+impl sp_idn_traits::pulse::Pulse for Pulse {
 	type Rand = Rand;
 	type Round = Round;
 	type Sig = Sig;

@@ -38,9 +38,9 @@ use frame_support::{
 		Get,
 	},
 };
-use idn_traits::subscription::{BalanceDirection, DiffBalance, FeesError};
 use pallet_idn_manager::{DepositCalculator, FeesManager};
 use sp_arithmetic::traits::Unsigned;
+use sp_idn_traits::subscription::{BalanceDirection, DiffBalance, FeesError};
 use sp_runtime::{traits::Zero, AccountId32, Saturating};
 use sp_std::{cmp::Ordering, marker::PhantomData};
 
