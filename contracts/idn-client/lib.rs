@@ -62,15 +62,11 @@ pub enum Error {
 }
 
 impl From<EnvError> for Error {
-    fn from(e: EnvError) -> Self {
+    fn from(env_error: EnvError) -> Self {
         use ink::env::ReturnErrorCode;
-        match e {
-            EnvError::ReturnError(ReturnErrorCode::XcmExecutionFailed) => {
-                Error::XcmExecutionFailed
-            }
-            EnvError::ReturnError(ReturnErrorCode::XcmSendFailed) => {
-                Error::XcmSendFailed
-            }
+        match env_error {
+            EnvError::ReturnError(ReturnErrorCode::XcmExecutionFailed) => Error::XcmExecutionFailed,
+            EnvError::ReturnError(ReturnErrorCode::XcmSendFailed) => Error::XcmSendFailed,
             _ => Error::Other,
         }
     }
@@ -281,30 +277,48 @@ impl IdnClientImpl {
         }
     }
 
-    /// Constructs an XCM message for creating a subscription
-    fn construct_create_subscription_xcm(
+    /// Helper function to construct an XCM message for calling an IDN Manager pallet function
+    /// 
+    /// # Arguments
+    /// 
+    /// * `call_index` - The IDN Manager call index for the specific function
+    /// * `encoded_params` - The SCALE-encoded parameters for the function call
+    /// 
+    /// # Returns
+    /// 
+    /// * An XCM message that will execute the specified function call
+    fn construct_xcm_for_idn_manager(
         &self,
-        params: &CreateSubParams,
+        call_index: u8,
+        encoded_params: Vec<u8>,
     ) -> Xcm<()> {
-        // The pallet index and call index for the IDN Manager pallet
-        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX; 
-        let idn_manager_create_sub_index = IDN_MANAGER_CREATE_SUB_INDEX; 
+        // The pallet index for IDN Manager
+        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX;
 
-        // Encode the parameters for create_subscription call
-        let encoded_params = codec::Encode::encode(&params);
-
-        // Create the XCM program to call the create_subscription function
-        let call_create_subscription =
-            [idn_manager_pallet_index, idn_manager_create_sub_index].into_iter()
-                .chain(encoded_params)
-                .collect::<Vec<_>>();
+        // Create the XCM program to call the specified function
+        let call_data = [idn_manager_pallet_index, call_index]
+            .into_iter()
+            .chain(encoded_params)
+            .collect::<Vec<_>>();
 
         // Build the XCM message
         Xcm(vec![Transact {
             origin_kind: OriginKind::SovereignAccount,
             require_weight_at_most: Weight::from_parts(1_000_000_000, 1_000_000),
-            call: call_create_subscription.into(),
+            call: call_data.into(),
         }])
+    }
+
+    /// Constructs an XCM message for creating a subscription
+    fn construct_create_subscription_xcm(
+        &self,
+        params: &CreateSubParams,
+    ) -> Xcm<()> {
+        // Encode the parameters for create_subscription call
+        let encoded_params = codec::Encode::encode(params);
+        
+        // Use the helper function to construct the XCM message
+        self.construct_xcm_for_idn_manager(IDN_MANAGER_CREATE_SUB_INDEX, encoded_params)
     }
 
     /// Constructs an XCM message for pausing a subscription
@@ -312,27 +326,11 @@ impl IdnClientImpl {
         &self,
         subscription_id: SubscriptionId,
     ) -> Xcm<()> {
-        // The pallet index and call index for the IDN Manager pallet
-        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX; 
-        let idn_manager_pause_sub_index = IDN_MANAGER_PAUSE_SUB_INDEX; 
-
         // Encode the parameters for pause_subscription call
-        let encoded_params = codec::Encode::encode(&(
-            subscription_id,
-        ));
-
-        // Create the XCM program to call the pause_subscription function
-        let call_pause_subscription =
-            [idn_manager_pallet_index, idn_manager_pause_sub_index].into_iter()
-                .chain(encoded_params)
-                .collect::<Vec<_>>();
-
-        // Build the XCM message
-        Xcm(vec![Transact {
-            origin_kind: OriginKind::SovereignAccount,
-            require_weight_at_most: Weight::from_parts(1_000_000_000, 1_000_000),
-            call: call_pause_subscription.into(),
-        }])
+        let encoded_params = codec::Encode::encode(&subscription_id);
+        
+        // Use the helper function to construct the XCM message
+        self.construct_xcm_for_idn_manager(IDN_MANAGER_PAUSE_SUB_INDEX, encoded_params)
     }
 
     /// Constructs an XCM message for reactivating a subscription
@@ -340,27 +338,11 @@ impl IdnClientImpl {
         &self,
         subscription_id: SubscriptionId,
     ) -> Xcm<()> {
-        // The pallet index and call index for the IDN Manager pallet
-        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX; 
-        let idn_manager_reactivate_sub_index = IDN_MANAGER_REACTIVATE_SUB_INDEX; 
-
         // Encode the parameters for reactivate_subscription call
-        let encoded_params = codec::Encode::encode(&(
-            subscription_id,
-        ));
-
-        // Create the XCM program to call the reactivate_subscription function
-        let call_reactivate_subscription =
-            [idn_manager_pallet_index, idn_manager_reactivate_sub_index].into_iter()
-                .chain(encoded_params)
-                .collect::<Vec<_>>();
-
-        // Build the XCM message
-        Xcm(vec![Transact {
-            origin_kind: OriginKind::SovereignAccount,
-            require_weight_at_most: Weight::from_parts(1_000_000_000, 1_000_000),
-            call: call_reactivate_subscription.into(),
-        }])
+        let encoded_params = codec::Encode::encode(&subscription_id);
+        
+        // Use the helper function to construct the XCM message
+        self.construct_xcm_for_idn_manager(IDN_MANAGER_REACTIVATE_SUB_INDEX, encoded_params)
     }
 
     /// Constructs an XCM message for updating a subscription
@@ -368,25 +350,11 @@ impl IdnClientImpl {
         &self,
         params: &UpdateSubParams,
     ) -> Xcm<()> {
-        // The pallet index and call index for the IDN Manager pallet
-        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX; 
-        let idn_manager_update_sub_index = IDN_MANAGER_UPDATE_SUB_INDEX; 
-
         // Encode the parameters for update_subscription call
-        let encoded_params = codec::Encode::encode(&params);
-
-        // Create the XCM program to call the update_subscription function
-        let call_update_subscription =
-            [idn_manager_pallet_index, idn_manager_update_sub_index].into_iter()
-                .chain(encoded_params)
-                .collect::<Vec<_>>();
-
-        // Build the XCM message
-        Xcm(vec![Transact {
-            origin_kind: OriginKind::SovereignAccount,
-            require_weight_at_most: Weight::from_parts(1_000_000_000, 1_000_000),
-            call: call_update_subscription.into(),
-        }])
+        let encoded_params = codec::Encode::encode(params);
+        
+        // Use the helper function to construct the XCM message
+        self.construct_xcm_for_idn_manager(IDN_MANAGER_UPDATE_SUB_INDEX, encoded_params)
     }
 
     /// Constructs an XCM message for canceling a subscription
@@ -394,27 +362,11 @@ impl IdnClientImpl {
         &self,
         subscription_id: SubscriptionId,
     ) -> Xcm<()> {
-        // The pallet index and call index for the IDN Manager pallet
-        let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX; 
-        let idn_manager_kill_sub_index = IDN_MANAGER_KILL_SUB_INDEX; 
-
         // Encode the parameters for kill_subscription call
-        let encoded_params = codec::Encode::encode(&(
-            subscription_id,
-        ));
-
-        // Create the XCM program to call the kill_subscription function
-        let call_kill_subscription =
-            [idn_manager_pallet_index, idn_manager_kill_sub_index].into_iter()
-                .chain(encoded_params)
-                .collect::<Vec<_>>();
-
-        // Build the XCM message
-        Xcm(vec![Transact {
-            origin_kind: OriginKind::SovereignAccount,
-            require_weight_at_most: Weight::from_parts(1_000_000_000, 1_000_000),
-            call: call_kill_subscription.into(),
-        }])
+        let encoded_params = codec::Encode::encode(&subscription_id);
+        
+        // Use the helper function to construct the XCM message
+        self.construct_xcm_for_idn_manager(IDN_MANAGER_KILL_SUB_INDEX, encoded_params)
     }
 }
 

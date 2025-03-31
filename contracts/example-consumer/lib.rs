@@ -90,11 +90,14 @@ mod example_consumer {
 		/// * `credits` - Number of random values to receive
 		/// * `frequency` - Distribution interval for random values (in blocks)
 		/// * `metadata` - Optional metadata for the subscription
+		/// * `pulse_filter` - Optional filter for pulses (advanced usage)
+		///
+		/// The caller must provide sufficient funds to cover the XCM execution costs.
 		///
 		/// # Returns
 		///
 		/// * `Result<(), ContractError>` - Success or error
-		#[ink(message)]
+		#[ink(message, payable)]
 		pub fn create_subscription(
 			&mut self,
 			credits: u32,
@@ -136,16 +139,22 @@ mod example_consumer {
 
 		/// Pauses the active randomness subscription
 		///
+		/// The caller must provide sufficient funds to cover the XCM execution costs.
+		///
 		/// # Returns
 		///
 		/// * `Result<(), ContractError>` - Success or error
-		#[ink(message)]
+		#[ink(message, payable)]
 		pub fn pause_subscription(
 			&mut self,
-			subscription_id: SubscriptionId,
 		) -> core::result::Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
+
+			// Get the active subscription ID
+			let subscription_id = self
+				.subscription_id
+				.ok_or(ContractError::NoActiveSubscription)?;
 
 			// Pause subscription through IDN client
 			self.idn_client
@@ -157,16 +166,22 @@ mod example_consumer {
 
 		/// Reactivates a paused subscription
 		///
+		/// The caller must provide sufficient funds to cover the XCM execution costs.
+		///
 		/// # Returns
 		///
 		/// * `Result<(), ContractError>` - Success or error
-		#[ink(message)]
+		#[ink(message, payable)]
 		pub fn reactivate_subscription(
 			&mut self,
-			subscription_id: SubscriptionId,
 		) -> core::result::Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
+
+			// Get the active subscription ID
+			let subscription_id = self
+				.subscription_id
+				.ok_or(ContractError::NoActiveSubscription)?;
 
 			// Reactivate subscription through IDN client
 			self.idn_client
@@ -182,11 +197,14 @@ mod example_consumer {
 		///
 		/// * `credits` - New number of random values to receive
 		/// * `frequency` - New distribution interval for random values
+		/// * `pulse_filter` - Optional filter for pulses (advanced usage)
+		///
+		/// The caller must provide sufficient funds to cover the XCM execution costs.
 		///
 		/// # Returns
 		///
 		/// * `Result<(), ContractError>` - Success or error
-		#[ink(message)]
+		#[ink(message, payable)]
 		pub fn update_subscription(
 			&mut self,
 			credits: u32,
@@ -219,23 +237,29 @@ mod example_consumer {
 
 		/// Cancels the active subscription
 		///
+		/// The caller must provide sufficient funds to cover the XCM execution costs.
+		///
 		/// # Returns
 		///
 		/// * `Result<(), ContractError>` - Success or error
-		#[ink(message)]
+		#[ink(message, payable)]
 		pub fn kill_subscription(
 			&mut self,
-			subscription_id: SubscriptionId,
 		) -> core::result::Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
+
+			// Get the active subscription ID
+			let subscription_id = self
+				.subscription_id
+				.ok_or(ContractError::NoActiveSubscription)?;
 
 			// Kill subscription through IDN client
 			self.idn_client
 				.kill_subscription(self.ideal_network_para_id, subscription_id)
 				.map_err(ContractError::IdnClientError)?;
 
-			// Clear the subscription ID and other state
+			// Clear the subscription ID
 			self.subscription_id = None;
 
 			Ok(())
