@@ -53,23 +53,6 @@
 //! - Set up filters to only receive specific randomness patterns
 //! - Game the system by cherry-picking favorable pulses
 //! - Undermine the fairness and unpredictability of the randomness distribution
-//!
-//! ### Implementation Approach
-//! The [`ensure_filter_no_rand`](Pallet::ensure_filter_no_rand) function validates that
-//! filters don't contain any pulse criteria. This validation happens when the filter
-//! is first created or updated, rather than during distribution:
-//!
-//! - **Benefits**: The filter validation cost is paid by the subscriber creating the filter, not
-//!   distributed across all subscribers during the randomness delivery process
-//! - **Calls**: Implemented in [`create_subscription`](Pallet::create_subscription) and
-//!   [`update_subscription`](Pallet::update_subscription)
-//!
-//! ### Developer Warning
-//! **Important**: When adding or modifying any dispatchable that creates or updates filters,
-//! always include a call to [`ensure_filter_no_rand`](Pallet::ensure_filter_no_rand).
-//! Failure to do this could create security vulnerabilities by allowing random-value filtering.
-//! Test suites should catch issues with existing dispatchables, but new functions need
-//! careful attention.
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
@@ -478,10 +461,6 @@ pub mod pallet {
 				Error::<T>::TooManySubscriptions
 			);
 
-			// make sure the filter does not filter on pulses
-			// see the [Pulse Filtering Security](#pulse-filtering-security) section
-			Self::ensure_filter_no_rand(&params.pulse_filter)?;
-
 			let current_block = frame_system::Pallet::<T>::block_number();
 
 			let details = SubscriptionDetails {
@@ -635,9 +614,6 @@ pub mod pallet {
 			let subscriber = ensure_signed(origin)?;
 
 			let inner_pulse_filter = params.pulse_filter.clone().unwrap_or_default();
-			// make sure the filter does not filter on random values
-			// see the [Pulse Filtering Security](#pulse-filtering-security) section
-			Self::ensure_filter_no_rand(&inner_pulse_filter)?;
 
 			Subscriptions::<T>::try_mutate(params.sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -931,29 +907,6 @@ impl<T: Config> Pallet<T> {
 			deposit,
 			Precision::BestEffort,
 		)?;
-		Ok(())
-	}
-
-	/// Ensures that a pulse filter doesn't attempt to filter on pulses
-	///
-	/// This function checks that the filter doesn't use the [`PulseProperty::Rand`] or
-	/// [`PulseProperty::Sig`] variant for filtering. Filtering based on randomness is not permitted
-	/// because it would contradict the purpose of randomness distribution - clients shouldn't be
-	/// able to selectively receive only certain pulses.
-	///
-	/// # Security Notes
-	/// This function is an important security check that prevents subscribers from
-	/// potentially gaming the system by receiving only certain pulses that
-	/// match specific patterns.
-	pub fn ensure_filter_no_rand(pulse_filter: &Option<PulseFilterOf<T>>) -> DispatchResult {
-		if let Some(filter) = pulse_filter {
-			// Check if any item in the filter is a Rand or Sig variant
-			if filter.iter().any(|prop| {
-				matches!(prop, PulseProperty::Rand(_)) || matches!(prop, PulseProperty::Sig(_))
-			}) {
-				return Err(Error::<T>::FilterRandNotPermitted.into());
-			}
-		}
 		Ok(())
 	}
 
