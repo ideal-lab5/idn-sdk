@@ -21,6 +21,9 @@ frame-benchmarking = { workspace = true, default-features = false, optional = tr
 frame-support = { workspace = true, default-features = false}
 frame-system = { workspace = true, default-features = false}
 
+# IDN
+idn-traits = { workspace = true, default-features = false }
+
 [dev-dependencies]
 sp-core = { workspace = true, default-features = false }
 sp-io = { workspace = true, default-features = false}

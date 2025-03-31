@@ -47,8 +47,9 @@ use sp_arithmetic::traits::Unsigned;
 use sp_runtime::{traits::Zero, AccountId32, Saturating};
 use sp_std::{cmp::Ordering, marker::PhantomData};
 
-impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, PulseFilter> SubscriptionTrait<AccountId>
-	for Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter>
+impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, PulseFilter, SubscriptionId>
+	SubscriptionTrait<AccountId>
+	for Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter, SubscriptionId>
 {
 	fn subscriber(&self) -> &AccountId {
 		&self.details.subscriber

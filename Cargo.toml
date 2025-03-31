@@ -4,6 +4,7 @@ members = [
     "primitives/consensus/randomness-beacon",
     "primitives/traits",
     "pallets/randomness-beacon",
+    "pallets/idn-consumer",
     "pallets/idn-manager",
     "kitchensink/runtime",
     "kitchensink/node",

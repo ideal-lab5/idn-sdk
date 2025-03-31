@@ -125,6 +125,7 @@ impl pallet_idn_manager::Config for Test {
 	type Credits = u64;
 	type PulseFilterLen = PulseFilterLen;
 	type MaxSubscriptions = MaxSubscriptions;
+	type SubscriptionId = [u8; 32];
 }
 
 sp_api::impl_runtime_apis! {
@@ -133,13 +134,14 @@ sp_api::impl_runtime_apis! {
 			BalanceOf<Test>,
 			u64,
 			AccountId32,
-			SubscriptionOf<Test>
+			SubscriptionOf<Test>,
+			<Test as pallet_idn_manager::Config>::SubscriptionId,
 		> for Test {
 		fn calculate_subscription_fees(credits: u64) -> BalanceOf<Test> {
 			pallet_idn_manager::Pallet::<Test>::calculate_subscription_fees(&credits)
 		}
 		fn get_subscription(
-			sub_id: pallet_idn_manager::SubscriptionId
+			sub_id: <Test as pallet_idn_manager::Config>::SubscriptionId
 		) -> Option<SubscriptionOf<Test>> {
 			pallet_idn_manager::Pallet::<Test>::get_subscription(&sub_id)
 		}

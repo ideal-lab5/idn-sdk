@@ -8014,6 +8014,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-idn-consumer"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "idn-traits",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-idn-manager"
 version = "0.0.1-dev"
 dependencies = [

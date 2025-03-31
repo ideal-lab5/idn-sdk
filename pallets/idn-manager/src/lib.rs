@@ -65,7 +65,7 @@ pub mod impls;
 pub mod traits;
 pub mod weights;
 
-use codec::{Codec, Decode, Encode, MaxEncodedLen};
+use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo, Hooks,
@@ -134,6 +134,7 @@ pub type SubscriptionOf<T> = Subscription<
 	<T as pallet::Config>::Credits,
 	MetadataOf<T>,
 	PulseFilterOf<T>,
+	<T as pallet::Config>::SubscriptionId,
 >;
 
 /// The pulse property type used in the pallet, representing various properties of a pulse.
@@ -172,7 +173,7 @@ pub type PulseFilterOf<T> = BoundedVec<PulsePropertyOf<T>, <T as Config>::PulseF
 
 /// Represents a subscription in the system.
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
-pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter> {
+pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter, SubscriptionId> {
 	// The subscription ID
 	id: SubscriptionId,
 	// The immutable params of the subscription
@@ -215,13 +216,10 @@ pub struct SubscriptionDetails<AccountId> {
 /// owner and target.
 pub type SubscriptionDetailsOf<T> = SubscriptionDetails<<T as frame_system::Config>::AccountId>;
 
-/// The subscription ID type used in the pallet, represented as a 32-byte array.
-pub type SubscriptionId = [u8; 32];
-
 /// Parameters for creating a new subscription
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
-pub struct CreateSubParams<Credits, BlockNumber, Metadata, PulseFilter> {
-	// Number of pulses to receive
+pub struct CreateSubParams<Credits, BlockNumber, Metadata, PulseFilter, SubscriptionId> {
+	// Number of random values to receive
 	pub credits: Credits,
 	// XCM multilocation for pulse delivery
 	pub target: Location,
@@ -244,6 +242,7 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 	BlockNumberFor<T>,
 	MetadataOf<T>,
 	PulseFilterOf<T>,
+	<T as pallet::Config>::SubscriptionId,
 >;
 
 /// Parameters for updating an existing subscription.
@@ -266,7 +265,7 @@ pub struct UpdateSubParams<SubId, Credits, Frequency, PulseFilter, Metadata> {
 /// The parameters for updating an existing subscription, containing various details about the
 /// subscription.
 pub type UpdateSubParamsOf<T> = UpdateSubParams<
-	SubscriptionId,
+	<T as Config>::SubscriptionId,
 	<T as Config>::Credits,
 	BlockNumberFor<T>,
 	PulseFilterOf<T>,
@@ -355,12 +354,22 @@ pub mod pallet {
 
 		/// Maximum number of subscriptions allowed
 		type MaxSubscriptions: Get<u32>;
+
+		/// Subscription ID type
+		type SubscriptionId: From<H256>
+			+ Codec
+			+ Copy
+			+ PartialEq
+			+ TypeInfo
+			+ EncodeLike
+			+ MaxEncodedLen
+			+ Debug;
 	}
 
 	/// The subscription storage. It maps a subscription ID to a subscription.
 	#[pallet::storage]
 	pub(crate) type Subscriptions<T: Config> =
-		StorageMap<_, Blake2_128Concat, SubscriptionId, SubscriptionOf<T>, OptionQuery>;
+		StorageMap<_, Blake2_128Concat, T::SubscriptionId, SubscriptionOf<T>, OptionQuery>;
 
 	/// Storage for the subscription counter. It keeps track of how many subscriptions are in
 	/// storage
@@ -371,19 +380,19 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A new subscription was created (includes single-block subscriptions)
-		SubscriptionCreated { sub_id: SubscriptionId },
+		SubscriptionCreated { sub_id: T::SubscriptionId },
 		/// A subscription has finished
-		SubscriptionRemoved { sub_id: SubscriptionId },
+		SubscriptionRemoved { sub_id: T::SubscriptionId },
 		/// A subscription was paused
-		SubscriptionPaused { sub_id: SubscriptionId },
+		SubscriptionPaused { sub_id: T::SubscriptionId },
 		/// A subscription was updated
-		SubscriptionUpdated { sub_id: SubscriptionId },
+		SubscriptionUpdated { sub_id: T::SubscriptionId },
 		/// A subscription was reactivated
-		SubscriptionReactivated { sub_id: SubscriptionId },
+		SubscriptionReactivated { sub_id: T::SubscriptionId },
 		/// Randomness was successfully distributed
-		RandomnessDistributed { sub_id: SubscriptionId },
+		RandomnessDistributed { sub_id: T::SubscriptionId },
 		/// Fees collected
-		FeesCollected { sub_id: SubscriptionId, fees: BalanceOf<T> },
+		FeesCollected { sub_id: T::SubscriptionId, fees: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -539,7 +548,7 @@ pub mod pallet {
 		pub fn pause_subscription(
 			// Must match the subscription's original caller
 			origin: OriginFor<T>,
-			sub_id: SubscriptionId,
+			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
@@ -574,7 +583,7 @@ pub mod pallet {
 		pub fn kill_subscription(
 			// Must match the subscription's original caller
 			origin: OriginFor<T>,
-			sub_id: SubscriptionId,
+			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
 
@@ -678,7 +687,7 @@ pub mod pallet {
 		pub fn reactivate_subscription(
 			// Must match the subscription's original caller
 			origin: OriginFor<T>,
-			sub_id: SubscriptionId,
+			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
 			let subscriber = ensure_signed(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
@@ -700,7 +709,7 @@ impl<T: Config> Pallet<T> {
 	/// Finishes a subscription by removing it from storage and emitting a finish event.
 	pub(crate) fn finish_subscription(
 		sub: &SubscriptionOf<T>,
-		sub_id: SubscriptionId,
+		sub_id: T::SubscriptionId,
 	) -> DispatchResult {
 		// fees left and deposit to refund
 		let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits_left, &Zero::zero());
@@ -731,7 +740,7 @@ impl<T: Config> Pallet<T> {
 		let current_block = frame_system::Pallet::<T>::block_number();
 
 		Subscriptions::<T>::iter().try_for_each(
-			|(sub_id, mut sub): (SubscriptionId, SubscriptionOf<T>)| -> DispatchResult {
+			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| -> DispatchResult {
 				// Filter for active subscriptions that are eligible for delivery based on frequency
 				// and custom filter criteria
 				if
@@ -843,7 +852,7 @@ impl<T: Config> Pallet<T> {
 		sub_details: &SubscriptionDetailsOf<T>,
 		metadata: &Option<MetadataOf<T>>,
 		current_block: &BlockNumberFor<T>,
-	) -> SubscriptionId {
+	) -> T::SubscriptionId {
 		let id_tuple = (
 			current_block,
 			&sub_details.subscriber,
@@ -935,7 +944,7 @@ impl<T: Config> Pallet<T> {
 	fn construct_xcm_msg(
 		call_index: CallIndex,
 		pulse: &T::Pulse,
-		sub_id: &SubscriptionId,
+		sub_id: &T::SubscriptionId,
 	) -> Xcm<()> {
 		Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
@@ -964,7 +973,7 @@ impl<T: Config> Pallet<T> {
 	/// Retrieves a specific subscription by its ID.
 	///
 	/// This function retrieves a subscription from storage based on the provided subscription ID.
-	pub fn get_subscription(sub_id: &SubscriptionId) -> Option<SubscriptionOf<T>> {
+	pub fn get_subscription(sub_id: &T::SubscriptionId) -> Option<SubscriptionOf<T>> {
 		Subscriptions::<T>::get(sub_id)
 	}
 
@@ -993,11 +1002,12 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 
 sp_api::decl_runtime_apis! {
 	#[api_version(1)]
-	pub trait IdnManagerApi<Balance, Credits, AccountId, Subscription> where
+	pub trait IdnManagerApi<Balance, Credits, AccountId, Subscription, SubscriptionId> where
 		Balance: Codec,
 		Credits: Codec,
 		AccountId: Codec,
 		Subscription: Codec,
+		SubscriptionId: Codec
 	{
 		/// Computes the fee for a given credits
 		///

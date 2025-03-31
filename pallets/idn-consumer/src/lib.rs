@@ -18,7 +18,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use idn_traits::pulse::Consumer as IdnClient;
+use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
+use frame_system::pallet_prelude::*;
+use idn_traits::pulse::Pulse;
+use pallet::*;
+use scale_info::prelude::fmt::Debug;
+
 #[cfg(test)]
 mod mock;
 
@@ -30,14 +35,13 @@ mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
-	use frame_system::pallet_prelude::*;
+	use super::*;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The type for the randomness pulse
-		type Pulse: Pulse + Encode;
+		type Pulse: Pulse + Encode + Debug + Decode + Clone + TypeInfo + PartialEq;
 	}
 
 	#[pallet::pallet]
@@ -60,11 +64,11 @@ pub mod pallet {
 	}
 
 	#[pallet::call]
-	impl<T: Config> IdnClient for Pallet<T> {
+	impl<T: Config> Pallet<T> {
 		/// Creates a subscription.
 		#[pallet::call_index(0)]
 		#[pallet::weight(Weight::from_parts(0, 0))]
-		pub fn consume(origin: OriginFor<T>, pulse: Pulse) -> DispatchResultWithPostInfo {
+		pub fn consume(origin: OriginFor<T>, _pulse: T::Pulse) -> DispatchResultWithPostInfo {
 			let _who = ensure_signed(origin)?;
 
 			Ok(().into())
@@ -74,27 +78,27 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Creates a subscription.
-	pub fn create_subscription(origin: OriginFor<T>) -> Result<(), ()> {
+	pub fn create_subscription() -> Result<(), ()> {
 		todo!()
 	}
 
 	/// Pauses a subscription.
-	pub fn pause_subscription(origin: OriginFor<T>) -> Result<(), ()> {
+	pub fn pause_subscription() -> Result<(), ()> {
 		todo!()
 	}
 
 	/// Kills a subscription.
-	pub fn kill_subscription(origin: OriginFor<T>) -> Result<(), ()> {
+	pub fn kill_subscription() -> Result<(), ()> {
 		todo!()
 	}
 
 	/// Updates a subscription.
-	pub fn update_subscription(origin: OriginFor<T>) -> Result<(), ()> {
+	pub fn update_subscription() -> Result<(), ()> {
 		todo!()
 	}
 
 	/// Reactivates a subscription.
-	pub fn reactivate_subscription(origin: OriginFor<T>) -> Result<(), ()> {
+	pub fn reactivate_subscription() -> Result<(), ()> {
 		todo!()
 	}
 }
