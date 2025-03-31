@@ -124,8 +124,6 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
 		type WeightInfo: WeightInfo;
-		/// The beacon configuration for which this pallet is defined.
-		type BeaconConfig: Get<BeaconConfiguration>;
 		/// something that knows how to aggregate and verify beacon pulses.
 		type SignatureVerifier: SignatureVerifier;
 		/// The number of signatures per block.
@@ -137,7 +135,7 @@ pub mod pallet {
 
 	/// The round when we start consuming pulses
 	#[pallet::storage]
-	pub type GenesisRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
+	pub type BeaconConfig<T: Config> = StorageValue<_, BeaconConfiguration, OptionQuery>;
 
 	/// The latest observed round
 	#[pallet::storage]
@@ -162,18 +160,18 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// The genesis round has been set by a root address
-		GenesisRoundSet,
+		/// The beacon config has been set by a root address
+		BeaconConfigSet,
 		/// Signature verification succeeded for the provided rounds.
 		SignatureVerificationSuccess,
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The genesis round is already set
-		GenesisRoundAlreadySet,
-		/// The genesis round is not set
-		GenesisRoundNotSet,
+		/// The beacon config is already set
+		BeaconConfigAlreadySet,
+		/// The beacon config is not set
+		BeaconConfigNotSet,
 		/// The pulse could not be verified
 		VerificationFailed,
 		/// There must be at least one signature to construct an asig
@@ -196,14 +194,19 @@ pub mod pallet {
 			// if we do not find any pulse data, then do nothing
 			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 			{
-				if let Some(genesis_round) = GenesisRound::<T>::get() {
+				if let Some(config) = BeaconConfig::<T>::get() {
 					// ignores non-deserializable messages and pulses with invalid signature lengths
 					//  ignores rounds less than the genesis round
 					let sigs: Vec<OpaqueSignature> = raw_pulses
 						.iter()
-						.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
-						.filter(|op| op.round >= genesis_round)
-						.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
+						.filter_map(|rp| {
+							OpaquePulse::deserialize_from_vec(rp)
+								.ok()
+								.filter(|op| op.round >= config.genesis_round)
+								.map(|op| {
+									OpaqueSignature::truncate_from(op.signature.as_slice().to_vec())
+								})
+						})
 						.collect::<Vec<_>>();
 
 					return Some(Call::try_submit_asig { sigs });
@@ -286,8 +289,7 @@ pub mod pallet {
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
 
-			let genesis_round: RoundNumber =
-				GenesisRound::<T>::get().ok_or(Error::<T>::GenesisRoundNotSet)?;
+			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
 
 			// 0 < num_sigs <= MaxSigsPerBlock
 			let height: u64 = sigs.len() as u64;
@@ -296,8 +298,8 @@ pub mod pallet {
 				height <= T::MaxSigsPerBlock::get() as u64,
 				Error::<T>::ExcessiveHeightProvided
 			);
-			let config = T::BeaconConfig::get();
-			let latest_round = LatestRound::<T>::get().unwrap_or(genesis_round);
+
+			let latest_round = LatestRound::<T>::get().unwrap_or(config.genesis_round);
 			// aggregate old asig/apk with the new one and verify the aggregation
 			let aggr = T::SignatureVerifier::verify(
 				config.public_key,
@@ -322,19 +324,21 @@ pub mod pallet {
 		/// * `origin`: A root origin
 		/// * `genesis_round`: A genesis round to set
 		#[pallet::call_index(1)]
-		#[pallet::weight(T::WeightInfo::set_genesis_round())]
-		pub fn set_genesis_round(
+		#[pallet::weight(T::WeightInfo::set_beacon_config())]
+		#[allow(clippy::useless_conversion)]
+		pub fn set_beacon_config(
 			origin: OriginFor<T>,
-			genesis_round: RoundNumber,
-		) -> DispatchResult {
+			config: BeaconConfiguration,
+		) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
 
-			ensure!(GenesisRound::<T>::get().is_none(), Error::<T>::GenesisRoundAlreadySet);
+			ensure!(BeaconConfig::<T>::get().is_none(), Error::<T>::BeaconConfigAlreadySet);
 
-			GenesisRound::<T>::set(Some(genesis_round));
+			BeaconConfig::<T>::set(Some(config));
 
-			Self::deposit_event(Event::<T>::GenesisRoundSet);
-			Ok(())
+			Self::deposit_event(Event::<T>::BeaconConfigSet);
+
+			Ok(Pays::No.into())
 		}
 	}
 }

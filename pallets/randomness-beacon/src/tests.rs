@@ -15,11 +15,13 @@
  */
 
 use crate::{
-	mock::*, types::*, verifier::test::*, AggregatedSignature, Call, Error, GenesisRound,
+	mock::*, types::*, verifier::test::*, AggregatedSignature, BeaconConfig, Call, Error,
 	LatestRound, MissedBlocks,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 use frame_system::pallet_prelude::BlockNumberFor;
+
+const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 
 #[test]
 fn can_construct_pallet_and_set_genesis_params() {
@@ -36,20 +38,22 @@ fn can_fail_write_pulse_when_genesis_round_not_set() {
 		System::set_block_number(1);
 		assert_noop!(
 			Drand::try_submit_asig(RuntimeOrigin::none(), sigs),
-			Error::<Test>::GenesisRoundNotSet,
+			Error::<Test>::BeaconConfigNotSet,
 		);
 	});
 }
 
 #[test]
 fn can_set_genesis_round_once_as_root() {
+	let config = get_config(1000);
+
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1));
-		assert_eq!(GenesisRound::<Test>::get().unwrap(), 1);
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
+		assert_eq!(BeaconConfig::<Test>::get().unwrap(), config.clone());
 		assert_noop!(
-			Drand::set_genesis_round(RuntimeOrigin::root(), 2),
-			Error::<Test>::GenesisRoundAlreadySet,
+			Drand::set_beacon_config(RuntimeOrigin::root(), config),
+			Error::<Test>::BeaconConfigAlreadySet,
 		);
 	});
 }
@@ -57,10 +61,11 @@ fn can_set_genesis_round_once_as_root() {
 #[test]
 fn can_submit_valid_pulses_under_the_limit() {
 	let (asig, apk, sigs) = get(vec![PULSE1000, PULSE1001]);
+	let config = get_config(1000);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs));
 
@@ -75,9 +80,11 @@ fn can_submit_valid_pulses_under_the_limit() {
 
 #[test]
 fn can_fail_when_sig_height_is_0() {
+	let config = get_config(1000);
+
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 		assert_noop!(
 			Drand::try_submit_asig(RuntimeOrigin::none(), vec![]),
 			Error::<Test>::ZeroHeightProvided
@@ -87,9 +94,11 @@ fn can_fail_when_sig_height_is_0() {
 
 #[test]
 fn can_fail_when_sig_height_is_exceeds_max() {
+	let config = get_config(1000);
+
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 		let too_many_sigs = (1..10000)
 			.map(|i| OpaqueSignature::truncate_from(vec![i as u8]))
 			.collect::<Vec<_>>();
@@ -104,6 +113,8 @@ fn can_fail_when_sig_height_is_exceeds_max() {
 fn can_submit_valid_sigs_in_sequence() {
 	let round2 = 1004u64;
 
+	let config = get_config(1000);
+
 	let (_asig1, _apk1, sigs1) = get(vec![PULSE1000, PULSE1001]);
 	let (_asig2, _apk2, sigs2) = get(vec![PULSE1002, PULSE1003]);
 	// the aggregated values
@@ -111,7 +122,7 @@ fn can_submit_valid_sigs_in_sequence() {
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs1));
 
@@ -135,10 +146,11 @@ fn can_submit_valid_sigs_in_sequence() {
 #[test]
 fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 	let (_asig1, _apk1, sigs) = get(vec![PULSE1000, PULSE1001]);
+	let config = get_config(1000);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs.clone()));
 		assert_noop!(
@@ -151,10 +163,11 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 #[test]
 fn can_fail_to_submit_invalid_sigs_in_sequence() {
 	let (asig1, apk1, sigs) = get(vec![PULSE1000, PULSE1001]);
+	let config = get_config(1000);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs.clone()));
 
@@ -217,6 +230,10 @@ use sp_inherents::InherentData;
 fn can_create_inherent() {
 	// setup the inherent data
 	let genesis = 1001;
+	let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
+	let public_key: OpaquePublicKey =
+		OpaquePublicKey::try_from(pk).expect("Public key within bounds");
+	let config = BeaconConfiguration { public_key, genesis_round: genesis };
 	let (asig1, _apk1, _sig1) = get(vec![PULSE1000]);
 	// this pulse will be ignored
 	let pulse1 = OpaquePulse { round: 1000u64, signature: asig1.to_vec().try_into().unwrap() };
@@ -235,7 +252,7 @@ fn can_create_inherent() {
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
 	new_test_ext().execute_with(|| {
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), genesis));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 		let result = Drand::create_inherent(&inherent_data);
 		if let Some(Call::try_submit_asig { sigs }) = result {
 			assert_eq!(sigs, expected_sigs, "The output should match the aggregated input.");
@@ -257,8 +274,9 @@ fn can_not_create_inherent_when_genesis_round_is_none() {
 #[test]
 fn can_not_create_inherent_when_data_is_unavailable() {
 	let inherent_data = InherentData::new();
+	let config = get_config(1000);
 	new_test_ext().execute_with(|| {
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 		let result = Drand::create_inherent(&inherent_data);
 		assert!(result.is_none());
 	});
@@ -276,8 +294,10 @@ fn can_check_inherent() {
 	let mut inherent_data = InherentData::new();
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
+	let config = get_config(1000);
+
 	new_test_ext().execute_with(|| {
-		assert_ok!(Drand::set_genesis_round(RuntimeOrigin::root(), 1000));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 		let result = Drand::create_inherent(&inherent_data);
 		if let Some(call) = result {
 			assert!(Drand::is_inherent(&call), "The inherent should be allowed.");
@@ -287,4 +307,11 @@ fn can_check_inherent() {
 			panic!("Expected Some(Call::try_submit_asig), got None");
 		}
 	});
+}
+
+fn get_config(round: RoundNumber) -> BeaconConfiguration {
+	let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
+	let public_key: OpaquePublicKey =
+		OpaquePublicKey::try_from(pk).expect("Public key within bounds");
+	BeaconConfiguration { public_key, genesis_round: round }
 }
