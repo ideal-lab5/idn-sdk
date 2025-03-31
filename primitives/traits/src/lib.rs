@@ -23,7 +23,6 @@
 //! ## Modules
 //!
 //! * [`pulse`] - Traits and types for randomness pulses handling and distribution
-//! * [`subscription`] - Traits for managing randomness subscriptions
 //!
 //! ## Overview
 //!
@@ -34,6 +33,4 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod example;
 pub mod pulse;
-pub mod subscription;

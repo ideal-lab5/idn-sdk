@@ -13847,11 +13847,9 @@ dependencies = [
 name = "sp-idn-traits"
 version = "0.0.1"
 dependencies = [
- "docify",
  "frame-support",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime",
  "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

@@ -39,9 +39,11 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
+		/// The overarching event type
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The type for the randomness pulse
 		type Pulse: Pulse + Encode + Debug + Decode + Clone + TypeInfo + PartialEq;
+		/// The type for the subscription ID
 		type SubscriptionId: Encode + Debug + Decode + Clone + TypeInfo + PartialEq;
 	}
 
@@ -74,7 +76,7 @@ pub mod pallet {
 			_pulse: T::Pulse,
 			_sub_id: T::SubscriptionId,
 		) -> DispatchResultWithPostInfo {
-			let _who = ensure_signed(origin)?;
+			let _who = ensure_signed(origin)?; // TODO ensure origin is IDN manager
 
 			Ok(().into())
 		}

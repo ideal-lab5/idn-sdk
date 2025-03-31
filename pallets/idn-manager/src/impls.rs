@@ -29,7 +29,11 @@
 //! - [`DepositCalculator`]: Implemented by [`DepositCalculatorImpl`], providing the logic for
 //!   calculating storage deposits and managing deposit differences.
 
-use crate::{self as pallet_idn_manager, HoldReason, Subscription, SubscriptionTrait};
+use crate::{
+	self as pallet_idn_manager,
+	traits::{BalanceDirection, DiffBalance, FeesError},
+	HoldReason, Subscription, SubscriptionTrait,
+};
 use codec::Encode;
 use frame_support::{
 	pallet_prelude::DispatchError,
@@ -40,7 +44,6 @@ use frame_support::{
 };
 use pallet_idn_manager::{DepositCalculator, FeesManager};
 use sp_arithmetic::traits::Unsigned;
-use sp_idn_traits::subscription::{BalanceDirection, DiffBalance, FeesError};
 use sp_runtime::{traits::Zero, AccountId32, Saturating};
 use sp_std::{cmp::Ordering, marker::PhantomData};
 

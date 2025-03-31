@@ -62,8 +62,13 @@ mod tests;
 mod benchmarking;
 
 pub mod impls;
+pub mod traits;
 pub mod weights;
 
+use crate::traits::{
+	BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
+	Subscription as SubscriptionTrait,
+};
 use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
@@ -85,13 +90,7 @@ use frame_system::{
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
-use sp_idn_traits::{
-	pulse::{Dispatcher, Pulse, PulseMatch, PulseProperty},
-	subscription::{
-		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
-		Subscription as SubscriptionTrait,
-	},
-};
+use sp_idn_traits::pulse::{Dispatcher, Pulse, PulseMatch, PulseProperty};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Saturating;
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};

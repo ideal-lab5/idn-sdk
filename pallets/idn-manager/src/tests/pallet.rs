@@ -19,6 +19,7 @@
 use crate::{
 	runtime_decl_for_idn_manager_api::IdnManagerApiV1,
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
+	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
 	Config, CreateSubParamsOf, Error, Event, HoldReason, PulseFilterOf, PulsePropertyOf,
 	SubscriptionState, Subscriptions, UpdateSubParamsOf,
 };
@@ -31,10 +32,7 @@ use frame_support::{
 	},
 	BoundedVec,
 };
-use sp_idn_traits::{
-	pulse::Dispatcher,
-	subscription::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
-};
+use sp_idn_traits::pulse::Dispatcher;
 use sp_runtime::{AccountId32, DispatchError, TokenError};
 use xcm::v5::{Junction, Location};
 
