@@ -29,11 +29,7 @@
 //! - [`DepositCalculator`]: Implemented by [`DepositCalculatorImpl`], providing the logic for
 //!   calculating storage deposits and managing deposit differences.
 
-use crate::{
-	self as pallet_idn_manager,
-	traits::{BalanceDirection, DiffBalance, FeesError},
-	HoldReason, Subscription, SubscriptionTrait,
-};
+use crate::{self as pallet_idn_manager, HoldReason, Subscription, SubscriptionTrait};
 use codec::Encode;
 use frame_support::{
 	pallet_prelude::DispatchError,
@@ -42,6 +38,7 @@ use frame_support::{
 		Get,
 	},
 };
+use idn_traits::subscription::{BalanceDirection, DiffBalance, FeesError};
 use pallet_idn_manager::{DepositCalculator, FeesManager};
 use sp_arithmetic::traits::Unsigned;
 use sp_runtime::{traits::Zero, AccountId32, Saturating};
@@ -53,12 +50,6 @@ impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, PulseFilter, Subscript
 {
 	fn subscriber(&self) -> &AccountId {
 		&self.details.subscriber
-	}
-}
-
-impl SubscriptionTrait<()> for () {
-	fn subscriber(&self) -> &() {
-		&()
 	}
 }
 
@@ -79,6 +70,28 @@ pub struct FeesManagerImpl<Treasury, BaseFee, Sub, Balances> {
 	pub _phantom: FeesManagerPhantom<Treasury, BaseFee, Sub, Balances>,
 }
 
+/// This struct represent movement of balance.
+///
+/// * `balance` - how much balance being moved.
+/// * `direction` - if the balance are being collected or released.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct DiffBalanceImpl<Balance> {
+	balance: Balance,
+	direction: BalanceDirection,
+}
+
+impl<Balance: Copy> DiffBalance<Balance> for DiffBalanceImpl<Balance> {
+	fn balance(&self) -> Balance {
+		self.balance
+	}
+	fn direction(&self) -> BalanceDirection {
+		self.direction
+	}
+	fn new(balance: Balance, direction: BalanceDirection) -> Self {
+		Self { balance, direction }
+	}
+}
+
 type FeesManagerPhantom<Treasury, BaseFee, Sub, Balances> =
 	(PhantomData<Treasury>, PhantomData<BaseFee>, PhantomData<Sub>, PhantomData<Balances>);
 
@@ -93,8 +106,15 @@ impl<
 		B: Get<Balances::Balance>,
 		S: SubscriptionTrait<AccountId32>,
 		Balances: Mutate<AccountId32>,
-	> FeesManager<Balances::Balance, u64, S, DispatchError, AccountId32>
-	for FeesManagerImpl<T, B, S, Balances>
+	>
+	FeesManager<
+		Balances::Balance,
+		u64,
+		S,
+		DispatchError,
+		AccountId32,
+		DiffBalanceImpl<Balances::Balance>,
+	> for FeesManagerImpl<T, B, S, Balances>
 where
 	Balances::Reason: From<HoldReason>,
 	Balances::Balance: From<u64>,
@@ -160,7 +180,10 @@ where
 	/// then returns:
 	/// - The fee difference amount
 	/// - The direction of the balance transfer (collect from user, release to user, or no change)
-	fn calculate_diff_fees(old_credits: &u64, new_credits: &u64) -> DiffBalance<Balances::Balance> {
+	fn calculate_diff_fees(
+		old_credits: &u64,
+		new_credits: &u64,
+	) -> DiffBalanceImpl<Balances::Balance> {
 		let old_fees = Self::calculate_subscription_fees(old_credits);
 		let new_fees = Self::calculate_subscription_fees(new_credits);
 		let mut direction = BalanceDirection::None;
@@ -175,7 +198,7 @@ where
 			},
 			Ordering::Equal => Zero::zero(),
 		};
-		DiffBalance { balance: fees, direction }
+		DiffBalanceImpl { balance: fees, direction }
 	}
 
 	/// Attempts to collect subscription fees from a subscriber and transfer them to the treasury
@@ -250,8 +273,9 @@ pub struct DepositCalculatorImpl<SDMultiplier: Get<Deposit>, Deposit> {
 impl<
 		S: SubscriptionTrait<AccountId32> + Encode,
 		SDMultiplier: Get<Deposit>,
-		Deposit: Saturating + From<u64> + Ord,
-	> DepositCalculator<Deposit, S> for DepositCalculatorImpl<SDMultiplier, Deposit>
+		Deposit: Saturating + From<u64> + Ord + Copy,
+	> DepositCalculator<Deposit, S, DiffBalanceImpl<Deposit>>
+	for DepositCalculatorImpl<SDMultiplier, Deposit>
 {
 	/// Calculate the storage deposit required for a subscription.
 	///
@@ -284,7 +308,7 @@ impl<
 	/// 2. Compares the two deposits to determine if more deposit is needed, some can be released,
 	///    or no change is required
 	/// 3. Returns both the amount and direction of the required deposit adjustment
-	fn calculate_diff_deposit(old_sub: &S, new_sub: &S) -> DiffBalance<Deposit> {
+	fn calculate_diff_deposit(old_sub: &S, new_sub: &S) -> DiffBalanceImpl<Deposit> {
 		let old_deposit = Self::calculate_storage_deposit(old_sub);
 		let new_deposit = Self::calculate_storage_deposit(new_sub);
 		let direction = match new_deposit.cmp(&old_deposit) {
@@ -292,6 +316,6 @@ impl<
 			Ordering::Less => BalanceDirection::Release,
 			Ordering::Equal => BalanceDirection::None,
 		};
-		DiffBalance { balance: new_deposit.saturating_sub(old_deposit), direction }
+		DiffBalanceImpl { balance: new_deposit.saturating_sub(old_deposit), direction }
 	}
 }

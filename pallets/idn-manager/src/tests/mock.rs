@@ -21,7 +21,7 @@
 
 use crate::{
 	self as pallet_idn_manager,
-	impls::{DepositCalculatorImpl, FeesManagerImpl},
+	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
 };
 use codec::Encode;
@@ -126,6 +126,7 @@ impl pallet_idn_manager::Config for Test {
 	type PulseFilterLen = PulseFilterLen;
 	type MaxSubscriptions = MaxSubscriptions;
 	type SubscriptionId = [u8; 32];
+	type DiffBalance = DiffBalanceImpl<BalanceOf<Test>>;
 }
 
 sp_api::impl_runtime_apis! {

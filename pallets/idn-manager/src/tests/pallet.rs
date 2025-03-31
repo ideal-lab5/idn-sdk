@@ -19,7 +19,6 @@
 use crate::{
 	runtime_decl_for_idn_manager_api::IdnManagerApiV1,
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
-	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
 	Config, CreateSubParamsOf, Error, Event, HoldReason, PulseFilterOf, PulsePropertyOf,
 	SubscriptionState, Subscriptions, UpdateSubParamsOf,
 };
@@ -32,7 +31,10 @@ use frame_support::{
 	},
 	BoundedVec,
 };
-use idn_traits::pulse::Dispatcher;
+use idn_traits::{
+	pulse::Dispatcher,
+	subscription::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
+};
 use sp_runtime::{AccountId32, DispatchError, TokenError};
 use xcm::v5::{Junction, Location};
 
@@ -754,7 +756,7 @@ fn test_credits_consumption_and_cleanup() {
 				&(credits - i * consume_credits),
 				&(credits - (i + 1) * consume_credits),
 			)
-			.balance;
+			.balance();
 
 			treasury_balance += fees;
 
@@ -1279,7 +1281,7 @@ fn manage_diff_deposit_works() {
 
 		// Test holding deposit
 		let hold_diff =
-			DiffBalance { balance: original_deposit, direction: BalanceDirection::Collect };
+			<Test as Config>::DiffBalance::new(original_deposit, BalanceDirection::Collect);
 		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &hold_diff));
 		assert_eq!(
 			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
@@ -1287,7 +1289,7 @@ fn manage_diff_deposit_works() {
 		);
 		// Test holding additional deposit
 		let hold_diff =
-			DiffBalance { balance: additional_deposit, direction: BalanceDirection::Collect };
+			<Test as Config>::DiffBalance::new(additional_deposit, BalanceDirection::Collect);
 		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &hold_diff));
 		assert_eq!(
 			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
@@ -1296,7 +1298,7 @@ fn manage_diff_deposit_works() {
 
 		// Test releasing excess deposit
 		let release_diff =
-			DiffBalance { balance: excess_deposit, direction: BalanceDirection::Release };
+			<Test as Config>::DiffBalance::new(excess_deposit, BalanceDirection::Release);
 		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &release_diff));
 		assert_eq!(
 			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
@@ -1304,7 +1306,7 @@ fn manage_diff_deposit_works() {
 		);
 
 		// Test no change in deposit
-		let no_change_diff = DiffBalance { balance: 0, direction: BalanceDirection::None };
+		let no_change_diff = <Test as Config>::DiffBalance::new(0, BalanceDirection::None);
 		let held_before = Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE);
 		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &no_change_diff));
 		assert_eq!(

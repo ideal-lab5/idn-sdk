@@ -62,7 +62,6 @@ mod tests;
 mod benchmarking;
 
 pub mod impls;
-pub mod traits;
 pub mod weights;
 
 use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
@@ -83,17 +82,19 @@ use frame_system::{
 	ensure_signed,
 	pallet_prelude::{BlockNumberFor, OriginFor},
 };
-use idn_traits::pulse::{Dispatcher, Pulse, PulseMatch, PulseProperty};
+use idn_traits::{
+	pulse::{Dispatcher, Pulse, PulseMatch, PulseProperty},
+	subscription::{
+		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
+		Subscription as SubscriptionTrait,
+	},
+};
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Saturating;
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
-use traits::{
-	BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
-	Subscription as SubscriptionTrait,
-};
 use xcm::{
 	v5::{prelude::*, Location},
 	VersionedLocation, VersionedXcm,
@@ -320,10 +321,15 @@ pub mod pallet {
 			SubscriptionOf<Self>,
 			DispatchError,
 			<Self as frame_system::pallet::Config>::AccountId,
+			Self::DiffBalance,
 		>;
 
 		/// Storage deposit calculator implementation
-		type DepositCalculator: DepositCalculator<BalanceOf<Self>, SubscriptionOf<Self>>;
+		type DepositCalculator: DepositCalculator<
+			BalanceOf<Self>,
+			SubscriptionOf<Self>,
+			Self::DiffBalance,
+		>;
 
 		/// The type for the randomness pulse
 		type Pulse: Pulse + Encode;
@@ -364,6 +370,8 @@ pub mod pallet {
 			+ EncodeLike
 			+ MaxEncodedLen
 			+ Debug;
+
+		type DiffBalance: DiffBalance<BalanceOf<Self>>;
 	}
 
 	/// The subscription storage. It maps a subscription ID to a subscription.
@@ -813,7 +821,7 @@ impl<T: Config> Pallet<T> {
 			&sub.credits_left,
 			&sub.credits_left.saturating_sub(credits_consumed),
 		)
-		.balance;
+		.balance();
 		let fees = T::FeesManager::collect_fees(&fees_to_collect, sub).map_err(|e| match e {
 			FeesError::NotEnoughBalance { .. } => DispatchError::Other("NotEnoughBalance"),
 			FeesError::Other(de) => de,
@@ -886,13 +894,10 @@ impl<T: Config> Pallet<T> {
 	///
 	/// This internal helper function manages the difference in fees for a subscription, either
 	/// collecting additional fees or releasing excess fees.
-	fn manage_diff_fees(
-		subscriber: &T::AccountId,
-		diff: &DiffBalance<BalanceOf<T>>,
-	) -> DispatchResult {
-		match diff.direction {
-			BalanceDirection::Collect => Self::hold_fees(subscriber, diff.balance),
-			BalanceDirection::Release => Self::release_fees(subscriber, diff.balance),
+	fn manage_diff_fees(subscriber: &T::AccountId, diff: &T::DiffBalance) -> DispatchResult {
+		match diff.direction() {
+			BalanceDirection::Collect => Self::hold_fees(subscriber, diff.balance()),
+			BalanceDirection::Release => Self::release_fees(subscriber, diff.balance()),
 			BalanceDirection::None => Ok(()),
 		}
 	}
@@ -923,13 +928,10 @@ impl<T: Config> Pallet<T> {
 	///
 	/// This internal helper function manages the difference in storage deposit for a subscription,
 	/// either collecting additional deposit or releasing excess deposit.
-	fn manage_diff_deposit(
-		subscriber: &T::AccountId,
-		diff: &DiffBalance<BalanceOf<T>>,
-	) -> DispatchResult {
-		match diff.direction {
-			BalanceDirection::Collect => Self::hold_deposit(subscriber, diff.balance),
-			BalanceDirection::Release => Self::release_deposit(subscriber, diff.balance),
+	fn manage_diff_deposit(subscriber: &T::AccountId, diff: &T::DiffBalance) -> DispatchResult {
+		match diff.direction() {
+			BalanceDirection::Collect => Self::hold_deposit(subscriber, diff.balance()),
+			BalanceDirection::Release => Self::release_deposit(subscriber, diff.balance()),
 			BalanceDirection::None => Ok(()),
 		}
 	}
