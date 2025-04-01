@@ -52,12 +52,14 @@ fn event_not_emitted(event: Event<Test>) -> bool {
 fn update_subscription(
 	subscriber: AccountId32,
 	original_credits: u64,
+	original_metadata: Option<Vec<u8>>,
 	original_frequency: u64,
 	new_credits: u64,
+	new_metadata: Option<Vec<u8>>,
 	new_frequency: u64,
 ) {
 	let target = Location::new(1, [Junction::PalletInstance(1)]);
-	let metadata = None;
+	let metadata = original_metadata.map(|m| m.try_into().expect("Metadata too long")).clone();
 	let initial_balance = 99_990_000_000_000_000;
 
 	<Test as Config>::Currency::set_balance(&subscriber, initial_balance);
@@ -69,7 +71,7 @@ fn update_subscription(
 			target: target.clone(),
 			call_index: [1; 2],
 			frequency: original_frequency,
-			metadata: metadata.clone(),
+			metadata,
 			pulse_filter: None,
 			sub_id: None,
 		}
@@ -118,9 +120,10 @@ fn update_subscription(
 		RuntimeOrigin::signed(subscriber.clone()),
 		UpdateSubParamsOf::<Test> {
 			sub_id,
-			credits: new_credits,
-			frequency: new_frequency,
-			pulse_filter: None
+			credits: Some(new_credits),
+			frequency: Some(new_frequency),
+			metadata: Some(new_metadata.map(|m| m.try_into().expect("Metadata too long")).clone()),
+			pulse_filter: Some(None)
 		}
 	));
 
@@ -213,10 +216,7 @@ fn create_subscription_works() {
 		assert_eq!(subscription.credits, credits);
 		assert_eq!(subscription.details.target, target);
 		assert_eq!(subscription.frequency, frequency);
-		assert_eq!(
-			subscription.details.metadata,
-			BoundedVec::<u8, SubMetadataLen>::try_from(vec![]).unwrap()
-		);
+		assert_eq!(subscription.metadata, None);
 
 		// assert that the correct event has been emitted
 		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated {
@@ -265,47 +265,6 @@ fn create_subscription_with_custom_id_works() {
 		}));
 
 		assert_eq!(sub_id, custom_id);
-	});
-}
-
-#[test]
-fn create_subscription_fails_if_filtering_randomness() {
-	ExtBuilder::build().execute_with(|| {
-		let credits: u64 = 50;
-		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let frequency: u64 = 10;
-		let initial_balance = 10_000_000;
-
-		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
-
-		assert_noop!(
-			IdnManager::create_subscription(
-				RuntimeOrigin::signed(ALICE.clone()),
-				CreateSubParamsOf::<Test> {
-					credits,
-					target: target.clone(),
-					call_index: [1; 2],
-					frequency,
-					metadata: None,
-					pulse_filter: Some(
-						BoundedVec::try_from(vec![
-							PulsePropertyOf::<Test>::Round(1),
-							PulsePropertyOf::<Test>::Rand([1u8; 32]),
-							PulsePropertyOf::<Test>::Sig([1u8; 64])
-						])
-						.unwrap()
-					),
-					sub_id: None,
-				}
-			),
-			Error::<Test>::FilterRandNotPermitted
-		);
-
-		// Assert the SubscriptionCreated event was not emitted
-		assert!(!System::events().iter().any(|record| matches!(
-			record.event,
-			RuntimeEvent::IdnManager(Event::<Test>::SubscriptionCreated { sub_id: _ })
-		)));
 	});
 }
 
@@ -480,7 +439,7 @@ fn test_kill_subscription() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: metadata.clone(),
+				metadata,
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -588,6 +547,7 @@ fn test_update_subscription() {
 		struct SubParams {
 			credits: u64,
 			frequency: u64,
+			metadata: Option<Vec<u8>>,
 		}
 		struct SubUpdate {
 			old: SubParams,
@@ -596,24 +556,36 @@ fn test_update_subscription() {
 
 		let updates: Vec<SubUpdate> = vec![
 			SubUpdate {
-				old: SubParams { credits: 10, frequency: 2 },
-				new: SubParams { credits: 20, frequency: 4 },
+				old: SubParams { credits: 10, frequency: 2, metadata: None },
+				new: SubParams {
+					credits: 20,
+					frequency: 4,
+					metadata: Some(vec![0x1, 0x2, 0x3, 0x4]),
+				},
 			},
 			SubUpdate {
-				old: SubParams { credits: 100, frequency: 20 },
-				new: SubParams { credits: 20, frequency: 4 },
+				old: SubParams { credits: 100, frequency: 20, metadata: Some(vec![0x1, 0xa]) },
+				new: SubParams { credits: 20, frequency: 4, metadata: None },
 			},
 			SubUpdate {
-				old: SubParams { credits: 100, frequency: 20 },
-				new: SubParams { credits: 100, frequency: 20 },
+				old: SubParams { credits: 100, frequency: 20, metadata: None },
+				new: SubParams { credits: 100, frequency: 20, metadata: None },
 			},
 			SubUpdate {
-				old: SubParams { credits: 100, frequency: 1 },
-				new: SubParams { credits: 9_999_999_999_999, frequency: 1 },
+				old: SubParams { credits: 100, frequency: 1, metadata: Some(vec![0x1, 0xa]) },
+				new: SubParams {
+					credits: 9_999_999_999_999,
+					frequency: 1,
+					metadata: Some(vec![0x1, 0xa]),
+				},
 			},
 			SubUpdate {
-				old: SubParams { credits: 9_999_999_999_999, frequency: 1 },
-				new: SubParams { credits: 100, frequency: 1 },
+				old: SubParams {
+					credits: 9_999_999_999_999,
+					frequency: 1,
+					metadata: Some(vec![0x1, 0xa]),
+				},
+				new: SubParams { credits: 100, frequency: 1, metadata: Some(vec![0x1, 0xa, 0x10]) },
 			},
 		];
 		for i in 0..updates.len() {
@@ -621,8 +593,10 @@ fn test_update_subscription() {
 			update_subscription(
 				AccountId32::new([i.try_into().unwrap(); 32]),
 				update.old.credits,
+				update.old.metadata.clone(),
 				update.old.frequency,
 				update.new.credits,
+				update.new.metadata.clone(),
 				update.new.frequency,
 			);
 		}
@@ -630,35 +604,14 @@ fn test_update_subscription() {
 }
 
 #[test]
-fn update_subscription_fails_if_sub_does_not_exists() {
-	ExtBuilder::build().execute_with(|| {
-		let sub_id = [0xff; 32];
-		let new_credits = 20;
-		let new_frequency = 4;
-
-		assert_noop!(
-			IdnManager::update_subscription(
-				RuntimeOrigin::signed(ALICE),
-				UpdateSubParamsOf::<Test> {
-					sub_id,
-					credits: new_credits,
-					frequency: new_frequency,
-					pulse_filter: None
-				}
-			),
-			Error::<Test>::SubscriptionDoesNotExist
-		);
-
-		// Assert the SubscriptionUpdated event was not emitted
-		assert!(event_not_emitted(Event::<Test>::SubscriptionUpdated { sub_id }));
-	});
-}
-#[test]
-fn update_subscription_fails_if_filtering_randomness() {
+fn update_does_not_update_when_params_are_none() {
 	ExtBuilder::build().execute_with(|| {
 		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
+		let metadata = Some(BoundedVec::try_from(vec![1, 2, 3]).unwrap());
+		let pulse_filter =
+			Some(BoundedVec::try_from(vec![PulsePropertyOf::<Test>::Round(1)]).unwrap());
 		let initial_balance = 10_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -670,32 +623,54 @@ fn update_subscription_fails_if_filtering_randomness() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: None,
-				pulse_filter: None,
+				metadata: metadata.clone(),
+				pulse_filter: pulse_filter.clone(),
 				sub_id: None,
 			}
 		));
 
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
 
+		assert_ok!(IdnManager::update_subscription(
+			RuntimeOrigin::signed(ALICE),
+			UpdateSubParamsOf::<Test> {
+				sub_id,
+				credits: None,
+				frequency: None,
+				metadata: None,
+				pulse_filter: None
+			}
+		));
+
+		let sub = Subscriptions::<Test>::get(sub_id).unwrap();
+		assert_eq!(sub.credits, credits);
+		assert_eq!(sub.frequency, frequency);
+		assert_eq!(sub.metadata, metadata);
+		assert_eq!(sub.pulse_filter, pulse_filter);
+	});
+}
+
+#[test]
+fn update_subscription_fails_if_sub_does_not_exists() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [0xff; 32];
+		let new_credits = 20;
+		let new_frequency = 4;
+		let new_pulse_filter = None;
+		let new_metadata = None;
+
 		assert_noop!(
 			IdnManager::update_subscription(
 				RuntimeOrigin::signed(ALICE),
 				UpdateSubParamsOf::<Test> {
 					sub_id,
-					credits,
-					frequency,
-					pulse_filter: Some(
-						BoundedVec::try_from(vec![
-							PulsePropertyOf::<Test>::Round(1),
-							PulsePropertyOf::<Test>::Rand([1u8; 32]),
-							PulsePropertyOf::<Test>::Sig([1u8; 64])
-						])
-						.unwrap()
-					)
+					credits: Some(new_credits),
+					frequency: Some(new_frequency),
+					pulse_filter: Some(new_pulse_filter),
+					metadata: Some(new_metadata),
 				}
 			),
-			Error::<Test>::FilterRandNotPermitted
+			Error::<Test>::SubscriptionDoesNotExist
 		);
 
 		// Assert the SubscriptionUpdated event was not emitted
@@ -983,7 +958,7 @@ fn test_pause_reactivate_subscription() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: metadata.clone(),
+				metadata,
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1049,7 +1024,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: metadata.clone(),
+				metadata,
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1104,7 +1079,7 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: metadata.clone(),
+				metadata,
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1143,7 +1118,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 				target: target.clone(),
 				call_index: [1; 2],
 				frequency,
-				metadata: metadata.clone(),
+				metadata,
 				pulse_filter: None,
 				sub_id: None,
 			}
@@ -1181,8 +1156,9 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 				RuntimeOrigin::signed(BOB.clone()),
 				UpdateSubParamsOf::<Test> {
 					sub_id,
-					credits: new_credits,
-					frequency: new_frequency,
+					credits: Some(new_credits),
+					frequency: Some(new_frequency),
+					metadata: None,
 					pulse_filter: None
 				}
 			),
