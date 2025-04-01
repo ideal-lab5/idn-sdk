@@ -24,7 +24,7 @@
 //! ## Overview
 //!
 //! - Provides a mechanism to ingest randomness pulses from an external randomness beacon.
-//! - Aggregates and verifies pulses using the [`SignatureAggregator`] trait.
+//! - Aggregates and verifies pulses using the [`SignatureVerifier`] trait.
 //! - Ensures that the runtime only uses verified randomness for security-critical applications.
 //! - Stores the latest aggregated signature to enable efficient verification within the runtime.
 //!
@@ -41,7 +41,7 @@
 //!
 //! ## Implementation Details
 //!
-//! The pallet relies on a [`SignatureAggregator`] implementation to aggregate and verify randomness
+//! The pallet relies on a [`SignatureVerifier`] implementation to aggregate and verify randomness
 //! pulses. It maintains the latest observed rounds, validates incoming pulses, and aggregates valid
 //! signatures before storing them in runtime storage. It expects a monotonically increasing
 //! sequence of beacon pulses delivered in packets of size `T::SignatureToBlockRatio`, beginning at
@@ -88,18 +88,17 @@ pub use pallet::*;
 extern crate alloc;
 
 use alloc::{vec, vec::Vec};
-use ark_serialize::CanonicalSerialize;
 use frame_support::pallet_prelude::*;
 use sp_consensus_randomness_beacon::types::OpaquePulse;
 
-pub mod aggregator;
 pub mod bls12_381;
 pub mod types;
+pub mod verifier;
 pub mod weights;
 pub use weights::*;
 
-use aggregator::{zero_on_g1, SignatureAggregator};
 pub use types::*;
+use verifier::SignatureVerifier;
 
 #[cfg(test)]
 mod mock;
@@ -109,9 +108,6 @@ mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-
-/// The buffer size required to represent an element of the signature group
-const SERIALIZED_SIG_SIZE: usize = 48;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -128,10 +124,8 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
 		type WeightInfo: WeightInfo;
-		/// The beacon configuration for which this pallet is defined.
-		type BeaconConfig: Get<BeaconConfiguration>;
 		/// something that knows how to aggregate and verify beacon pulses.
-		type SignatureAggregator: SignatureAggregator;
+		type SignatureVerifier: SignatureVerifier;
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;
 		/// The number of historical missed blocks that we store.
@@ -139,16 +133,15 @@ pub mod pallet {
 		type MissedBlocksHistoryDepth: Get<u32>;
 	}
 
-	/// A first round number for which a pulse was observed
+	/// The round when we start consuming pulses
 	#[pallet::storage]
-	pub type GenesisRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
+	pub type BeaconConfig<T: Config> = StorageValue<_, BeaconConfiguration, OptionQuery>;
 
 	/// The latest observed round
 	#[pallet::storage]
 	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
 
-	/// The aggregated signature and aggregated public key (identifier) of all observed pulses of
-	/// randomness
+	/// The aggregated signature and aggregated public key (identifier) of all observed pulses
 	#[pallet::storage]
 	pub type AggregatedSignature<T: Config> = StorageValue<_, Aggregate, OptionQuery>;
 
@@ -167,18 +160,20 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// The genesis round has been changed by a root address
-		GenesisRoundChanged,
+		/// The beacon config has been set by a root address
+		BeaconConfigSet,
 		/// Signature verification succeeded for the provided rounds.
 		SignatureVerificationSuccess,
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// The beacon config is already set
+		BeaconConfigAlreadySet,
+		/// The beacon config is not set
+		BeaconConfigNotSet,
 		/// The pulse could not be verified
 		VerificationFailed,
-		/// The genesis round is zero.
-		GenesisRoundNotSet,
 		/// There must be at least one signature to construct an asig
 		ZeroHeightProvided,
 		/// The height exceeds the maximum allowed signatures per block
@@ -199,39 +194,23 @@ pub mod pallet {
 			// if we do not find any pulse data, then do nothing
 			if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 			{
-				// ignores non-deserializable messages
-				// if all messages are invalid, it outputs 0 on the G1 curve (so serialization of
-				// asig always works)
-				let asig = raw_pulses
-					.iter()
-					.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
-					.filter_map(|pulse| pulse.signature_point().ok())
-					.fold(zero_on_g1(), |acc, sig| (acc + sig).into());
+				if let Some(config) = BeaconConfig::<T>::get() {
+					// ignores non-deserializable messages and pulses with invalid signature lengths
+					//  ignores rounds less than the genesis round
+					let sigs: Vec<OpaqueSignature> = raw_pulses
+						.iter()
+						.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
+						.filter(|op| op.round >= config.genesis_round)
+						.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
+						.collect::<Vec<_>>();
 
-				let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-				// [SRLABS]: This error is untestable since we know the signature is correct here.
-				//  Is it reasonable to use an expect?
-				asig.serialize_compressed(&mut asig_bytes)
-					.expect("The signature is well formatted.");
-
-				// if the genesis round is not configured, then the first call sets it
-				let round = (GenesisRound::<T>::get().is_none())
-					.then(|| {
-						// get the round from the first pulse observed
-						raw_pulses.iter().find_map(|rp| {
-							OpaquePulse::deserialize_from_vec(rp).ok().map(|p| p.round)
-						})
-					})
-					.unwrap_or(None);
-
-				return Some(Call::try_submit_asig {
-					asig: OpaqueSignature::truncate_from(asig_bytes),
-					height: raw_pulses.len() as RoundNumber,
-					round,
-				});
-			} else {
-				log::info!("The node provided empty pulse data to the inherent!");
+					return Some(Call::try_submit_asig { sigs });
+				} else {
+					log::info!("We observed pulses but there is no genesis round set.");
+				}
 			}
+
+			log::info!("The node provided empty pulse data to the inherent!");
 
 			None
 		}
@@ -295,44 +274,32 @@ pub mod pallet {
 		/// * `round`: An optional genesis round number. It can only be set if the existing genesis
 		///   round is 0.
 		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::try_submit_asig())]
+		#[pallet::weight(T::WeightInfo::try_submit_asig(T::MaxSigsPerBlock::get().into()))]
+		#[allow(clippy::useless_conversion)]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
-			asig: OpaqueSignature,
-			height: RoundNumber,
-			round: Option<RoundNumber>,
-		) -> DispatchResult {
+			sigs: Vec<OpaqueSignature>,
+		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
-			// ensure the height is within [1, T::MaxSigsPerBlock]
+
+			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
+
+			// 0 < num_sigs <= MaxSigsPerBlock
+			let height: u64 = sigs.len() as u64;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
 			ensure!(
 				height <= T::MaxSigsPerBlock::get() as u64,
 				Error::<T>::ExcessiveHeightProvided
 			);
 
-			let config = T::BeaconConfig::get();
-			// if the genesis round is not configured, do it on the first pass through
-			let genesis_round: RoundNumber = match GenesisRound::<T>::get() {
-				Some(gr) => gr,
-				None => {
-					// error if the genesis round is not set and a round is not provided
-					let r = round.ok_or(Error::<T>::GenesisRoundNotSet)?;
-					GenesisRound::<T>::set(round);
-					r
-				},
-			};
-
-			let latest_round = LatestRound::<T>::get().unwrap_or(genesis_round);
+			let latest_round = LatestRound::<T>::get().unwrap_or(config.genesis_round);
 			// aggregate old asig/apk with the new one and verify the aggregation
-			// TODO: do we care about the entire linear history of message hashes?
-			// https://github.com/ideal-lab5/idn-sdk/issues/119
-			let aggr = T::SignatureAggregator::aggregate_and_verify(
+			let aggr = T::SignatureVerifier::verify(
 				config.public_key,
-				asig,
+				sigs,
 				latest_round,
-				height,
 				AggregatedSignature::<T>::get(),
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
@@ -342,8 +309,31 @@ pub mod pallet {
 			DidUpdate::<T>::put(true);
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
+			// successful verification is beneficial to the network, so we do not charge when the
+			// signature is correct
+			Ok(Pays::No.into())
+		}
 
-			Ok(())
+		/// Set the genesis round exactly once if you are root
+		///
+		/// * `origin`: A root origin
+		/// * `genesis_round`: A genesis round to set
+		#[pallet::call_index(1)]
+		#[pallet::weight(T::WeightInfo::set_beacon_config())]
+		#[allow(clippy::useless_conversion)]
+		pub fn set_beacon_config(
+			origin: OriginFor<T>,
+			config: BeaconConfiguration,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin)?;
+
+			ensure!(BeaconConfig::<T>::get().is_none(), Error::<T>::BeaconConfigAlreadySet);
+
+			BeaconConfig::<T>::set(Some(config));
+
+			Self::deposit_event(Event::<T>::BeaconConfigSet);
+
+			Ok(Pays::No.into())
 		}
 	}
 }
