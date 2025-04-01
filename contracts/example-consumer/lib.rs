@@ -3,10 +3,10 @@
 #[ink::contract]
 mod example_consumer {
 	use idn_client::{
-		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, RandomnessReceiver,
-		Result, SubscriptionId, UpdateSubParams,
+		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, RandomnessReceiver, Result,
+		SubscriptionId, UpdateSubParams,
 	};
-	use ink::{prelude::vec::Vec};
+	use ink::prelude::vec::Vec;
 
 	/// The Example Consumer contract demonstrates how to use the IDN Client
 	/// to interact with the IDN Network for randomness subscriptions.
@@ -65,10 +65,15 @@ mod example_consumer {
 		/// * `destination_para_id` - The parachain ID where this contract is deployed
 		/// * `contracts_pallet_index` - The contracts pallet index on the destination chain
 		#[ink(constructor)]
-		pub fn new(ideal_network_para_id: u32, destination_para_id: u32, contracts_pallet_index: u8) -> Self {
+		pub fn new(
+			ideal_network_para_id: u32,
+			destination_para_id: u32,
+			contracts_pallet_index: u8,
+		) -> Self {
 			// The call index for delivering randomness to this contract
-			// First byte: The pallet index of the contracts pallet on the destination chain (e.g., 50)
-			// Second byte: The first byte of the fixed selector (0x01) for our receive_randomness function
+			// First byte: The pallet index of the contracts pallet on the destination chain (e.g.,
+			// 50) Second byte: The first byte of the fixed selector (0x01) for our
+			// receive_randomness function
 			let randomness_call_index: CallIndex = [contracts_pallet_index, 0x01]; // Contracts pallet index may vary by chain
 
 			Self {
@@ -145,16 +150,13 @@ mod example_consumer {
 		///
 		/// * `Result<(), ContractError>` - Success or error
 		#[ink(message, payable)]
-		pub fn pause_subscription(
-			&mut self,
-		) -> core::result::Result<(), ContractError> {
+		pub fn pause_subscription(&mut self) -> core::result::Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
 
 			// Get the active subscription ID
-			let subscription_id = self
-				.subscription_id
-				.ok_or(ContractError::NoActiveSubscription)?;
+			let subscription_id =
+				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
 
 			// Pause subscription through IDN client
 			self.idn_client
@@ -172,16 +174,13 @@ mod example_consumer {
 		///
 		/// * `Result<(), ContractError>` - Success or error
 		#[ink(message, payable)]
-		pub fn reactivate_subscription(
-			&mut self,
-		) -> core::result::Result<(), ContractError> {
+		pub fn reactivate_subscription(&mut self) -> core::result::Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
 
 			// Get the active subscription ID
-			let subscription_id = self
-				.subscription_id
-				.ok_or(ContractError::NoActiveSubscription)?;
+			let subscription_id =
+				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
 
 			// Reactivate subscription through IDN client
 			self.idn_client
@@ -215,17 +214,12 @@ mod example_consumer {
 			self.ensure_authorized()?;
 
 			// Get the active subscription ID
-			let subscription_id = self
-				.subscription_id
-				.ok_or(ContractError::NoActiveSubscription)?;
+			let subscription_id =
+				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
 
 			// Create update parameters
-			let params = UpdateSubParams {
-				sub_id: subscription_id,
-				credits,
-				frequency,
-				pulse_filter,
-			};
+			let params =
+				UpdateSubParams { sub_id: subscription_id, credits, frequency, pulse_filter };
 
 			// Update subscription through IDN client
 			self.idn_client
@@ -243,16 +237,13 @@ mod example_consumer {
 		///
 		/// * `Result<(), ContractError>` - Success or error
 		#[ink(message, payable)]
-		pub fn kill_subscription(
-			&mut self,
-		) -> core::result::Result<(), ContractError> {
+		pub fn kill_subscription(&mut self) -> core::result::Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
 
 			// Get the active subscription ID
-			let subscription_id = self
-				.subscription_id
-				.ok_or(ContractError::NoActiveSubscription)?;
+			let subscription_id =
+				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
 
 			// Kill subscription through IDN client
 			self.idn_client
@@ -334,9 +325,11 @@ mod example_consumer {
 		/// Public entry point for receiving randomness via XCM
 		/// This function is called by the IDN Network when delivering randomness
 		#[ink(message, selector = 0x01000000)]
-		pub fn receive_randomness(&mut self, randomness: [u8; 32], subscription_id: SubscriptionId) 
-			-> core::result::Result<(), ContractError> 
-		{
+		pub fn receive_randomness(
+			&mut self,
+			randomness: [u8; 32],
+			subscription_id: SubscriptionId,
+		) -> core::result::Result<(), ContractError> {
 			self.on_randomness_received(randomness, subscription_id)
 				.map_err(ContractError::IdnClientError)
 		}
@@ -627,56 +620,56 @@ mod example_consumer {
 	}
 
 	#[cfg(all(test, feature = "e2e-tests"))]
-    mod e2e_tests {
-        /* use frame_support::{
-            sp_runtime::AccountId32,
-            traits::tokens::currency::Currency,
-        };
-        use ink::{
-            env::{
-                test::default_accounts,
-                DefaultEnvironment,
-            },
-            primitives::AccountId,
-        };
-        use ink_e2e::{
-            preset::mock_network::{
-                self,
-                primitives::{
-                    CENTS,
-                    UNITS,
-                },
-                MockNetworkSandbox,
-            },
-            ChainBackend,
-            ContractsBackend,
-        };
-        use mock_network::{
-            parachain::estimate_message_fee,
-            parachain_account_sovereign_account_id,
-            relay_chain,
-            Relay,
-            TestExt,
-        };
+	mod e2e_tests {
+		/* use frame_support::{
+			sp_runtime::AccountId32,
+			traits::tokens::currency::Currency,
+		};
+		use ink::{
+			env::{
+				test::default_accounts,
+				DefaultEnvironment,
+			},
+			primitives::AccountId,
+		};
+		use ink_e2e::{
+			preset::mock_network::{
+				self,
+				primitives::{
+					CENTS,
+					UNITS,
+				},
+				MockNetworkSandbox,
+			},
+			ChainBackend,
+			ContractsBackend,
+		};
+		use mock_network::{
+			parachain::estimate_message_fee,
+			parachain_account_sovereign_account_id,
+			relay_chain,
+			Relay,
+			TestExt,
+		};
 
-        use super::*;
+		use super::*;
 
-        /// The contract will be given 1000 tokens during instantiation.
-        pub const CONTRACT_BALANCE: u128 = 1_000 * UNITS;
+		/// The contract will be given 1000 tokens during instantiation.
+		pub const CONTRACT_BALANCE: u128 = 1_000 * UNITS;
 
-        type E2EResult<T> = Result<T, Box<dyn std::error::Error>>;
+		type E2EResult<T> = Result<T, Box<dyn std::error::Error>>;
 
-        #[ink_e2e::test(backend(runtime_only(sandbox = MockNetworkSandbox)))]
-        async fn xcm_env_works<Client: E2EBackend>(
-            mut client: Client,
-        ) -> E2EResult<()> {
-            Ok(())
-        } */
-        
-        // Just a dummy test to confirm E2E module compilation
-        #[test]
-        fn dummy_e2e_test() {
-            assert!(true);
-        }
-    }
+		#[ink_e2e::test(backend(runtime_only(sandbox = MockNetworkSandbox)))]
+		async fn xcm_env_works<Client: E2EBackend>(
+			mut client: Client,
+		) -> E2EResult<()> {
+			Ok(())
+		} */
+
+		// Just a dummy test to confirm E2E module compilation
+		#[test]
+		fn dummy_e2e_test() {
+			assert!(true);
+		}
+	}
 }
