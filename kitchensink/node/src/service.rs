@@ -246,9 +246,14 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 				select_chain,
 				consensus_data_provider: None,
 				create_inherent_data_providers: move |_, ()| {
+
+					// get digest log here?
 					let drand_receiver = drand_receiver.clone();
+
 					async move {
+						// IDEA: get message from digest, take pulses greater than messages only?
 						let pulses = drand_receiver.take_pulses().await;
+
 						let serialized_pulses: Vec<Vec<u8>> =
 							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect();
 

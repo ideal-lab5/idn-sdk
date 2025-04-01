@@ -96,8 +96,9 @@ sc-network = { version = "=0.48.2", default-features = false }
 sc-utils = { version = "=18.0.0", default-features = false }
 sp-arithmetic = { version = "=26.0.0", default-features = false }
 sp-api = { version = "=35.0.0",  default-features = false }
-sp-blockchain = { version = "=38.0.0", default-features = false }
+sp-blockchain = { version = "=38.0.0" }
 sp-block-builder = { version = "=35.0.0", default-features = false }
+sp-consensus = { version = "=0.41.0" }
 sp-core = { version = "=35.0.0", default-features = false }
 sp-genesis-builder = { version = "=0.16.0", default-features = false }
 sp-inherents = { version = "=35.0.0", default-features = false }

@@ -8460,7 +8460,6 @@ dependencies = [
  "frame-system",
  "hex",
  "log",
- "pallet-session",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -13640,7 +13639,9 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-ark-bls12-381",
+ "sp-core",
  "sp-inherents",
+ "sp-runtime",
  "tokio",
 ]
 

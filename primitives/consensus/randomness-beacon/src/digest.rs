@@ -13,10 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#![cfg_attr(not(feature = "std"), no_std)]
 
-extern crate alloc;
+use codec::{Decode, Encode};
+use sp_core::RuntimeDebug;
+use sp_runtime::generic::DigestItem;
 
-pub mod digest;
-pub mod inherents;
-pub mod types;
+/// Custom header digest items, inserted as DigestItem::Other
+#[derive(Encode, Decode, Copy, Clone, Eq, PartialEq, RuntimeDebug)]
+pub enum ConsensusLog {
+	#[codec(index = 0)]
+	/// Provides information about the latest drand round number observed by the network
+	LatestRoundNumber(u64),
+}
+
+/// Convert custom application digest item into a concrete digest item
+impl From<ConsensusLog> for DigestItem {
+	fn from(val: ConsensusLog) -> Self {
+		DigestItem::Other(val.encode())
+	}
+}

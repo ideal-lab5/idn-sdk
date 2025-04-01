@@ -114,6 +114,8 @@ pub mod pallet {
 	use super::*;
 	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
+	use sp_consensus_randomness_beacon::digest::ConsensusLog;
+	use sp_runtime::generic::DigestItem;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -197,16 +199,23 @@ pub mod pallet {
 				if let Some(config) = BeaconConfig::<T>::get() {
 					// ignores non-deserializable messages and pulses with invalid signature lengths
 					//  ignores rounds less than the genesis round
+					// let sigs: Vec<OpaqueSignature> = raw_pulses.clone()
+					// 	.iter()
+					// 	.filter_map(|rp| {
+					// 		OpaquePulse::deserialize_from_vec(rp)
+					// 			.ok()
+					// 			.filter(|op| op.round >= config.genesis_round)
+					// 			.map(|op| {
+					// 				OpaqueSignature::truncate_from(op.signature.as_slice().to_vec())
+					// 			})
+					// 	})
+					// 	.collect::<Vec<_>>();
+
 					let sigs: Vec<OpaqueSignature> = raw_pulses
 						.iter()
-						.filter_map(|rp| {
-							OpaquePulse::deserialize_from_vec(rp)
-								.ok()
-								.filter(|op| op.round >= config.genesis_round)
-								.map(|op| {
-									OpaqueSignature::truncate_from(op.signature.as_slice().to_vec())
-								})
-						})
+						.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
+						.filter(|op| op.round >= config.genesis_round)
+						.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
 						.collect::<Vec<_>>();
 
 					return Some(Call::try_submit_asig { sigs });
@@ -273,11 +282,8 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Write a set of pulses to the runtime
 		///
-		/// * `origin`: A None origin
-		/// * `asig`: An aggregated signature
-		/// * `height`: The number of sigs aggregated to construct asig
-		/// * `round`: An optional genesis round number. It can only be set if the existing genesis
-		///   round is 0.
+		/// * `origin`: An unsigned origin.
+		/// * `sigs`: A list of drand signatures.
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::try_submit_asig(T::MaxSigsPerBlock::get().into()))]
 		#[allow(clippy::useless_conversion)]
@@ -309,11 +315,15 @@ pub mod pallet {
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
 
-			LatestRound::<T>::set(Some(latest_round.saturating_add(height)));
+			let new_latest_round = latest_round.saturating_add(height);
+			LatestRound::<T>::set(Some(new_latest_round));
 			AggregatedSignature::<T>::set(Some(aggr));
 			DidUpdate::<T>::put(true);
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
+			// Insert the latest round into the header digest
+			let digest_item: DigestItem = ConsensusLog::LatestRoundNumber(new_latest_round).into();
+			<frame_system::Pallet<T>>::deposit_log(digest_item);
 			// successful verification is beneficial to the network, so we do not charge when the
 			// signature is correct
 			Ok(Pays::No.into())
@@ -322,7 +332,7 @@ pub mod pallet {
 		/// Set the genesis round exactly once if you are root
 		///
 		/// * `origin`: A root origin
-		/// * `genesis_round`: A genesis round to set
+		/// * `config`: The randomness beacon configuration (genesis round and public key).
 		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::set_beacon_config())]
 		#[allow(clippy::useless_conversion)]
