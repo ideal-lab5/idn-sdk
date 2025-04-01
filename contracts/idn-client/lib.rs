@@ -1,7 +1,10 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
+
+#[cfg(not(feature = "std"))]
+use alloc::vec;
 
 use ink::prelude::vec::Vec;
 use codec::{Decode, Encode};
@@ -36,8 +39,9 @@ pub const IDN_MANAGER_KILL_SUB_INDEX: u8 = 4;
 pub type CallIndex = [u8; 2];
 
 /// Represents possible errors that can occur when interacting with the IDN network
-#[derive(Debug, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Debug, PartialEq, Eq)]
+#[ink::scale_derive(Encode, Decode, TypeInfo)]
+#[allow(clippy::cast_possible_truncation)]
 pub enum Error {
     /// Error during XCM execution
     XcmExecutionFailed,
@@ -88,8 +92,9 @@ pub type Metadata = Vec<u8>;
 pub type PulseFilter = Vec<u8>;
 
 /// Represents the state of a subscription
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[ink::scale_derive(Encode, Decode, TypeInfo)]
+#[allow(clippy::cast_possible_truncation)]
 pub enum SubscriptionState {
     /// Subscription is active and receiving randomness
     Active,
@@ -98,8 +103,8 @@ pub enum SubscriptionState {
 }
 
 /// Parameters for creating a new subscription
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[ink::scale_derive(Encode, Decode, TypeInfo)]
 pub struct CreateSubParams {
     /// Number of random values to receive
     pub credits: u32,
@@ -118,8 +123,8 @@ pub struct CreateSubParams {
 }
 
 /// Parameters for updating an existing subscription
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[ink::scale_derive(Encode, Decode, TypeInfo)]
 pub struct UpdateSubParams {
     /// ID of the subscription to update
     pub sub_id: SubscriptionId,
@@ -381,6 +386,7 @@ impl IdnClient for IdnClientImpl {
         if params.sub_id.is_none() {
             // Generate a subscription ID based on the current timestamp
             let timestamp: u64 = ink::env::block_timestamp::<ink::env::DefaultEnvironment>();
+            #[allow(clippy::arithmetic_side_effects)]
             let subscription_id = (timestamp % 1000) + 1;
             params.sub_id = Some(subscription_id);
         }

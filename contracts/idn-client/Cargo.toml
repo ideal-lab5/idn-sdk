@@ -8,19 +8,15 @@ readme = "README.md"
 description = "A client library for interacting with Ideal Network services"
 
 [dependencies]
-ink = { version = "5.1.1", default-features = false }
-codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = ["derive"] }
-scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
+ink = { workspace = true, default-features = false }
+codec = { workspace = true, default-features = false, features = ["derive"] }
+scale-info = { workspace = true, default-features = false, features = ["derive"] }
 
 [dev-dependencies]
-serde_json = { version = "1.0.133" }
+serde_json = { workspace = true }
 
 [lib]
-name = "idn_client"
 path = "lib.rs"
-crate-type = [
-    "rlib",       # Used as a regular library
-]
 
 [features]
 default = ["std"]

@@ -8,33 +8,20 @@ readme = "README.md"
 description = "An example consumer contract for interacting with Ideal Network services"
 
 [dependencies]
-ink = { version = "5.1.1", default-features = false }
-frame-support = { version = "32.0.0", default-features = false }
-scale = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = ["derive"] }
-scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
+ink = { workspace = true, default-features = false }
 idn-client = { path = "../idn-client", default-features = false }
 
 [dev-dependencies]
-ink_e2e = { version = "5.1.1", features = ["sandbox"] }
-serde_json = { version = "1.0.133" }
+ink_e2e = { workspace = true }
+serde_json = { workspace = true }
 
 [lib]
-name = "example_consumer"
 path = "lib.rs"
-crate-type = [
-    # Used as normal lib
-    "rlib",
-    # Used as an ink! contract
-    "cdylib",
-]
 
 [features]
 default = ["std"]
 std = [
     "ink/std",
-    "frame-support/std",
-    "scale/std",
-    "scale-info/std",
     "idn-client/std",
 ]
 ink-as-dependency = []
