@@ -8010,6 +8010,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "pallet-idn-manager",
  "pallet-xcm",
  "parity-scale-codec",
  "scale-info",

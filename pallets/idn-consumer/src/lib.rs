@@ -18,30 +18,39 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
-	pallet_prelude::{
-		Decode, DispatchResult, Encode, EnsureOrigin, Get, IsType, Pays, TypeInfo, Weight,
-	},
+	pallet_prelude::{DispatchResult, EnsureOrigin, Get, IsType, Pays, TypeInfo, Weight},
 };
 use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
 use pallet::*;
 use scale_info::prelude::fmt::Debug;
 use sp_arithmetic::traits::Unsigned;
+use sp_core::H256;
 use sp_idn_traits::pulse::{Consumer, Pulse};
-use sp_idn_types::SubscriptionMetadata;
-use xcm::v5::Location;
+use sp_idn_types::{CreateSubParams, IdnManagerCall, PulseFilter, SubscriptionMetadata};
+use xcm::v5::{
+	prelude::{OriginKind, Transact, Xcm},
+	Location,
+};
 
 /// The metadata type used in the pallet, represented as a bounded vector of bytes.
 type MetadataOf<T> = SubscriptionMetadata<<T as Config>::MaxMetadataLen>;
-#[cfg(test)]
-mod mock;
 
-#[cfg(test)]
-mod tests;
-
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+/// A filter that controls which pulses are delivered to a subscription
+///
+/// See [`PulseFilter`] for more details.
+type PulseFilterOf<T> = PulseFilter<<T as pallet::Config>::Pulse, <T as Config>::MaxPulseFilterLen>;
+/// The parameters for creating a new subscription, containing various details about the
+/// subscription.
+pub type CreateSubParamsOf<T> = CreateSubParams<
+	<T as pallet::Config>::Credits,
+	BlockNumberFor<T>,
+	MetadataOf<T>,
+	PulseFilterOf<T>,
+	<T as pallet::Config>::SubscriptionId,
+>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -51,23 +60,58 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// The overarching event type
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
 		/// The type for the randomness pulse
 		type Pulse: Pulse + Encode + Debug + Decode + Clone + TypeInfo + PartialEq;
-		/// The type for the subscription ID
-		type SubscriptionId: Encode + Debug + Decode + Clone + TypeInfo + PartialEq;
+
+		/// An implementation of the [`Consumer`] trait, which defines how to consume a pulse
 		type Consumer: Consumer<Self::Pulse, Self::SubscriptionId, DispatchResult>;
-		// pub SiblingIDNParaId: u32 = IDN_PARACHAIN_ID;
-		// pub SiblingIDN: Location = Location::new(1, Parachain(SiblingIDNParaId::get()));
+
+		/// The location of the sibling IDN chain
+		///
+		/// **Example definition**
+		/// ```nocompile
+		/// pub SiblingIdnParaId: u32 = IDN_PARACHAIN_ID;
+		/// pub SiblingIdnLocation: Location = Location::new(1, Parachain(SiblingIDNParaId::get()));
+		/// ```
 		type SiblingIdnLocation: Get<Location>;
-		// pub IDNOrigin: EnsureXcm<Equals<Self::SiblingIDNLocation>>
+
+		/// The origin of the IDN chain
+		///
+		/// **Example definition**
+		/// ```nocompile
+		/// pub IdnOrigin: EnsureXcm<Equals<Self::SiblingIdnLocation>>
+		/// ```
 		type IdnOrigin: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
+
+		/// A type to define the amount of credits in a subscription
 		type Credits: Unsigned + Encode;
+
 		/// Maximum metadata size
 		type MaxMetadataLen: Get<u32>;
+
+		/// Subscription ID type
+		type SubscriptionId: From<H256>
+			+ Codec
+			+ Copy
+			+ PartialEq
+			+ TypeInfo
+			+ EncodeLike
+			+ MaxEncodedLen
+			+ Debug;
+
+		/// Maximum Pulse Filter size
+		type MaxPulseFilterLen: Get<u32>;
 	}
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
+
+	#[pallet::error]
+	pub enum Error<T> {
+		/// An error occurred while consuming the pulse
+		ConsumeError,
+	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -76,20 +120,12 @@ pub mod pallet {
 		RandomnessConsumed { round: <T::Pulse as Pulse>::Round, sub_id: T::SubscriptionId },
 	}
 
-	// Errors inform users that something went wrong.
-	#[pallet::error]
-	pub enum Error<T> {
-		/// Error names should be descriptive.
-		NoneValue,
-		/// Errors should have helpful documentation associated with them.
-		StorageOverflow,
-	}
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Creates a subscription.
 		#[pallet::call_index(0)]
 		#[pallet::weight(Weight::from_parts(0, 0))]
+		#[allow(clippy::useless_conversion)]
 		pub fn consume(
 			origin: OriginFor<T>,
 			pulse: T::Pulse,
@@ -100,7 +136,7 @@ pub mod pallet {
 
 			let round = pulse.round().clone();
 
-			T::Consumer::consume(pulse, sub_id.clone())?;
+			T::Consumer::consume(pulse, sub_id)?;
 
 			Self::deposit_event(Event::RandomnessConsumed { round, sub_id });
 
@@ -119,71 +155,76 @@ impl<T: Config> Pallet<T> {
 		// Bounded vector for additional data
 		metadata: Option<MetadataOf<T>>,
 		// Optional Pulse Filter
-		// pulse_filter: Option<PulseFilter>,
-		// // Optional Subscription Id, if None, a new one will be generated
-		// sub_id: Option<SubscriptionId>,
-	) -> Result<(), ()> {
-		todo!()
-		// let msg = Self::construct_xcm_msg(sub.details.call_index, &pulse, &sub_id);
-		// let versioned_target: Box<VersionedLocation> =
-		// 	Box::new(sub.details.target.clone().into());
-		// let versioned_msg: Box<VersionedXcm<()>> =
-		// 	Box::new(xcm::VersionedXcm::V5(msg.into()));
-		// let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
+		pulse_filter: Option<PulseFilterOf<T>>,
+		// Optional Subscription Id, if None, a new one will be generated
+		sub_id: Option<T::SubscriptionId>,
+	) -> Result<T::SubscriptionId, Error<T>> {
+		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/81
 
-		// // Make sure credits are consumed before sending the XCM message
-		// let consume_credits = T::FeesManager::get_consume_credits(&sub);
-		// Self::collect_fees(&sub, T::FeesManager::get_consume_credits(&sub))?;
+		let mut params = CreateSubParamsOf::<T> {
+			credits,
+			target: T::SiblingIdnLocation::get(),
+			call_index: [0, 0],
+			frequency,
+			metadata,
+			pulse_filter,
+			sub_id,
+		};
 
-		// // Update subscription with consumed credits and last_delivered block number
-		// sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
-		// sub.last_delivered = Some(current_block);
+		// If sub_id is not provided, generate a new one and asign it to the params
+		let sub_id = match sub_id {
+			Some(sub_id) => sub_id,
+			None => {
+				let sub_id = params.hash(vec![]);
+				params.sub_id = Some(sub_id);
+				sub_id
+			},
+		};
 
-		// // Store the updated subscription
-		// Subscriptions::<T>::insert(sub_id, &sub);
+		// TODO: should this be under the runtime?
+		// https://github.com/ideal-lab5/idn-sdk/issues/81
+		#[derive(Encode, Decode, Debug, PartialEq, Clone, scale_info::TypeInfo)]
+		enum Call<CreateSubParams> {
+			#[codec(index = 57)]
+			IdnManager(IdnManagerCall<CreateSubParams>),
+		}
 
-		// // Send the XCM message
-		// T::Xcm::send(origin.into(), versioned_target, versioned_msg)?;
+		let _call: Xcm<()> = Xcm(vec![Transact {
+			origin_kind: OriginKind::Xcm,
+			fallback_max_weight: None,
+			call: (Call::<CreateSubParamsOf<T>>::IdnManager(IdnManagerCall::<
+				CreateSubParamsOf<T>,
+			>::create_subscription {
+				params,
+			}))
+			.encode()
+			.into(),
+		}]);
+
+		Ok(sub_id)
 	}
 
 	/// Pauses a subscription.
-	pub fn pause_subscription() -> Result<(), ()> {
-		todo!()
+	pub fn pause_subscription() -> Result<(), Error<T>> {
+		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/83
+		Ok(())
 	}
 
 	/// Kills a subscription.
-	pub fn kill_subscription() -> Result<(), ()> {
-		todo!()
+	pub fn kill_subscription() -> Result<(), Error<T>> {
+		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/84
+		Ok(())
 	}
 
 	/// Updates a subscription.
-	pub fn update_subscription() -> Result<(), ()> {
-		todo!()
+	pub fn update_subscription() -> Result<(), Error<T>> {
+		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/82
+		Ok(())
 	}
 
 	/// Reactivates a subscription.
-	pub fn reactivate_subscription() -> Result<(), ()> {
-		todo!()
+	pub fn reactivate_subscription() -> Result<(), Error<T>> {
+		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/83
+		Ok(())
 	}
-
-	// fn construct_xcm_msg(
-	// 	call_index: CallIndex,
-	// 	pulse: &T::Pulse,
-	// 	sub_id: &T::SubscriptionId,
-	// ) -> Xcm<()> {
-	// 	Xcm(vec![
-	// 		UnpaidExecution { weight_limit: Unlimited, check_origin: None },
-	// 		Transact {
-	// 			origin_kind: OriginKind::Xcm,
-	// 			fallback_max_weight: None,
-	// 			// Create a tuple of call_index and pulse, encode it using SCALE codec, then convert
-	// 			// to Vec<u8> The encoded data will be used by the receiving chain to:
-	// 			// 1. Find the target pallet using first byte of call_index
-	// 			// 2. Find the target function using second byte of call_index
-	// 			// 3. Pass the parameters to that function
-	// 			call: (call_index, pulse, sub_id).encode().into(),
-	// 		},
-	// 		ExpectTransactStatus(MaybeErrorCode::Success),
-	// 	])
-	// }
 }

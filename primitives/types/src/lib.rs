@@ -16,4 +16,4 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use pallet_idn_manager::types::*;
+pub use pallet_idn_manager::primitives::*;

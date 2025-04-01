@@ -17,11 +17,12 @@
 //! # Tests for the IDN Manager pallet
 
 use crate::{
+	primitives::PulsePropertyOf,
 	runtime_decl_for_idn_manager_api::IdnManagerApiV1,
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
-	Config, CreateSubParamsOf, Error, Event, HoldReason, PulseFilterOf, PulsePropertyOf,
-	SubscriptionState, Subscriptions, UpdateSubParamsOf,
+	Config, CreateSubParamsOf, Error, Event, HoldReason, PulseFilterOf, SubscriptionState,
+	Subscriptions, UpdateSubParamsOf,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -166,8 +167,10 @@ fn update_subscription(
 }
 
 fn mock_rounds_filter(rounds: &Vec<u64>) -> PulseFilterOf<Test> {
-	let v: Vec<PulsePropertyOf<Test>> =
-		rounds.iter().map(|round| PulsePropertyOf::<Test>::Round(*round)).collect();
+	let v: Vec<PulsePropertyOf<<Test as Config>::Pulse>> = rounds
+		.iter()
+		.map(|round| PulsePropertyOf::<<Test as Config>::Pulse>::Round(*round))
+		.collect();
 	BoundedVec::try_from(v).unwrap()
 }
 
@@ -610,8 +613,10 @@ fn update_does_not_update_when_params_are_none() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 		let metadata = Some(BoundedVec::try_from(vec![1, 2, 3]).unwrap());
-		let pulse_filter =
-			Some(BoundedVec::try_from(vec![PulsePropertyOf::<Test>::Round(1)]).unwrap());
+		let pulse_filter = Some(
+			BoundedVec::try_from(vec![PulsePropertyOf::<<Test as Config>::Pulse>::Round(1)])
+				.unwrap(),
+		);
 		let initial_balance = 10_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);

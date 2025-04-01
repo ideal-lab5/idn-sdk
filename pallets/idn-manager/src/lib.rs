@@ -62,16 +62,16 @@ mod tests;
 mod benchmarking;
 
 pub mod impls;
+pub mod primitives;
 pub mod traits;
-pub mod types;
 pub mod weights;
 
 use crate::{
+	primitives::{CallIndex, CreateSubParams, PulseFilter, SubscriptionMetadata},
 	traits::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
 		Subscription as SubscriptionTrait,
 	},
-	types::SubscriptionMetadata,
 };
 use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
@@ -85,7 +85,6 @@ use frame_support::{
 		tokens::Precision,
 		Get,
 	},
-	BoundedVec,
 };
 use frame_system::{
 	ensure_signed,
@@ -94,8 +93,7 @@ use frame_system::{
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
-use sp_idn_traits::pulse::{Dispatcher, Pulse, PulseMatch, PulseProperty};
-use sp_io::hashing::blake2_256;
+use sp_idn_traits::pulse::{Dispatcher, Pulse, PulseMatch};
 use sp_runtime::traits::Saturating;
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use xcm::{
@@ -113,30 +111,15 @@ use xcm_builder::SendController;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
-/// Two-byte identifier for dispatching XCM calls
-///
-/// This type represents a compact encoding of pallet and function identifiers:
-/// - The first byte represents the pallet index in the destination runtime
-/// - The second byte represents the call index within that pallet
-///
-/// # Example
-/// ```nocompile
-/// let call_index: CallIndex = [42, 3];  // Target the 42nd pallet, 3rd function
-/// ```
-///
-/// This identifier is used in XCM messages to ensure randomness is delivered
-/// to the appropriate function in the destination pallet.
-type CallIndex = [u8; 2];
-
 /// The balance type used in the pallet, derived from the currency type in the configuration.
-type BalanceOf<T> =
+pub type BalanceOf<T> =
 	<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// The metadata type used in the pallet, represented as a bounded vector of bytes.
-type MetadataOf<T> = SubscriptionMetadata<<T as Config>::MaxMetadataLen>;
+pub type MetadataOf<T> = SubscriptionMetadata<<T as Config>::MaxMetadataLen>;
 
 /// The subscription type used in the pallet, containing various details about the subscription.
-type SubscriptionOf<T> = Subscription<
+pub type SubscriptionOf<T> = Subscription<
 	<T as frame_system::Config>::AccountId,
 	BlockNumberFor<T>,
 	<T as pallet::Config>::Credits,
@@ -147,37 +130,8 @@ type SubscriptionOf<T> = Subscription<
 
 /// A filter that controls which pulses are delivered to a subscription
 ///
-/// This type allows subscribers to define specific criteria for which pulses they want to receive.
-/// For example, a subscriber might want to receive only pulses from specific round numbers.
-///
-/// # Implementation
-/// - Uses a bounded vector to limit the maximum number of filter conditions
-/// - Each element is a [`PulseProperty`] that can match against `round` (but not `rand` values)
-/// - A pulse passes the filter if it matches ANY of the properties in the filter
-///
-/// # Usage
-/// ```rust
-/// use sp_idn_traits::pulse::PulseProperty as PulsePropertyTrait;
-/// type PulseProperty = PulsePropertyTrait<[u8; 32], u64, [u8; 48]>;
-/// // Create a filter for even-numbered rounds only
-/// let filter = vec![
-///     PulseProperty::Round(2),
-///     PulseProperty::Round(4),
-///     PulseProperty::Round(6),
-/// ];
-/// ```
-///
-/// # Security
-/// For security reasons, filtering on `rand` values is explicitly prohibited.
-/// See the [Pulse Filtering Security](#pulse-filtering-security) section for more details.
-type PulseFilterOf<T> = BoundedVec<
-	PulseProperty<
-		<<T as pallet::Config>::Pulse as Pulse>::Rand,
-		<<T as pallet::Config>::Pulse as Pulse>::Round,
-		<<T as pallet::Config>::Pulse as Pulse>::Sig,
-	>,
-	<T as Config>::MaxPulseFilterLen,
->;
+/// See [`PulseFilter`] for more details.
+type PulseFilterOf<T> = PulseFilter<<T as pallet::Config>::Pulse, <T as Config>::MaxPulseFilterLen>;
 
 /// Represents a subscription in the system.
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
@@ -223,25 +177,6 @@ pub struct SubscriptionDetails<AccountId> {
 /// The subscription details type used in the pallet, containing information about the subscription
 /// owner and target.
 pub type SubscriptionDetailsOf<T> = SubscriptionDetails<<T as frame_system::Config>::AccountId>;
-
-/// Parameters for creating a new subscription
-#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
-pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, SubscriptionId> {
-	// Number of random values to receive
-	pub credits: Credits,
-	// XCM multilocation for pulse delivery
-	pub target: Location,
-	// Call index for XCM message
-	pub call_index: CallIndex,
-	// Distribution interval for pulses
-	pub frequency: Frequency,
-	// Bounded vector for additional data
-	pub metadata: Option<Metadata>,
-	// Optional Pulse Filter
-	pub pulse_filter: Option<PulseFilter>,
-	// Optional Subscription Id, if None, a new one will be generated
-	pub sub_id: Option<SubscriptionId>,
-}
 
 /// The parameters for creating a new subscription, containing various details about the
 /// subscription.
@@ -378,6 +313,7 @@ pub mod pallet {
 			+ MaxEncodedLen
 			+ Debug;
 
+		/// Type for indicating balance movements across subscribers and IDN
 		type DiffBalance: DiffBalance<BalanceOf<Self>>;
 	}
 
@@ -493,11 +429,7 @@ pub mod pallet {
 				call_index: params.call_index,
 			};
 
-			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(
-				&details,
-				&params.metadata,
-				&current_block,
-			));
+			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(&params, &current_block));
 
 			ensure!(
 				!Subscriptions::<T>::contains_key(sub_id),
@@ -643,8 +575,7 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 
-				let mut fees_diff =
-					DiffBalance { balance: Zero::zero(), direction: BalanceDirection::None };
+				let mut fees_diff = T::DiffBalance::new(Zero::zero(), BalanceDirection::None);
 
 				if let Some(credits) = params.credits {
 					fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits, &credits);
@@ -859,26 +790,12 @@ impl<T: Config> Pallet<T> {
 	/// Generates a unique subscription ID.
 	///
 	/// This internal helper function generates a unique subscription ID based on the
-	/// subscription details and the current block number.
-	///
-	/// The subscription ID is generated using a combination of the subscription details and the
-	/// current block number to ensure uniqueness and prevent collisions.
+	/// create subscription parameters and the current block number.
 	fn generate_sub_id(
-		sub_details: &SubscriptionDetailsOf<T>,
-		metadata: &Option<MetadataOf<T>>,
+		params: &CreateSubParamsOf<T>,
 		current_block: &BlockNumberFor<T>,
 	) -> T::SubscriptionId {
-		let id_tuple = (
-			current_block,
-			&sub_details.subscriber,
-			sub_details.target.clone(),
-			sub_details.call_index,
-			metadata,
-		);
-		// Encode the tuple using SCALE codec.
-		let encoded = id_tuple.encode();
-		// Hash the encoded bytes using blake2_256.
-		H256::from_slice(&blake2_256(&encoded)).into()
+		params.hash(current_block.encode())
 	}
 
 	/// Holds fees for a subscription.

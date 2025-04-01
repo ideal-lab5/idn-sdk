@@ -17,7 +17,9 @@
 //! Benchmarking setup for pallet-template
 
 use super::*;
-use crate::{pallet::Pallet as IdnManager, CreateSubParamsOf, PulsePropertyOf, UpdateSubParamsOf};
+use crate::{
+	pallet::Pallet as IdnManager, primitives::PulsePropertyOf, CreateSubParamsOf, UpdateSubParamsOf,
+};
 use frame_benchmarking::v2::*;
 use frame_support::{
 	traits::{fungible::Mutate, OriginTrait},
@@ -49,8 +51,9 @@ mod benchmarks {
 		let pulse_filter = if l == 0 {
 			None
 		} else {
-			let pulse_filter_vec =
-				(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+			let pulse_filter_vec = (0..l)
+				.map(|_| PulsePropertyOf::<<T as pallet::Config>::Pulse>::Round(1u64.into()))
+				.collect::<Vec<_>>();
 			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
 		};
 
@@ -202,8 +205,9 @@ mod benchmarks {
 		let new_pulse_filter = if l == 0 {
 			None
 		} else {
-			let pulse_filter_vec =
-				(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+			let pulse_filter_vec = (0..l)
+				.map(|_| PulsePropertyOf::<<T as pallet::Config>::Pulse>::Round(1u64.into()))
+				.collect::<Vec<_>>();
 			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
 		};
 
