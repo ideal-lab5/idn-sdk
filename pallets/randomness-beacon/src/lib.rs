@@ -199,14 +199,9 @@ pub mod pallet {
 					//  ignores rounds less than the genesis round
 					let sigs: Vec<OpaqueSignature> = raw_pulses
 						.iter()
-						.filter_map(|rp| {
-							OpaquePulse::deserialize_from_vec(rp)
-								.ok()
-								.filter(|op| op.round >= config.genesis_round)
-								.map(|op| {
-									OpaqueSignature::truncate_from(op.signature.as_slice().to_vec())
-								})
-						})
+						.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
+						.filter(|op| op.round >= config.genesis_round)
+						.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
 						.collect::<Vec<_>>();
 
 					return Some(Call::try_submit_asig { sigs });
