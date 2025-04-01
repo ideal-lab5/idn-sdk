@@ -24,6 +24,7 @@ use frame_support::{
 	BoundedVec,
 };
 use frame_system::RawOrigin;
+use xcm::v5::prelude::Junction;
 
 #[benchmarks(
     where
@@ -35,7 +36,7 @@ mod benchmarks {
 	use super::*;
 
 	#[benchmark]
-	fn create_subscription(l: Linear<0, { T::PulseFilterLen::get() }>) {
+	fn create_subscription(l: Linear<0, { T::MaxPulseFilterLen::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits = 100u64.into();
@@ -156,8 +157,8 @@ mod benchmarks {
 
 	#[benchmark]
 	fn update_subscription(
-		l: Linear<0, { T::PulseFilterLen::get() }>,
-		m: Linear<0, { T::SubMetadataLen::get() }>,
+		l: Linear<0, { T::MaxPulseFilterLen::get() }>,
+		m: Linear<0, { T::MaxMetadataLen::get() }>,
 	) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());

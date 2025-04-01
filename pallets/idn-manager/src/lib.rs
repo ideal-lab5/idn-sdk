@@ -63,11 +63,15 @@ mod benchmarking;
 
 pub mod impls;
 pub mod traits;
+pub mod types;
 pub mod weights;
 
-use crate::traits::{
-	BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
-	Subscription as SubscriptionTrait,
+use crate::{
+	traits::{
+		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
+		Subscription as SubscriptionTrait,
+	},
+	types::SubscriptionMetadata,
 };
 use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
@@ -95,7 +99,13 @@ use sp_io::hashing::blake2_256;
 use sp_runtime::traits::Saturating;
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use xcm::{
-	v5::{prelude::*, Location},
+	v5::{
+		prelude::{
+			ExpectTransactStatus, MaybeErrorCode, OriginKind, Transact, Unlimited, UnpaidExecution,
+			Xcm,
+		},
+		Location,
+	},
 	VersionedLocation, VersionedXcm,
 };
 use xcm_builder::SendController;
@@ -110,38 +120,29 @@ pub use weights::WeightInfo;
 /// - The second byte represents the call index within that pallet
 ///
 /// # Example
-/// ```rust
-/// # use pallet_idn_manager::CallIndex;
-///
+/// ```nocompile
 /// let call_index: CallIndex = [42, 3];  // Target the 42nd pallet, 3rd function
 /// ```
 ///
 /// This identifier is used in XCM messages to ensure randomness is delivered
 /// to the appropriate function in the destination pallet.
-pub type CallIndex = [u8; 2];
+type CallIndex = [u8; 2];
 
 /// The balance type used in the pallet, derived from the currency type in the configuration.
-pub type BalanceOf<T> =
+type BalanceOf<T> =
 	<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// The metadata type used in the pallet, represented as a bounded vector of bytes.
-pub type MetadataOf<T> = BoundedVec<u8, <T as Config>::SubMetadataLen>;
+type MetadataOf<T> = SubscriptionMetadata<<T as Config>::MaxMetadataLen>;
 
 /// The subscription type used in the pallet, containing various details about the subscription.
-pub type SubscriptionOf<T> = Subscription<
+type SubscriptionOf<T> = Subscription<
 	<T as frame_system::Config>::AccountId,
 	BlockNumberFor<T>,
 	<T as pallet::Config>::Credits,
 	MetadataOf<T>,
 	PulseFilterOf<T>,
 	<T as pallet::Config>::SubscriptionId,
->;
-
-/// The pulse property type used in the pallet, representing various properties of a pulse.
-pub type PulsePropertyOf<T> = PulseProperty<
-	<<T as pallet::Config>::Pulse as Pulse>::Rand,
-	<<T as pallet::Config>::Pulse as Pulse>::Round,
-	<<T as pallet::Config>::Pulse as Pulse>::Sig,
 >;
 
 /// A filter that controls which pulses are delivered to a subscription
@@ -169,7 +170,14 @@ pub type PulsePropertyOf<T> = PulseProperty<
 /// # Security
 /// For security reasons, filtering on `rand` values is explicitly prohibited.
 /// See the [Pulse Filtering Security](#pulse-filtering-security) section for more details.
-pub type PulseFilterOf<T> = BoundedVec<PulsePropertyOf<T>, <T as Config>::PulseFilterLen>;
+type PulseFilterOf<T> = BoundedVec<
+	PulseProperty<
+		<<T as pallet::Config>::Pulse as Pulse>::Rand,
+		<<T as pallet::Config>::Pulse as Pulse>::Round,
+		<<T as pallet::Config>::Pulse as Pulse>::Sig,
+	>,
+	<T as Config>::MaxPulseFilterLen,
+>;
 
 /// Represents a subscription in the system.
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
@@ -218,7 +226,7 @@ pub type SubscriptionDetailsOf<T> = SubscriptionDetails<<T as frame_system::Conf
 
 /// Parameters for creating a new subscription
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
-pub struct CreateSubParams<Credits, BlockNumber, Metadata, PulseFilter, SubscriptionId> {
+pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, SubscriptionId> {
 	// Number of random values to receive
 	pub credits: Credits,
 	// XCM multilocation for pulse delivery
@@ -226,7 +234,7 @@ pub struct CreateSubParams<Credits, BlockNumber, Metadata, PulseFilter, Subscrip
 	// Call index for XCM message
 	pub call_index: CallIndex,
 	// Distribution interval for pulses
-	pub frequency: BlockNumber,
+	pub frequency: Frequency,
 	// Bounded vector for additional data
 	pub metadata: Option<Metadata>,
 	// Optional Pulse Filter
@@ -249,13 +257,13 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 ///
 /// When the parameter is `None`, the field is not updated.
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
-pub struct UpdateSubParams<SubId, Credits, Frequency, PulseFilter, Metadata> {
+pub struct UpdateSubParams<SubId, Credits, BlockNumber, PulseFilter, Metadata> {
 	// The Subscription Id
 	pub sub_id: SubId,
 	// New number of credits
 	pub credits: Option<Credits>,
 	// New distribution interval
-	pub frequency: Option<Frequency>,
+	pub frequency: Option<BlockNumber>,
 	// Bounded vector for additional data
 	pub metadata: Option<Option<Metadata>>,
 	// New Pulse Filter
@@ -349,10 +357,10 @@ pub mod pallet {
 		type PalletId: Get<frame_support::PalletId>;
 
 		/// Maximum metadata size
-		type SubMetadataLen: Get<u32>;
+		type MaxMetadataLen: Get<u32>;
 
 		/// Maximum Pulse Filter size
-		type PulseFilterLen: Get<u32>;
+		type MaxPulseFilterLen: Get<u32>;
 
 		/// A type to define the amount of credits in a subscription
 		type Credits: Unsigned + Codec + TypeInfo + MaxEncodedLen + Debug + Saturating + Copy;
@@ -464,7 +472,7 @@ pub mod pallet {
 		/// * [`SubscriptionCreated`](Event::SubscriptionCreated) - A new subscription has been
 		///   created.
 		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::create_subscription(T::PulseFilterLen::get()))]
+		#[pallet::weight(T::WeightInfo::create_subscription(T::MaxPulseFilterLen::get()))]
 		#[allow(clippy::useless_conversion)]
 		pub fn create_subscription(
 			origin: OriginFor<T>,
@@ -528,7 +536,7 @@ pub mod pallet {
 			Self::deposit_event(Event::SubscriptionCreated { sub_id });
 
 			Ok(Some(T::WeightInfo::create_subscription(if let Some(pf) = params.pulse_filter {
-				pf.len().try_into().unwrap_or(T::PulseFilterLen::get())
+				pf.len().try_into().unwrap_or(T::MaxPulseFilterLen::get())
 			} else {
 				0
 			}))
@@ -618,8 +626,8 @@ pub mod pallet {
 		/// * [`SubscriptionUpdated`](Event::SubscriptionUpdated) - A subscription has been updated.
 		#[pallet::call_index(3)]
 		#[pallet::weight(T::WeightInfo::update_subscription(
-			T::PulseFilterLen::get(),
-			T::SubMetadataLen::get()
+			T::MaxPulseFilterLen::get(),
+			T::MaxMetadataLen::get()
 		))]
 		#[allow(clippy::useless_conversion)]
 		pub fn update_subscription(
@@ -668,12 +676,12 @@ pub mod pallet {
 
 			Ok(Some(T::WeightInfo::update_subscription(
 				if let Some(pf) = inner_pulse_filter {
-					pf.len().try_into().unwrap_or(T::PulseFilterLen::get())
+					pf.len().try_into().unwrap_or(T::MaxPulseFilterLen::get())
 				} else {
 					0
 				},
 				if let Some(Some(md)) = params.metadata {
-					md.len().try_into().unwrap_or(T::SubMetadataLen::get())
+					md.len().try_into().unwrap_or(T::MaxMetadataLen::get())
 				} else {
 					0
 				},

@@ -90,6 +90,8 @@
 //!   - [`direction`](DiffBalance::direction): The direction of the balance movement (using the
 //!     `BalanceDirection` enum).
 
+mod example;
+
 /// Error type for fees management
 ///
 /// Context is used to provide more information about uncategorized errors.

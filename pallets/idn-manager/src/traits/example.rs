@@ -18,7 +18,7 @@
 //!
 //! This module contains examples of fee calculators that can be used in the IDN Manager pallet.
 
-use crate::subscription::{BalanceDirection, DiffBalance, FeesError, FeesManager};
+use crate::traits::{BalanceDirection, DiffBalance, FeesError, FeesManager};
 use sp_runtime::traits::Zero;
 use sp_std::cmp::Ordering;
 

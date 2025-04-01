@@ -8010,12 +8010,16 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "pallet-xcm",
  "parity-scale-codec",
  "scale-info",
+ "sp-arithmetic",
  "sp-core",
  "sp-idn-traits",
+ "sp-idn-types",
  "sp-io",
  "sp-runtime",
+ "staging-xcm",
 ]
 
 [[package]]
@@ -13851,6 +13855,13 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sp-idn-types"
+version = "0.0.1"
+dependencies = [
+ "pallet-idn-manager",
 ]
 
 [[package]]
