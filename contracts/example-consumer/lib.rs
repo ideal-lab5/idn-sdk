@@ -54,7 +54,6 @@ mod example_consumer {
 	/// Errors that can occur in the Example Consumer contract
 	#[derive(Debug, PartialEq, Eq)]
 	#[ink::scale_derive(Encode, Decode, TypeInfo)]
-	#[allow(clippy::cast_possible_truncation)]
 	pub enum ContractError {
 		/// Error from the IDN Client
 		IdnClientError(Error),

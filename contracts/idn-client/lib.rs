@@ -57,7 +57,6 @@ pub type CallIndex = [u8; 2];
 /// Represents possible errors that can occur when interacting with the IDN network
 #[derive(Debug, PartialEq, Eq)]
 #[ink::scale_derive(Encode, Decode, TypeInfo)]
-#[allow(clippy::cast_possible_truncation)]
 pub enum Error {
 	/// Error during XCM execution
 	XcmExecutionFailed,
@@ -110,7 +109,6 @@ pub type PulseFilter = Vec<u8>;
 /// Represents the state of a subscription
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[ink::scale_derive(Encode, Decode, TypeInfo)]
-#[allow(clippy::cast_possible_truncation)]
 pub enum SubscriptionState {
 	/// Subscription is active and receiving randomness
 	Active,
@@ -418,8 +416,7 @@ impl IdnClient for IdnClientImpl {
 		if params.sub_id.is_none() {
 			// Generate a subscription ID based on the current timestamp
 			let timestamp: u64 = ink::env::block_timestamp::<ink::env::DefaultEnvironment>();
-			#[allow(clippy::arithmetic_side_effects)]
-			let subscription_id = (timestamp % 1000) + 1;
+			let subscription_id = timestamp.rem_euclid(1000).saturating_add(1);
 			params.sub_id = Some(subscription_id);
 		}
 
