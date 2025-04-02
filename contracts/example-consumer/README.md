@@ -5,8 +5,9 @@ This contract demonstrates how to use the IDN Client library to interact with th
 ## Features
 
 - Creates and manages randomness subscriptions via XCM
-- Receives and processes randomness from the IDN Network
-- Stores randomness history for application use
+- Receives and processes randomness from the IDN Network using the Pulse trait
+- Stores both raw randomness and complete pulse objects (with round numbers and signatures)
+- Maintains randomness history for application use
 - Includes comprehensive tests for all functionality
 
 ## How It Works
@@ -15,8 +16,8 @@ The Example Consumer contract shows the complete lifecycle of randomness subscri
 
 1. **Subscription Creation**: Creates a new subscription to receive randomness
 2. **Subscription Management**: Demonstrates pausing, reactivating, and updating subscriptions
-3. **Randomness Reception**: Implements the RandomnessReceiver trait to handle incoming randomness
-4. **State Management**: Stores and provides access to received randomness
+3. **Pulse-Based Randomness Reception**: Implements the RandomnessReceiver trait to handle incoming pulses
+4. **State Management**: Stores and provides access to received randomness and pulse data
 
 ## Contract Usage
 
@@ -66,7 +67,14 @@ cancel_subscription()
 ```
 get_last_randomness() -> Option<[u8; 32]>
 get_randomness_history() -> Vec<[u8; 32]>
+get_last_pulse() -> Option<IdnPulse>
+get_pulse_history() -> Vec<IdnPulse>
 ```
+
+The pulse-based methods provide access to additional data beyond just randomness:
+- Round numbers for tracking which randomness generation round produced the value
+- Signatures for verification purposes
+- The raw randomness bytes
 
 ### Testing
 
@@ -80,13 +88,43 @@ cargo test
 cargo test --features e2e-tests
 ```
 
+## Implementing the Pulse Trait
+
+The contract demonstrates how to implement and use the Pulse trait:
+
+```rust
+// Receiving a pulse through the RandomnessReceiver trait
+impl RandomnessReceiver for ExampleConsumer {
+    fn on_randomness_received(
+        &mut self,
+        pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 64]>,
+        subscription_id: SubscriptionId
+    ) -> Result<()> {
+        // Extract the raw randomness
+        let randomness = pulse.rand();
+        
+        // Store in history
+        self.last_randomness = Some(randomness);
+        self.randomness_history.push(randomness);
+        
+        // Handle the pulse object
+        let idn_pulse = IdnPulse::new(pulse.rand(), pulse.round(), pulse.sig());
+        self.last_pulse = Some(idn_pulse.clone());
+        self.pulse_history.push(idn_pulse);
+        
+        Ok(())
+    }
+}
+```
+
 ## Customizing for Your Project
 
 To adapt this contract for your needs:
 
 1. Change the randomness handling logic in the `on_randomness_received` method
 2. Add your own state variables and methods to use the randomness
-3. Modify the subscription parameters to match your use case
+3. Modify how you store and retrieve pulse data based on your verification needs
+4. Modify the subscription parameters to match your use case
 
 ## Integration with a Real Network
 
@@ -96,6 +134,7 @@ When deploying on a real network:
 2. Configure the correct `randomness_call_index` for your contract's callback function
 3. Ensure your contract's account has sufficient funds for subscription fees
 4. Set up proper error handling for production use
+5. Implement additional verification of pulse signatures if needed for your use case
 
 ## License
 

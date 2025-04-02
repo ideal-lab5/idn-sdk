@@ -14,7 +14,8 @@ The `idn-client` library provides functionality for interacting with the Ideal N
 ### Features
 
 - Create, pause, reactivate, update, and kill randomness subscriptions
-- Receive randomness through XCM callbacks
+- Receive randomness through XCM callbacks using the Pulse trait
+- Store and manage pulse data, including randomness, round numbers, and signatures
 - Abstract away the complexity of XCM message construction
 
 ### Usage
@@ -26,11 +27,13 @@ To use the IDN Client library in your contract:
 ```toml
 [dependencies]
 idn-client = { path = "../idn-client", default-features = false }
+idn-traits = { path = "../../primitives/traits", default-features = false }
 
 [features]
 default = ["std"]
 std = [
     "idn-client/std",
+    "idn-traits/std",
     # other dependencies with std feature
 ]
 ```
@@ -38,11 +41,22 @@ std = [
 2. Import and implement the required traits:
 
 ```rust
-use idn_client::{IdnClient, RandomnessReceiver, SubscriptionId};
+use idn_client::{IdnClient, IdnPulse, RandomnessReceiver, SubscriptionId};
+use idn_traits::pulse::Pulse;
 
 // Implement the RandomnessReceiver trait to handle incoming randomness
 impl RandomnessReceiver for YourContract {
-    fn on_randomness_received(&mut self, randomness: [u8; 32], subscription_id: SubscriptionId) -> Result<()> {
+    fn on_randomness_received(
+        &mut self, 
+        pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 64]>,
+        subscription_id: SubscriptionId
+    ) -> Result<()> {
+        // Access the raw randomness
+        let randomness = pulse.rand();
+        
+        // Optionally, store the full pulse for verification purposes
+        // self.last_pulse = Some(pulse);
+        
         // Handle the received randomness
         Ok(())
     }
@@ -72,7 +86,8 @@ The `example-consumer` contract demonstrates a complete implementation of a cont
 See the `example-consumer/lib.rs` file for details on how to:
 - Initialize a contract with IDN Client capabilities
 - Create and manage randomness subscriptions
-- Process received randomness
+- Process received randomness with the Pulse trait
+- Store and access pulse history
 - Implement proper testing
 
 ## Development
