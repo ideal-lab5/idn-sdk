@@ -14,6 +14,8 @@ use alloc::sync::Arc;
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
+use idn_traits::pulse::Pulse;
+
 /// Default pallet index for the IDN Manager pallet
 /// This can be overridden during implementation with specific values
 pub const DEFAULT_IDN_MANAGER_PALLET_INDEX: u8 = 42;
@@ -231,7 +233,7 @@ pub trait RandomnessReceiver {
 	///
 	/// # Arguments
 	///
-	/// * `randomness` - The random bytes
+	/// * `pulse` - The pulse containing randomness data
 	/// * `subscription_id` - ID of the subscription that received randomness
 	///
 	/// # Returns
@@ -239,9 +241,44 @@ pub trait RandomnessReceiver {
 	/// * `Result<()>` - Success or error
 	fn on_randomness_received(
 		&mut self,
-		randomness: [u8; 32],
+		pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 64]>,
 		subscription_id: SubscriptionId,
 	) -> Result<()>;
+}
+
+/// A standard pulse implementation for IDN clients
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
+pub struct IdnPulse {
+	/// The random value
+	pub rand: [u8; 32],
+	/// The round number
+	pub round: u64,
+	/// The signature
+	pub signature: [u8; 64],
+}
+
+impl Pulse for IdnPulse {
+	type Rand = [u8; 32];
+	type Round = u64;
+	type Sig = [u8; 64];
+
+	fn rand(&self) -> Self::Rand {
+		self.rand
+	}
+
+	fn round(&self) -> Self::Round {
+		self.round
+	}
+
+	fn sig(&self) -> Self::Sig {
+		self.signature
+	}
+
+	fn valid(&self) -> bool {
+		// Basic implementation - customize as needed
+		true
+	}
 }
 
 /// Implementation of the IDN Client

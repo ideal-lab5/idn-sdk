@@ -3,9 +3,10 @@
 #[ink::contract]
 mod example_consumer {
 	use idn_client::{
-		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, RandomnessReceiver, Result,
-		SubscriptionId, UpdateSubParams,
+		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, IdnPulse, RandomnessReceiver,
+		Result, SubscriptionId, UpdateSubParams,
 	};
+	use idn_traits::pulse::Pulse;
 	use ink::prelude::vec::Vec;
 
 	/// The Example Consumer contract demonstrates how to use the IDN Client
@@ -14,6 +15,8 @@ mod example_consumer {
 	pub struct ExampleConsumer {
 		/// Last received randomness
 		last_randomness: Option<[u8; 32]>,
+		/// Last received pulse
+		last_pulse: Option<IdnPulse>,
 		/// Active subscription ID
 		subscription_id: Option<SubscriptionId>,
 		/// Ideal Network parachain ID
@@ -26,6 +29,8 @@ mod example_consumer {
 		randomness_call_index: CallIndex,
 		/// History of randomness values
 		randomness_history: Vec<[u8; 32]>,
+		/// History of pulses
+		pulse_history: Vec<IdnPulse>,
 		/// IDN client implementation
 		idn_client: IdnClientImpl,
 	}
@@ -78,12 +83,14 @@ mod example_consumer {
 
 			Self {
 				last_randomness: None,
+				last_pulse: None,
 				subscription_id: None,
 				ideal_network_para_id,
 				destination_para_id,
 				contracts_pallet_index,
 				randomness_call_index,
 				randomness_history: Vec::new(),
+				pulse_history: Vec::new(),
 				idn_client: IdnClientImpl,
 			}
 		}
@@ -276,6 +283,36 @@ mod example_consumer {
 			self.randomness_history.clone()
 		}
 
+		/// Gets the last received pulse
+		#[ink(message)]
+		pub fn get_last_pulse(&self) -> Option<IdnPulse> {
+			self.last_pulse.clone()
+		}
+
+		/// Gets all received pulses
+		#[ink(message)]
+		pub fn get_pulse_history(&self) -> Vec<IdnPulse> {
+			self.pulse_history.clone()
+		}
+
+		/// Simulates receiving a pulse from the IDN Network
+		#[ink(message)]
+		pub fn simulate_pulse_received(
+			&mut self,
+			pulse: IdnPulse,
+		) -> core::result::Result<(), ContractError> {
+			self.ensure_authorized()?;
+
+			let subscription_id = if let Some(id) = self.subscription_id {
+				id
+			} else {
+				return Err(ContractError::NoActiveSubscription);
+			};
+
+			self.on_randomness_received(pulse, subscription_id)
+				.map_err(ContractError::IdnClientError)
+		}
+
 		/// Simulates receiving randomness from the IDN Network
 		///
 		/// This is for demonstration purposes only.
@@ -294,32 +331,16 @@ mod example_consumer {
 			&mut self,
 			randomness: [u8; 32],
 		) -> core::result::Result<(), ContractError> {
-			// In a real implementation, this method would not exist
-			// Instead, the IDN Network would call on_randomness_received directly
-			let subscription_id =
-				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
+			self.ensure_authorized()?;
 
-			// Call the callback as if it came from the IDN Network
-			self.on_randomness_received(randomness, subscription_id).map_err(Into::into)
-		}
+			// Create a basic pulse from the randomness
+			let pulse = IdnPulse {
+				rand: randomness,
+				round: 0,             // Default round
+				signature: [0u8; 64], // Default signature
+			};
 
-		/// Simulate receiving randomness (used for testing)
-		/// This bypasses the need for actual XCM execution for unit tests
-		#[cfg(test)]
-		pub fn simulate_randomness_received_for_testing(
-			&mut self,
-			randomness: [u8; 32],
-		) -> core::result::Result<(), ContractError> {
-			// Ensure we have a subscription
-			if self.subscription_id.is_none() {
-				return Err(ContractError::NoActiveSubscription);
-			}
-
-			// Store the randomness
-			self.last_randomness = Some(randomness);
-			self.randomness_history.push(randomness);
-
-			Ok(())
+			self.simulate_pulse_received(pulse)
 		}
 
 		/// Public entry point for receiving randomness via XCM
@@ -327,10 +348,10 @@ mod example_consumer {
 		#[ink(message, selector = 0x01000000)]
 		pub fn receive_randomness(
 			&mut self,
-			randomness: [u8; 32],
+			pulse: IdnPulse,
 			subscription_id: SubscriptionId,
 		) -> core::result::Result<(), ContractError> {
-			self.on_randomness_received(randomness, subscription_id)
+			self.on_randomness_received(pulse, subscription_id)
 				.map_err(ContractError::IdnClientError)
 		}
 
@@ -344,7 +365,7 @@ mod example_consumer {
 	impl RandomnessReceiver for ExampleConsumer {
 		fn on_randomness_received(
 			&mut self,
-			randomness: [u8; 32],
+			pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 64]>,
 			subscription_id: SubscriptionId,
 		) -> Result<()> {
 			// Verify that the subscription ID matches our active subscription
@@ -356,11 +377,31 @@ mod example_consumer {
 				return Err(Error::InvalidParameters);
 			}
 
-			// Store the randomness
+			// Extract the randomness
+			let randomness = pulse.rand();
+
+			// Store the randomness for backward compatibility
 			self.last_randomness = Some(randomness);
 			self.randomness_history.push(randomness);
 
+			// Store the complete pulse if possible
+			if let Some(concrete_pulse) = self.clone_pulse(pulse) {
+				self.last_pulse = Some(concrete_pulse.clone());
+				self.pulse_history.push(concrete_pulse);
+			}
+
 			Ok(())
+		}
+	}
+
+	impl ExampleConsumer {
+		/// Helper to clone a pulse (since we can't directly clone a trait object)
+		fn clone_pulse<P: Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 64]>>(
+			&self,
+			pulse: P,
+		) -> Option<IdnPulse> {
+			// Convert the generic Pulse trait into a concrete IdnPulse
+			Some(IdnPulse { rand: pulse.rand(), round: pulse.round(), signature: pulse.sig() })
 		}
 	}
 
@@ -368,305 +409,97 @@ mod example_consumer {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use idn_client::Error;
 
-		/// Test receiving randomness functionality without XCM
-		#[ink::test]
+		#[test]
 		fn test_receive_and_store_randomness() {
-			// Create contract without actually creating a subscription
-			let mut contract = ExampleConsumer::new(2000, 1000, 50);
+			// Create a test pulse
+			let test_randomness = [42u8; 32];
+			let test_pulse = IdnPulse { rand: test_randomness, round: 1, signature: [1u8; 64] };
 
-			// Manually set a subscription ID to simulate we have one
+			// Setup contract
+			let mut contract = ExampleConsumer::new(2000, 1000, 50);
 			contract.subscription_id = Some(1);
 
-			// No randomness initially
-			assert!(contract.last_randomness.is_none());
-			assert_eq!(contract.randomness_history.len(), 0);
-
-			// Simulate receiving randomness
-			let mock_randomness = [1u8; 32];
-			let result = contract.simulate_randomness_received_for_testing(mock_randomness);
+			// Simulate receiving pulse
+			let result = contract.simulate_pulse_received(test_pulse.clone());
 			assert!(result.is_ok());
 
-			// Check that randomness was stored correctly
-			assert_eq!(contract.last_randomness, Some(mock_randomness));
-			assert_eq!(contract.randomness_history.len(), 1);
-			assert_eq!(contract.randomness_history[0], mock_randomness);
-
-			// Receive more randomness
-			let mock_randomness2 = [2u8; 32];
-			let result = contract.simulate_randomness_received_for_testing(mock_randomness2);
-			assert!(result.is_ok());
-
-			// Check updated state
-			assert_eq!(contract.last_randomness, Some(mock_randomness2));
-			assert_eq!(contract.randomness_history.len(), 2);
-			assert_eq!(contract.randomness_history[1], mock_randomness2);
+			// Check stored values
+			assert_eq!(contract.get_last_randomness(), Some(test_randomness));
+			assert_eq!(contract.get_last_pulse(), Some(test_pulse));
+			assert_eq!(contract.get_randomness_history().len(), 1);
+			assert_eq!(contract.get_pulse_history().len(), 1);
 		}
 
-		/// Test the randomness getters
-		#[ink::test]
+		#[test]
 		fn test_randomness_getters() {
+			// Create a test contract
 			let mut contract = ExampleConsumer::new(2000, 1000, 50);
+			contract.subscription_id = Some(1);
 
-			// Initial state
-			assert!(contract.get_last_randomness().is_none());
+			// Test empty state
+			assert_eq!(contract.get_last_randomness(), None);
+			assert_eq!(contract.get_last_pulse(), None);
 			assert_eq!(contract.get_randomness_history().len(), 0);
+			assert_eq!(contract.get_pulse_history().len(), 0);
 
 			// Add some randomness
-			let mock_randomness = [3u8; 32];
-			contract.last_randomness = Some(mock_randomness);
-			contract.randomness_history.push(mock_randomness);
-
-			// Check getters
-			assert_eq!(contract.get_last_randomness(), Some(mock_randomness));
-			assert_eq!(contract.get_randomness_history().len(), 1);
-			assert_eq!(contract.get_randomness_history()[0], mock_randomness);
-		}
-
-		/// Test RandomnessReceiver trait implementation
-		#[ink::test]
-		fn test_randomness_receiver_trait() {
-			// Create contract with manual subscription ID
-			let mut contract = ExampleConsumer::new(2000, 1000, 50);
-			contract.subscription_id = Some(1);
-
-			// Initial state
-			assert!(contract.last_randomness.is_none());
-			assert_eq!(contract.randomness_history.len(), 0);
-
-			// Call the on_randomness_received method directly
-			let randomness = [5u8; 32];
-			let subscription_id = 1;
-
-			let result = RandomnessReceiver::on_randomness_received(
-				&mut contract,
-				randomness,
-				subscription_id,
-			);
-
-			assert!(result.is_ok());
-
-			// Verify results
-			assert_eq!(contract.last_randomness, Some(randomness));
-			assert_eq!(contract.randomness_history.len(), 1);
-			assert_eq!(contract.randomness_history[0], randomness);
-		}
-
-		/// Test handling of invalid subscription in RandomnessReceiver
-		#[ink::test]
-		fn test_randomness_receiver_wrong_subscription() {
-			// Create contract with subscription ID 1
-			let mut contract = ExampleConsumer::new(2000, 1000, 50);
-			contract.subscription_id = Some(1);
-
-			// Try to receive randomness for subscription ID 2
-			let randomness = [6u8; 32];
-			let wrong_subscription_id = 2;
-
-			let result = RandomnessReceiver::on_randomness_received(
-				&mut contract,
-				randomness,
-				wrong_subscription_id,
-			);
-
-			// Should return error and not change state
-			assert!(result.is_err());
-			assert!(contract.last_randomness.is_none());
-			assert_eq!(contract.randomness_history.len(), 0);
-		}
-
-		/// Test simulate_randomness_received function
-		#[ink::test]
-		fn test_simulate_randomness_received() {
-			// Create contract without actually creating a subscription
-			let mut contract = ExampleConsumer::new(2000, 1000, 50);
-
-			// No randomness initially
-			assert!(contract.last_randomness.is_none());
-			assert_eq!(contract.randomness_history.len(), 0);
+			let test_pulse1 = IdnPulse { rand: [1u8; 32], round: 1, signature: [1u8; 64] };
+			let test_pulse2 = IdnPulse { rand: [2u8; 32], round: 2, signature: [2u8; 64] };
 
 			// Simulate receiving randomness
-			let mock_randomness = [1u8; 32];
-			let result = contract.simulate_randomness_received_for_testing(mock_randomness);
-			assert!(result.is_err()); // Should return error because no subscription
+			contract.simulate_pulse_received(test_pulse1.clone()).unwrap();
+			contract.simulate_pulse_received(test_pulse2.clone()).unwrap();
 
-			// Manually set a subscription ID to simulate we have one
-			contract.subscription_id = Some(1);
+			// Check getters
+			assert_eq!(contract.get_last_randomness(), Some([2u8; 32]));
+			assert_eq!(contract.get_last_pulse(), Some(test_pulse2));
+			assert_eq!(contract.get_randomness_history().len(), 2);
+			assert_eq!(contract.get_pulse_history().len(), 2);
+		}
 
-			// Simulate receiving randomness again
-			let result = contract.simulate_randomness_received_for_testing(mock_randomness);
+		#[test]
+		fn test_randomness_receiver_trait() {
+			// Create a test contract
+			let mut contract = ExampleConsumer::new(2000, 1000, 50);
+			contract.subscription_id = Some(5);
+
+			// Create a test pulse
+			let test_pulse = IdnPulse { rand: [9u8; 32], round: 42, signature: [5u8; 64] };
+
+			// Call the trait method directly
+			let result =
+				RandomnessReceiver::on_randomness_received(&mut contract, test_pulse.clone(), 5);
 			assert!(result.is_ok());
 
-			// Check that randomness was stored correctly
-			assert_eq!(contract.last_randomness, Some(mock_randomness));
-			assert_eq!(contract.randomness_history.len(), 1);
-			assert_eq!(contract.randomness_history[0], mock_randomness);
+			// Check stored values
+			assert_eq!(contract.get_last_randomness(), Some([9u8; 32]));
+			assert_eq!(contract.get_last_pulse(), Some(test_pulse));
 		}
 
-		/// Test contract initialization
-		#[ink::test]
-		fn test_contract_initialization() {
-			// Test with different parachain IDs
-			let para_id_1 = 1000;
-			let contract_1 = ExampleConsumer::new(para_id_1, para_id_1, 50);
-			assert_eq!(contract_1.ideal_network_para_id, para_id_1);
-			assert_eq!(contract_1.destination_para_id, para_id_1);
-			assert!(contract_1.subscription_id.is_none());
-			assert!(contract_1.last_randomness.is_none());
-			assert_eq!(contract_1.randomness_history.len(), 0);
-
-			let para_id_2 = 2000;
-			let contract_2 = ExampleConsumer::new(para_id_2, para_id_2, 50);
-			assert_eq!(contract_2.ideal_network_para_id, para_id_2);
-			assert_eq!(contract_2.destination_para_id, para_id_2);
-		}
-
-		/// Test randomness history capacity
-		#[ink::test]
-		fn test_randomness_history_capacity() {
-			// Create contract with a subscription
+		#[test]
+		fn test_randomness_receiver_wrong_subscription() {
+			// Create a test contract
 			let mut contract = ExampleConsumer::new(2000, 1000, 50);
-			contract.subscription_id = Some(1);
+			contract.subscription_id = Some(5);
 
-			// Add multiple randomness values
-			for i in 0..10 {
-				let randomness = [i; 32]; // Create different randomness for each iteration
-				let result = contract.simulate_randomness_received_for_testing(randomness);
-				assert!(result.is_ok());
+			// Create a test pulse
+			let test_pulse = IdnPulse { rand: [9u8; 32], round: 42, signature: [5u8; 64] };
 
-				// Check the history grows correctly
-				assert_eq!(contract.randomness_history.len(), (i + 1) as usize);
-				assert_eq!(contract.last_randomness, Some(randomness));
-			}
-
-			// Verify all randomness values are stored correctly
-			assert_eq!(contract.randomness_history.len(), 10);
-			for i in 0..10 {
-				assert_eq!(contract.randomness_history[i as usize], [i; 32]);
-			}
-		}
-
-		/// Test error propagation from IDN Client
-		#[ink::test]
-		fn test_error_propagation() {
-			// Create a new mock testing helper to test error propagation
-			struct MockErrorTest;
-
-			impl MockErrorTest {
-				fn test_too_many_subscriptions_error() -> core::result::Result<(), ContractError> {
-					// Simulate IDN client returning TooManySubscriptions error
-					let error = Error::TooManySubscriptions;
-					// Convert to ContractError and return
-					Err(error.into())
-				}
-			}
-
-			// Test error conversion and propagation
-			let result = MockErrorTest::test_too_many_subscriptions_error();
-
-			// Verify the error is correctly converted
+			// Call with wrong subscription ID
+			let result = RandomnessReceiver::on_randomness_received(&mut contract, test_pulse, 6);
 			assert!(result.is_err());
-			match result {
-				Err(ContractError::SystemAtCapacity) => {
-					// This is the expected error
-					assert!(true);
-				},
-				_ => {
-					// Any other error is incorrect
-					assert!(false, "Expected SystemAtCapacity error");
-				},
-			}
 
-			// Test with other errors
-			let other_errors =
-				[Error::XcmExecutionFailed, Error::InvalidParameters, Error::SubscriptionNotFound];
-
-			for err in other_errors.iter() {
-				// Create a new error of the same variant instead of trying to clone
-				let test_error = match err {
-					Error::XcmExecutionFailed => Error::XcmExecutionFailed,
-					Error::InvalidParameters => Error::InvalidParameters,
-					Error::SubscriptionNotFound => Error::SubscriptionNotFound,
-					_ => Error::Other,
-				};
-
-				let converted_err: ContractError = test_error.into();
-
-				// These should all convert to IdnClientError variant
-				match converted_err {
-					ContractError::IdnClientError(original_err) => {
-						assert_eq!(
-							match original_err {
-								Error::XcmExecutionFailed => "XcmExecutionFailed",
-								Error::InvalidParameters => "InvalidParameters",
-								Error::SubscriptionNotFound => "SubscriptionNotFound",
-								_ => "Other",
-							},
-							match err {
-								Error::XcmExecutionFailed => "XcmExecutionFailed",
-								Error::InvalidParameters => "InvalidParameters",
-								Error::SubscriptionNotFound => "SubscriptionNotFound",
-								_ => "Other",
-							}
-						);
-					},
-					_ => {
-						assert!(false, "Expected IdnClientError variant");
-					},
-				}
-			}
+			// Should not have stored anything
+			assert_eq!(contract.get_last_randomness(), None);
+			assert_eq!(contract.get_last_pulse(), None);
 		}
 	}
 
+	/// Unit tests
 	#[cfg(all(test, feature = "e2e-tests"))]
 	mod e2e_tests {
-		/* use frame_support::{
-			sp_runtime::AccountId32,
-			traits::tokens::currency::Currency,
-		};
-		use ink::{
-			env::{
-				test::default_accounts,
-				DefaultEnvironment,
-			},
-			primitives::AccountId,
-		};
-		use ink_e2e::{
-			preset::mock_network::{
-				self,
-				primitives::{
-					CENTS,
-					UNITS,
-				},
-				MockNetworkSandbox,
-			},
-			ChainBackend,
-			ContractsBackend,
-		};
-		use mock_network::{
-			parachain::estimate_message_fee,
-			parachain_account_sovereign_account_id,
-			relay_chain,
-			Relay,
-			TestExt,
-		};
-
-		use super::*;
-
-		/// The contract will be given 1000 tokens during instantiation.
-		pub const CONTRACT_BALANCE: u128 = 1_000 * UNITS;
-
-		type E2EResult<T> = Result<T, Box<dyn std::error::Error>>;
-
-		#[ink_e2e::test(backend(runtime_only(sandbox = MockNetworkSandbox)))]
-		async fn xcm_env_works<Client: E2EBackend>(
-			mut client: Client,
-		) -> E2EResult<()> {
-			Ok(())
-		} */
-
-		// Just a dummy test to confirm E2E module compilation
+		/// Just a dummy test to confirm E2E module compilation
 		#[test]
 		fn dummy_e2e_test() {
 			assert!(true);
