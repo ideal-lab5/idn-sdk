@@ -1,0 +1,28 @@
+# The setup bellow allows only one node to produce
+# blocks and the rest will follow.
+
+
+
+[relaychain]
+chain = "dev"
+default_command = "../target/release/idn-sdk-kitchensink-node"
+
+    [[relaychain.nodes]]
+    name = "alice"
+    args = ["--consensus manual-seal-6000"]
+    validator = true
+    ws_port = 9944
+
+    [[relaychain.nodes]]
+    name = "bob"
+    args = ["--consensus None"]
+    validator = true
+    ws_port = 9955
+
+[[parachains]]
+id = 100
+
+    [parachains.collator]
+    name = "collator01"
+    image = "docker.io/parity/polkadot-parachain:latest"
+    command = "polkadot-parachain"
