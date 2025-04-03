@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 
 use cumulus_client_cli::CollatorOptions;
 // Local Runtime Types
-use idn_runtime::{
+use idn_consumer_runtime::{
 	apis::RuntimeApi,
 	opaque::{Block, Hash},
 };

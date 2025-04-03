@@ -11,6 +11,8 @@ members = [
     "chains/kitchensink/node",
     "chains/ideal-network/runtime",
     "chains/ideal-network/node",
+    "chains/idn-consumer/runtime",
+    "chains/idn-consumer/node",
 ]
 resolver = "2"
 
@@ -211,5 +213,7 @@ sp-idn-traits = { path = "./primitives/traits", default-features = false }
 sp-idn-types = { path = "./primitives/types", default-features = false }
 idn-sdk-kitchensink-runtime = { path = "./chains/kitchensink/runtime" }
 idn-sdk-kitchensink-node = { path = "./chains/kitchensink/node" }
-parachain-template-runtime = { path = "./chains/ideal-network/runtime" }
-parachain-template-node = { path = "./chains/ideal-network/node" }
+idn-runtime = { path = "./chains/ideal-network/runtime" }
+idn-node = { path = "./chains/ideal-network/node" }
+idn-consumer-runtime = { path = "./chains/idn-consumer/runtime" }
+idn-consumer-node = { path = "./chains/idn-consumer/node" }

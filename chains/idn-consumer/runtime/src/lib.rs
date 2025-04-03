@@ -187,8 +187,8 @@ impl_opaque_keys! {
 
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: Cow::Borrowed("idn-runtime"),
-	impl_name: Cow::Borrowed("idn-runtime"),
+	spec_name: Cow::Borrowed("idn-consumer-runtime"),
+	impl_name: Cow::Borrowed("idn-consumer-runtime"),
 	authoring_version: 1,
 	spec_version: 1,
 	impl_version: 0,

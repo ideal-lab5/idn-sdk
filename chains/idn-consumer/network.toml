@@ -11,7 +11,7 @@ validator = true
 
 [[parachains]]
 id = 2000
-default_command = "../../target/release/idn-node"
+default_command = "../../target/release/idn-consumer-node"
 
 [[parachains.collators]]
 name = "collator-01"

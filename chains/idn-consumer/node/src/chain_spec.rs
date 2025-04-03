@@ -1,5 +1,5 @@
 use cumulus_primitives_core::ParaId;
-use idn_runtime as runtime;
+use idn_consumer_runtime as runtime;
 use runtime::{AccountId, AuraId, Signature, EXISTENTIAL_DEPOSIT};
 use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
 use sc_service::ChainType;

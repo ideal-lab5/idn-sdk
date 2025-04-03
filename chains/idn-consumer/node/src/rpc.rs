@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use idn_runtime::{opaque::Block, AccountId, Balance, Nonce};
+use idn_consumer_runtime::{opaque::Block, AccountId, Balance, Nonce};
 
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;

@@ -1,13 +1,13 @@
-# Ideal Network Node
+# Ideal Network Consumer Parachain
 
-This repository contains implementations of the Ideal Network parachain node.
+This repository contains an example implementation of an Ideal Network consumer parachain.
 
 ## Build
 
 Use the following command to build the node without launching it:
 
 ```sh
-cargo build -p idn-node --release
+cargo build -p idn-consumer-node --release
 ```
 
 ### Docker
@@ -29,7 +29,7 @@ docker build -f Dockerfile.arm64 . # for arm64 architecture
 #### Run the image
 
 If you have built your image, replace `[image]` with the image name you have built.
-If you are using the pre-built image, replace `[image]` with `ideallabs/idn:1.0.0-amd64` for amd64 architecture or `ideallabs/idn:1.0.0-arm64` for arm64 architecture.
+If you are using the pre-built image, replace `[image]` with `ideallabs/idn-consumer:1.0.0-amd64` for amd64 architecture or `ideallabs/idn-consumer:1.0.0-arm64` for arm64 architecture.
 
 ```sh
 docker run [image] [options]
@@ -48,16 +48,16 @@ cargo test
 Build with benchmarks using:
 
 ```sh
-cargo build -p idn-node --release --features runtime-benchmarks
+cargo build -p idn-consumer-node --release --features runtime-benchmarks
 ```
 
 and run them with:
 
 ```sh
 # list all benchmarks
-./target/release/idn-node benchmark pallet --chain dev --pallet "*" --extrinsic "*" --repeat 0
+./target/release/idn-consumer-node benchmark pallet --chain dev --pallet "*" --extrinsic "*" --repeat 0
 # benchmark all the pallets
-./target/release/idn-node benchmark pallet \
+./target/release/idn-consumer-node benchmark pallet \
     --chain dev \
     --wasm-execution=compiled \
     --pallet "*" \
@@ -96,4 +96,4 @@ It should output something like this:
 ```
 
 3. Done, you can now interact with the parachain using this link https://polkadot.js.org/apps/?rpc=ws://127.0.0.1:1234#/explorer.
-Bear in mind that you may need to wait a few seconds for the block production to start.
+   Bear in mind that you may need to wait a few seconds for the block production to start.

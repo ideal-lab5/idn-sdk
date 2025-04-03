@@ -1,8 +1,8 @@
 [package]
-name = "idn-node"
+name = "idn-consumer-node"
 version = "0.1.0"
 authors.workspace = true
-description = "Ideal Network node"
+description = "Ideal Network consumer parachain node"
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -26,7 +26,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 # Local
-idn-runtime.workspace = true
+idn-consumer-runtime.workspace = true
 
 # Substrate
 frame-benchmarking.workspace = true
@@ -85,14 +85,14 @@ runtime-benchmarks = [
   "cumulus-primitives-core/runtime-benchmarks",
   "frame-benchmarking-cli/runtime-benchmarks",
   "frame-benchmarking/runtime-benchmarks",
-  "idn-runtime/runtime-benchmarks",
+  "idn-consumer-runtime/runtime-benchmarks",
   "polkadot-cli/runtime-benchmarks",
   "polkadot-primitives/runtime-benchmarks",
   "sc-service/runtime-benchmarks",
   "sp-runtime/runtime-benchmarks",
 ]
 try-runtime = [
-  "idn-runtime/try-runtime",
+  "idn-consumer-runtime/try-runtime",
   "polkadot-cli/try-runtime",
   "sp-runtime/try-runtime",
 ]
