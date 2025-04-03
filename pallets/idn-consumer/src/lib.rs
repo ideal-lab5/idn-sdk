@@ -175,7 +175,8 @@ impl<T: Config> Pallet<T> {
 		let sub_id = match sub_id {
 			Some(sub_id) => sub_id,
 			None => {
-				let sub_id = params.hash(vec![]);
+				let salt = frame_system::Pallet::<T>::block_number().encode();
+				let sub_id = params.hash(salt);
 				params.sub_id = Some(sub_id);
 				sub_id
 			},
