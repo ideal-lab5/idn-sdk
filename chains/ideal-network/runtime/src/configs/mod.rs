@@ -32,6 +32,7 @@ use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
 	derive_impl,
 	dispatch::DispatchClass,
+	pallet_prelude::{Encode, Get, TypeInfo},
 	parameter_types,
 	traits::{
 		ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, TransformOrigin, VariantCountOf,
@@ -43,13 +44,17 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
+use pallet_idn_manager::{
+	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
+	BalanceOf, SubscriptionOf,
+};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
 use polkadot_runtime_common::{
 	xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::Perbill;
+use sp_runtime::{AccountId32, Perbill};
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
 
@@ -306,4 +311,74 @@ impl pallet_collator_selection::Config for Runtime {
 	type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
 	type ValidatorRegistration = Session;
 	type WeightInfo = (); // Configure based on benchmarking results.
+}
+
+parameter_types! {
+	pub const MaxSubscriptionDuration: u64 = 100;
+	pub const IdnManagerPalletId: PalletId = PalletId(*b"idn_mngr");
+	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
+	pub const BaseFee: u64 = 10;
+	pub const SDMultiplier: u64 = 10;
+	pub const MaxPulseFilterLen: u32 = 100;
+	pub const MaxSubscriptions: u32 = 1_000_000;
+}
+
+#[derive(TypeInfo)]
+pub struct MaxMetadataLen;
+
+impl Get<u32> for MaxMetadataLen {
+	fn get() -> u32 {
+		8
+	}
+}
+
+type Rand = [u8; 32];
+type Round = u64;
+type Sig = [u8; 48];
+
+#[derive(Encode, Clone, Copy)]
+pub struct Pulse {
+	pub rand: Rand,
+	pub round: Round,
+	pub sig: Sig,
+}
+
+impl sp_idn_traits::pulse::Pulse for Pulse {
+	type Rand = Rand;
+	type Round = Round;
+	type Sig = Sig;
+
+	fn rand(&self) -> Self::Rand {
+		self.rand
+	}
+
+	fn round(&self) -> Self::Round {
+		self.round
+	}
+
+	fn sig(&self) -> Self::Sig {
+		self.sig
+	}
+
+	fn valid(&self) -> bool {
+		true
+	}
+}
+
+impl pallet_idn_manager::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
+	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u128>;
+	type PalletId = IdnManagerPalletId;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type Pulse = Pulse;
+	type WeightInfo = ();
+	type Xcm = ();
+	type MaxMetadataLen = MaxMetadataLen;
+	type Credits = u64;
+	type MaxPulseFilterLen = MaxPulseFilterLen;
+	type MaxSubscriptions = MaxSubscriptions;
+	type SubscriptionId = [u8; 32];
+	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
 }
