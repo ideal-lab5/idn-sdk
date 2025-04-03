@@ -18,6 +18,5 @@
 //!
 //! Find tests in the submodules.
 
-mod fee_examples;
 pub(crate) mod mock;
 mod pallet;

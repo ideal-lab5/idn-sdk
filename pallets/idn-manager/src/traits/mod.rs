@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//! # Traits for the IDN Manager Pallet
+//! # IDN Subscription traits
 //!
 //! This file defines the traits that enable the IDN Manager pallet to interact with other modules.
 //! These traits abstract key functionalities.
@@ -90,6 +90,8 @@
 //!   - [`direction`](DiffBalance::direction): The direction of the balance movement (using the
 //!     `BalanceDirection` enum).
 
+mod example;
+
 /// Error type for fees management
 ///
 /// Context is used to provide more information about uncategorized errors.
@@ -115,14 +117,14 @@ pub enum BalanceDirection {
 	None,
 }
 
-/// This struct represent movement of balance.
+/// This trait represent movement of balance.
 ///
 /// * `balance` - how much balance being moved.
 /// * `direction` - if the balance are being collected or released.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct DiffBalance<Balance> {
-	pub balance: Balance,
-	pub direction: BalanceDirection,
+pub trait DiffBalance<Balance> {
+	fn balance(&self) -> Balance;
+	fn direction(&self) -> BalanceDirection;
+	fn new(balance: Balance, direction: BalanceDirection) -> Self;
 }
 
 /// Trait for fees managing
@@ -130,15 +132,12 @@ pub struct DiffBalance<Balance> {
 /// This is where the business model logic is specified. This logic is used to calculate, collect
 /// and distribute fees for subscriptions.
 ///
-/// You can check the a particular implementation of this trait in
-/// [FeesManagerImpl](crate::impls::FeesManagerImpl).
-///
 /// These are some examples of how this trait can be implemented:
 /// - Linear fee calculator: where the fees are calculated based on a linear function.
-#[doc = docify::embed!("./src/tests/fee_examples.rs", linear_fee_calculator)]
+#[doc = docify::embed!("./src/traits/example.rs", linear_fee_calculator)]
 /// - Tiered fee calculator: where the fees are calculated based on a tiered function.
-#[doc = docify::embed!("./src/tests/fee_examples.rs", tiered_fee_calculator)]
-pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S> {
+#[doc = docify::embed!("./src/traits/example.rs", tiered_fee_calculator)]
+pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S, Diff: DiffBalance<Fees>> {
 	/// Calculate the fees for a subscription based on the credits of pulses required.
 	fn calculate_subscription_fees(credits: &Credits) -> Fees;
 	/// Calculate how much fees should be held or release when a subscription changes.
@@ -147,7 +146,7 @@ pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S> {
 	/// * `new_credits` - the credits of pulses required after the change, this will represent the
 	///   updated credits in an update operation. Or the credits actually consumed in a kill
 	///   operation.
-	fn calculate_diff_fees(old_credits: &Credits, new_credits: &Credits) -> DiffBalance<Fees>;
+	fn calculate_diff_fees(old_credits: &Credits, new_credits: &Credits) -> Diff;
 	/// Distributes collected fees. Returns the fees that were effectively collected.
 	fn collect_fees(fees: &Fees, sub: &Sub) -> Result<Fees, FeesError<Fees, Err>>;
 	/// Returns how many credits this subscription pays for receiving a pulse
@@ -162,15 +161,21 @@ pub trait Subscription<Subscriber> {
 	fn subscriber(&self) -> &Subscriber;
 }
 
+impl Subscription<()> for () {
+	fn subscriber(&self) -> &() {
+		&()
+	}
+}
+
 /// Trait for storage deposit calculation
 ///
 /// This trait is used to calculate the storage deposit required for a subscription based it.
-pub trait DepositCalculator<Deposit, Sub> {
+pub trait DepositCalculator<Deposit, Sub, Diff: DiffBalance<Deposit>> {
 	/// Calculate the storage deposit required for a subscription.
 	fn calculate_storage_deposit(sub: &Sub) -> Deposit;
 	/// Calculate the difference in storage deposit between two subscriptions.
 	///
 	/// * `old_sub` - the old subscription.
 	/// * `new_sub` - the new subscription.
-	fn calculate_diff_deposit(old_sub: &Sub, new_sub: &Sub) -> DiffBalance<Deposit>;
+	fn calculate_diff_deposit(old_sub: &Sub, new_sub: &Sub) -> Diff;
 }

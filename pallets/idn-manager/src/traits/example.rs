@@ -18,9 +18,28 @@
 //!
 //! This module contains examples of fee calculators that can be used in the IDN Manager pallet.
 
-use crate::traits::{BalanceDirection, DiffBalance, FeesManager};
+use crate::traits::{BalanceDirection, DiffBalance, FeesError, FeesManager};
 use sp_runtime::traits::Zero;
 use sp_std::cmp::Ordering;
+
+/// A simple implementation of the `DiffBalance` trait.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct DiffBalanceImpl<Balance> {
+	balance: Balance,
+	direction: BalanceDirection,
+}
+
+impl<Balance: Copy> DiffBalance<Balance> for DiffBalanceImpl<Balance> {
+	fn balance(&self) -> Balance {
+		self.balance
+	}
+	fn direction(&self) -> BalanceDirection {
+		self.direction
+	}
+	fn new(balance: Balance, direction: BalanceDirection) -> Self {
+		Self { balance, direction }
+	}
+}
 
 /// Linear fee calculator with no discount
 pub struct LinearFeeCalculator;
@@ -30,30 +49,26 @@ const BASE_FEE: u32 = 100;
 #[docify::export_content]
 mod linear_fee_calculator {
 	use super::*;
-	impl FeesManager<u32, u32, (), (), ()> for LinearFeeCalculator {
+	impl FeesManager<u32, u32, (), (), (), DiffBalanceImpl<u32>> for LinearFeeCalculator {
 		fn calculate_subscription_fees(credits: &u32) -> u32 {
-			BASE_FEE.saturating_mul(credits.clone().into())
+			BASE_FEE.saturating_mul(*credits)
 		}
-		fn calculate_diff_fees(old_credits: &u32, new_credits: &u32) -> DiffBalance<u32> {
+		fn calculate_diff_fees(old_credits: &u32, new_credits: &u32) -> DiffBalanceImpl<u32> {
 			let mut direction = BalanceDirection::None;
-			let fees = match new_credits.cmp(&old_credits) {
+			let fees = match new_credits.cmp(old_credits) {
 				Ordering::Greater => {
 					direction = BalanceDirection::Collect;
-					Self::calculate_subscription_fees(
-						&new_credits.clone().saturating_sub(old_credits.clone()),
-					)
+					Self::calculate_subscription_fees(&new_credits.saturating_sub(*old_credits))
 				},
 				Ordering::Less => {
 					direction = BalanceDirection::Release;
-					Self::calculate_subscription_fees(
-						&old_credits.clone().saturating_sub(new_credits.clone()),
-					)
+					Self::calculate_subscription_fees(&old_credits.saturating_sub(*new_credits))
 				},
 				Ordering::Equal => Zero::zero(),
 			};
-			DiffBalance { balance: fees, direction }
+			DiffBalanceImpl::new(fees, direction)
 		}
-		fn collect_fees(fees: &u32, _: &()) -> Result<u32, crate::traits::FeesError<u32, ()>> {
+		fn collect_fees(fees: &u32, _: &()) -> Result<u32, FeesError<u32, ()>> {
 			// In this case we are not collecting any fees
 			Ok(*fees)
 		}
@@ -74,7 +89,7 @@ pub struct SteppedTieredFeeCalculator;
 #[docify::export_content]
 mod tiered_fee_calculator {
 	use super::*;
-	impl FeesManager<u32, u32, (), (), ()> for SteppedTieredFeeCalculator {
+	impl FeesManager<u32, u32, (), (), (), DiffBalanceImpl<u32>> for SteppedTieredFeeCalculator {
 		fn calculate_subscription_fees(credits: &u32) -> u32 {
 			// Define tier boundaries and their respective discount rates (in basis points)
 			const TIERS: [(u32, u32); 5] = [
@@ -101,7 +116,7 @@ mod tiered_fee_calculator {
 
 				let tier_fee = BASE_FEE
 					.saturating_mul(credits_in_tier)
-					.saturating_mul((10_000 - current_tier_discount) as u32)
+					.saturating_mul(10_000 - current_tier_discount)
 					.saturating_div(10_000);
 
 				total_fee = total_fee.saturating_add(tier_fee);
@@ -111,7 +126,7 @@ mod tiered_fee_calculator {
 			total_fee
 		}
 
-		fn calculate_diff_fees(old_credits: &u32, new_credits: &u32) -> DiffBalance<u32> {
+		fn calculate_diff_fees(old_credits: &u32, new_credits: &u32) -> DiffBalanceImpl<u32> {
 			let old_fees = Self::calculate_subscription_fees(old_credits);
 			let new_fees = Self::calculate_subscription_fees(new_credits);
 			let mut direction = BalanceDirection::None;
@@ -126,9 +141,9 @@ mod tiered_fee_calculator {
 				},
 				Ordering::Equal => Zero::zero(),
 			};
-			DiffBalance { balance: fees, direction }
+			DiffBalanceImpl::new(fees, direction)
 		}
-		fn collect_fees(fees: &u32, _: &()) -> Result<u32, crate::traits::FeesError<u32, ()>> {
+		fn collect_fees(fees: &u32, _: &()) -> Result<u32, FeesError<u32, ()>> {
 			// In this case we are not collecting any fees
 			Ok(*fees)
 		}
@@ -165,7 +180,7 @@ mod tests {
 		let expected = 0;
 		assert_eq!(
 			refund,
-			DiffBalance { balance: expected, direction: BalanceDirection::None },
+			DiffBalanceImpl::new(expected, BalanceDirection::None),
 			"There should be no release when no diff in credits"
 		);
 	}
@@ -179,7 +194,7 @@ mod tests {
 		let expected = 20 * BASE_FEE;
 		assert_eq!(
 			refund,
-			DiffBalance { balance: expected, direction: BalanceDirection::Release },
+			DiffBalanceImpl::new(expected, BalanceDirection::Release),
 			"There should be a release when new credits is lower than old credits"
 		);
 	}
@@ -193,7 +208,7 @@ mod tests {
 		let expected = 10 * BASE_FEE;
 		assert_eq!(
 			hold,
-			DiffBalance { balance: expected, direction: BalanceDirection::Collect },
+			DiffBalanceImpl::new(expected, BalanceDirection::Collect),
 			"There should be more held balance"
 		);
 	}
@@ -251,7 +266,7 @@ mod tests {
 		let expected = 0;
 		assert_eq!(
 			refund,
-			DiffBalance { balance: expected, direction: BalanceDirection::None },
+			DiffBalanceImpl::new(expected, BalanceDirection::None),
 			"There should be no release when no diff in credits"
 		);
 	}
@@ -265,7 +280,7 @@ mod tests {
 		let expected = 10 * BASE_FEE.saturating_mul(9_000).saturating_div(10_000); // 10% discount on the extra value
 		assert_eq!(
 			refund,
-			DiffBalance { balance: expected, direction: BalanceDirection::Release },
+			DiffBalanceImpl::new(expected, BalanceDirection::Release),
 			"There should be a release when new credits is lower than old credits"
 		);
 	}
@@ -279,7 +294,7 @@ mod tests {
 		let expected = 1 * BASE_FEE.saturating_mul(9_000).saturating_div(10_000); // 10% discount on the extra value
 		assert_eq!(
 			hold,
-			DiffBalance { balance: expected, direction: BalanceDirection::Collect },
+			DiffBalanceImpl::new(expected, BalanceDirection::Collect),
 			"There should be more held balance"
 		);
 	}

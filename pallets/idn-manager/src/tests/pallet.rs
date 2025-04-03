@@ -17,11 +17,12 @@
 //! # Tests for the IDN Manager pallet
 
 use crate::{
+	primitives::PulsePropertyOf,
 	runtime_decl_for_idn_manager_api::IdnManagerApiV1,
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
-	Config, CreateSubParamsOf, Error, Event, HoldReason, PulseFilterOf, PulsePropertyOf,
-	SubscriptionState, Subscriptions, UpdateSubParamsOf,
+	Config, CreateSubParamsOf, Error, Event, HoldReason, PulseFilterOf, SubscriptionState,
+	Subscriptions, UpdateSubParamsOf,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -32,7 +33,7 @@ use frame_support::{
 	},
 	BoundedVec,
 };
-use idn_traits::pulse::Dispatcher;
+use sp_idn_traits::pulse::Dispatcher;
 use sp_runtime::{AccountId32, DispatchError, TokenError};
 use xcm::v5::{Junction, Location};
 
@@ -166,8 +167,10 @@ fn update_subscription(
 }
 
 fn mock_rounds_filter(rounds: &Vec<u64>) -> PulseFilterOf<Test> {
-	let v: Vec<PulsePropertyOf<Test>> =
-		rounds.iter().map(|round| PulsePropertyOf::<Test>::Round(*round)).collect();
+	let v: Vec<PulsePropertyOf<<Test as Config>::Pulse>> = rounds
+		.iter()
+		.map(|round| PulsePropertyOf::<<Test as Config>::Pulse>::Round(*round))
+		.collect();
 	BoundedVec::try_from(v).unwrap()
 }
 
@@ -610,8 +613,10 @@ fn update_does_not_update_when_params_are_none() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 		let metadata = Some(BoundedVec::try_from(vec![1, 2, 3]).unwrap());
-		let pulse_filter =
-			Some(BoundedVec::try_from(vec![PulsePropertyOf::<Test>::Round(1)]).unwrap());
+		let pulse_filter = Some(
+			BoundedVec::try_from(vec![PulsePropertyOf::<<Test as Config>::Pulse>::Round(1)])
+				.unwrap(),
+		);
 		let initial_balance = 10_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -754,7 +759,7 @@ fn test_credits_consumption_and_cleanup() {
 				&(credits - i * consume_credits),
 				&(credits - (i + 1) * consume_credits),
 			)
-			.balance;
+			.balance();
 
 			treasury_balance += fees;
 
@@ -1279,7 +1284,7 @@ fn manage_diff_deposit_works() {
 
 		// Test holding deposit
 		let hold_diff =
-			DiffBalance { balance: original_deposit, direction: BalanceDirection::Collect };
+			<Test as Config>::DiffBalance::new(original_deposit, BalanceDirection::Collect);
 		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &hold_diff));
 		assert_eq!(
 			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
@@ -1287,7 +1292,7 @@ fn manage_diff_deposit_works() {
 		);
 		// Test holding additional deposit
 		let hold_diff =
-			DiffBalance { balance: additional_deposit, direction: BalanceDirection::Collect };
+			<Test as Config>::DiffBalance::new(additional_deposit, BalanceDirection::Collect);
 		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &hold_diff));
 		assert_eq!(
 			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
@@ -1296,7 +1301,7 @@ fn manage_diff_deposit_works() {
 
 		// Test releasing excess deposit
 		let release_diff =
-			DiffBalance { balance: excess_deposit, direction: BalanceDirection::Release };
+			<Test as Config>::DiffBalance::new(excess_deposit, BalanceDirection::Release);
 		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &release_diff));
 		assert_eq!(
 			Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE),
@@ -1304,7 +1309,7 @@ fn manage_diff_deposit_works() {
 		);
 
 		// Test no change in deposit
-		let no_change_diff = DiffBalance { balance: 0, direction: BalanceDirection::None };
+		let no_change_diff = <Test as Config>::DiffBalance::new(0, BalanceDirection::None);
 		let held_before = Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE);
 		assert_ok!(crate::Pallet::<Test>::manage_diff_deposit(&ALICE, &no_change_diff));
 		assert_eq!(

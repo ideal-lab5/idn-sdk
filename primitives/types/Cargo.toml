@@ -1,6 +1,6 @@
 [package]
-name = "sp-idn-traits"
-description = "IDN traits"
+name = "sp-idn-types"
+description = "Types used across IDN"
 authors.workspace = true
 version = "0.0.1"
 license.workspace = true
@@ -10,13 +10,10 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-codec.workspace = true
-frame-support.workspace = true
-scale-info.workspace = true
-sp-std.workspace = true
+pallet-idn-manager = { workspace = true, default-features = false }
 
 [features]
 default = ["std"]
 std = [
-	"frame-support/std"
+    "pallet-idn-manager/std",
 ]

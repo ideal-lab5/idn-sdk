@@ -3,7 +3,9 @@ members = [
     "client/consensus/randomness-beacon",
     "primitives/consensus/randomness-beacon",
     "primitives/traits",
+    "primitives/types",
     "pallets/randomness-beacon",
+    "pallets/idn-consumer",
     "pallets/idn-manager",
     "kitchensink/runtime",
     "kitchensink/node",
@@ -137,6 +139,7 @@ pallet-idn-manager = { path = "./pallets/idn-manager", default-features = false 
 pallet-randomness-beacon = { path = "./pallets/randomness-beacon", default-features = false }
 sc-consensus-randomness-beacon = { path = "./client/consensus/randomness-beacon", default-features = false }
 sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }
-idn-traits = { path = "./primitives/traits", default-features = false }
+sp-idn-traits = { path = "./primitives/traits", default-features = false }
+sp-idn-types = { path = "./primitives/types", default-features = false }
 idn-sdk-kitchensink-runtime = { path = "./kitchensink/runtime" }
 idn-sdk-kitchensink-node = { path = "./kitchensink/node" }
