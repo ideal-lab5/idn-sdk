@@ -429,7 +429,11 @@ pub mod pallet {
 				call_index: params.call_index,
 			};
 
-			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(&params, &current_block));
+			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(
+				&subscriber,
+				&params,
+				&current_block,
+			));
 
 			ensure!(
 				!Subscriptions::<T>::contains_key(sub_id),
@@ -792,10 +796,13 @@ impl<T: Config> Pallet<T> {
 	/// This internal helper function generates a unique subscription ID based on the
 	/// create subscription parameters and the current block number.
 	fn generate_sub_id(
+		subscriber: &T::AccountId,
 		params: &CreateSubParamsOf<T>,
 		current_block: &BlockNumberFor<T>,
 	) -> T::SubscriptionId {
-		params.hash(current_block.encode())
+		let mut salt = current_block.encode();
+		salt.extend(subscriber.encode());
+		params.hash(salt)
 	}
 
 	/// Holds fees for a subscription.
