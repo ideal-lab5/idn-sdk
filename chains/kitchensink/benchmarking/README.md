@@ -42,6 +42,6 @@ frame-omni-bencher v1 benchmark pallet \
     --runtime ../../target/release/wbuild/idn-sdk-kitchensink-runtime/idn_sdk_kitchensink_runtime.compact.compressed.wasm \
     --pallet PALLET-NAME \
     --extrinsic "" \
-    --template ../../kitchensink/benchmarking/weight-template.hbs \
+    --template ../../chains/kitchensink/benchmarking/weight-template.hbs \
     --output src/weights.rs
 ```
