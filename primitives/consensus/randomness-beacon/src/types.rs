@@ -34,7 +34,7 @@ use ark_serialize::CanonicalDeserialize;
 /// one
 #[derive(Clone, PartialEq, ::prost::Message, Serialize, Deserialize)]
 pub struct Pulse {
-	/// The round  of the protocol when the signature was computed
+	/// The round of the protocol when the signature was computed
 	#[prost(uint64, tag = "1")]
 	pub round: u64,
 	/// The interpolated threshold BLS sigs
