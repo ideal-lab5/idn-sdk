@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "idn-client",
+    "example-consumer",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+authors = ["Ideal Labs <hello@idealabs.network>"]
+repository = "https://github.com/ideal-lab5/idn-sdk"
+homepage = "https://idealabs.network"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+# ink! dependencies
+ink = { version = "5.1.1", default-features = false }
+ink_e2e = { version = "5.1.1" }
+scale = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = ["derive"] }
+scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
+
+# Other dependencies
+serde_json = { version = "1.0.133" }
