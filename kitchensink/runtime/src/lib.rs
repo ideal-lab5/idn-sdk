@@ -73,7 +73,7 @@ pub mod genesis_config_presets {
 	pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
 		let patch = match id.as_ref() {
 			sp_genesis_builder::DEV_RUNTIME_PRESET => development_config_genesis(),
-			_ => return None, 
+			_ => return None,
 		};
 		Some(
 			serde_json::to_string(&patch)

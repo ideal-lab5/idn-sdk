@@ -96,7 +96,7 @@ sc-network = { version = "=0.48.2", default-features = false }
 sc-utils = { version = "=18.0.0", default-features = false }
 sp-arithmetic = { version = "=26.0.0", default-features = false }
 sp-api = { version = "=35.0.0",  default-features = false }
-sp-blockchain = { version = "=38.0.0" }
+sp-blockchain = { version = "=38.0.0" } 
 sp-block-builder = { version = "=35.0.0", default-features = false }
 sp-consensus = { version = "=0.41.0" }
 sp-core = { version = "=35.0.0", default-features = false }
@@ -112,6 +112,7 @@ substrate-build-script-utils = { version = "=11.0.0", default-features = false }
 substrate-frame-rpc-system = { version = "=42.0.0", default-features = false }
 xcm = { version = "=15.0.1", default-features = false, package = "staging-xcm" }
 xcm-builder = { version = "=18.0.0", default-features = false, package = "staging-xcm-builder" }
+prometheus-endpoint = { version = "0.17.0", default-features = false, package = "substrate-prometheus-endpoint" }
 
 # Arkworks & Crypto
 sp-ark-bls12-381 = { git = "https://github.com/paritytech/arkworks-substrate", version = "=0.4.2", default-features = false }

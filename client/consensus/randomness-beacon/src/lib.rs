@@ -16,5 +16,6 @@
 
 extern crate alloc;
 
+pub mod block_import;
+pub mod consensus;
 pub mod gossipsub;
-pub mod import;

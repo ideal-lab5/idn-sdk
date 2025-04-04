@@ -30,16 +30,11 @@ use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 use ark_serialize::CanonicalDeserialize;
 
-// /// 
-// pub enum SupportedBeacons {
-// 	QUICKNET(b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a"),
-// }
-
 /// A `pulse` represents the output from a verifiable randomness beacon, specifically an 'unchained'
 /// one
 #[derive(Clone, PartialEq, ::prost::Message, Serialize, Deserialize)]
 pub struct Pulse {
-	/// The round of the protocol when the signature was computed
+	/// The round  of the protocol when the signature was computed
 	#[prost(uint64, tag = "1")]
 	pub round: u64,
 	/// The interpolated threshold BLS sigs
@@ -100,7 +95,7 @@ impl OpaquePulse {
 		Ok(OpaquePulse { round, signature })
 	}
 
-	/// Compute the signature as a group element 
+	/// Compute the signature as a group element
 	pub fn signature_point(&self) -> Result<G1AffineOpt, String> {
 		G1AffineOpt::deserialize_compressed(&mut self.signature.as_slice()).map_err(|e| {
 			format!("Failed to deserialize the signature bytes to a point on the G1 curve: {:?}", e)
