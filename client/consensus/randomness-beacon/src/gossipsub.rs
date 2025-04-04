@@ -23,7 +23,7 @@
 //! ## Overview
 //!
 //! - runs a libp2p node and handles peer connections
-//! - subscribes to a gossipsub topic and writes well-formed messages to a [`SharedState`]
+//! - subscribes to a gossipsub topic and writes well-formed messages to a `SharedState`
 //!
 //! ## Examples
 //!

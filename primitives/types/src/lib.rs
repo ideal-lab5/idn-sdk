@@ -14,23 +14,6 @@
  * limitations under the License.
  */
 
-//! # IDN Traits
-//!
-//! Core traits for the Ideal Network (IDN) ecosystem.
-//!
-//! This crate provides fundamental interfaces for handling randomness pulses.
-//!
-//! ## Modules
-//!
-//! * [`pulse`] - Traits and types for randomness pulses handling and distribution
-//!
-//! ## Overview
-//!
-//! The IDN traits define the foundational interfaces that allow different
-//! components of the system to interact in a standardized way. These traits
-//! enable a modular architecture where randomness sources, dispatchers, and
-//! consumers can all operate together seamlessly.
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod pulse;
+pub use pallet_idn_manager::primitives::*;

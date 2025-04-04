@@ -14,7 +14,20 @@
  * limitations under the License.
  */
 
-//! # Implementations of public traits
+//! # Trait Implementations for the IDN Manager Pallet
+//!
+//! This file contains implementations of various traits required by the IDN Manager pallet.
+//! These implementations provide the concrete logic for calculating fees, managing deposits,
+//! and interacting with other pallets in the system.
+//!
+//! ## Key Implementations:
+//!
+//! - [`Subscription Trait`](SubscriptionTrait): Implemented for the [`Subscription`] struct,
+//!   providing access to subscription details such as the subscriber account.
+//! - [`FeesManager`]: Implemented by [`FeesManagerImpl`], providing the logic for calculating
+//!   subscription fees, managing fee differences, and collecting fees from subscribers.
+//! - [`DepositCalculator`]: Implemented by [`DepositCalculatorImpl`], providing the logic for
+//!   calculating storage deposits and managing deposit differences.
 
 use crate::{
 	self as pallet_idn_manager,
@@ -29,38 +42,82 @@ use frame_support::{
 		Get,
 	},
 };
+use pallet_idn_manager::{DepositCalculator, FeesManager};
 use sp_arithmetic::traits::Unsigned;
 use sp_runtime::{traits::Zero, AccountId32, Saturating};
 use sp_std::{cmp::Ordering, marker::PhantomData};
 
-impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, PulseFilter> SubscriptionTrait<AccountId>
-	for Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter>
+impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, PulseFilter, SubscriptionId>
+	SubscriptionTrait<AccountId>
+	for Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter, SubscriptionId>
 {
 	fn subscriber(&self) -> &AccountId {
 		&self.details.subscriber
 	}
 }
 
-impl SubscriptionTrait<()> for () {
-	fn subscriber(&self) -> &() {
-		&()
-	}
-}
-
 /// A FeesManager implementation that holds a dynamic treasury account.
+///
+/// This implementation uses a dynamic treasury account specified in the `Config`
+/// to manage fees. It provides functions for calculating subscription fees,
+/// calculating the difference in fees, and collecting fees from subscribers.
+///
+/// # Type Parameters:
+/// * `Treasury`: A `Get<AccountId32>` implementation that provides the treasury account ID.
+/// * `BaseFee`: A `Get<Balances::Balance>` implementation that provides the base fee.
+/// * `Sub`: A `SubscriptionTrait<AccountId32>` implementation that provides access to subscription
+///   details.
+/// * `Balances`: A `Mutate<AccountId32>` implementation that provides the ability to hold and
+///   release balances.
 pub struct FeesManagerImpl<Treasury, BaseFee, Sub, Balances> {
 	pub _phantom: FeesManagerPhantom<Treasury, BaseFee, Sub, Balances>,
 }
+
+/// This struct represent movement of balance.
+///
+/// * `balance` - how much balance being moved.
+/// * `direction` - if the balance are being collected or released.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct DiffBalanceImpl<Balance> {
+	balance: Balance,
+	direction: BalanceDirection,
+}
+
+impl<Balance: Copy> DiffBalance<Balance> for DiffBalanceImpl<Balance> {
+	fn balance(&self) -> Balance {
+		self.balance
+	}
+	fn direction(&self) -> BalanceDirection {
+		self.direction
+	}
+	fn new(balance: Balance, direction: BalanceDirection) -> Self {
+		Self { balance, direction }
+	}
+}
+
 type FeesManagerPhantom<Treasury, BaseFee, Sub, Balances> =
 	(PhantomData<Treasury>, PhantomData<BaseFee>, PhantomData<Sub>, PhantomData<Balances>);
 
+/// Implementation of the FeesManager trait for the FeesManagerImpl struct.
+///
+/// # Tests
+///
+/// ## Calculate Subscription Fees Test
+#[doc = docify::embed!("./src/tests/pallet.rs", test_calculate_subscription_fees)]
 impl<
 		T: Get<AccountId32>,
 		B: Get<Balances::Balance>,
 		S: SubscriptionTrait<AccountId32>,
 		Balances: Mutate<AccountId32>,
-	> pallet_idn_manager::FeesManager<Balances::Balance, u64, S, DispatchError, AccountId32>
-	for FeesManagerImpl<T, B, S, Balances>
+	>
+	FeesManager<
+		Balances::Balance,
+		u64,
+		S,
+		DispatchError,
+		AccountId32,
+		DiffBalanceImpl<Balances::Balance>,
+	> for FeesManagerImpl<T, B, S, Balances>
 where
 	Balances::Reason: From<HoldReason>,
 	Balances::Balance: From<u64>,
@@ -78,23 +135,6 @@ where
 	/// 1. For each tier, calculate how many credits fall within that tier
 	/// 2. Apply the corresponding discount rate to those credits
 	/// 3. Sum up the fees across all tiers
-	///
-	/// # Parameters
-	/// * `credits` - The total number of credits requested for the subscription
-	///
-	/// # Returns
-	/// The total fee required for the requested number of credits, converted to the
-	/// appropriate balance type
-	///
-	/// # Example
-	/// ```nocompile
-	/// // 100_000 credits would incur a fee of:
-	/// // - 10_000 credits at full price: 10_000 * 100 = 1_000_000
-	/// // - 90_000 credits at 5% discount: 90_000 * 95 = 8_550_000
-	/// // Total: 9_550_000
-	/// let fees = calculate_subscription_fees(&100u64);
-	/// assert_eq!(fees, 9_550_000u64.into());
-	/// ```
 	fn calculate_subscription_fees(credits: &u64) -> Balances::Balance {
 		// Define tier boundaries and their respective discount rates (in basis points)
 		const TIERS: [(u64, u64); 5] = [
@@ -143,42 +183,10 @@ where
 	/// then returns:
 	/// - The fee difference amount
 	/// - The direction of the balance transfer (collect from user, release to user, or no change)
-	///
-	/// # Parameters
-	/// * `old_credits`
-	///   - For an update operation, this represents the original requested credits
-	///   - For a kill and collect operation, this is the number of credits left in the subscription
-	/// * `new_credits`
-	///   - For an update operation, this represents the new requested credits
-	///   - For a kill operation, this is 0
-	///   - For a collect operation, this is the actual number of credits consumed
-	///
-	/// # Returns
-	/// A `DiffBalance` struct containing:
-	/// - `balance`: The amount of fees to collect or release
-	/// - `direction`: Whether to collect additional fees, release excess fees, or do nothing
-	///
-	/// # Examples
-	/// ```nocompile
-	/// // When increasing credits, additional fees are collected:
-	/// // Old: 10_000 credits (1_000 fee), New: 50_000 credits (5_000_000 fee)
-	/// let diff = calculate_diff_fees(&10_000, &50_000);
-	/// assert_eq!(diff.balance, 4_000_000);
-	/// assert_eq!(diff.direction, BalanceDirection::Collect);
-	///
-	/// // When decreasing credits, excess fees are released:
-	/// // Old: 100_000 credits (9_550_000 fee), New: 10_000 credits (1_000_000 fee)
-	/// let diff = calculate_diff_fees(&100_000, &10_000);
-	/// assert_eq!(diff.balance, 8_550_000);
-	/// assert_eq!(diff.direction, BalanceDirection::Release);
-	///
-	/// // When credits remain the same, no fee changes occur:
-	/// // Old: 50_000 credits (5_000_000 fee), New: 50_000 credits (5_000_000 fee)
-	/// let diff = calculate_diff_fees(&50_000, &50_000);
-	/// assert_eq!(diff.balance, 0);
-	/// assert_eq!(diff.direction, BalanceDirection::None);
-	/// ```
-	fn calculate_diff_fees(old_credits: &u64, new_credits: &u64) -> DiffBalance<Balances::Balance> {
+	fn calculate_diff_fees(
+		old_credits: &u64,
+		new_credits: &u64,
+	) -> DiffBalanceImpl<Balances::Balance> {
 		let old_fees = Self::calculate_subscription_fees(old_credits);
 		let new_fees = Self::calculate_subscription_fees(new_credits);
 		let mut direction = BalanceDirection::None;
@@ -193,7 +201,7 @@ where
 			},
 			Ordering::Equal => Zero::zero(),
 		};
-		DiffBalance { balance: fees, direction }
+		DiffBalanceImpl { balance: fees, direction }
 	}
 
 	/// Attempts to collect subscription fees from a subscriber and transfer them to the treasury
@@ -204,38 +212,15 @@ where
 	/// 2. Verifies that the full fee amount was successfully collected
 	/// 3. Returns the actual amount collected or an appropriate error
 	///
-	/// # Parameters
-	/// * `fees` - The amount of fees to collect
-	/// * `sub` - The subscription object containing the subscriber account information
-	///
-	/// # Returns
-	/// - `Ok(collected)` - The amount of fees successfully collected and transferred
-	/// - `Err(FeesError)` - If the transfer operation fails
-	///
 	/// # Notes
-	/// - This function uses `transfer_on_hold` which transfers from the subscriber's held balance
-	/// - The fees are held under the `HoldReason::Fees` reason code
-	/// - The transfer uses `Precision::BestEffort` which allows partial transfers if full amount
+	/// - This function uses
+	///   [`transfer_on_hold`](frame_support::traits::tokens::fungible::hold::Mutate::transfer_on_hold)
+	///   which transfers from the subscriber's held balance
+	/// - The fees are held under the [`HoldReason::Fees`] reason code
+	/// - The transfer uses [`Precision::BestEffort`] which allows partial transfers if full amount
 	///   isn't available
 	/// - Despite using best effort, this function will return an error if less than the requested
 	///   amount is collected
-	///
-	/// # Example
-	/// ```nocompile
-	/// let fees = 1_000_000u64.into();
-	/// let result = FeesManagerImpl::<Treasury, BaseFee, Subscription, Balances>::collect_fees(
-	///     &fees,
-	///     &subscription
-	/// );
-	///
-	/// match result {
-	///     Ok(collected) => println!("Successfully collected {} in fees", collected),
-	///     Err(FeesError::NotEnoughBalance { needed, balance }) => {
-	///         println!("Insufficient balance: needed {}, had {}", needed, balance);
-	///     },
-	///     Err(FeesError::Other(err)) => println!("Transfer error: {:?}", err),
-	/// }
-	/// ```
 	fn collect_fees(
 		fees: &Balances::Balance,
 		sub: &S,
@@ -261,28 +246,29 @@ where
 	}
 
 	/// Get the number of credits consumed by a subscription when this one gets a pulse in a block.
-	///
-	/// # Parameters
-	/// * `_sub` - The subscription object
-	///
-	/// # Returns
-	/// The number of credits consumed
 	fn get_consume_credits(_sub: &S) -> u64 {
 		1000
 	}
 
 	/// Get the number of credits consumed by a subscription when this one is idle in a block.
-	///
-	/// # Parameters
-	/// * `_sub` - The subscription object
-	///
-	/// # Returns
-	/// The number of idle credits
 	fn get_idle_credits(_sub: &S) -> u64 {
 		10
 	}
 }
 
+/// A DepositCalculator implementation that uses a configurable deposit multiplier.
+///
+/// This struct is used to calculate the storage deposit required for a subscription. The deposit
+/// amount is calculated by multiplying the encoded size of the subscription data by the storage
+/// deposit multiplier.
+///
+/// # Tests
+///
+/// ## Hold Deposit Test
+#[doc = docify::embed!("./src/tests/pallet.rs", hold_deposit_works)]
+///
+/// ## Release Deposit Test
+#[doc = docify::embed!("./src/tests/pallet.rs", release_deposit_works)]
 pub struct DepositCalculatorImpl<SDMultiplier: Get<Deposit>, Deposit> {
 	pub _phantom: (PhantomData<SDMultiplier>, PhantomData<Deposit>),
 }
@@ -290,8 +276,8 @@ pub struct DepositCalculatorImpl<SDMultiplier: Get<Deposit>, Deposit> {
 impl<
 		S: SubscriptionTrait<AccountId32> + Encode,
 		SDMultiplier: Get<Deposit>,
-		Deposit: Saturating + From<u64> + Ord,
-	> pallet_idn_manager::DepositCalculator<Deposit, S>
+		Deposit: Saturating + From<u64> + Ord + Copy,
+	> DepositCalculator<Deposit, S, DiffBalanceImpl<Deposit>>
 	for DepositCalculatorImpl<SDMultiplier, Deposit>
 {
 	/// Calculate the storage deposit required for a subscription.
@@ -299,28 +285,11 @@ impl<
 	/// This function computes the storage deposit amount based on the encoded size of the
 	/// subscription object multiplied by a configurable deposit multiplier.
 	///
-	/// # Parameters
-	/// * `sub` - The subscription object for which to calculate the storage deposit
-	///
-	/// # Returns
-	/// The amount of deposit required for the subscription's storage
-	///
 	/// # Security Considerations
 	/// This function handles potential overflow scenarios by:
 	/// 1. Converting the encoded size from `usize` to `u64` with fallback to `u64::MAX` if the
 	///    conversion fails
 	/// 2. Using saturating multiplication to prevent arithmetic overflow
-	///
-	/// # Example
-	/// ```nocompile
-	/// let subscription = Subscription {
-	///     // subscription details...
-	/// };
-	///
-	/// // If SDMultiplier is 2 and the subscription encodes to 100 bytes:
-	/// let deposit = DepositCalculatorImpl::<SDMultiplier, u64>::calculate_storage_deposit(&subscription);
-	/// assert_eq!(deposit, 200_000);
-	/// ```
 	fn calculate_storage_deposit(sub: &S) -> Deposit {
 		// [SRLabs] Note: There is a theoretical edge case where if the `Deposit` type (e.g., u64)
 		// is larger than the machine architecture size (e.g., 32-bit platforms), an attacker
@@ -337,46 +306,12 @@ impl<
 	/// This function compares the storage deposit requirements of two subscription states
 	/// and returns the difference along with the direction of the balance adjustment.
 	///
-	/// # Parameters
-	/// * `old_sub` - The original subscription before changes
-	/// * `new_sub` - The updated subscription after changes
-	///
-	/// # Returns
-	/// A `DiffBalance` struct containing:
-	/// - `balance`: The absolute difference between the old and new deposit amounts
-	/// - `direction`: Whether to collect additional deposit, release excess deposit, or make no
-	///   change
-	///
 	/// # How It Works
 	/// 1. Calculates the storage deposit for both the old and new subscription states
 	/// 2. Compares the two deposits to determine if more deposit is needed, some can be released,
 	///    or no change is required
 	/// 3. Returns both the amount and direction of the required deposit adjustment
-	///
-	/// # Example
-	/// ```nocompile
-	/// // When subscription size increases (e.g., metadata added):
-	/// let old_sub = /* subscription with 100 bytes encoded size */;
-	/// let new_sub = /* same subscription with 150 bytes encoded size */;
-	///
-	/// // If SDMultiplier is 2:
-	/// // Old deposit = 2 * 100_000 = 200_000
-	/// // New deposit = 2 * 150_000 = 300_000
-	/// let diff = DepositCalculatorImpl::<SDMultiplier, u64>::calculate_diff_deposit(&old_sub, &new_sub);
-	/// assert_eq!(diff.balance, 100_000); // 300_000 - 200_000 = 100_000 more needed
-	/// assert_eq!(diff.direction, BalanceDirection::Collect);
-	///
-	/// // When subscription size decreases (e.g., metadata removed):
-	/// let old_sub = /* subscription with 150 bytes encoded size */;
-	/// let new_sub = /* same subscription with 100_000 bytes encoded size */;
-	///
-	/// // Old deposit = 2 * 150_000 = 300_000
-	/// // New deposit = 2 * 100_000 = 200_000
-	/// let diff = DepositCalculatorImpl::<SDMultiplier, u64>::calculate_diff_deposit(&old_sub, &new_sub);
-	/// assert_eq!(diff.balance, 100_000); // 300_000 - 200_000 = 100_000 to release
-	/// assert_eq!(diff.direction, BalanceDirection::Release);
-	/// ```
-	fn calculate_diff_deposit(old_sub: &S, new_sub: &S) -> DiffBalance<Deposit> {
+	fn calculate_diff_deposit(old_sub: &S, new_sub: &S) -> DiffBalanceImpl<Deposit> {
 		let old_deposit = Self::calculate_storage_deposit(old_sub);
 		let new_deposit = Self::calculate_storage_deposit(new_sub);
 		let direction = match new_deposit.cmp(&old_deposit) {
@@ -384,6 +319,6 @@ impl<
 			Ordering::Less => BalanceDirection::Release,
 			Ordering::Equal => BalanceDirection::None,
 		};
-		DiffBalance { balance: new_deposit.saturating_sub(old_deposit), direction }
+		DiffBalanceImpl { balance: new_deposit.saturating_sub(old_deposit), direction }
 	}
 }

@@ -288,6 +288,10 @@ pub mod pallet {
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
 
 			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
+<<<<<<< HEAD
+=======
+
+>>>>>>> main
 			// 0 < num_sigs <= MaxSigsPerBlock
 			let height: u64 = sigs.len() as u64;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
