@@ -247,7 +247,7 @@ impl GossipsubNetwork {
 	/// * `topic_str`: The gossipsub topic to subscribe to.
 	async fn subscribe(&mut self, topic_str: &str) -> Result<(), Error> {
 		let topic = IdentTopic::new(topic_str);
-		// *SRLabs: The error can never be encountered
+		// [SRLabs]: The error can never be encountered
 		// Q: Can we use an expect, or is this unsafe?
 		// Ref: https://docs.rs/libpp-gossipsub/0.48.0/src/libp2p_gossipsub/behaviour.rs.html#532
 		// The error can only occur if the subscription filter rejects it, but we specify no filter.
@@ -451,7 +451,9 @@ mod tests {
 	#[tokio::test]
 	async fn test_can_build_new_drand_receiver() {
 		let (tx, rx) = tracing_unbounded("test", 10000);
-		let receiver = DrandReceiver::new(rx);
+		let (prune_tx, prune_rx) = tracing_unbounded("testprune", 10000);
+
+		let receiver = DrandReceiver::new(rx, prune_rx);
 
 		let pulse = Pulse {
 			round: 14475418,
@@ -476,7 +478,9 @@ mod tests {
 	#[tokio::test]
 	async fn test_can_prune_drand_receiver() {
 		let (tx, rx) = tracing_unbounded("test", 10000);
-		let receiver = DrandReceiver::new(rx);
+		let (prune_tx, prune_rx) = tracing_unbounded("testprune", 10000);
+
+		let receiver = DrandReceiver::new(rx, prune_rx);
 
 		let pulse = Pulse {
 			round: 1000,
@@ -501,11 +505,9 @@ mod tests {
 		// write an opaque pulse
 		tx.unbounded_send(opaque.clone()).unwrap();
 		tx.unbounded_send(opaque2.clone()).unwrap();
-
+		// prune pulses with round number under 1001
+		prune_tx.unbounded_send(1001).unwrap();
 		sleep(Duration::from_secs(1)).await;
-
-		receiver.prune(1001).await;
-
 		let actual = receiver.take().await;
 		assert_eq!(actual.len(), 1, "There should be one opaque pulse in the vec");
 		assert_eq!(actual[0], opaque2);
