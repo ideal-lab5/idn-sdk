@@ -12,6 +12,9 @@ Current version for development: 1.3.128
 #### Add the parachain binaries to your path
 `export PATH=/path/to/your/idn-sdk/e2e:$PATH`
 
+### Build the Kitchen Sink Node by navigating to the kitchensink directory and running
+`cargo build -p idn-sdk-kitchensink-node --release`
+
 #### To run the zombienet
 `zombienet -p native spawn your_config_file.toml`
 
