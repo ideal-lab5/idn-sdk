@@ -195,30 +195,23 @@ pub mod pallet {
 			sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			// if we do not find any pulse data, then do nothing
-			let mut sigs: Vec<OpaqueSignature> = Vec::new();
 			if let Some(config) = BeaconConfig::<T>::get() {
 				if let Ok(Some(raw_pulses)) =
 					data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 				{
 					// ignores non-deserializable messages and pulses with invalid signature lengths
 					//  ignores rounds less than the genesis round
-					sigs = raw_pulses
+					let sigs = raw_pulses
 						.iter()
 						.filter_map(|rp| OpaquePulse::deserialize_from_vec(rp).ok())
 						.filter(|op| op.round >= config.genesis_round)
 						.map(|op| OpaqueSignature::truncate_from(op.signature.as_slice().to_vec()))
 						.collect::<Vec<_>>();
+					return Some(Call::try_submit_asig { sigs });
 				}
-			} else {
-				log::info!(
-					target: LOG_TARGET,
-					"We observed pulses but there is no genesis round set.",
-				);
-				return None;
 			}
 
-			Some(Call::try_submit_asig { sigs })
+			None
 		}
 
 		fn check_inherent(call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
@@ -263,7 +256,9 @@ pub mod pallet {
 					}
 
 					let _ = blocks.try_push(n).map_err(|e| {
-						log::error!(target: LOG_TARGET, "Failed to update historic missed blocks for block number {:?} due to {:?}", n, e)
+						log::error!(
+							target: LOG_TARGET, 
+							"Failed to update historic missed blocks for block number {:?} due to {:?}", n, e)
 					});
 				});
 			}

@@ -265,8 +265,8 @@ impl GossipsubNetwork {
 							if let Err(e) = self.sender.unbounded_send(pulse.clone()) {
 								log::error!(target: LOG_TARGET, "Unable to send message to the queue. err = {}", e);
 							}
-						}, 
-						
+						},
+
 						Err(_) => {
 							// handle non-decodable messages: https://github.com/ideal-lab5/idn-sdk/issues/60
 							log::info!(target: LOG_TARGET, "A message was encountered but we could not decode it!");
