@@ -25,7 +25,7 @@ echo -e "\033[1;34m📦 Weights output to: \033[1;37m$out_dir\033[0m"
 echo -e "\033[1;35m══════════════════════════════════════════════\033[0m"
 
 frame-omni-bencher v1 benchmark pallet \
-    --runtime ../../target/release/wbuild/idn-sdk-kitchensink-runtime/idn_sdk_kitchensink_runtime.compact.compressed.wasm \
+    --runtime ../../../target/release/wbuild/idn-sdk-kitchensink-runtime/idn_sdk_kitchensink_runtime.compact.compressed.wasm \
     --pallet $1 \
     --extrinsic "" \
     --template ./weight-template.hbs \
