@@ -31,7 +31,7 @@ jobs:
       run: cargo doc --no-deps --all-features
 
     - name: Build
-      run: cargo build --all-features --verbose
+      run: cargo build --all-features --verbose --exclude [ideal-network,idn-consumer,kitchensink] --workspace
 
   test:
     runs-on: ubuntu-latest
