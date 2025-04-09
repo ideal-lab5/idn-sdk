@@ -41,8 +41,7 @@ mod tests {
 	fn encode_decode_latest_round_number() {
 		let original_log = ConsensusLog::LatestRoundNumber(42);
 		let encoded = original_log.encode();
-		let decoded = ConsensusLog::decode(&mut &encoded[..])
-			.expect("Decoding should succeed");
+		let decoded = ConsensusLog::decode(&mut &encoded[..]).expect("Decoding should succeed");
 
 		assert_eq!(original_log, decoded);
 	}
@@ -54,8 +53,8 @@ mod tests {
 
 		// Ensure it's a DigestItem::Other and decode it back
 		if let DigestItem::Other(data) = digest_item {
-			let decoded_log = ConsensusLog::decode(&mut &data[..])
-				.expect("Should decode back to ConsensusLog");
+			let decoded_log =
+				ConsensusLog::decode(&mut &data[..]).expect("Should decode back to ConsensusLog");
 			assert_eq!(original_log, decoded_log);
 		} else {
 			panic!("Expected DigestItem::Other variant");

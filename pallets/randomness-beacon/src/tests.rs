@@ -15,8 +15,8 @@
  */
 
 use crate::{
-	mock::*, types::*, verifier::test::*, AggregatedSignature, BeaconConfig, Call, Error,
-	LatestRound, MissedBlocks,
+	mock::*, types::*, verifier::test::*, weights::WeightInfo, AggregatedSignature, BeaconConfig,
+	Call, Error, LatestRound, MissedBlocks,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 use frame_system::pallet_prelude::BlockNumberFor;
@@ -190,6 +190,17 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 
 		let actual_latest = LatestRound::<Test>::get();
 		assert_eq!(1002, actual_latest.unwrap());
+	});
+}
+
+use frame_support::traits::OnInitialize;
+
+#[test]
+fn can_call_on_initialize() {
+	new_test_ext().execute_with(|| {
+		let weight = Drand::on_initialize(0);
+		let expected = <() as WeightInfo>::on_finalize();
+		assert_eq!(weight, expected);
 	});
 }
 

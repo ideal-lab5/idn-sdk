@@ -22,7 +22,7 @@ pub(crate) mod tests {
 		BlockCheckParams, ImportResult, ImportedAux,
 	};
 	use sp_consensus::{BlockOrigin, Error as ClientError};
-	use sp_runtime::testing::{H256, Header};
+	use sp_runtime::testing::{Header, H256};
 
 	use sp_consensus_randomness_beacon::digest::ConsensusLog;
 	use sp_runtime::generic::DigestItem;
@@ -79,9 +79,9 @@ pub(crate) mod tests {
 		let parent_hash = H256::repeat_byte(2);
 
 		let params = BlockCheckParams {
-			hash: hash,
+			hash,
 			number: 1,
-			parent_hash: parent_hash,
+			parent_hash,
 			allow_missing_state: false,
 			allow_missing_parent: false,
 			import_existing: false,

@@ -21,7 +21,6 @@
 //! This is a thin wrapper around existing block import logic that attempts to parse
 //! a block header's digest logs on import and decode it to a 'latest round number', a u64.
 //! When successful, the message is pushed to an mpsc channel.
-//!
 
 use sc_consensus::block_import::{BlockImport, BlockImportParams};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver, TracingUnboundedSender};
