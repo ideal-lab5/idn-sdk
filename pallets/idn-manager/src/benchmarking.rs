@@ -17,13 +17,16 @@
 //! Benchmarking setup for pallet-template
 
 use super::*;
-use crate::{pallet::Pallet as IdnManager, CreateSubParamsOf, PulsePropertyOf, UpdateSubParamsOf};
+use crate::{
+	pallet::Pallet as IdnManager, primitives::PulsePropertyOf, CreateSubParamsOf, UpdateSubParamsOf,
+};
 use frame_benchmarking::v2::*;
 use frame_support::{
 	traits::{fungible::Mutate, OriginTrait},
 	BoundedVec,
 };
 use frame_system::RawOrigin;
+use xcm::v5::prelude::Junction;
 
 #[benchmarks(
     where
@@ -35,7 +38,7 @@ mod benchmarks {
 	use super::*;
 
 	#[benchmark]
-	fn create_subscription(l: Linear<0, { T::PulseFilterLen::get() }>) {
+	fn create_subscription(l: Linear<0, { T::MaxPulseFilterLen::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits = 100u64.into();
@@ -48,8 +51,9 @@ mod benchmarks {
 		let pulse_filter = if l == 0 {
 			None
 		} else {
-			let pulse_filter_vec =
-				(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+			let pulse_filter_vec = (0..l)
+				.map(|_| PulsePropertyOf::<<T as pallet::Config>::Pulse>::Round(1u64.into()))
+				.collect::<Vec<_>>();
 			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
 		};
 
@@ -156,8 +160,8 @@ mod benchmarks {
 
 	#[benchmark]
 	fn update_subscription(
-		l: Linear<0, { T::PulseFilterLen::get() }>,
-		m: Linear<0, { T::SubMetadataLen::get() }>,
+		l: Linear<0, { T::MaxPulseFilterLen::get() }>,
+		m: Linear<0, { T::MaxMetadataLen::get() }>,
 	) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
@@ -201,8 +205,9 @@ mod benchmarks {
 		let new_pulse_filter = if l == 0 {
 			None
 		} else {
-			let pulse_filter_vec =
-				(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+			let pulse_filter_vec = (0..l)
+				.map(|_| PulsePropertyOf::<<T as pallet::Config>::Pulse>::Round(1u64.into()))
+				.collect::<Vec<_>>();
 			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
 		};
 
