@@ -48,7 +48,7 @@ jobs:
 
     - name: Run Tests
       run: |
-        cargo +nightly llvm-cov --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --workspace --all-features --doctests \
+        cargo +nightly llvm-cov --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace --all-features --doctests \
           --cobertura --output-path cobertura.xml \
           --ignore-filename-regex "(kitchensink|idn-consumer|ideal-network|benchmarking|weights)"
 
