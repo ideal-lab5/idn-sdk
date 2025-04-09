@@ -20,8 +20,6 @@ codec.workspace = true
 prost.workspace = true
 scale-info.workspace = true
 serde = { workspace = true, features = ["derive"] }
-# sp-blockchain.workspace = true
-# sp-consensus.workspace = true
 sp-core.workspace = true
 sp-inherents.workspace = true
 sp-runtime.workspace = true

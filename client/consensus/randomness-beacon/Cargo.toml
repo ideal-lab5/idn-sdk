@@ -42,7 +42,9 @@ ark-serialize.workspace = true
 async-std = "=1.13.0"
 rand = "=0.8.5"
 tokio.workspace = true
- 
+sc-block-builder.workspace = true
+sc-service.workspace = true
+
 [features]
 e2e = []
 host-arkworks = ["sp-ark-bls12-381/std"]

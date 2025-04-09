@@ -84,6 +84,7 @@ pallet-balances = { version = "=40.0.0", default-features = false }
 pallet-xcm = { version = "=18.0.0", default-features = false }
 polkadot-sdk = { version = "=0.12.0", default-features = false }
 sc-basic-authorship = { version = "=0.48.0", default-features = false }
+sc-block-builder = { version = "*", default-features = false }
 sc-cli = { version = "=0.50.0", default-features = false }
 sc-client-api = { version = "=38.0.0", default-features = false }
 sc-consensus = { version = "=0.47.0", default-features = false }
@@ -145,3 +146,4 @@ sp-idn-traits = { path = "./primitives/traits", default-features = false }
 sp-idn-types = { path = "./primitives/types", default-features = false }
 idn-sdk-kitchensink-runtime = { path = "./kitchensink/runtime" }
 idn-sdk-kitchensink-node = { path = "./kitchensink/node" }
+    

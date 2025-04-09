@@ -109,7 +109,7 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-const LOG_TARGET: &'static str = "pallet-randomness-beacon";
+const LOG_TARGET: &str = "pallet-randomness-beacon";
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -256,9 +256,7 @@ pub mod pallet {
 					}
 
 					let _ = blocks.try_push(n).map_err(|e| {
-						log::error!(
-							target: LOG_TARGET, 
-							"Failed to update historic missed blocks for block number {:?} due to {:?}", n, e)
+						log::error!(target: LOG_TARGET, "Failed to update historic missed blocks for block number {:?} due to {:?}", n, e)
 					});
 				});
 			}
@@ -333,7 +331,7 @@ pub mod pallet {
 			BeaconConfig::<T>::set(Some(config.clone()));
 
 			let genesis = config.genesis_round;
-			LatestRound::<T>::set(Some(genesis.clone()));
+			LatestRound::<T>::set(Some(genesis));
 			// set the genesis round as the default digest log for the initial valid round number
 			let digest_item: DigestItem = ConsensusLog::LatestRoundNumber(genesis).into();
 			<frame_system::Pallet<T>>::deposit_log(digest_item);

@@ -123,7 +123,6 @@ impl DrandReceiver {
 
 		let pulses = Arc::new(Mutex::new(Vec::new()));
 		let pulses_clone = pulses.clone();
-		let pulses_clone_clone = pulses_clone.clone();
 		// start a thread that writes new pulses to storage
 		tokio::spawn(async move {
 			while let Some(pulse) = rx.next().await {
@@ -451,7 +450,7 @@ mod tests {
 	#[tokio::test]
 	async fn test_can_build_new_drand_receiver() {
 		let (tx, rx) = tracing_unbounded("test", 10000);
-		let (prune_tx, prune_rx) = tracing_unbounded("testprune", 10000);
+		let (_prune_tx, prune_rx) = tracing_unbounded("testprune", 10000);
 
 		let receiver = DrandReceiver::new(rx, prune_rx);
 

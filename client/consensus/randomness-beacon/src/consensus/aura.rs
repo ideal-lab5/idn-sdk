@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{block_import::PruningBlockImport, gossipsub::DrandReceiver};
+use crate::{block_import::LatestRoundNotifier, gossipsub::DrandReceiver};
 use prometheus_endpoint::Registry;
 use sc_consensus::{
 	block_import::{BlockImportParams, ForkChoiceStrategy},

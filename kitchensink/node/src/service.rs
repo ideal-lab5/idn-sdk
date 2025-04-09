@@ -15,7 +15,7 @@
  */
 
 use crate::cli::Consensus;
-use futures::{FutureExt, StreamExt};
+use futures::FutureExt;
 use idn_sdk_kitchensink_runtime::{interface::OpaqueBlock as Block, RuntimeApi};
 use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair, Multiaddr};
 use sc_client_api::backend::Backend;
@@ -27,7 +27,6 @@ use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 type HostFunctions = sp_io::SubstrateHostFunctions;
 
@@ -128,7 +127,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 			transaction_pool,
 			other: mut telemetry,
 		},
-		mut latest_round_rx,
+		latest_round_rx,
 	) = new_partial(&config)?;
 
 	let net_config = sc_network::config::FullNetworkConfiguration::<

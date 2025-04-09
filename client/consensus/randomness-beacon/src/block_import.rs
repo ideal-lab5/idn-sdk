@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
-use crate::gossipsub::DrandReceiver;
+//! Custom Block Import Logic
+//!
+//! # Overview
+//!
+//! This is a thin wrapper around existing block import logic that attempts to parse
+//! a block header's digest logs on import and decode it to a 'latest round number', a u64.
+//! When successful, the message is pushed to an mpsc channel.
+//!
+
 use sc_consensus::block_import::{BlockImport, BlockImportParams};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver, TracingUnboundedSender};
 use sp_consensus::Error as ClientError;
@@ -24,15 +32,18 @@ use sp_runtime::{
 	traits::{Block as BlockT, Header as HeaderT},
 };
 
+/// The name of the channel tracking the latest round
 const LATEST_ROUND_IMPORT_CHANNEL: &str = "LatestRoundImportChannel";
 
-/// Custom wrapper to prune local storage based on digest log
-pub struct PruningBlockImport<BI> {
+/// Custom wrapper to send header digest logs to an mpsc channel
+pub struct LatestRoundNotifier<BI> {
+	/// The inner block import logioc
 	inner: BI,
+	/// A queue to send the latest round extracted from header digest logs
 	sender: TracingUnboundedSender<u64>,
 }
 
-impl<BI> PruningBlockImport<BI> {
+impl<BI> LatestRoundNotifier<BI> {
 	/// Create a new instance
 	pub fn new(inner: BI) -> (Self, TracingUnboundedReceiver<u64>) {
 		let (sender, receiver) = tracing_unbounded(LATEST_ROUND_IMPORT_CHANNEL, 1000);
@@ -41,7 +52,7 @@ impl<BI> PruningBlockImport<BI> {
 }
 
 #[async_trait::async_trait]
-impl<Block, BI> BlockImport<Block> for PruningBlockImport<BI>
+impl<Block, BI> BlockImport<Block> for LatestRoundNotifier<BI>
 where
 	Block: BlockT,
 	BI: BlockImport<Block> + Send + Sync,
@@ -49,6 +60,7 @@ where
 {
 	type Error = ClientError;
 
+	/// pass-through to innner check_block logic
 	async fn check_block(
 		&self,
 		block: sc_consensus::BlockCheckParams<Block>,
@@ -56,6 +68,8 @@ where
 		self.inner.check_block(block).await.map_err(Into::into)
 	}
 
+	/// Extracts a round number from the digest log if it exists
+	/// and then pass-through to inner import_block logic
 	async fn import_block(
 		&self,
 		params: BlockImportParams<Block>,
@@ -70,7 +84,7 @@ where
 			let _ = self.sender.unbounded_send(round);
 		}
 
-		// Proceed with the inner block import
+		// Proceed with the inner block import as usual
 		self.inner.import_block(params).await.map_err(Into::into)
 	}
 }

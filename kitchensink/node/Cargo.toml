@@ -38,7 +38,7 @@ sc-transaction-pool-api = { workspace = true, default-features = false }
 sc-network = { workspace = true, default-features = false }
 sc-utils = { workspace = true, default-features = false }
 sp-api = { workspace = true, default-features = false }
-sp-blockchain = { workspace = true, default-features = false }
+sp-blockchain = { workspace = true }
 sp-block-builder = { workspace = true, default-features = false }
 sp-consensus-randomness-beacon = { workspace = true, default-features = false }
 sp-genesis-builder = { workspace = true, default-features = false }
