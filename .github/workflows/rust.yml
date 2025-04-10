@@ -34,7 +34,7 @@ jobs:
       run: cargo build --all-features --verbose --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace
       
   build_chains:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-m
 
     steps:
       - name: Checkout code
