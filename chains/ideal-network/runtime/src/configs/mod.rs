@@ -1,32 +1,24 @@
-// This is free and unencumbered software released into the public domain.
-//
-// Anyone is free to copy, modify, publish, use, compile, sell, or
-// distribute this software, either in source code form or as a compiled
-// binary, for any purpose, commercial or non-commercial, and by any
-// means.
-//
-// In jurisdictions that recognize copyright laws, the author or authors
-// of this software dedicate any and all copyright interest in the
-// software to the public domain. We make this dedication for the benefit
-// of the public at large and to the detriment of our heirs and
-// successors. We intend this dedication to be an overt act of
-// relinquishment in perpetuity of all present and future rights to this
-// software under copyright law.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-// IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-// OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-// OTHER DEALINGS IN THE SOFTWARE.
-//
-// For more information, please refer to <http://unlicense.org>
+/*
+ * Copyright 2025 by Ideal Labs, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #[path = "xcm.rs"]
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
+use crate::types::Pulse;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -43,13 +35,17 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
+use pallet_idn_manager::{
+	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
+	BalanceOf, SubscriptionOf,
+};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
 use polkadot_runtime_common::{
 	xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::Perbill;
+use sp_runtime::{AccountId32, Perbill};
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
 
@@ -306,4 +302,33 @@ impl pallet_collator_selection::Config for Runtime {
 	type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
 	type ValidatorRegistration = Session;
 	type WeightInfo = (); // Configure based on benchmarking results.
+}
+
+parameter_types! {
+	pub const MaxSubscriptionDuration: u64 = 100;
+	pub const IdnManagerPalletId: PalletId = PalletId(*b"idn_mngr");
+	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
+	pub const BaseFee: u64 = 10;
+	pub const SDMultiplier: u64 = 10;
+	pub const MaxPulseFilterLen: u32 = 100;
+	pub const MaxSubscriptions: u32 = 1_000_000;
+	pub const MaxMetadataLen: u32 = 8;
+}
+
+impl pallet_idn_manager::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
+	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u128>;
+	type PalletId = IdnManagerPalletId;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type Pulse = Pulse;
+	type WeightInfo = ();
+	type Xcm = ();
+	type MaxMetadataLen = MaxMetadataLen;
+	type Credits = u64;
+	type MaxPulseFilterLen = MaxPulseFilterLen;
+	type MaxSubscriptions = MaxSubscriptions;
+	type SubscriptionId = [u8; 32];
+	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
 }

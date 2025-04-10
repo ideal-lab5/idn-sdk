@@ -25,11 +25,8 @@ use crate::{
 	BalanceOf, SubscriptionOf,
 };
 use codec::Encode;
-use frame_support::{
-	construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage, traits::Get,
-};
+use frame_support::{construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage};
 use frame_system as system;
-use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{Block as BlockT, IdentityLookup},
 	AccountId32,
@@ -67,15 +64,7 @@ parameter_types! {
 	pub const SDMultiplier: u64 = 10;
 	pub const MaxPulseFilterLen: u32 = 100;
 	pub const MaxSubscriptions: u32 = 100;
-}
-
-#[derive(TypeInfo)]
-pub struct MaxMetadataLen;
-
-impl Get<u32> for MaxMetadataLen {
-	fn get() -> u32 {
-		8
-	}
+	pub const MaxMetadataLen: u32 = 8;
 }
 
 type Rand = [u8; 32];
