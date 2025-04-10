@@ -27,7 +27,7 @@ pub mod apis;
 mod benchmarks;
 pub mod configs;
 mod genesis_config_presets;
-pub mod types;
+pub mod primitives;
 mod weights;
 
 extern crate alloc;
@@ -312,6 +312,8 @@ mod runtime {
 	pub type MessageQueue = pallet_message_queue::Pallet<Runtime>;
 
 	// IDN
+	// This index should be the same as the one defined in the
+	// [`crate::primitives::Call::IdnManager`]
 	#[runtime::pallet_index(40)]
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
 }

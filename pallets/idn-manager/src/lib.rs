@@ -40,19 +40,7 @@
 //! - Removed from storage
 //! - Storage deposit returned
 //! - Unused credits refunded to the origin
-//!
-//! ## Pulse Filtering Security
-// [SRLABS]
-//! ### Overview
-//! Subscribers can specify filters to receive only pulses that match specific criteria. For
-//! security reasons, we only allow filtering by round numbers and prohibit filtering by
-//! randomness values.
-//!
-//! ### Security Concern
-//! If filtering by pulses were allowed, a subscriber could potentially:
-//! - Set up filters to only receive specific randomness patterns
-//! - Game the system by cherry-picking favorable pulses
-//! - Undermine the fairness and unpredictability of the randomness distribution
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
@@ -294,15 +282,18 @@ pub mod pallet {
 		type PalletId: Get<frame_support::PalletId>;
 
 		/// Maximum metadata size
+		#[pallet::constant]
 		type MaxMetadataLen: Get<u32>;
 
 		/// Maximum Pulse Filter size
+		#[pallet::constant]
 		type MaxPulseFilterLen: Get<u32>;
 
 		/// A type to define the amount of credits in a subscription
 		type Credits: Unsigned + Codec + TypeInfo + MaxEncodedLen + Debug + Saturating + Copy;
 
 		/// Maximum number of subscriptions allowed
+		#[pallet::constant]
 		type MaxSubscriptions: Get<u32>;
 
 		/// Subscription ID type
