@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{block_import::LatestRoundNotifier, gossipsub::DrandReceiver};
+use crate::block_import::LatestRoundNotifier;
 use prometheus_endpoint::Registry;
 use sc_consensus::{
 	block_import::{BlockImportParams, ForkChoiceStrategy},
@@ -46,7 +46,7 @@ pub fn import_queue<P, Block, I, C, S, CIDP>(
 		telemetry,
 		compatibility_mode,
 	}: ImportQueueParams<Block, I, C, S, CIDP>,
-) -> Result<DefaultImportQueue<Block>, sp_consensus::Error>
+) -> Result<(DefaultImportQueue<Block>, TracingUnboundedReceiver<u64>), sp_consensus::Error>
 where
 	Block: BlockT,
 	C::Api: BlockBuilderApi<Block> + AuraApi<Block, AuthorityId<P>> + ApiExt<Block>,
@@ -74,5 +74,32 @@ where
 		compatibility_mode,
 	});
 
-	Ok(BasicQueue::new(verifier, Box::new(block_import), justification_import, spawner, registry))
+	let (block_import, rx) = LatestRoundNotifier::new(block_import);
+
+	Ok((
+		BasicQueue::new(verifier, Box::new(block_import), justification_import, spawner, registry),
+		rx,
+	))
+}
+
+#[cfg(test)]
+mod tests {
+
+	use super::*;
+	use crate::tests::tests::{Block, DummyBlockImport};
+	use sc_consensus::block_import::BlockImportParams;
+	use sp_consensus::BlockOrigin;
+	use sp_core::testing::TaskExecutor;
+	use sp_runtime::testing::Header;
+
+	#[test]
+	fn test_can_build_import_queue() {
+		let block_import = Box::new(DummyBlockImport) as BoxBlockImport<Block>;
+		let spawner = TaskExecutor::new();
+
+		let (queue, rx) = import_queue::<Block>(block_import, &spawner, None);
+
+		assert!(std::mem::size_of_val(&queue) > 0);
+		assert!(rx.len() == 0);
+	}
 }
