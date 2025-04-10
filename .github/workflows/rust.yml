@@ -33,8 +33,8 @@ jobs:
     - name: Build
       run: cargo build --all-features --verbose --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace
       
-  build_chains:
-    runs-on: ubuntu-latest-m
+  build_idn_kitchen_sink:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -43,14 +43,52 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-rust
 
-      - name: Run cargo clippy for chains
-        run: cargo clippy --all-features -p idn-sdk-kitchensink-runtime -p idn-sdk-kitchensink-node -p idn-node -p idn-runtime -- -D warnings
+      - name: Run cargo clippy
+        run: cargo clippy --all-features -p idn-sdk-kitchensink-node -- -D warnings
 
       - name: Run cargo doc for chains
-        run: cargo doc --no-deps --all-features -p idn-sdk-kitchensink-runtime -p idn-sdk-kitchensink-node -p idn-consumer-runtime -p idn-consumer-node -p idn-runtime -p idn-node
+        run: cargo doc --no-deps --all-features -p idn-sdk-kitchensink-node
         
       - name: Build
-        run: cargo build --all-features --verbose -p idn-sdk-kitchensink-runtime -p idn-sdk-kitchensink-node -p idn-consumer-runtime -p idn-consumer-node -p idn-runtime -p idn-node
+        run: cargo build --all-features --verbose -p idn-sdk-kitchensink-node
+
+    build_idn_consumer:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-rust
+
+      - name: Run cargo clippy
+        run: cargo clippy --all-features -p idn-consumer-node -- -D warnings
+
+      - name: Run cargo doc for chains
+        run: cargo doc --no-deps --all-features -p idn-consumer-node
+        
+      - name: Build
+        run: cargo build --all-features --verbose -p idn-consumer-node
+    
+    build_idn:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-rust
+
+      - name: Run cargo clippy
+        run: cargo clippy --all-features -p idn-node -- -D warnings
+
+      - name: Run cargo doc for chains
+        run: cargo doc --no-deps --all-features -p idn-node
+        
+      - name: Build
+        run: cargo build --all-features --verbose -p idn-node
 
   test:
     runs-on: ubuntu-latest
