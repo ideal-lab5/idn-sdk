@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 #[ink::contract]
@@ -22,8 +22,8 @@ mod example_consumer {
 		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, IdnPulse, RandomnessReceiver,
 		Result, SubscriptionId, UpdateSubParams,
 	};
-	use idn_traits::pulse::Pulse;
 	use ink::prelude::vec::Vec;
+	use sp_idn_traits::pulse::Pulse;
 
 	/// The Example Consumer contract demonstrates how to use the IDN Client
 	/// to interact with the IDN Network for randomness subscriptions.
@@ -80,7 +80,8 @@ mod example_consumer {
 		/// # Arguments
 		///
 		/// * `ideal_network_para_id` - The parachain ID of the Ideal Network
-		/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet on the IDN Network
+		/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet on the IDN
+		///   Network
 		/// * `destination_para_id` - The parachain ID where this contract is deployed
 		/// * `contracts_pallet_index` - The contracts pallet index on the destination chain
 		#[ink(constructor)]

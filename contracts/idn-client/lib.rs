@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 #[cfg(not(feature = "std"))]
@@ -30,7 +30,7 @@ use alloc::sync::Arc;
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
-use idn_traits::pulse::Pulse;
+use sp_idn_traits::pulse::Pulse;
 
 /// Default pallet index for the IDN Manager pallet
 /// This can be overridden during implementation with specific values
@@ -82,8 +82,10 @@ impl From<EnvError> for Error {
 		match env_error {
 			EnvError::ReturnError(ReturnErrorCode::XcmExecutionFailed) => Error::XcmExecutionFailed,
 			EnvError::ReturnError(ReturnErrorCode::XcmSendFailed) => Error::XcmSendFailed,
-			EnvError::ReturnError(code) => Error::EnvError(code as u32), // all other errors with ReturnErrorCode
-			_ => Error::EnvError(u32::MAX), // Use MAX for unknown errors (those without ReturnErrorCode)
+			EnvError::ReturnError(code) => Error::EnvError(code as u32), /* all other errors
+			                                                               * with ReturnErrorCode */
+			_ => Error::EnvError(u32::MAX), /* Use MAX for unknown errors (those without
+			                                 * ReturnErrorCode) */
 		}
 	}
 }
@@ -163,10 +165,7 @@ pub trait IdnClient {
 	/// * `Error::TooManySubscriptions` - If the IDN network has reached its maximum subscription
 	///   capacity
 	/// * `Error::XcmSendFailed` - If there was a problem sending the XCM message
-	fn create_subscription(
-		&mut self,
-		params: CreateSubParams,
-	) -> Result<SubscriptionId>;
+	fn create_subscription(&mut self, params: CreateSubParams) -> Result<SubscriptionId>;
 
 	/// Pauses an active subscription
 	///
@@ -177,10 +176,7 @@ pub trait IdnClient {
 	/// # Returns
 	///
 	/// * `Result<()>` - Success or error
-	fn pause_subscription(
-		&mut self,
-		subscription_id: SubscriptionId,
-	) -> Result<()>;
+	fn pause_subscription(&mut self, subscription_id: SubscriptionId) -> Result<()>;
 
 	/// Reactivates a paused subscription
 	///
@@ -191,10 +187,7 @@ pub trait IdnClient {
 	/// # Returns
 	///
 	/// * `Result<()>` - Success or error
-	fn reactivate_subscription(
-		&mut self,
-		subscription_id: SubscriptionId,
-	) -> Result<()>;
+	fn reactivate_subscription(&mut self, subscription_id: SubscriptionId) -> Result<()>;
 
 	/// Updates an existing subscription
 	///
@@ -205,10 +198,7 @@ pub trait IdnClient {
 	/// # Returns
 	///
 	/// * `Result<()>` - Success or error
-	fn update_subscription(
-		&mut self,
-		params: UpdateSubParams,
-	) -> Result<()>;
+	fn update_subscription(&mut self, params: UpdateSubParams) -> Result<()>;
 
 	/// Cancels an active subscription
 	///
@@ -219,10 +209,7 @@ pub trait IdnClient {
 	/// # Returns
 	///
 	/// * `Result<()>` - Success or error
-	fn kill_subscription(
-		&mut self,
-		subscription_id: SubscriptionId,
-	) -> Result<()>;
+	fn kill_subscription(&mut self, subscription_id: SubscriptionId) -> Result<()>;
 }
 
 /// Trait for contracts that receive randomness from the IDN Network
@@ -283,53 +270,53 @@ impl Pulse for IdnPulse {
 #[derive(Clone, Copy, Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
 pub struct IdnClientImpl {
-    /// Pallet index for the IDN Manager pallet
-    pub idn_manager_pallet_index: u8,
-    /// Parachain ID of the IDN network
-    pub ideal_network_para_id: u32,
+	/// Pallet index for the IDN Manager pallet
+	pub idn_manager_pallet_index: u8,
+	/// Parachain ID of the IDN network
+	pub ideal_network_para_id: u32,
 }
 
 impl Default for IdnClientImpl {
-    fn default() -> Self {
-        Self {
-            idn_manager_pallet_index: DEFAULT_IDN_MANAGER_PALLET_INDEX,
-            ideal_network_para_id: 1000, // Default parachain ID, clients should override this
-        }
-    }
+	fn default() -> Self {
+		Self {
+			idn_manager_pallet_index: DEFAULT_IDN_MANAGER_PALLET_INDEX,
+			ideal_network_para_id: 1000, // Default parachain ID, clients should override this
+		}
+	}
 }
 
 impl IdnClientImpl {
-    /// Creates a new IdnClientImpl with the specified IDN Manager pallet index and parachain ID
-    ///
-    /// # Arguments
-    ///
-   /// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet
-    /// * `ideal_network_para_id` - The parachain ID of the IDN network
-    pub fn new(idn_manager_pallet_index: u8, ideal_network_para_id: u32) -> Self {
-        Self { idn_manager_pallet_index, ideal_network_para_id }
-    }
+	/// Creates a new IdnClientImpl with the specified IDN Manager pallet index and parachain ID
+	///
+	/// # Arguments
+	///
+	/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet
+	/// * `ideal_network_para_id` - The parachain ID of the IDN network
+	pub fn new(idn_manager_pallet_index: u8, ideal_network_para_id: u32) -> Self {
+		Self { idn_manager_pallet_index, ideal_network_para_id }
+	}
 
-    /// Gets the pallet index for the IDN Manager pallet
-    pub fn get_idn_manager_pallet_index(&self) -> u8 {
-        self.idn_manager_pallet_index
-    }
+	/// Gets the pallet index for the IDN Manager pallet
+	pub fn get_idn_manager_pallet_index(&self) -> u8 {
+		self.idn_manager_pallet_index
+	}
 
-    /// Gets the parachain ID of the IDN network
-    pub fn get_ideal_network_para_id(&self) -> u32 {
-        self.ideal_network_para_id
-    }
+	/// Gets the parachain ID of the IDN network
+	pub fn get_ideal_network_para_id(&self) -> u32 {
+		self.ideal_network_para_id
+	}
 
-    /// Creates a target location for a contract on a parachain
-    ///
-    /// # Arguments
-    ///
-    /// * `destination_para_id` - The parachain ID where the contract is deployed
-    /// * `contracts_pallet_index` - The index of the contracts pallet on the destination chain
-    /// * `contract_account_id` - The account ID of the contract
-    ///
-    /// # Returns
-    ///
-    /// * A MultiLocation targeting the contract via XCM
+	/// Creates a target location for a contract on a parachain
+	///
+	/// # Arguments
+	///
+	/// * `destination_para_id` - The parachain ID where the contract is deployed
+	/// * `contracts_pallet_index` - The index of the contracts pallet on the destination chain
+	/// * `contract_account_id` - The account ID of the contract
+	///
+	/// # Returns
+	///
+	/// * A MultiLocation targeting the contract via XCM
 	pub fn create_contracts_target_location(
 		destination_para_id: u32,
 		contracts_pallet_index: u8,
@@ -422,10 +409,7 @@ impl IdnClientImpl {
 
 /// Implementation of the IdnClient trait for IdnClientImpl
 impl IdnClient for IdnClientImpl {
-	fn create_subscription(
-		&mut self,
-		mut params: CreateSubParams,
-	) -> Result<SubscriptionId> {
+	fn create_subscription(&mut self, mut params: CreateSubParams) -> Result<SubscriptionId> {
 		// Generate a subscription ID if not provided
 		if params.sub_id.is_none() {
 			// Generate a subscription ID based on the current timestamp
@@ -458,10 +442,7 @@ impl IdnClient for IdnClientImpl {
 		Ok(params.sub_id.unwrap())
 	}
 
-	fn pause_subscription(
-		&mut self,
-		subscription_id: SubscriptionId,
-	) -> Result<()> {
+	fn pause_subscription(&mut self, subscription_id: SubscriptionId) -> Result<()> {
 		// Create the XCM message
 		let message = self.construct_pause_subscription_xcm(subscription_id);
 
@@ -484,10 +465,7 @@ impl IdnClient for IdnClientImpl {
 		Ok(())
 	}
 
-	fn reactivate_subscription(
-		&mut self,
-		subscription_id: SubscriptionId,
-	) -> Result<()> {
+	fn reactivate_subscription(&mut self, subscription_id: SubscriptionId) -> Result<()> {
 		// Create the XCM message
 		let message = self.construct_reactivate_subscription_xcm(subscription_id);
 
@@ -510,10 +488,7 @@ impl IdnClient for IdnClientImpl {
 		Ok(())
 	}
 
-	fn update_subscription(
-		&mut self,
-		params: UpdateSubParams,
-	) -> Result<()> {
+	fn update_subscription(&mut self, params: UpdateSubParams) -> Result<()> {
 		// Create the XCM message
 		let message = self.construct_update_subscription_xcm(&params);
 
@@ -536,10 +511,7 @@ impl IdnClient for IdnClientImpl {
 		Ok(())
 	}
 
-	fn kill_subscription(
-		&mut self,
-		subscription_id: SubscriptionId,
-	) -> Result<()> {
+	fn kill_subscription(&mut self, subscription_id: SubscriptionId) -> Result<()> {
 		// Create the XCM message
 		let message = self.construct_kill_subscription_xcm(subscription_id);
 
