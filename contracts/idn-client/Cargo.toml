@@ -11,7 +11,7 @@ description = "A client library for interacting with Ideal Network services"
 ink = { workspace = true, default-features = false }
 codec = { workspace = true, default-features = false, features = ["derive"] }
 scale-info = { workspace = true, default-features = false, features = ["derive"] }
-idn-traits = { path = "../../primitives/traits", default-features = false }
+sp-idn-traits = { path = "../../primitives/traits", default-features = false }
 
 [dev-dependencies]
 serde_json = { workspace = true }
@@ -25,5 +25,5 @@ std = [
     "ink/std",
     "codec/std",
     "scale-info/std",
-    "idn-traits/std",
+    "sp-idn-traits/std",
 ]

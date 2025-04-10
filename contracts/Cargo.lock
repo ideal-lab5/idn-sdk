@@ -1733,10 +1733,10 @@ name = "example-consumer"
 version = "0.1.0"
 dependencies = [
  "idn-client",
- "idn-traits",
  "ink",
  "ink_e2e",
  "serde_json",
+ "sp-idn-traits",
 ]
 
 [[package]]
@@ -2765,21 +2765,11 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 name = "idn-client"
 version = "0.1.0"
 dependencies = [
- "idn-traits",
  "ink",
  "parity-scale-codec",
  "scale-info",
  "serde_json",
-]
-
-[[package]]
-name = "idn-traits"
-version = "0.0.1"
-dependencies = [
- "frame-support 39.0.0",
- "parity-scale-codec",
- "scale-info",
- "sp-std",
+ "sp-idn-traits",
 ]
 
 [[package]]
@@ -6124,6 +6114,16 @@ dependencies = [
  "serde_json",
  "sp-api 35.0.0",
  "sp-runtime 40.1.0",
+]
+
+[[package]]
+name = "sp-idn-traits"
+version = "0.0.1"
+dependencies = [
+ "frame-support 39.0.0",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-std",
 ]
 
 [[package]]

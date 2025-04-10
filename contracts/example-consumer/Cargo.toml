@@ -10,7 +10,7 @@ description = "An example consumer contract for interacting with Ideal Network s
 [dependencies]
 ink = { workspace = true, default-features = false }
 idn-client = { path = "../idn-client", default-features = false }
-idn-traits = { path = "../../primitives/traits", default-features = false }
+sp-idn-traits = { path = "../../primitives/traits", default-features = false }
 
 [dev-dependencies]
 ink_e2e = { workspace = true }
@@ -24,7 +24,7 @@ default = ["std"]
 std = [
     "ink/std",
     "idn-client/std",
-    "idn-traits/std",
+    "sp-idn-traits/std",
 ]
 ink-as-dependency = []
 e2e-tests = []
