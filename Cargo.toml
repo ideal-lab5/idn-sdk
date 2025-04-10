@@ -13,8 +13,8 @@ members = [
     "chains/ideal-network/node",
     "chains/idn-consumer/runtime",
     "chains/idn-consumer/node",
-    "contracts/idn-client",
-    "contracts/example-consumer",
+    "contracts/idn-client-contract-lib",
+    "contracts/idn-example-consumer-contract",
 ]
 resolver = "2"
 
