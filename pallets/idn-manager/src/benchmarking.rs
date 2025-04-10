@@ -17,13 +17,16 @@
 //! Benchmarking setup for pallet-template
 
 use super::*;
-use crate::{pallet::Pallet as IdnManager, CreateSubParamsOf, PulsePropertyOf, UpdateSubParamsOf};
+use crate::{
+	pallet::Pallet as IdnManager, primitives::PulsePropertyOf, CreateSubParamsOf, UpdateSubParamsOf,
+};
 use frame_benchmarking::v2::*;
 use frame_support::{
 	traits::{fungible::Mutate, OriginTrait},
 	BoundedVec,
 };
 use frame_system::RawOrigin;
+use xcm::v5::prelude::Junction;
 
 #[benchmarks(
     where
@@ -35,7 +38,7 @@ mod benchmarks {
 	use super::*;
 
 	#[benchmark]
-	fn create_subscription(l: Linear<0, { T::PulseFilterLen::get() }>) {
+	fn create_subscription(l: Linear<0, { T::MaxPulseFilterLen::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits = 100u64.into();
@@ -48,8 +51,9 @@ mod benchmarks {
 		let pulse_filter = if l == 0 {
 			None
 		} else {
-			let pulse_filter_vec =
-				(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+			let pulse_filter_vec = (0..l)
+				.map(|_| PulsePropertyOf::<<T as pallet::Config>::Pulse>::Round(1u64.into()))
+				.collect::<Vec<_>>();
 			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
 		};
 
@@ -74,10 +78,7 @@ mod benchmarks {
 		assert_eq!(sub.details.target, target);
 		assert_eq!(sub.credits, credits);
 		assert_eq!(sub.frequency, frequency);
-		assert_eq!(
-			sub.details.metadata,
-			BoundedVec::<u8, T::SubMetadataLen>::try_from(vec![]).unwrap(),
-		);
+		assert_eq!(sub.metadata, None);
 	}
 
 	#[benchmark]
@@ -158,7 +159,10 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn update_subscription(l: Linear<0, { T::PulseFilterLen::get() }>) {
+	fn update_subscription(
+		l: Linear<0, { T::MaxPulseFilterLen::get() }>,
+		m: Linear<0, { T::MaxMetadataLen::get() }>,
+	) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
@@ -191,19 +195,28 @@ mod benchmarks {
 		let new_credits: T::Credits = 200u64.into();
 		let new_frequency: BlockNumberFor<T> = 2u32.into();
 
+		let new_metadata = if m == 0 {
+			None
+		} else {
+			let metadata_vec = (0..m).map(|_| 1u8).collect::<Vec<_>>();
+			Some(BoundedVec::try_from(metadata_vec).unwrap())
+		};
+
 		let new_pulse_filter = if l == 0 {
 			None
 		} else {
-			let pulse_filter_vec =
-				(0..l).map(|_| PulsePropertyOf::<T>::Round(1u64.into())).collect::<Vec<_>>();
+			let pulse_filter_vec = (0..l)
+				.map(|_| PulsePropertyOf::<<T as pallet::Config>::Pulse>::Round(1u64.into()))
+				.collect::<Vec<_>>();
 			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
 		};
 
 		let params = UpdateSubParamsOf::<T> {
 			sub_id,
-			credits: new_credits,
-			frequency: new_frequency,
-			pulse_filter: new_pulse_filter.clone(),
+			credits: Some(new_credits),
+			frequency: Some(new_frequency),
+			metadata: Some(new_metadata),
+			pulse_filter: Some(new_pulse_filter.clone()),
 		};
 
 		#[extrinsic_call]

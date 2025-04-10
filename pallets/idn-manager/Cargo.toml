@@ -31,7 +31,7 @@ frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
 # idn deps
-idn-traits.workspace = true
+sp-idn-traits.workspace = true
 
 [dev-dependencies]
 pallet-balances.workspace = true
@@ -45,7 +45,7 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
-	"idn-traits/std",
+	"sp-idn-traits/std",
 	"sp-arithmetic/std",
 	"sp-core/std",
 	"sp-io/std",

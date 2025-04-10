@@ -28,10 +28,9 @@ extern crate alloc;
 use crate::sp_runtime::AccountId32;
 use alloc::vec::Vec;
 use pallet_idn_manager::{
-	impls::{DepositCalculatorImpl, FeesManagerImpl},
-	SubscriptionOf,
+	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
+	BalanceOf, SubscriptionOf,
 };
-use pallet_randomness_beacon::{BeaconConfiguration, Metadata, OpaqueHash, OpaquePublicKey};
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_sdk::{
 	polkadot_sdk_frame::{
@@ -213,57 +212,12 @@ impl pallet_transaction_payment::Config for Runtime {
 	type LengthToFee = FixedFee<1, <Self as pallet_balances::Config>::Balance>;
 }
 
-parameter_types! {
-	pub QuicknetBeaconConfig: BeaconConfiguration = drand_quicknet_config();
-}
-
 impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
-	type BeaconConfig = QuicknetBeaconConfig;
-	type SignatureAggregator = pallet_randomness_beacon::aggregator::QuicknetAggregator;
-	type MaxSigsPerBlock = ConstU8<4>;
+	type SignatureVerifier = pallet_randomness_beacon::verifier::QuicknetVerifier;
+	type MaxSigsPerBlock = ConstU8<30>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-}
-
-pub(crate) fn drand_quicknet_config() -> BeaconConfiguration {
-	build_beacon_configuration(
-		"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",
-		3,
-		1692803367,
-		"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
-		"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e",
-		"bls-unchained-g1-rfc9380",
-		"quicknet"
-	)
-}
-
-/// build a beacon configuration struct
-fn build_beacon_configuration(
-	pk_hex: &str,
-	period: u32,
-	genesis_time: u32,
-	hash_hex: &str,
-	group_hash_hex: &str,
-	scheme_id: &str,
-	beacon_id: &str,
-) -> BeaconConfiguration {
-	let pk = hex::decode(pk_hex).expect("Valid hex");
-	let hash = hex::decode(hash_hex).expect("Valid hex");
-	let group_hash = hex::decode(group_hash_hex).expect("Valid hex");
-
-	let public_key: OpaquePublicKey = BoundedVec::try_from(pk).expect("Public key within bounds");
-	let hash: OpaqueHash = BoundedVec::try_from(hash).expect("Hash within bounds");
-	let group_hash: OpaqueHash =
-		BoundedVec::try_from(group_hash).expect("Group hash within bounds");
-	let scheme_id: OpaqueHash =
-		BoundedVec::try_from(scheme_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
-	let beacon_id: OpaqueHash =
-		BoundedVec::try_from(beacon_id.as_bytes().to_vec()).expect("Scheme ID within bounds");
-
-	let metadata = Metadata { beacon_id };
-
-	BeaconConfiguration { public_key, period, genesis_time, hash, group_hash, scheme_id, metadata }
 }
 
 parameter_types! {
@@ -272,14 +226,14 @@ parameter_types! {
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
-	pub const PulseFilterLen: u32 = 100;
+	pub const MaxPulseFilterLen: u32 = 100;
 	pub const MaxSubscriptions: u32 = 1_000_000;
 }
 
 #[derive(TypeInfo)]
-pub struct SubMetadataLen;
+pub struct MaxMetadataLen;
 
-impl Get<u32> for SubMetadataLen {
+impl Get<u32> for MaxMetadataLen {
 	fn get() -> u32 {
 		8
 	}
@@ -296,7 +250,7 @@ pub struct Pulse {
 	pub sig: Sig,
 }
 
-impl idn_traits::pulse::Pulse for Pulse {
+impl sp_idn_traits::pulse::Pulse for Pulse {
 	type Rand = Rand;
 	type Round = Round;
 	type Sig = Sig;
@@ -328,10 +282,12 @@ impl pallet_idn_manager::Config for Runtime {
 	type Pulse = Pulse;
 	type WeightInfo = ();
 	type Xcm = ();
-	type SubMetadataLen = SubMetadataLen;
+	type MaxMetadataLen = MaxMetadataLen;
 	type Credits = u64;
-	type PulseFilterLen = PulseFilterLen;
+	type MaxPulseFilterLen = MaxPulseFilterLen;
 	type MaxSubscriptions = MaxSubscriptions;
+	type SubscriptionId = [u8; 32];
+	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
 }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;
