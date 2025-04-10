@@ -4151,17 +4151,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "example-consumer"
-version = "0.1.0"
-dependencies = [
- "idn-client-contract-lib",
- "ink",
- "ink_e2e",
- "serde_json",
- "sp-idn-traits",
-]
-
-[[package]]
 name = "exit-future"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6151,6 +6140,17 @@ dependencies = [
  "staging-xcm-builder 18.0.0",
  "staging-xcm-executor 18.0.1",
  "substrate-wasm-builder",
+]
+
+[[package]]
+name = "idn-example-consumer-contract"
+version = "0.1.0"
+dependencies = [
+ "idn-client-contract-lib",
+ "ink",
+ "ink_e2e",
+ "serde_json",
+ "sp-idn-traits",
 ]
 
 [[package]]
