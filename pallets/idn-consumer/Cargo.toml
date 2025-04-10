@@ -29,6 +29,7 @@ xcm.workspace = true
 pallet-idn-manager = { workspace = true, default-features = false }
 sp-idn-traits = { workspace = true, default-features = false }
 sp-idn-types = { workspace = true, default-features = false }
+idn-runtime.workspace = true
 
 [dev-dependencies]
 sp-io = { workspace = true, default-features = false}
