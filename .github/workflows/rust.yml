@@ -53,42 +53,42 @@ jobs:
         run: cargo build --all-features --verbose -p idn-sdk-kitchensink-node
 
   build_idn_consumer:
-  runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
-  steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Environment
-      uses: ./.github/actions/setup-rust
+      - name: Setup Environment
+        uses: ./.github/actions/setup-rust
 
-    - name: Run cargo clippy
-      run: cargo clippy --all-features -p idn-consumer-node -- -D warnings
+      - name: Run cargo clippy
+        run: cargo clippy --all-features -p idn-consumer-node -- -D warnings
 
-    - name: Run cargo doc for chains
-      run: cargo doc --no-deps --all-features -p idn-consumer-node
+      - name: Run cargo doc for chains
+        run: cargo doc --no-deps --all-features -p idn-consumer-node
         
-    - name: Build
-      run: cargo build --all-features --verbose -p idn-consumer-node
+      - name: Build
+        run: cargo build --all-features --verbose -p idn-consumer-node
     
   build_idn:
-  runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
-  steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Environment
-      uses: ./.github/actions/setup-rust
+      - name: Setup Environment
+        uses: ./.github/actions/setup-rust
 
-    - name: Run cargo clippy
-      run: cargo clippy --all-features -p idn-node -- -D warnings
+      - name: Run cargo clippy
+        run: cargo clippy --all-features -p idn-node -- -D warnings
+
+      - name: Run cargo doc for chains
+        run: cargo doc --no-deps --all-features -p idn-node
       
-    - name: Run cargo doc for chains
-      run: cargo doc --no-deps --all-features -p idn-node
-      
-    - name: Build
-      run: cargo build --all-features --verbose -p idn-node
+      - name: Build
+        run: cargo build --all-features --verbose -p idn-node
 
   test:
     runs-on: ubuntu-latest
