@@ -13,6 +13,8 @@ members = [
     "chains/ideal-network/node",
     "chains/idn-consumer/runtime",
     "chains/idn-consumer/node",
+    "contracts/idn-client",
+    "contracts/example-consumer",
 ]
 resolver = "2"
 
@@ -176,7 +178,12 @@ simple-mermaid = { version = "0.1.1" }
 
 # Parity SCALE Codec
 codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = ["derive"] }
+scale = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = ["derive"] }
 scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
+
+# ink! dependencies
+ink = { version = "5.1.1", default-features = false }
+ink_e2e = { version = "5.1.1" }
 
 # Cumulus
 cumulus-client-cli = "0.21.0"

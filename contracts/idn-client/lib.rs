@@ -82,8 +82,8 @@ impl From<EnvError> for Error {
 		match env_error {
 			EnvError::ReturnError(ReturnErrorCode::XcmExecutionFailed) => Error::XcmExecutionFailed,
 			EnvError::ReturnError(ReturnErrorCode::XcmSendFailed) => Error::XcmSendFailed,
-			EnvError::ReturnError(code) => Error::EnvError(code as u32), /* all other errors
-			                                                               * with ReturnErrorCode */
+			EnvError::ReturnError(code) => Error::EnvError(code as u32), /* all other errors */
+			// with ReturnErrorCode
 			_ => Error::EnvError(u32::MAX), /* Use MAX for unknown errors (those without
 			                                 * ReturnErrorCode) */
 		}
