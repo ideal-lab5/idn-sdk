@@ -322,6 +322,15 @@ mod runtime {
 	pub type CumulusXcm = cumulus_pallet_xcm::Pallet<Runtime>;
 	#[runtime::pallet_index(33)]
 	pub type MessageQueue = pallet_message_queue::Pallet<Runtime>;
+
+	// IDN Consumer
+	#[runtime::pallet_index(40)]
+	pub type IdnConsumer = pallet_idn_consumer::Pallet<Runtime>;
+
+	parameter_types! {
+		pub const IdnConsumerPalletId: frame_support::PalletId = frame_support::PalletId(*b"idnconsm");
+		pub const ConsumeCallIndex: u8 = 0;
+	}
 }
 
 cumulus_pallet_parachain_system::register_validate_block! {
