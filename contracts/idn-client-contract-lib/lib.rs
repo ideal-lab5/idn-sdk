@@ -528,7 +528,7 @@ mod tests {
 
 	/// Default pallet index for the IDN Manager pallet
 	/// This can be overridden during implementation with specific values
-pub const TEST_IDN_MANAGER_PALLET_INDEX: u8 = 42;
+	pub const TEST_IDN_MANAGER_PALLET_INDEX: u8 = 42;
 
 	#[test]
 	fn test_constructing_xcm_messages() {
