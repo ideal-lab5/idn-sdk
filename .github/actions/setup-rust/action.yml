@@ -6,7 +6,7 @@ runs:
     - name: Install Rust stable
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: stable
+        toolchain: "1.85"
         override: true
 
     - name: Install Rust nightly

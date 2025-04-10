@@ -20,7 +20,9 @@ codec.workspace = true
 prost.workspace = true
 scale-info.workspace = true
 serde = { workspace = true, features = ["derive"] }
+sp-core.workspace = true
 sp-inherents.workspace = true
+sp-runtime.workspace = true
 
 # arkworks dependencies
 sp-ark-bls12-381 = { workspace = true, optional = true }
@@ -41,7 +43,9 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"serde/std",
+	"sp-core/std",
 	"sp-inherents/std",
+	"sp-runtime/std",
 	"prost/std",
 	"ark-bls12-381/std",
 	"ark-serialize/std",

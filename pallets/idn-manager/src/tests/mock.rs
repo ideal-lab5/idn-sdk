@@ -21,7 +21,7 @@
 
 use crate::{
 	self as pallet_idn_manager,
-	impls::{DepositCalculatorImpl, FeesManagerImpl},
+	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
 };
 use codec::Encode;
@@ -65,14 +65,14 @@ parameter_types! {
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
-	pub const PulseFilterLen: u32 = 100;
+	pub const MaxPulseFilterLen: u32 = 100;
 	pub const MaxSubscriptions: u32 = 100;
 }
 
 #[derive(TypeInfo)]
-pub struct SubMetadataLen;
+pub struct MaxMetadataLen;
 
-impl Get<u32> for SubMetadataLen {
+impl Get<u32> for MaxMetadataLen {
 	fn get() -> u32 {
 		8
 	}
@@ -89,7 +89,7 @@ pub struct Pulse {
 	pub sig: Sig,
 }
 
-impl idn_traits::pulse::Pulse for Pulse {
+impl sp_idn_traits::pulse::Pulse for Pulse {
 	type Rand = Rand;
 	type Round = Round;
 	type Sig = Sig;
@@ -106,9 +106,9 @@ impl idn_traits::pulse::Pulse for Pulse {
 		self.round
 	}
 
-	fn valid(&self) -> bool {
-		true
-	}
+	// fn valid(&self) -> bool {
+	// 	true
+	// }
 }
 
 impl pallet_idn_manager::Config for Test {
@@ -121,10 +121,12 @@ impl pallet_idn_manager::Config for Test {
 	type Pulse = Pulse;
 	type WeightInfo = ();
 	type Xcm = ();
-	type SubMetadataLen = SubMetadataLen;
+	type MaxMetadataLen = MaxMetadataLen;
 	type Credits = u64;
-	type PulseFilterLen = PulseFilterLen;
+	type MaxPulseFilterLen = MaxPulseFilterLen;
 	type MaxSubscriptions = MaxSubscriptions;
+	type SubscriptionId = [u8; 32];
+	type DiffBalance = DiffBalanceImpl<BalanceOf<Test>>;
 }
 
 sp_api::impl_runtime_apis! {
@@ -133,13 +135,14 @@ sp_api::impl_runtime_apis! {
 			BalanceOf<Test>,
 			u64,
 			AccountId32,
-			SubscriptionOf<Test>
+			SubscriptionOf<Test>,
+			<Test as pallet_idn_manager::Config>::SubscriptionId,
 		> for Test {
 		fn calculate_subscription_fees(credits: u64) -> BalanceOf<Test> {
 			pallet_idn_manager::Pallet::<Test>::calculate_subscription_fees(&credits)
 		}
 		fn get_subscription(
-			sub_id: pallet_idn_manager::SubscriptionId
+			sub_id: <Test as pallet_idn_manager::Config>::SubscriptionId
 		) -> Option<SubscriptionOf<Test>> {
 			pallet_idn_manager::Pallet::<Test>::get_subscription(&sub_id)
 		}

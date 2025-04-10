@@ -30,10 +30,10 @@ use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 use ark_serialize::CanonicalDeserialize;
 
-/// A `pulse` represents the output from a verifiable randomness beacon, specifically an 'unchained'
-/// one
+/// A `ProtoPulse` represents the output from a threshold-BLS based verifiable randomness beacon 
+/// encoded as a raw protobuf message
 #[derive(Clone, PartialEq, ::prost::Message, Serialize, Deserialize)]
-pub struct Pulse {
+pub struct ProtoPulse {
 	/// The round of the protocol when the signature was computed
 	#[prost(uint64, tag = "1")]
 	pub round: u64,
@@ -43,7 +43,7 @@ pub struct Pulse {
 }
 
 /// This struct is used to encode pulses in the runtime, where we obtain an OpaquePulse by
-/// converting a Pulse
+/// converting a ProtoPulse
 #[derive(Clone, Debug, PartialEq, codec::MaxEncodedLen, scale_info::TypeInfo, Encode, Decode)]
 pub struct OpaquePulse {
 	/// The round of the beacon protocol
@@ -52,9 +52,9 @@ pub struct OpaquePulse {
 	pub signature: [u8; 48],
 }
 
-impl TryInto<OpaquePulse> for Pulse {
+impl TryInto<OpaquePulse> for ProtoPulse {
 	type Error = String;
-	/// Converts a Pulse into an OpaquePulse
+	/// Converts a ProtoPulse into an OpaquePulse
 	fn try_into(self) -> Result<OpaquePulse, Self::Error> {
 		let signature: [u8; 48] = self
 			.signature
@@ -107,12 +107,12 @@ impl OpaquePulse {
 mod tests {
 	use super::*;
 
-	fn valid_pulse() -> Pulse {
-		Pulse { round: 14475418, signature: VALID_SIG.to_vec() }
+	fn valid_pulse() -> ProtoPulse {
+		ProtoPulse { round: 14475418, signature: VALID_SIG.to_vec() }
 	}
 
-	fn invalid_pulse() -> Pulse {
-		Pulse {
+	fn invalid_pulse() -> ProtoPulse {
+		ProtoPulse {
 			round: 14475418,
 			signature: vec![
 				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,

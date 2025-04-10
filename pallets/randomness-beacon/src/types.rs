@@ -63,13 +63,10 @@ pub struct Aggregate {
 	TypeInfo,
 )]
 pub struct BeaconConfiguration {
+	/// The beacon public key
 	pub public_key: OpaquePublicKey,
-	pub period: u32,
-	pub genesis_time: u32,
-	pub hash: OpaqueHash,
-	pub group_hash: OpaqueHash,
-	pub scheme_id: OpaqueHash,
-	pub metadata: Metadata,
+	/// The genesis round from which the IDN begins consuming the beacon
+	pub genesis_round: RoundNumber,
 }
 
 /// metadata for the drand beacon configuration

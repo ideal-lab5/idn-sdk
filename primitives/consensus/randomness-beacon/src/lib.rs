@@ -17,5 +17,6 @@
 
 extern crate alloc;
 
+pub mod digest;
 pub mod inherents;
 pub mod types;
