@@ -35,8 +35,6 @@ mod example_consumer {
 		last_pulse: Option<IdnPulse>,
 		/// Active subscription ID
 		subscription_id: Option<SubscriptionId>,
-		/// Ideal Network parachain ID
-		ideal_network_para_id: u32,
 		/// Destination parachain ID (where this contract is deployed)
 		destination_para_id: u32,
 		/// Contracts pallet index on the destination chain
@@ -82,11 +80,13 @@ mod example_consumer {
 		/// # Arguments
 		///
 		/// * `ideal_network_para_id` - The parachain ID of the Ideal Network
+		/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet on the IDN Network
 		/// * `destination_para_id` - The parachain ID where this contract is deployed
 		/// * `contracts_pallet_index` - The contracts pallet index on the destination chain
 		#[ink(constructor)]
 		pub fn new(
 			ideal_network_para_id: u32,
+			idn_manager_pallet_index: u8,
 			destination_para_id: u32,
 			contracts_pallet_index: u8,
 		) -> Self {
@@ -100,13 +100,12 @@ mod example_consumer {
 				last_randomness: None,
 				last_pulse: None,
 				subscription_id: None,
-				ideal_network_para_id,
 				destination_para_id,
 				contracts_pallet_index,
 				randomness_call_index,
 				randomness_history: Vec::new(),
 				pulse_history: Vec::new(),
-				idn_client: IdnClientImpl,
+				idn_client: IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id),
 			}
 		}
 
@@ -155,7 +154,7 @@ mod example_consumer {
 			// Create subscription through IDN client
 			let subscription_id = self
 				.idn_client
-				.create_subscription(self.ideal_network_para_id, params)
+				.create_subscription(params)
 				.map_err(ContractError::IdnClientError)?;
 
 			// Update contract state with the new subscription
@@ -182,7 +181,7 @@ mod example_consumer {
 
 			// Pause subscription through IDN client
 			self.idn_client
-				.pause_subscription(self.ideal_network_para_id, subscription_id)
+				.pause_subscription(subscription_id)
 				.map_err(ContractError::IdnClientError)?;
 
 			Ok(())
@@ -206,7 +205,7 @@ mod example_consumer {
 
 			// Reactivate subscription through IDN client
 			self.idn_client
-				.reactivate_subscription(self.ideal_network_para_id, subscription_id)
+				.reactivate_subscription(subscription_id)
 				.map_err(ContractError::IdnClientError)?;
 
 			Ok(())
@@ -245,7 +244,7 @@ mod example_consumer {
 
 			// Update subscription through IDN client
 			self.idn_client
-				.update_subscription(self.ideal_network_para_id, params)
+				.update_subscription(params)
 				.map_err(ContractError::IdnClientError)?;
 
 			Ok(())
@@ -269,7 +268,7 @@ mod example_consumer {
 
 			// Kill subscription through IDN client
 			self.idn_client
-				.kill_subscription(self.ideal_network_para_id, subscription_id)
+				.kill_subscription(subscription_id)
 				.map_err(ContractError::IdnClientError)?;
 
 			// Clear the subscription ID
@@ -352,7 +351,7 @@ mod example_consumer {
 			let pulse = IdnPulse {
 				rand: randomness,
 				round: 0,             // Default round
-				signature: [0u8; 64], // Default signature
+				signature: [0u8; 48], // Default signature
 			};
 
 			self.simulate_pulse_received(pulse)
@@ -374,22 +373,34 @@ mod example_consumer {
 			// TO DO: implement authorization logic
 			Ok(())
 		}
+
+		/// Gets the IDN parachain ID
+		#[ink(message)]
+		pub fn get_ideal_network_para_id(&self) -> u32 {
+			self.idn_client.get_ideal_network_para_id()
+		}
+
+		/// Gets the IDN Manager pallet index
+		#[ink(message)]
+		pub fn get_idn_manager_pallet_index(&self) -> u8 {
+			self.idn_client.get_idn_manager_pallet_index()
+		}
 	}
 
 	/// Implementation of the RandomnessReceiver trait
 	impl RandomnessReceiver for ExampleConsumer {
 		fn on_randomness_received(
 			&mut self,
-			pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 64]>,
+			pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 48]>,
 			subscription_id: SubscriptionId,
 		) -> Result<()> {
 			// Verify that the subscription ID matches our active subscription
 			if let Some(our_subscription_id) = self.subscription_id {
 				if our_subscription_id != subscription_id {
-					return Err(Error::InvalidParameters);
+					return Err(Error::SubscriptionNotFound);
 				}
 			} else {
-				return Err(Error::InvalidParameters);
+				return Err(Error::SubscriptionNotFound);
 			}
 
 			// Extract the randomness
@@ -411,7 +422,7 @@ mod example_consumer {
 
 	impl ExampleConsumer {
 		/// Helper to clone a pulse (since we can't directly clone a trait object)
-		fn clone_pulse<P: Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 64]>>(
+		fn clone_pulse<P: Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 48]>>(
 			&self,
 			pulse: P,
 		) -> Option<IdnPulse> {
@@ -429,10 +440,10 @@ mod example_consumer {
 		fn test_receive_and_store_randomness() {
 			// Create a test pulse
 			let test_randomness = [42u8; 32];
-			let test_pulse = IdnPulse { rand: test_randomness, round: 1, signature: [1u8; 64] };
+			let test_pulse = IdnPulse { rand: test_randomness, round: 1, signature: [1u8; 48] };
 
 			// Setup contract
-			let mut contract = ExampleConsumer::new(2000, 1000, 50);
+			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
 			contract.subscription_id = Some(1);
 
 			// Simulate receiving pulse
@@ -449,7 +460,7 @@ mod example_consumer {
 		#[test]
 		fn test_randomness_getters() {
 			// Create a test contract
-			let mut contract = ExampleConsumer::new(2000, 1000, 50);
+			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
 			contract.subscription_id = Some(1);
 
 			// Test empty state
@@ -459,8 +470,8 @@ mod example_consumer {
 			assert_eq!(contract.get_pulse_history().len(), 0);
 
 			// Add some randomness
-			let test_pulse1 = IdnPulse { rand: [1u8; 32], round: 1, signature: [1u8; 64] };
-			let test_pulse2 = IdnPulse { rand: [2u8; 32], round: 2, signature: [2u8; 64] };
+			let test_pulse1 = IdnPulse { rand: [1u8; 32], round: 1, signature: [1u8; 48] };
+			let test_pulse2 = IdnPulse { rand: [2u8; 32], round: 2, signature: [2u8; 48] };
 
 			// Simulate receiving randomness
 			contract.simulate_pulse_received(test_pulse1.clone()).unwrap();
@@ -476,11 +487,11 @@ mod example_consumer {
 		#[test]
 		fn test_randomness_receiver_trait() {
 			// Create a test contract
-			let mut contract = ExampleConsumer::new(2000, 1000, 50);
+			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
 			contract.subscription_id = Some(5);
 
 			// Create a test pulse
-			let test_pulse = IdnPulse { rand: [9u8; 32], round: 42, signature: [5u8; 64] };
+			let test_pulse = IdnPulse { rand: [9u8; 32], round: 42, signature: [5u8; 48] };
 
 			// Call the trait method directly
 			let result =
@@ -495,11 +506,11 @@ mod example_consumer {
 		#[test]
 		fn test_randomness_receiver_wrong_subscription() {
 			// Create a test contract
-			let mut contract = ExampleConsumer::new(2000, 1000, 50);
+			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
 			contract.subscription_id = Some(5);
 
 			// Create a test pulse
-			let test_pulse = IdnPulse { rand: [9u8; 32], round: 42, signature: [5u8; 64] };
+			let test_pulse = IdnPulse { rand: [9u8; 32], round: 42, signature: [5u8; 48] };
 
 			// Call with wrong subscription ID
 			let result = RandomnessReceiver::on_randomness_received(&mut contract, test_pulse, 6);

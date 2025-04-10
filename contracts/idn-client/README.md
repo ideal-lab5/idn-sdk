@@ -9,6 +9,7 @@ A client library for ink! smart contracts to interact with the Ideal Network ser
 - **Pulse Trait Implementation**: Uses the `Pulse` trait for type-safe randomness handling with round numbers and signatures
 - **Randomness Reception**: Define how to receive and process randomness through callbacks
 - **Error Handling**: Comprehensive error types for robust contract development
+- **Configurable Parameters**: Network-specific parameters configurable at instantiation time
 
 ## Library Structure
 
@@ -17,8 +18,8 @@ The library provides:
 1. **IdnClient Trait**: The main interface for interacting with the IDN Manager pallet
 2. **RandomnessReceiver Trait**: Interface that contracts must implement to receive randomness
 3. **IdnPulse Struct**: Implementation of the `Pulse` trait for handling randomness with metadata
-4. **IdnClientImpl**: Reference implementation of the IdnClient trait
-5. **Helper Types**: Subscription IDs, error types, and other necessary types
+4. **IdnClientImpl**: Reference implementation of the IdnClient trait with configurable parameters
+5. **Helper Types**: Subscription IDs, error types, CreateSubParams, UpdateSubParams, and other necessary types
 
 ## Usage
 
@@ -46,8 +47,8 @@ In your contract's `lib.rs`, use the IDN Client as follows:
 
 ```rust
 use idn_client::{
-    CallIndex, Error, IdnClient, IdnClientImpl, IdnPulse,
-    RandomnessReceiver, Result, SubscriptionId
+    CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, IdnPulse,
+    RandomnessReceiver, Result, SubscriptionId, UpdateSubParams
 };
 use idn_traits::pulse::Pulse;
 
@@ -59,74 +60,104 @@ pub struct YourContract {
     last_randomness: Option<[u8; 32]>,
     // The last received pulse (contains randomness, round number, and signature)
     last_pulse: Option<IdnPulse>,
-    // The parachain ID of the Ideal Network
-    ideal_network_para_id: u32,
+    // The parachain ID where this contract is deployed
+    destination_para_id: u32,
+    // The contracts pallet index on the destination chain
+    contracts_pallet_index: u8,
     // The call index for receiving randomness
     randomness_call_index: CallIndex,
     // IDN Client implementation
     idn_client: IdnClientImpl,
 }
-```
 
-### 3. Implementing the RandomnessReceiver Trait
+impl YourContract {
+    #[ink(constructor)]
+    pub fn new(
+        ideal_network_para_id: u32,
+        idn_manager_pallet_index: u8,
+        destination_para_id: u32,
+        contracts_pallet_index: u8,
+    ) -> Self {
+        // The call index for randomness delivery to this contract
+        let randomness_call_index: CallIndex = [contracts_pallet_index, 0x01]; 
 
-Implement the RandomnessReceiver trait to handle randomness callbacks:
+        Self {
+            subscription_id: None,
+            last_randomness: None,
+            last_pulse: None,
+            destination_para_id,
+            contracts_pallet_index,
+            randomness_call_index,
+            idn_client: IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id),
+        }
+    }
+    
+    // Getter methods for configuration
+    #[ink(message)]
+    pub fn get_ideal_network_para_id(&self) -> u32 {
+        self.idn_client.get_ideal_network_para_id()
+    }
 
-```rust
+    #[ink(message)]
+    pub fn get_idn_manager_pallet_index(&self) -> u8 {
+        self.idn_client.get_idn_manager_pallet_index()
+    }
+}
+
 impl RandomnessReceiver for YourContract {
     fn on_randomness_received(
         &mut self, 
-        pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 64]>, 
+        pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 48]>, 
         subscription_id: SubscriptionId
     ) -> Result<()> {
-        // Verify subscription ID
-        if let Some(our_id) = self.subscription_id {
-            if our_id != subscription_id {
-                return Err(Error::InvalidParameters);
+        // Verify that the subscription ID matches our active subscription
+        if let Some(our_subscription_id) = self.subscription_id {
+            if our_subscription_id != subscription_id {
+                return Err(Error::SubscriptionNotFound);
             }
         } else {
-            return Err(Error::InvalidParameters);
+            return Err(Error::SubscriptionNotFound);
         }
         
         // Extract and store the randomness
         let randomness = pulse.rand();
         self.last_randomness = Some(randomness);
         
-        // Optionally store the full pulse object
-        // Note: To store the full pulse object, you need to convert to IdnPulse or implement Clone
-        self.last_pulse = Some(IdnPulse::new(
-            pulse.rand(),
-            pulse.round(),
-            pulse.sig()
-        ));
-        
-        // Your custom logic here...
+        // Store the pulse if possible
+        if let Some(concrete_pulse) = self.clone_pulse(pulse) {
+            self.last_pulse = Some(concrete_pulse);
+        }
         
         Ok(())
     }
 }
-```
 
-### 4. Managing Subscriptions
-
-Use the IdnClient trait methods to manage subscriptions:
-
-```rust
 // Create a subscription
 #[ink(message)]
 pub fn create_subscription(
     &mut self, 
     credits: u32, 
     frequency: u32, 
-    metadata: Option<Vec<u8>>
+    metadata: Option<Vec<u8>>,
+    pulse_filter: Option<Vec<u8>>
 ) -> Result<()> {
-    let subscription_id = self.idn_client.create_subscription(
+    // Create subscription parameters
+    let params = CreateSubParams {
         credits,
-        self.ideal_network_para_id,
-        self.randomness_call_index,
+        target: IdnClientImpl::create_contracts_target_location(
+            self.destination_para_id,
+            self.contracts_pallet_index,
+            self.env().account_id().as_ref(),
+        ),
+        call_index: self.randomness_call_index,
         frequency,
         metadata,
-    )?;
+        pulse_filter,
+        sub_id: None, // Let the system generate an ID
+    };
+
+    // Create subscription through IDN client
+    let subscription_id = self.idn_client.create_subscription(params)?;
     
     self.subscription_id = Some(subscription_id);
     Ok(())
@@ -135,14 +166,44 @@ pub fn create_subscription(
 // Pause a subscription
 #[ink(message)]
 pub fn pause_subscription(&mut self) -> Result<()> {
-    let subscription_id = self.subscription_id.ok_or(Error::InvalidParameters)?;
-    
-    self.idn_client.pause_subscription(
-        subscription_id, 
-        self.ideal_network_para_id
-    )
+    let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
+    self.idn_client.pause_subscription(subscription_id)
 }
-```
+
+// Reactivate a paused subscription
+#[ink(message)]
+pub fn reactivate_subscription(&mut self) -> Result<()> {
+    let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
+    self.idn_client.reactivate_subscription(subscription_id)
+}
+
+// Update a subscription
+#[ink(message)]
+pub fn update_subscription(
+    &mut self,
+    credits: u32,
+    frequency: u32,
+    pulse_filter: Option<Vec<u8>>
+) -> Result<()> {
+    let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
+    
+    // Create update parameters
+    let params = UpdateSubParams { 
+        sub_id: subscription_id,
+        credits,
+        frequency,
+        pulse_filter
+    };
+    
+    self.idn_client.update_subscription(params)
+}
+
+// Kill a subscription
+#[ink(message)]
+pub fn kill_subscription(&mut self) -> Result<()> {
+    let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
+    self.idn_client.kill_subscription(subscription_id)
+}
 
 ## Call Index Configuration
 
@@ -152,6 +213,26 @@ The `call_index` parameter is crucial for receiving randomness properly:
 2. The second byte is the function index within that pallet
 
 This must correspond to a function that can receive and process randomness data from the IDN Network.
+
+## Configurable Parameters
+
+The IDN Client library now allows configuring the following parameters at instantiation time:
+
+1. **IDN Manager Pallet Index**: The pallet index for the IDN Manager pallet on the Ideal Network
+   ```rust
+   // Default value is 42, can be overridden
+   let idn_manager_pallet_index: u8 = 42;
+   ```
+
+2. **Ideal Network Parachain ID**: The parachain ID of the Ideal Network
+   ```rust
+   let ideal_network_para_id: u32 = 2000; // Example value
+   ```
+
+These parameters can be configured when creating an IdnClientImpl instance:
+```rust
+let idn_client = IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id);
+```
 
 ## Using the Pulse Trait
 
@@ -171,7 +252,7 @@ let rand_bytes: [u8; 32] = pulse.rand();
 let round: u64 = pulse.round();
 
 // Get the signature
-let signature: [u8; 64] = pulse.sig();
+let signature: [u8; 48] = pulse.sig();
 ```
 
 ## Security Considerations
@@ -182,6 +263,7 @@ When using this library:
 2. **Parachain Configuration**: Both parachains must have properly configured XCM channels
 3. **Call Index Verification**: Verify the call indices for your pallet and function to receive randomness
 4. **Signature Verification**: Consider implementing verification of the Pulse signatures for additional security
+5. **Network Parameters**: Ensure the correct parachain IDs and pallet indices are used for your target environment
 
 ## Testing
 

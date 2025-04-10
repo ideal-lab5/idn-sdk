@@ -17,6 +17,7 @@ The `idn-client` library provides functionality for interacting with the Ideal N
 - Receive randomness through XCM callbacks using the Pulse trait
 - Store and manage pulse data, including randomness, round numbers, and signatures
 - Abstract away the complexity of XCM message construction
+- Configurable pallet indices and parachain IDs for different environments
 
 ### Usage
 
@@ -41,7 +42,7 @@ std = [
 2. Import and implement the required traits:
 
 ```rust
-use idn_client::{IdnClient, IdnPulse, RandomnessReceiver, SubscriptionId};
+use idn_client::{IdnClient, IdnClientImpl, IdnPulse, RandomnessReceiver, SubscriptionId};
 use idn_traits::pulse::Pulse;
 
 // Implement the RandomnessReceiver trait to handle incoming randomness
@@ -63,20 +64,40 @@ impl RandomnessReceiver for YourContract {
 }
 ```
 
-3. Use the IDN Client to manage subscriptions:
+3. Initialize the IDN Client with configurable parameters:
+
+```rust
+// Initialize IDN client with configurable parameters
+let idn_client = IdnClientImpl::new(
+    idn_manager_pallet_index, // The pallet index for IDN Manager
+    ideal_network_para_id      // The parachain ID of the Ideal Network
+);
+```
+
+4. Use the IDN Client to manage subscriptions:
 
 ```rust
 // Create a subscription
 self.idn_client.create_subscription(
-    credits,
-    ideal_network_para_id,
-    call_index,
-    frequency,
-    metadata,
+    CreateSubParams {
+        credits,
+        target,
+        call_index,
+        frequency,
+        metadata,
+        pulse_filter,
+        sub_id: None, // Let the system generate an ID
+    }
 )?;
 
 // Later, pause, update, or kill the subscription as needed
-self.idn_client.pause_subscription(subscription_id, ideal_network_para_id)?;
+self.idn_client.pause_subscription(subscription_id)?;
+self.idn_client.update_subscription(UpdateSubParams { 
+    sub_id: subscription_id,
+    credits,
+    frequency,
+    pulse_filter
+})?;
 ```
 
 ## Example Consumer

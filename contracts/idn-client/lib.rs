@@ -62,10 +62,6 @@ pub enum Error {
 	XcmExecutionFailed,
 	/// Error when sending XCM message
 	XcmSendFailed,
-	/// Invalid parameters provided
-	InvalidParameters,
-	/// Unauthorized access
-	Unauthorized,
 	/// Error in balance transfer
 	BalanceTransferFailed,
 	/// The requested subscription was not found
@@ -76,8 +72,8 @@ pub enum Error {
 	RandomnessGenerationFailed,
 	/// The system has reached its maximum subscription capacity
 	TooManySubscriptions,
-	/// Other errors
-	Other,
+	/// Original environment error with ReturnErrorCode
+	EnvError(u32),
 }
 
 impl From<EnvError> for Error {
@@ -86,7 +82,8 @@ impl From<EnvError> for Error {
 		match env_error {
 			EnvError::ReturnError(ReturnErrorCode::XcmExecutionFailed) => Error::XcmExecutionFailed,
 			EnvError::ReturnError(ReturnErrorCode::XcmSendFailed) => Error::XcmSendFailed,
-			_ => Error::Other,
+			EnvError::ReturnError(code) => Error::EnvError(code as u32), // all other errors with ReturnErrorCode
+			_ => Error::EnvError(u32::MAX), // Use MAX for unknown errors (those without ReturnErrorCode)
 		}
 	}
 }
@@ -152,27 +149,22 @@ pub struct UpdateSubParams {
 
 /// Client trait for interacting with the IDN Manager pallet
 pub trait IdnClient {
-	/// Creates a new subscription for randomness delivery
+	/// Creates a new subscription for randomness
 	///
 	/// # Arguments
 	///
-	/// * `ideal_network_para_id` - The parachain ID of the IDN network
-	/// * `params` - Parameters for creating a subscription
+	/// * `params` - Parameters for the subscription
 	///
 	/// # Returns
 	///
-	/// * `Result<SubscriptionId>` - Subscription ID if successful
-	///
-	/// # Errors
+	/// * `Result<SubscriptionId>` - Success with subscription ID or error
 	///
 	/// This function can fail with:
 	/// * `Error::TooManySubscriptions` - If the IDN network has reached its maximum subscription
 	///   capacity
 	/// * `Error::XcmSendFailed` - If there was a problem sending the XCM message
-	/// * `Error::InvalidParameters` - If the provided parameters are invalid
 	fn create_subscription(
 		&mut self,
-		ideal_network_para_id: u32,
 		params: CreateSubParams,
 	) -> Result<SubscriptionId>;
 
@@ -180,7 +172,6 @@ pub trait IdnClient {
 	///
 	/// # Arguments
 	///
-	/// * `ideal_network_para_id` - The parachain ID of the IDN network
 	/// * `subscription_id` - ID of the subscription to pause
 	///
 	/// # Returns
@@ -188,7 +179,6 @@ pub trait IdnClient {
 	/// * `Result<()>` - Success or error
 	fn pause_subscription(
 		&mut self,
-		ideal_network_para_id: u32,
 		subscription_id: SubscriptionId,
 	) -> Result<()>;
 
@@ -196,7 +186,6 @@ pub trait IdnClient {
 	///
 	/// # Arguments
 	///
-	/// * `ideal_network_para_id` - The parachain ID of the IDN network
 	/// * `subscription_id` - ID of the subscription to reactivate
 	///
 	/// # Returns
@@ -204,7 +193,6 @@ pub trait IdnClient {
 	/// * `Result<()>` - Success or error
 	fn reactivate_subscription(
 		&mut self,
-		ideal_network_para_id: u32,
 		subscription_id: SubscriptionId,
 	) -> Result<()>;
 
@@ -212,31 +200,27 @@ pub trait IdnClient {
 	///
 	/// # Arguments
 	///
-	/// * `ideal_network_para_id` - The parachain ID of the IDN network
-	/// * `params` - Parameters for updating the subscription
+	/// * `params` - Parameters for the update
 	///
 	/// # Returns
 	///
 	/// * `Result<()>` - Success or error
 	fn update_subscription(
 		&mut self,
-		ideal_network_para_id: u32,
 		params: UpdateSubParams,
 	) -> Result<()>;
 
-	/// Kills (cancels) a subscription before its natural conclusion
+	/// Cancels an active subscription
 	///
 	/// # Arguments
 	///
-	/// * `ideal_network_para_id` - The parachain ID of the IDN network
-	/// * `subscription_id` - ID of the subscription to kill
+	/// * `subscription_id` - ID of the subscription to cancel
 	///
 	/// # Returns
 	///
 	/// * `Result<()>` - Success or error
 	fn kill_subscription(
 		&mut self,
-		ideal_network_para_id: u32,
 		subscription_id: SubscriptionId,
 	) -> Result<()>;
 }
@@ -255,7 +239,7 @@ pub trait RandomnessReceiver {
 	/// * `Result<()>` - Success or error
 	fn on_randomness_received(
 		&mut self,
-		pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 64]>,
+		pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 48]>,
 		subscription_id: SubscriptionId,
 	) -> Result<()>;
 }
@@ -269,13 +253,13 @@ pub struct IdnPulse {
 	/// The round number
 	pub round: u64,
 	/// The signature
-	pub signature: [u8; 64],
+	pub signature: [u8; 48],
 }
 
 impl Pulse for IdnPulse {
 	type Rand = [u8; 32];
 	type Round = u64;
-	type Sig = [u8; 64];
+	type Sig = [u8; 48];
 
 	fn rand(&self) -> Self::Rand {
 		self.rand
@@ -296,22 +280,56 @@ impl Pulse for IdnPulse {
 }
 
 /// Implementation of the IDN Client
-#[derive(Default, Clone, Copy, Encode, Decode, Debug)]
+#[derive(Clone, Copy, Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
-pub struct IdnClientImpl;
+pub struct IdnClientImpl {
+    /// Pallet index for the IDN Manager pallet
+    pub idn_manager_pallet_index: u8,
+    /// Parachain ID of the IDN network
+    pub ideal_network_para_id: u32,
+}
+
+impl Default for IdnClientImpl {
+    fn default() -> Self {
+        Self {
+            idn_manager_pallet_index: DEFAULT_IDN_MANAGER_PALLET_INDEX,
+            ideal_network_para_id: 1000, // Default parachain ID, clients should override this
+        }
+    }
+}
 
 impl IdnClientImpl {
-	/// Creates a target location for a contract on a parachain
-	///
-	/// # Arguments
-	///
-	/// * `destination_para_id` - The parachain ID where the contract is deployed
-	/// * `contracts_pallet_index` - The index of the contracts pallet on the destination chain
-	/// * `contract_account_id` - The account ID of the contract
-	///
-	/// # Returns
-	///
-	/// * A MultiLocation targeting the contract via XCM
+    /// Creates a new IdnClientImpl with the specified IDN Manager pallet index and parachain ID
+    ///
+    /// # Arguments
+    ///
+   /// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet
+    /// * `ideal_network_para_id` - The parachain ID of the IDN network
+    pub fn new(idn_manager_pallet_index: u8, ideal_network_para_id: u32) -> Self {
+        Self { idn_manager_pallet_index, ideal_network_para_id }
+    }
+
+    /// Gets the pallet index for the IDN Manager pallet
+    pub fn get_idn_manager_pallet_index(&self) -> u8 {
+        self.idn_manager_pallet_index
+    }
+
+    /// Gets the parachain ID of the IDN network
+    pub fn get_ideal_network_para_id(&self) -> u32 {
+        self.ideal_network_para_id
+    }
+
+    /// Creates a target location for a contract on a parachain
+    ///
+    /// # Arguments
+    ///
+    /// * `destination_para_id` - The parachain ID where the contract is deployed
+    /// * `contracts_pallet_index` - The index of the contracts pallet on the destination chain
+    /// * `contract_account_id` - The account ID of the contract
+    ///
+    /// # Returns
+    ///
+    /// * A MultiLocation targeting the contract via XCM
 	pub fn create_contracts_target_location(
 		destination_para_id: u32,
 		contracts_pallet_index: u8,
@@ -342,11 +360,8 @@ impl IdnClientImpl {
 	///
 	/// * An XCM message that will execute the specified function call
 	fn construct_xcm_for_idn_manager(&self, call_index: u8, encoded_params: Vec<u8>) -> Xcm<()> {
-		// The pallet index for IDN Manager
-		let idn_manager_pallet_index = DEFAULT_IDN_MANAGER_PALLET_INDEX;
-
 		// Create the XCM program to call the specified function
-		let call_data = [idn_manager_pallet_index, call_index]
+		let call_data = [self.idn_manager_pallet_index, call_index]
 			.into_iter()
 			.chain(encoded_params)
 			.collect::<Vec<_>>();
@@ -409,7 +424,6 @@ impl IdnClientImpl {
 impl IdnClient for IdnClientImpl {
 	fn create_subscription(
 		&mut self,
-		ideal_network_para_id: u32,
 		mut params: CreateSubParams,
 	) -> Result<SubscriptionId> {
 		// Generate a subscription ID if not provided
@@ -424,7 +438,7 @@ impl IdnClient for IdnClientImpl {
 		let message = self.construct_create_subscription_xcm(&params);
 
 		// Create the destination MultiLocation (IDN parachain)
-		let junction = Junction::Parachain(ideal_network_para_id);
+		let junction = Junction::Parachain(self.ideal_network_para_id);
 		let junctions_array = [junction; 1];
 		let destinations = Arc::new(junctions_array);
 
@@ -446,14 +460,13 @@ impl IdnClient for IdnClientImpl {
 
 	fn pause_subscription(
 		&mut self,
-		ideal_network_para_id: u32,
 		subscription_id: SubscriptionId,
 	) -> Result<()> {
 		// Create the XCM message
 		let message = self.construct_pause_subscription_xcm(subscription_id);
 
 		// Create the destination MultiLocation (IDN parachain)
-		let junction = Junction::Parachain(ideal_network_para_id);
+		let junction = Junction::Parachain(self.ideal_network_para_id);
 		let junctions_array = [junction; 1];
 		let destinations = Arc::new(junctions_array);
 
@@ -473,14 +486,13 @@ impl IdnClient for IdnClientImpl {
 
 	fn reactivate_subscription(
 		&mut self,
-		ideal_network_para_id: u32,
 		subscription_id: SubscriptionId,
 	) -> Result<()> {
 		// Create the XCM message
 		let message = self.construct_reactivate_subscription_xcm(subscription_id);
 
 		// Create the destination MultiLocation (IDN parachain)
-		let junction = Junction::Parachain(ideal_network_para_id);
+		let junction = Junction::Parachain(self.ideal_network_para_id);
 		let junctions_array = [junction; 1];
 		let destinations = Arc::new(junctions_array);
 
@@ -500,14 +512,13 @@ impl IdnClient for IdnClientImpl {
 
 	fn update_subscription(
 		&mut self,
-		ideal_network_para_id: u32,
 		params: UpdateSubParams,
 	) -> Result<()> {
 		// Create the XCM message
 		let message = self.construct_update_subscription_xcm(&params);
 
 		// Create the destination MultiLocation (IDN parachain)
-		let junction = Junction::Parachain(ideal_network_para_id);
+		let junction = Junction::Parachain(self.ideal_network_para_id);
 		let junctions_array = [junction; 1];
 		let destinations = Arc::new(junctions_array);
 
@@ -527,14 +538,13 @@ impl IdnClient for IdnClientImpl {
 
 	fn kill_subscription(
 		&mut self,
-		ideal_network_para_id: u32,
 		subscription_id: SubscriptionId,
 	) -> Result<()> {
 		// Create the XCM message
 		let message = self.construct_kill_subscription_xcm(subscription_id);
 
 		// Create the destination MultiLocation (IDN parachain)
-		let junction = Junction::Parachain(ideal_network_para_id);
+		let junction = Junction::Parachain(self.ideal_network_para_id);
 		let junctions_array = [junction; 1];
 		let destinations = Arc::new(junctions_array);
 
@@ -559,7 +569,7 @@ mod tests {
 
 	#[test]
 	fn test_constructing_xcm_messages() {
-		let client = IdnClientImpl;
+		let client = IdnClientImpl::new(DEFAULT_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Test creating a subscription XCM message
 		let create_params = CreateSubParams {
@@ -595,7 +605,7 @@ mod tests {
 
 	#[test]
 	fn test_message_content_validation() {
-		let client = IdnClientImpl;
+		let client = IdnClientImpl::new(DEFAULT_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Test create subscription message content
 		let create_params = CreateSubParams {
@@ -625,7 +635,7 @@ mod tests {
 	#[test]
 	fn test_client_encoding_decoding() {
 		// Create a client
-		let client = IdnClientImpl::default();
+		let client = IdnClientImpl::new(DEFAULT_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Encode the client
 		let encoded = Encode::encode(&client);
@@ -651,7 +661,7 @@ mod tests {
 
 	#[test]
 	fn test_edge_cases() {
-		let client = IdnClientImpl;
+		let client = IdnClientImpl::new(DEFAULT_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Test with zero values
 		let zero_credits_params = CreateSubParams {
@@ -683,13 +693,12 @@ mod tests {
 	#[test]
 	fn test_error_handling() {
 		// Verify TooManySubscriptions error is distinct from other errors
-		assert_ne!(Error::TooManySubscriptions, Error::Other);
-		assert_ne!(Error::TooManySubscriptions, Error::XcmSendFailed);
+		assert_ne!(Error::TooManySubscriptions, Error::EnvError(u32::MAX));
 
 		// Verify that XCM-specific errors are properly handled in the From implementation
 		// This only tests that our Error enum has the right variants for the XCM errors
 		// since we can't easily construct the actual XCM errors in unit tests
 		assert_ne!(Error::XcmExecutionFailed, Error::XcmSendFailed);
-		assert_ne!(Error::XcmExecutionFailed, Error::Other);
+		assert_ne!(Error::XcmExecutionFailed, Error::EnvError(u32::MAX));
 	}
 }
