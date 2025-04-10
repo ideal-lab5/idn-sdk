@@ -1,5 +1,5 @@
 [package]
-name = "idn-client"
+name = "idn-client-contract-lib"
 version = "0.1.0"
 authors = ["Ideal Labs <hello@idealabs.network>"]
 edition = "2021"

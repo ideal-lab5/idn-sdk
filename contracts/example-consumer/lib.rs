@@ -18,7 +18,7 @@
 
 #[ink::contract]
 mod example_consumer {
-	use idn_client::{
+	use idn_client_contract_lib::{
 		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, IdnPulse, RandomnessReceiver,
 		Result, SubscriptionId, UpdateSubParams,
 	};

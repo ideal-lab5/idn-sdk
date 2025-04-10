@@ -9,7 +9,7 @@ description = "An example consumer contract for interacting with Ideal Network s
 
 [dependencies]
 ink = { workspace = true, default-features = false }
-idn-client = { path = "../idn-client", default-features = false }
+idn-client-contract-lib = { path = "../idn-client", default-features = false }
 sp-idn-traits = { path = "../../primitives/traits", default-features = false }
 
 [dev-dependencies]
@@ -23,7 +23,7 @@ path = "lib.rs"
 default = ["std"]
 std = [
     "ink/std",
-    "idn-client/std",
+    "idn-client-contract-lib/std",
     "sp-idn-traits/std",
 ]
 ink-as-dependency = []

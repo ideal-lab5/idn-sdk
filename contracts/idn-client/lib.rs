@@ -32,10 +32,6 @@ use std::sync::Arc;
 
 use sp_idn_traits::pulse::Pulse;
 
-/// Default pallet index for the IDN Manager pallet
-/// This can be overridden during implementation with specific values
-pub const DEFAULT_IDN_MANAGER_PALLET_INDEX: u8 = 42;
-
 /// Call index for the create_subscription function in the IDN Manager pallet
 pub const IDN_MANAGER_CREATE_SUB_INDEX: u8 = 0;
 
@@ -274,15 +270,6 @@ pub struct IdnClientImpl {
 	pub idn_manager_pallet_index: u8,
 	/// Parachain ID of the IDN network
 	pub ideal_network_para_id: u32,
-}
-
-impl Default for IdnClientImpl {
-	fn default() -> Self {
-		Self {
-			idn_manager_pallet_index: DEFAULT_IDN_MANAGER_PALLET_INDEX,
-			ideal_network_para_id: 1000, // Default parachain ID, clients should override this
-		}
-	}
 }
 
 impl IdnClientImpl {
@@ -539,9 +526,13 @@ impl IdnClient for IdnClientImpl {
 mod tests {
 	use super::*;
 
+	/// Default pallet index for the IDN Manager pallet
+	/// This can be overridden during implementation with specific values
+pub const TEST_IDN_MANAGER_PALLET_INDEX: u8 = 42;
+
 	#[test]
 	fn test_constructing_xcm_messages() {
-		let client = IdnClientImpl::new(DEFAULT_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Test creating a subscription XCM message
 		let create_params = CreateSubParams {
@@ -577,7 +568,7 @@ mod tests {
 
 	#[test]
 	fn test_message_content_validation() {
-		let client = IdnClientImpl::new(DEFAULT_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Test create subscription message content
 		let create_params = CreateSubParams {
@@ -607,7 +598,7 @@ mod tests {
 	#[test]
 	fn test_client_encoding_decoding() {
 		// Create a client
-		let client = IdnClientImpl::new(DEFAULT_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Encode the client
 		let encoded = Encode::encode(&client);
@@ -633,7 +624,7 @@ mod tests {
 
 	#[test]
 	fn test_edge_cases() {
-		let client = IdnClientImpl::new(DEFAULT_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Test with zero values
 		let zero_credits_params = CreateSubParams {
