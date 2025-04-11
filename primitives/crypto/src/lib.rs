@@ -13,5 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-pub mod bls12_381;
+ #![cfg_attr(not(feature = "std"), no_std)]
+mod bls12_381;
+pub mod verifier;

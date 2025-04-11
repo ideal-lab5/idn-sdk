@@ -59,7 +59,7 @@
 //! - `BeaconConfig`: Stores the beacon configuration details.
 //! - `GenesisRound`: The first round number from which randomness pulses are considered valid.
 //! - `LatestRound`: Tracks the latest verified round number.
-//! - `AggregatedSignature`: Stores the latest aggregated signature for verification purposes.
+//! - `Accumulation`: Stores the latest aggregated signature for verification purposes.
 //!
 //! ## Usage
 //!
@@ -88,18 +88,16 @@ pub use pallet::*;
 use frame_support::pallet_prelude::*;
 use sp_consensus_randomness_beacon::types::{OpaquePulse, OpaqueSignature, RoundNumber};
 use sp_idn_traits::pulse::{Dispatcher, Pulse as TPulse};
+use sp_idn_crypto::verifier::{OpaqueAccumulation, SignatureVerifier};
 
 extern crate alloc;
 use alloc::vec::Vec;
 
-pub mod bls12_381;
 pub mod types;
-pub mod verifier;
 pub mod weights;
 pub use weights::*;
 
 pub use types::*;
-use verifier::SignatureVerifier;
 
 #[cfg(test)]
 mod mock;
@@ -134,7 +132,7 @@ pub mod pallet {
 		/// A type representing the weights required by the dispatchables of this pallet.
 		type WeightInfo: WeightInfo;
 		/// something that knows how to aggregate and verify beacon pulses.
-		type SignatureVerifier: SignatureVerifier<>;
+		type SignatureVerifier: SignatureVerifier;
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;
 		/// The number of historical missed blocks that we store.
@@ -158,7 +156,7 @@ pub mod pallet {
 
 	/// The aggregated signature and aggregated public key (identifier) of all observed pulses
 	#[pallet::storage]
-	pub type AggregatedSignature<T: Config> = StorageValue<_, Aggregate, OptionQuery>;
+	pub type SparseAccumulation<T: Config> = StorageValue<_, Accumulation, OptionQuery>;
 
 	/// The collection of blocks for which collators could not report an aggregated signature
 	#[pallet::storage]
@@ -310,17 +308,21 @@ pub mod pallet {
 				sigs.push(s);
 			}
 			
-			let aggr = T::SignatureVerifier::verify(
+			let prev_acc: Option<OpaqueAccumulation> = SparseAccumulation::<T>::get().map(|a| a.into_opaque());
+
+			let acc = T::SignatureVerifier::verify(
 				config.public_key.as_ref().to_vec(),
 				sigs.clone(),
 				latest_round.clone().into(),
-				AggregatedSignature::<T>::get(),
+				prev_acc
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
 
 			let new_latest_round = latest_round.saturating_add(height.into());
 			LatestRound::<T>::set(Some(new_latest_round.clone()));
-			AggregatedSignature::<T>::set(Some(aggr));
+			// TODO handle error
+			let sacc = Accumulation::from_opaque(acc);
+			SparseAccumulation::<T>::set(Some(sacc));
 			DidUpdate::<T>::put(true);
 
 			// dispatch pulses to subscribers

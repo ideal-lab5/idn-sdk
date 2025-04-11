@@ -15,7 +15,7 @@
  */
 
 use crate::{
-	mock::*, types::*, verifier::test::*, weights::WeightInfo, AggregatedSignature, BeaconConfig,
+	mock::*, types::*, verifier::test::*, weights::WeightInfo, Accumulation, BeaconConfig,
 	Call, Error, LatestRound, MissedBlocks,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
@@ -26,7 +26,7 @@ const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb
 #[test]
 fn can_construct_pallet_and_set_genesis_params() {
 	new_test_ext().execute_with(|| {
-		let actual_initial_sigs = AggregatedSignature::<Test>::get();
+		let actual_initial_sigs = Accumulation::<Test>::get();
 		assert!(actual_initial_sigs.is_none());
 	});
 }
@@ -71,7 +71,7 @@ fn can_submit_valid_pulses_under_the_limit() {
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs));
 
-		let maybe_res = AggregatedSignature::<Test>::get();
+		let maybe_res = Accumulation::<Test>::get();
 		assert!(maybe_res.is_some());
 
 		let aggr = maybe_res.unwrap();
@@ -133,7 +133,7 @@ fn can_submit_valid_sigs_in_sequence() {
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs2));
 
-		let maybe_res = AggregatedSignature::<Test>::get();
+		let maybe_res = Accumulation::<Test>::get();
 		assert!(maybe_res.is_some());
 
 		let aggr = maybe_res.unwrap();
@@ -181,7 +181,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 			Error::<Test>::VerificationFailed,
 		);
 
-		let maybe_res = AggregatedSignature::<Test>::get();
+		let maybe_res = Accumulation::<Test>::get();
 		assert!(maybe_res.is_some());
 
 		let aggr = maybe_res.unwrap();

@@ -18,25 +18,41 @@ use codec::{Decode, Encode};
 use frame_support::pallet_prelude::*;
 use serde::{Deserialize, Serialize};
 use sp_consensus_randomness_beacon::types::{RoundNumber, OpaquePublicKey, OpaqueSignature};
+use sp_idn_crypto::verifier::OpaqueAccumulation;
 
 /// Represents an aggregated signature and aggregated public key pair
 #[derive(
 	Clone,
 	Debug,
 	Decode,
-	// Default,
 	PartialEq,
 	Encode,
-	// Serialize,
-	// Deserialize,
 	MaxEncodedLen,
 	TypeInfo,
 )]
-pub struct Aggregate {
+pub struct Accumulation {
 	/// A signature (e.g. output from the randomness beacon) in G1
 	pub signature: OpaqueSignature,
 	/// The message signed by the signature, hashed to G1
 	pub message_hash: OpaqueSignature,
+}
+
+impl Accumulation {
+	// TODO: handle error
+	// refactor to: try_from_opaque
+	pub fn from_opaque(opaque: OpaqueAccumulation) -> Self {
+		Self {
+			signature: opaque.signature.try_into().unwrap(),
+			message_hash: opaque.message_hash.try_into().unwrap(),
+		}
+	}
+
+	pub fn into_opaque(self) -> OpaqueAccumulation {
+		OpaqueAccumulation {
+			signature: self.signature.as_slice().to_vec(),
+			message_hash: self.message_hash.as_slice().to_vec(),
+		}
+	}
 }
 
 /// A drand chain configuration

@@ -15,12 +15,13 @@
  */
 
 //! A collection of verifiers for randomness beacon pulses
-use crate::{bls12_381, types::Aggregate};
+extern crate alloc;
+use crate::bls12_381;
 use ark_ec::{hashing::HashToCurve, AffineRepr};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
 use sha2::{Digest, Sha256};
-use sp_consensus_randomness_beacon::types::{OpaquePublicKey, OpaqueSignature, RoundNumber};
 use sp_std::vec::Vec;
 use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
 
@@ -28,6 +29,14 @@ use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
 use ark_bls12_381::{G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
 #[cfg(feature = "host-arkworks")]
 use sp_ark_bls12_381::{G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
+
+/// An opaque type to represent a serialized signature and message combination
+pub struct OpaqueAccumulation {
+	/// A signature (e.g. output from the randomness beacon) in G1
+	pub signature: Vec<u8>,
+	/// The message signed by the signature, hashed to G1
+	pub message_hash: Vec<u8>,
+}
 
 /// Something that can verify beacon pulses
 pub trait SignatureVerifier {
@@ -40,9 +49,9 @@ pub trait SignatureVerifier {
 	fn verify(
 		beacon_pk_bytes: Vec<u8>,
 		next_sig_bytes: Vec<Vec<u8>>,
-		start: RoundNumber,
-		prev_sig_and_msg: Option<Aggregate>,
-	) -> Result<Aggregate, Error>;
+		start: u64,
+		accumulation: Option<OpaqueAccumulation>,
+	) -> Result<OpaqueAccumulation, Error>;
 }
 
 #[derive(Debug, PartialEq)]
@@ -85,13 +94,14 @@ pub enum Error {
 pub struct QuicknetVerifier;
 
 impl SignatureVerifier for QuicknetVerifier {
+
 	fn verify(
 		beacon_pk_bytes: Vec<u8>,
 		next_sig_bytes: Vec<Vec<u8>>,
-		start: RoundNumber,
-		prev_sig_and_msg: Option<Aggregate>,
-	) -> Result<Aggregate, Error> {
-		let height: RoundNumber = next_sig_bytes.len() as RoundNumber;
+		start: u64,
+		accumulation: Option<OpaqueAccumulation>,
+	) -> Result<OpaqueAccumulation, Error> {
+		let height: u64 = next_sig_bytes.len() as u64;
 		let beacon_pk = decode_g2(&beacon_pk_bytes)?;
 		// apk = 0, asig = new_sig
 		let mut apk = zero_on_g1();
@@ -102,9 +112,9 @@ impl SignatureVerifier for QuicknetVerifier {
 			.fold(zero_on_g1(), |acc, sig| (acc + sig).into());
 		// if a previous signature and pubkey were provided
 		// then we start there
-		if let Some(aggr) = prev_sig_and_msg {
-			let prev_asig = decode_g1(&aggr.signature)?;
-			let prev_apk = decode_g1(&aggr.message_hash)?;
+		if let Some(acc) = accumulation {
+			let prev_asig = decode_g1(&acc.signature)?;
+			let prev_apk = decode_g1(&acc.message_hash)?;
 			asig = (asig + prev_asig).into();
 			apk = (apk + prev_apk).into();
 		}
@@ -134,20 +144,20 @@ impl SignatureVerifier for QuicknetVerifier {
 		asig.serialize_compressed(&mut sig_bytes)
 			.map_err(|_| Error::DeserializeG1Failure)?;
 		// TODO
-		let new_asig: OpaqueSignature = sig_bytes.clone().try_into().unwrap();
+		// let new_asig: OpaqueSignature = sig_bytes.clone().try_into().unwrap();
 
 		let mut apk_bytes = Vec::new();
 		// note: this line is untestable
 		apk.serialize_compressed(&mut apk_bytes)
 			.map_err(|_| Error::DeserializeG2Failure)?;
-		let new_apk: OpaqueSignature = apk_bytes.try_into().unwrap();
+		// let new_apk: OpaqueSignature = apk_bytes.try_into().unwrap();
 
-		Ok(Aggregate { signature: new_asig, message_hash: new_apk })
+		Ok(OpaqueAccumulation { signature: sig_bytes, message_hash: apk_bytes })
 	}
 }
 
 /// Constructs a message (e.g. signed by drand)
-fn message(current_round: RoundNumber, prev_sig: &[u8]) -> Vec<u8> {
+fn message(current_round: u64, prev_sig: &[u8]) -> Vec<u8> {
 	let mut hasher = Sha256::default();
 	hasher.update(prev_sig);
 	hasher.update(current_round.to_be_bytes());
@@ -282,7 +292,7 @@ pub mod test {
 			beacon_pk_bytes.try_into().unwrap(),
 			next_sigs,
 			1001u64,
-			Some(Aggregate { signature: prev_asig, message_hash: prev_apk }),
+			Some(Accumulation { signature: prev_asig, message_hash: prev_apk }),
 		)
 		.unwrap();
 
@@ -307,7 +317,7 @@ pub mod test {
 
 	#[test]
 	fn test_message_deterministic() {
-		let round: RoundNumber = 42;
+		let round: u64 = 42;
 		let prev_sig = b"previous_signature";
 		let msg1 = message(round, prev_sig);
 		let msg2 = message(round, prev_sig);

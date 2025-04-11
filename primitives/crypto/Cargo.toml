@@ -1,4 +1,4 @@
-[package]
+ [package]
 name = "sp-idn-crypto"
 version = "0.0.1-dev"
 authors.workspace = true
@@ -16,20 +16,24 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 async-trait = { optional = true, workspace = true }
-codec.workspace = true
+codec = { workspace = true, features = ["derive"], default-features = false }
+scale-info = { workspace = true, default-features = false, features = ["derive"] }
 prost.workspace = true
-scale-info.workspace = true
 serde = { workspace = true, features = ["derive"] }
 sha2.workspace = true
 sp-core.workspace = true
 sp-inherents.workspace = true
 sp-idn-traits.workspace = true
 sp-runtime.workspace = true
+sp-std.workspace = true
 
 # arkworks dependencies
 sp-ark-bls12-381 = { workspace = true, optional = true }
+ark-ec.workspace = true
 ark-bls12-381.workspace = true
 ark-serialize.workspace = true
+ark-std.workspace = true
+timelock.workspace = true
 
 [dev-dependencies]
 array-bytes = "=6.2.3"
@@ -49,9 +53,13 @@ std = [
 	"sp-idn-traits/std",
 	"sp-inherents/std",
 	"sp-runtime/std",
+	"sp-std/std",
 	"prost/std",
 	"sha2/std",
 	"ark-bls12-381/std",
+	"ark-ec/std",
 	"ark-serialize/std",
+	"ark-std/std",
+	"timelock/std"
 ]
 host-arkworks = ["sp-ark-bls12-381/std"]

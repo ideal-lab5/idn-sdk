@@ -100,7 +100,7 @@ mod benchmarks {
 		_(RawOrigin::None, sigs);
 
 		assert_eq!(
-			AggregatedSignature::<T>::get(),
+			Accumulation::<T>::get(),
 			Some(Aggregate {
 				signature: asig_bytes.try_into().unwrap(),
 				message_hash: apk_bytes.try_into().unwrap(),

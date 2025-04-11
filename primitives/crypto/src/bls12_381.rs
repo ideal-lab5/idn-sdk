@@ -35,7 +35,7 @@ use ark_std::{ops::Neg, Zero};
 /// * `r`: The message signed by Drand, hashed to G1
 /// * `s`: A generator
 #[inline]
-pub fn fast_pairing_opt(
+pub(crate) fn fast_pairing_opt(
 	signature: G1AffineOpt,
 	q: G2AffineOpt,
 	r: G1AffineOpt,
