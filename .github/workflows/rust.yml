@@ -42,6 +42,8 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-rust
+      - name: Check disk Space
+        run: dh -h
 
       - name: Run cargo clippy
         run: cargo clippy --all-features -p idn-sdk-kitchensink-node -- -D warnings
