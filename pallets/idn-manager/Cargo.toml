@@ -17,6 +17,7 @@ codec.workspace = true
 docify.workspace = true
 scale-info.workspace = true
 simple-mermaid.workspace = true
+sha2.workspace = true
 sp-arithmetic.workspace = true
 sp-api.workspace = true
 sp-core.workspace = true
@@ -32,6 +33,7 @@ frame-support.workspace = true
 frame-system.workspace = true
 # idn deps
 sp-idn-traits.workspace = true
+sp-consensus-randomness-beacon.workspace = true
 
 [dev-dependencies]
 pallet-balances.workspace = true
@@ -45,7 +47,9 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
+	"sha2/std",
 	"sp-idn-traits/std",
+	"sp-consensus-randomness-beacon/std",
 	"sp-arithmetic/std",
 	"sp-core/std",
 	"sp-io/std",

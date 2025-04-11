@@ -21,6 +21,8 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
+use sp_core::ConstU32;
+use sp_runtime::BoundedVec;
 
 #[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::G1Affine as G1AffineOpt;
@@ -29,6 +31,19 @@ use ark_bls12_381::G1Affine as G1AffineOpt;
 use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 use ark_serialize::CanonicalDeserialize;
+
+use sha2::{Sha256, Digest};
+
+/// Represents an opaque public key used in drand's quicknet
+pub type OpaquePublicKey = BoundedVec<u8, ConstU32<96>>;
+/// Represents an element of the signature group
+pub type OpaqueSignature = BoundedVec<u8, ConstU32<48>>;
+/// an opaque bounded storage type for 64 bit hashes
+pub type OpaqueHash = BoundedVec<u8, ConstU32<64>>;
+/// the round number to track rounds of the beacon
+pub type RoundNumber = u64;
+/// The randomness type (32 bits)
+pub type Randomness = BoundedVec<u8, ConstU32<32>>;
 
 /// A `ProtoPulse` represents the output from a threshold-BLS based verifiable randomness beacon 
 /// encoded as a raw protobuf message
@@ -100,6 +115,35 @@ impl OpaquePulse {
 		G1AffineOpt::deserialize_compressed(&mut self.signature.as_slice()).map_err(|e| {
 			format!("Failed to deserialize the signature bytes to a point on the G1 curve: {:?}", e)
 		})
+	}
+}
+
+impl sp_idn_traits::pulse::Pulse for OpaquePulse {
+
+	type Rand = u8;
+	type Round = u8;
+	type Sig = u8;
+	type Pubkey = u8;
+
+	fn rand(&self) -> Self::Rand {
+		0
+		// let mut hasher = Sha256::default();
+		// hasher.update(self.signature.clone().to_vec());
+		// Randomness::truncate_from(hasher.finalize().to_vec())
+	}
+
+	fn round(&self) -> Self::Round {
+		// self.round
+		1
+	}
+
+	fn sig(&self) -> Self::Sig {
+		// self.signature.clone()
+		2
+	}
+
+	fn valid(&self, pubkey: Self::Pubkey) -> bool {
+		false
 	}
 }
 

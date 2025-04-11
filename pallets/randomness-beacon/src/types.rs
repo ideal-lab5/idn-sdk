@@ -17,17 +17,7 @@
 use codec::{Decode, Encode};
 use frame_support::pallet_prelude::*;
 use serde::{Deserialize, Serialize};
-
-/// Represents an opaque public key used in drand's quicknet
-pub type OpaquePublicKey = BoundedVec<u8, ConstU32<96>>;
-/// Represents an element of the signature group
-pub type OpaqueSignature = BoundedVec<u8, ConstU32<48>>;
-/// an opaque bounded storage type for 64 bit hashes
-pub type OpaqueHash = BoundedVec<u8, ConstU32<64>>;
-/// the round number to track rounds of the beacon
-pub type RoundNumber = u64;
-/// The randomness type (32 bits)
-pub type Randomness = BoundedVec<u8, ConstU32<32>>;
+use sp_consensus_randomness_beacon::types::{RoundNumber, OpaquePublicKey, OpaqueSignature};
 
 /// Represents an aggregated signature and aggregated public key pair
 #[derive(
@@ -67,23 +57,6 @@ pub struct BeaconConfiguration {
 	pub public_key: OpaquePublicKey,
 	/// The genesis round from which the IDN begins consuming the beacon
 	pub genesis_round: RoundNumber,
-}
-
-/// metadata for the drand beacon configuration
-#[derive(
-	Clone,
-	Debug,
-	Decode,
-	Default,
-	PartialEq,
-	Encode,
-	Serialize,
-	Deserialize,
-	MaxEncodedLen,
-	TypeInfo,
-)]
-pub struct Metadata {
-	pub beacon_id: OpaqueHash,
 }
 
 #[cfg(test)]

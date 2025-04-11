@@ -86,7 +86,7 @@ pub enum PulseProperty<RandType, RoundType, SigType> {
 /// 2. Enable subscriptions to filter pulses based on specific properties
 /// 3. Allow the secure distribution of randomness through XCM
 pub trait Pulse {
-	/// The type of the random value contained in this pulse
+	  /// The type of the random value contained in this pulse
 	///
 	/// This is typically a fixed-size byte array like `[u8; 32]` that represents
 	/// the random value.
@@ -104,6 +104,11 @@ pub trait Pulse {
 	/// that represents the signature for this pulse.
 	type Sig: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
 
+	/// The type of the public key required to verify this signature
+	///
+	/// This is typically a  byte array or a specific public key type
+	type Pubkey: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
+
 	/// Get the random value from this pulse
 	///
 	/// Returns the random value contained in this pulse.
@@ -116,14 +121,15 @@ pub trait Pulse {
 	fn round(&self) -> Self::Round;
 
 	/// Get the signature from this pulse
-	///	
+	///
 	/// Returns the signature contained in this pulse.
 	fn sig(&self) -> Self::Sig;
 
-	// /// Verifies a pulse validity
-	// ///
-	// /// Returns `true` when valid, `false` otherwise.
-	// fn valid(&self) -> bool;
+	// TODO refactor name
+	/// Verifies a pulse validity against the given public key
+	///
+	/// Returns `true` when valid, `false` otherwise.
+	fn authenticate(&self, pubkey: Self::Pubkey) -> bool;
 }
 
 /// A trait for matching pulse properties against specific values
@@ -160,9 +166,11 @@ pub trait Pulse {
 ///     type Rand = [u8; 3];
 ///     type Round = u8;
 ///     type Sig = [u8; 8];
+///     type Pubkey = [u8;8];
 ///     fn rand(&self) -> Self::Rand { self.rand }
 ///     fn round(&self) -> Self::Round { self.round }
 ///     fn sig(&self) -> Self::Sig { self.signature }
+///     fn valid(&self, pubey: Pubkey) -> bool { true }
 /// }
 ///
 /// let my_pulse = MyPulse { rand: [1, 2, 3], round: 42, signature: [1, 2, 3, 4, 5, 6, 7, 8] };
@@ -207,4 +215,3 @@ pub trait PulseMatch: Pulse {
 /// ensures all pulse types can be filtered with the default equality-based matching logic
 /// without requiring additional implementation work.
 impl<T: Pulse> PulseMatch for T {}
-

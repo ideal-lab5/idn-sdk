@@ -17,12 +17,13 @@
 //! A collection of verifiers for randomness beacon pulses
 use crate::{
 	bls12_381,
-	types::{Aggregate, OpaquePublicKey, OpaqueSignature, RoundNumber},
+	types::Aggregate,
 };
 use alloc::vec::Vec;
 use ark_ec::{hashing::HashToCurve, AffineRepr};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use sha2::{Digest, Sha256};
+use sp_consensus_randomness_beacon::types::{OpaquePublicKey, OpaqueSignature, RoundNumber};
 use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
 
 #[cfg(not(feature = "host-arkworks"))]

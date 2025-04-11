@@ -695,7 +695,7 @@ impl<T: Config> Pallet<T> {
 				// and custom filter criteria
 				if
 				// Subscription must be active
-				sub.state ==   SubscriptionState::Active   &&
+				sub.state ==  SubscriptionState::Active   &&
 					// And either never delivered before, or enough blocks have passed since last delivery
 					(sub.last_delivered.is_none() ||
 					current_block >= sub.last_delivered.unwrap() + sub.frequency) &&
@@ -922,14 +922,19 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
+impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T>  {
 	/// Dispatches a given pulse by distributing it to eligible subscriptions.
 	///
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
-	fn dispatch(pulse: T::Pulse) -> DispatchResult {
-		Pallet::<T>::distribute(pulse)
+	fn dispatch(pulse: Vec<T::Pulse>) -> DispatchResult { 
+		// dispatch pulses to subscribers
+		for pulse in pulses {
+			if let Err(e) = Pallet::<T>::distribute(pulse) {
+				log::warn!(target: LOG_TARGET, "ADSFKJASDKF");
+			}
+		}
 	}
 }
 
