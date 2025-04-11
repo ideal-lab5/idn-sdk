@@ -28,7 +28,6 @@ xcm.workspace = true
 # IDN
 pallet-idn-manager = { workspace = true, default-features = false }
 sp-idn-traits = { workspace = true, default-features = false }
-sp-idn-types = { workspace = true, default-features = false }
 
 [dev-dependencies]
 sp-io = { workspace = true, default-features = false}
@@ -46,6 +45,5 @@ std = [
 	"sp-core/std",
 	"sp-io/std",
 	"sp-idn-traits/std",
-	"sp-idn-types/std",
 	"sp-runtime/std",
 ]

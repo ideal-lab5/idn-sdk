@@ -49,6 +49,7 @@ sp-consensus-aura.workspace = true
 sp-core.workspace = true
 sp-genesis-builder.workspace = true
 sp-idn-traits.workspace = true
+sp-consensus-randomness-beacon.workspace = true
 sp-inherents.workspace = true
 sp-keyring.workspace = true
 sp-offchain.workspace = true
@@ -126,6 +127,7 @@ std = [
   "sp-api/std",
   "sp-block-builder/std",
   "sp-consensus-aura/std",
+  "sp-consensus-randomness-beacon/std",
   "sp-core/std",
   "sp-genesis-builder/std",
   "sp-idn-traits/std",

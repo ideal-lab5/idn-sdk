@@ -18,7 +18,7 @@
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
-use crate::types::Pulse;
+use sp_consensus_randomness_beacon::types::OpaquePulse;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -322,7 +322,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u128>;
 	type PalletId = IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = Pulse;
+	type Pulse = OpaquePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;

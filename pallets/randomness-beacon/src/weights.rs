@@ -64,8 +64,8 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// Proof: `RandBeacon::BeaconConfig` (`max_values`: Some(1), `max_size`: Some(106), added: 601, mode: `MaxEncodedLen`)
 	/// Storage: `RandBeacon::LatestRound` (r:1 w:1)
 	/// Proof: `RandBeacon::LatestRound` (`max_values`: Some(1), `max_size`: Some(8), added: 503, mode: `MaxEncodedLen`)
-	/// Storage: `RandBeacon::AggregatedSignature` (r:1 w:1)
-	/// Proof: `RandBeacon::AggregatedSignature` (`max_values`: Some(1), `max_size`: Some(98), added: 593, mode: `MaxEncodedLen`)
+	/// Storage: `RandBeacon::Accumulation` (r:1 w:1)
+	/// Proof: `RandBeacon::Accumulation` (`max_values`: Some(1), `max_size`: Some(98), added: 593, mode: `MaxEncodedLen`)
 	/// The range of component `r` is `[2, 30]`.
 	fn try_submit_asig(r: u32, ) -> Weight {
 		// Proof Size summary in bytes:
@@ -112,8 +112,8 @@ impl WeightInfo for () {
 	/// Proof: `RandBeacon::BeaconConfig` (`max_values`: Some(1), `max_size`: Some(106), added: 601, mode: `MaxEncodedLen`)
 	/// Storage: `RandBeacon::LatestRound` (r:1 w:1)
 	/// Proof: `RandBeacon::LatestRound` (`max_values`: Some(1), `max_size`: Some(8), added: 503, mode: `MaxEncodedLen`)
-	/// Storage: `RandBeacon::AggregatedSignature` (r:1 w:1)
-	/// Proof: `RandBeacon::AggregatedSignature` (`max_values`: Some(1), `max_size`: Some(98), added: 593, mode: `MaxEncodedLen`)
+	/// Storage: `RandBeacon::Accumulation` (r:1 w:1)
+	/// Proof: `RandBeacon::Accumulation` (`max_values`: Some(1), `max_size`: Some(98), added: 593, mode: `MaxEncodedLen`)
 	/// The range of component `r` is `[2, 30]`.
 	fn try_submit_asig(r: u32, ) -> Weight {
 		// Proof Size summary in bytes:

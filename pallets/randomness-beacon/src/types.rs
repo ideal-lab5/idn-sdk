@@ -17,34 +17,42 @@
 use codec::{Decode, Encode};
 use frame_support::pallet_prelude::*;
 use serde::{Deserialize, Serialize};
-
-/// Represents an opaque public key used in drand's quicknet
-pub type OpaquePublicKey = BoundedVec<u8, ConstU32<96>>;
-/// Represents an element of the signature group
-pub type OpaqueSignature = BoundedVec<u8, ConstU32<48>>;
-/// an opaque bounded storage type for 64 bit hashes
-pub type OpaqueHash = BoundedVec<u8, ConstU32<64>>;
-/// the round number to track rounds of the beacon
-pub type RoundNumber = u64;
+use sp_consensus_randomness_beacon::types::{RoundNumber, OpaquePublicKey, OpaqueSignature};
+use sp_idn_crypto::verifier::OpaqueAccumulation;
 
 /// Represents an aggregated signature and aggregated public key pair
 #[derive(
 	Clone,
 	Debug,
 	Decode,
-	Default,
 	PartialEq,
 	Encode,
-	Serialize,
-	Deserialize,
 	MaxEncodedLen,
 	TypeInfo,
 )]
-pub struct Aggregate {
+pub struct Accumulation {
 	/// A signature (e.g. output from the randomness beacon) in G1
 	pub signature: OpaqueSignature,
 	/// The message signed by the signature, hashed to G1
 	pub message_hash: OpaqueSignature,
+}
+
+impl Accumulation {
+	// TODO: handle error
+	// refactor to: try_from_opaque
+	pub fn from_opaque(opaque: OpaqueAccumulation) -> Self {
+		Self {
+			signature: opaque.signature.try_into().unwrap(),
+			message_hash: opaque.message_hash.try_into().unwrap(),
+		}
+	}
+
+	pub fn into_opaque(self) -> OpaqueAccumulation {
+		OpaqueAccumulation {
+			signature: self.signature.as_slice().to_vec(),
+			message_hash: self.message_hash.as_slice().to_vec(),
+		}
+	}
 }
 
 /// A drand chain configuration
@@ -60,28 +68,15 @@ pub struct Aggregate {
 	MaxEncodedLen,
 	TypeInfo,
 )]
-pub struct BeaconConfiguration {
+pub struct BeaconConfiguration<P, R> {
+	// /// The beacon public key
+	// pub public_key: OpaquePublicKey,
+	// /// The genesis round from which the IDN begins consuming the beacon
+	// pub genesis_round: RoundNumber,
 	/// The beacon public key
-	pub public_key: OpaquePublicKey,
+	pub public_key: P,
 	/// The genesis round from which the IDN begins consuming the beacon
-	pub genesis_round: RoundNumber,
-}
-
-/// metadata for the drand beacon configuration
-#[derive(
-	Clone,
-	Debug,
-	Decode,
-	Default,
-	PartialEq,
-	Encode,
-	Serialize,
-	Deserialize,
-	MaxEncodedLen,
-	TypeInfo,
-)]
-pub struct Metadata {
-	pub beacon_id: OpaqueHash,
+	pub genesis_round: R,
 }
 
 #[cfg(test)]

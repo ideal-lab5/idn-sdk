@@ -21,6 +21,8 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
+use sp_core::ConstU32;
+use sp_runtime::BoundedVec;
 
 #[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::G1Affine as G1AffineOpt;
@@ -30,10 +32,21 @@ use sp_ark_bls12_381::G1Affine as G1AffineOpt;
 
 use ark_serialize::CanonicalDeserialize;
 
-/// A `pulse` represents the output from a verifiable randomness beacon, specifically an 'unchained'
-/// one
+use sha2::{Digest, Sha256};
+
+/// Represents an opaque public key used in drand's quicknet
+pub type OpaquePublicKey = [u8;96];
+/// Represents an element of the signature group
+pub type OpaqueSignature = [u8;48];
+/// the round number to track rounds of the beacon
+pub type RoundNumber = u64;
+/// The randomness type (32 bits)
+pub type Randomness = [u8;32];
+
+/// A `ProtoPulse` represents the output from a threshold-BLS based verifiable randomness beacon
+/// encoded as a raw protobuf message
 #[derive(Clone, PartialEq, ::prost::Message, Serialize, Deserialize)]
-pub struct Pulse {
+pub struct ProtoPulse {
 	/// The round of the protocol when the signature was computed
 	#[prost(uint64, tag = "1")]
 	pub round: u64,
@@ -43,18 +56,18 @@ pub struct Pulse {
 }
 
 /// This struct is used to encode pulses in the runtime, where we obtain an OpaquePulse by
-/// converting a Pulse
+/// converting a ProtoPulse
 #[derive(Clone, Debug, PartialEq, codec::MaxEncodedLen, scale_info::TypeInfo, Encode, Decode)]
 pub struct OpaquePulse {
 	/// The round of the beacon protocol
-	pub round: u64,
+	pub round: RoundNumber,
 	/// A compressed BLS signature
-	pub signature: [u8; 48],
+	pub signature: OpaqueSignature,
 }
 
-impl TryInto<OpaquePulse> for Pulse {
+impl TryInto<OpaquePulse> for ProtoPulse {
 	type Error = String;
-	/// Converts a Pulse into an OpaquePulse
+	/// Converts a ProtoPulse into an OpaquePulse
 	fn try_into(self) -> Result<OpaquePulse, Self::Error> {
 		let signature: [u8; 48] = self
 			.signature
@@ -62,7 +75,10 @@ impl TryInto<OpaquePulse> for Pulse {
 			.try_into()
 			.map_err(|e| format!("The signature must be 48 bytes: {:?}", e))?;
 
-		Ok(OpaquePulse { round: self.round, signature })
+		Ok(OpaquePulse {
+			round: self.round,
+			signature,
+		})
 	}
 }
 
@@ -92,7 +108,10 @@ impl OpaquePulse {
 		let signature: [u8; 48] =
 			data[8..56].try_into().map_err(|_| "Failed to parse signature".to_string())?;
 
-		Ok(OpaquePulse { round, signature })
+		Ok(OpaquePulse {
+			round,
+			signature,
+		})
 	}
 
 	/// Compute the signature as a group element
@@ -103,16 +122,42 @@ impl OpaquePulse {
 	}
 }
 
+impl sp_idn_traits::pulse::Pulse for OpaquePulse {
+	type Rand = Randomness;
+	type Round = RoundNumber;
+	type Sig = OpaqueSignature;
+	type Pubkey = OpaquePublicKey;
+
+	fn rand(&self) -> Self::Rand {
+		let mut hasher = Sha256::default();
+		hasher.update(self.signature.clone().to_vec());
+		// TODO
+		hasher.finalize().try_into().unwrap()
+	}
+
+	fn round(&self) -> Self::Round {
+		self.round
+	}
+
+	fn sig(&self) -> Self::Sig {
+		self.signature.clone()
+	}
+
+	fn authenticate(&self, pubkey: Self::Pubkey) -> bool {
+		false
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 
-	fn valid_pulse() -> Pulse {
-		Pulse { round: 14475418, signature: VALID_SIG.to_vec() }
+	fn valid_pulse() -> ProtoPulse {
+		ProtoPulse { round: 14475418, signature: VALID_SIG.to_vec() }
 	}
 
-	fn invalid_pulse() -> Pulse {
-		Pulse {
+	fn invalid_pulse() -> ProtoPulse {
+		ProtoPulse {
 			round: 14475418,
 			signature: vec![
 				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
