@@ -124,14 +124,16 @@ pub fn run() -> sc_cli::Result<()> {
 					Some(sc_network::config::NetworkBackendType::Libp2p) =>
 						service::new_full::<sc_network::NetworkWorker<_, _>>(config, cli.consensus)
 							.map_err(sc_cli::Error::Service),
-					Some(sc_network::config::NetworkBackendType::Litep2p) => service::new_full::<
-						sc_network::Litep2pNetworkBackend,
-					>(config, cli.consensus)
-					.map_err(sc_cli::Error::Service),
+					Some(sc_network::config::NetworkBackendType::Litep2p) =>
+						service::new_full::<sc_network::Litep2pNetworkBackend>(
+							config,
+							cli.consensus,
+						)
+						.map_err(sc_cli::Error::Service),
 					None => {
 						// no backend configured
 						panic!("Invalid backend.");
-					}
+					},
 				}
 			})
 		},
