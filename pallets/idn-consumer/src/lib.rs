@@ -112,13 +112,13 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxPulseFilterLen: Get<u32>;
 
-		/// The index of the consume call in this pallet
+		/// The index of the IDN Manager pallet in the IDN parachain runtime
 		#[pallet::constant]
-		type ConsumeCallIndex: Get<u8>;
+		type IdnManagerPalletIndex: Get<u8>;
 
-		/// This pallet's index in the runtime
-		#[pallet::constant]
-		type PalletIndex: Get<u8>;
+		// /// This pallet's index in the runtime
+		// #[pallet::constant]
+		// type PalletIndex: Get<u8>;
 	}
 
 	#[pallet::pallet]
@@ -178,19 +178,17 @@ impl<T: Config> Pallet<T> {
 		// Optional Subscription Id, if None, a new one will be generated
 		sub_id: Option<T::SubscriptionId>,
 	) -> Result<T::SubscriptionId, Error<T>> {
-		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/81
-
 		let mut params = CreateSubParamsOf::<T> {
 			credits,
 			target: T::SiblingIdnLocation::get(),
-			call_index: [T::PalletIndex::get(), Self::consume_call_index()],
+			call_index: [Self::get_pallet_index()?, 0],
 			frequency,
 			metadata,
 			pulse_filter,
 			sub_id,
 		};
 
-		// If sub_id is not provided, generate a new one and asign it to the params
+		// If `sub_id` is not provided, generate a new one and asign it to the params
 		let sub_id = match sub_id {
 			Some(sub_id) => sub_id,
 			None => {
@@ -203,23 +201,26 @@ impl<T: Config> Pallet<T> {
 
 		// TODO: should this be under the runtime?
 		// https://github.com/ideal-lab5/idn-sdk/issues/81
-		#[derive(Encode, Decode, Debug, PartialEq, Clone, scale_info::TypeInfo)]
-		enum Call<CreateSubParams> {
-			#[codec(index = 57)]
-			IdnManager(IdnManagerCall<CreateSubParams>),
-		}
+		// #[derive(Encode, Decode, Debug, PartialEq, Clone, scale_info::TypeInfo)]
+		// enum Call<CreateSubParams> {
+		// 	#[codec(index = 57)]
+		// 	IdnManager(IdnManagerCall<CreateSubParams>),
+		// }
 
-		let _call: Xcm<()> = Xcm(vec![Transact {
-			origin_kind: OriginKind::Xcm,
-			fallback_max_weight: None,
-			call: (Call::<CreateSubParamsOf<T>>::IdnManager(IdnManagerCall::<
-				CreateSubParamsOf<T>,
-			>::create_subscription {
-				params,
-			}))
-			.encode()
-			.into(),
-		}]);
+		// The index of the create subscription call in the IDN Manager pallet
+		// The first byte is the index of the IDN Manager pallet in the runtime
+		// The second byte is the index of the create subscription call in the IDN Manager pallet
+		let create_sub_index =
+			[T::IdnManagerPalletIndex::get(), IdnManagerCall::create_subscription];
+
+		let _call: Xcm<()> = Xcm(vec![
+			BuyExecution { weight_limit: Unlimited, ref_time_limit: None, additional_fee: None },
+			Transact {
+				origin_kind: OriginKind::Xcm,
+				fallback_max_weight: None,
+				call: (create_sub_index, params).encode().into(),
+			},
+		]);
 
 		Ok(sub_id)
 	}
@@ -248,30 +249,10 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	fn get_consume_call_index() -> Result<u8, Error<T>> {
-		use frame_support::traits::CallIndex;
+	/// Get the index of this pallet in the runtime
+	fn get_pallet_index() -> Result<u8, Error<T>> {
 		<Self as frame_support::traits::PalletInfoAccess>::index()
 			.try_into()
 			.map_err(|_| Error::<T>::PalletIndexConversionError)
-	}
-}
-
-/// Trait for getting the consume call index
-pub trait ConsumeCallIndexProvider {
-	fn consume_call_index() -> u8;
-}
-
-impl<T: Config> ConsumeCallIndexProvider for Pallet<T> {
-	fn consume_call_index() -> u8 {
-		T::ConsumeCallIndex::get()
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	#[test]
-	fn test_get_pallet_index() {
-		let index = crate::support::get_idn_manager_pallet_index();
-		assert_eq!(index, 40);
 	}
 }
