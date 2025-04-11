@@ -70,7 +70,7 @@ pub fn run() -> sc_cli::Result<()> {
 		Some(Subcommand::CheckBlock(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, import_queue, .. } =
+				let (PartialComponents { client, task_manager, import_queue, .. }, _q) =
 					service::new_partial(&config)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
@@ -78,21 +78,23 @@ pub fn run() -> sc_cli::Result<()> {
 		Some(Subcommand::ExportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, .. } = service::new_partial(&config)?;
+				let (PartialComponents { client, task_manager, .. }, _q) =
+					service::new_partial(&config)?;
 				Ok((cmd.run(client, config.database), task_manager))
 			})
 		},
 		Some(Subcommand::ExportState(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, .. } = service::new_partial(&config)?;
+				let (PartialComponents { client, task_manager, .. }, _q) =
+					service::new_partial(&config)?;
 				Ok((cmd.run(client, config.chain_spec), task_manager))
 			})
 		},
 		Some(Subcommand::ImportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, import_queue, .. } =
+				let (PartialComponents { client, task_manager, import_queue, .. }, _q) =
 					service::new_partial(&config)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
@@ -104,7 +106,7 @@ pub fn run() -> sc_cli::Result<()> {
 		Some(Subcommand::Revert(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, backend, .. } =
+				let (PartialComponents { client, task_manager, backend, .. }, _q) =
 					service::new_partial(&config)?;
 				Ok((cmd.run(client, backend, None), task_manager))
 			})
@@ -119,13 +121,19 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(&cli.run)?;
 			runner.run_node_until_exit(|config| async move {
 				match config.network.network_backend {
-					sc_network::config::NetworkBackendType::Libp2p =>
+					Some(sc_network::config::NetworkBackendType::Libp2p) =>
 						service::new_full::<sc_network::NetworkWorker<_, _>>(config, cli.consensus)
 							.map_err(sc_cli::Error::Service),
-					sc_network::config::NetworkBackendType::Litep2p => service::new_full::<
-						sc_network::Litep2pNetworkBackend,
-					>(config, cli.consensus)
-					.map_err(sc_cli::Error::Service),
+					Some(sc_network::config::NetworkBackendType::Litep2p) =>
+						service::new_full::<sc_network::Litep2pNetworkBackend>(
+							config,
+							cli.consensus,
+						)
+						.map_err(sc_cli::Error::Service),
+					None => {
+						// no backend configured
+						panic!("Invalid backend.");
+					},
 				}
 			})
 		},
