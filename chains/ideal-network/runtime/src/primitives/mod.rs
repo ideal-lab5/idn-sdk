@@ -17,3 +17,31 @@
 //! Primitives for the IDN runtime.
 
 pub mod types;
+
+use crate::Runtime;
+use frame_support::pallet_prelude::{Decode, Encode, TypeInfo};
+use pallet_idn_manager::{primitives::IdnManagerCall, CreateSubParamsOf};
+
+#[derive(Encode, Decode, Debug, PartialEq, Clone, TypeInfo)]
+enum Call {
+	#[codec(index = 40)]
+	IdnManager(IdnManagerCall<CreateSubParamsOf<Runtime>>),
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	pub fn get_idn_manager_pallet_index() -> usize {
+		<pallet_idn_manager::Pallet<Runtime> as frame_support::traits::PalletInfoAccess>::index()
+	}
+
+	/// Makes sure the call enum has the correct index.
+	#[test]
+	fn test_call_enum_has_correct_index() {
+		let call = Call::IdnManager(IdnManagerCall::create_subscription {
+			params: CreateSubParamsOf::<Runtime>::default(),
+		});
+		assert_eq!(get_idn_manager_pallet_index(), call.encode()[0] as usize);
+	}
+}
