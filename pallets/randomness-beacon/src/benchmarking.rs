@@ -78,7 +78,8 @@ mod benchmarks {
 				asig = (asig + sig).into();
 
 				sig.serialize_compressed(&mut bytes).unwrap();
-				OpaqueSignature::truncate_from(bytes)
+				let out: OpaqueSignature = bytes.try_into().unwrap();
+				out
 			})
 			.collect::<Vec<_>>();
 
@@ -90,7 +91,7 @@ mod benchmarks {
 
 		let config = BeaconConfiguration {
 			genesis_round: 1,
-			public_key: OpaquePublicKey::truncate_from(pk_bytes),
+			public_key: pk_bytes.try_into().unwrap(),
 		};
 
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
@@ -101,8 +102,8 @@ mod benchmarks {
 		assert_eq!(
 			AggregatedSignature::<T>::get(),
 			Some(Aggregate {
-				signature: OpaqueSignature::truncate_from(asig_bytes),
-				message_hash: OpaqueSignature::truncate_from(apk_bytes.to_vec())
+				signature: asig_bytes.try_into().unwrap(),
+				message_hash: apk_bytes.try_into().unwrap(),
 			}),
 		);
 
@@ -139,7 +140,7 @@ mod benchmarks {
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
 		let config = BeaconConfiguration {
 			genesis_round: 1u64,
-			public_key: OpaquePublicKey::truncate_from([1; 96].to_vec()),
+			public_key: [1; 96],
 		};
 
 		#[extrinsic_call]

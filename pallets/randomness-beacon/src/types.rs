@@ -24,11 +24,11 @@ use sp_consensus_randomness_beacon::types::{RoundNumber, OpaquePublicKey, Opaque
 	Clone,
 	Debug,
 	Decode,
-	Default,
+	// Default,
 	PartialEq,
 	Encode,
-	Serialize,
-	Deserialize,
+	// Serialize,
+	// Deserialize,
 	MaxEncodedLen,
 	TypeInfo,
 )]
@@ -52,11 +52,15 @@ pub struct Aggregate {
 	MaxEncodedLen,
 	TypeInfo,
 )]
-pub struct BeaconConfiguration {
+pub struct BeaconConfiguration<P, R> {
+	// /// The beacon public key
+	// pub public_key: OpaquePublicKey,
+	// /// The genesis round from which the IDN begins consuming the beacon
+	// pub genesis_round: RoundNumber,
 	/// The beacon public key
-	pub public_key: OpaquePublicKey,
+	pub public_key: P,
 	/// The genesis round from which the IDN begins consuming the beacon
-	pub genesis_round: RoundNumber,
+	pub genesis_round: R,
 }
 
 #[cfg(test)]

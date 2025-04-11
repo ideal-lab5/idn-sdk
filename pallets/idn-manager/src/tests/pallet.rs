@@ -737,7 +737,7 @@ fn test_credits_consumption_and_cleanup() {
 			System::set_block_number(System::block_number() + 1);
 
 			// Dispatch randomness
-			assert_ok!(IdnManager::dispatch(pulse.into()));
+			assert_ok!(IdnManager::dispatch(vec![pulse.into()]));
 
 			System::assert_last_event(RuntimeEvent::IdnManager(
 				Event::<Test>::RandomnessDistributed { sub_id },
@@ -849,13 +849,13 @@ fn test_credits_consumption_not_enogh_balance() {
 				);
 				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
 				assert_noop!(
-					IdnManager::dispatch(pulse.into()),
+					IdnManager::dispatch(vec![pulse.into()]),
 					DispatchError::Other("NotEnoughBalance")
 				);
 				break;
 			} else {
 				// Dispatch randomness
-				assert_ok!(IdnManager::dispatch(pulse.into()));
+				assert_ok!(IdnManager::dispatch(vec![pulse.into()]));
 			}
 
 			// finalize block
@@ -911,7 +911,7 @@ fn test_credits_consumption_frequency() {
 			let credits_left = sub.credits_left;
 
 			// Dispatch randomness
-			assert_ok!(IdnManager::dispatch(pulse.into()));
+			assert_ok!(IdnManager::dispatch(vec![pulse.into()]));
 
 			// Check the subscription state
 			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
@@ -1723,7 +1723,7 @@ fn test_pulse_filter_functionality() {
 			System::reset_events();
 
 			// Process pulse
-			assert_ok!(IdnManager::dispatch(pulse.into()));
+			assert_ok!(IdnManager::dispatch(vec![pulse.into()]));
 
 			// rounds go 1 ahead of block number
 			let round = block + 1;
@@ -1830,7 +1830,7 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 			System::reset_events();
 
 			// Process pulse
-			assert_ok!(IdnManager::dispatch(pulse.into()));
+			assert_ok!(IdnManager::dispatch(vec![pulse.into()]));
 
 			// rounds go 1 ahead of block number
 			let round = block + 1;

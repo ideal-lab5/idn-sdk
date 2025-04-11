@@ -111,6 +111,8 @@ use xcm_builder::SendController;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
+const LOG_TARGET: &str = "pallet-idn-manager";
+
 /// The balance type used in the pallet, derived from the currency type in the configuration.
 pub type BalanceOf<T> =
 	<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
@@ -923,18 +925,20 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T>  {
-	/// Dispatches a given pulse by distributing it to eligible subscriptions.
+	/// Dispatches a collection of pulses by distributing it to eligible subscriptions.
 	///
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
-	fn dispatch(pulse: Vec<T::Pulse>) -> DispatchResult { 
-		// dispatch pulses to subscribers
+	fn dispatch(pulses: Vec<T::Pulse>) -> DispatchResult { 
 		for pulse in pulses {
+			// let round = pulse.round().clone() ;
 			if let Err(e) = Pallet::<T>::distribute(pulse) {
-				log::warn!(target: LOG_TARGET, "ADSFKJASDKF");
+				// log::warn!(target: LOG_TARGET, "Distribution of pulse # {:?} failed: {:?}", pulse.round(), e);
 			}
 		}
+
+		Ok(())
 	}
 }
 

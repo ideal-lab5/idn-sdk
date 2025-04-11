@@ -24,8 +24,10 @@
 //! * [`crate::pulse::Dispatcher`] - Trait for handling and distributing randomness
 //! * [`crate::pulse::PulseProperty`] - Enum for referencing pulse properties in a type-safe way
 
+use codec::EncodeLike;
 use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo};
-use sp_std::fmt::Debug;
+use sp_arithmetic::traits::Saturating;
+use sp_std::{fmt::Debug, ops::Deref, vec::Vec};
 
 /// A trait for dispatching random data from pulses.
 ///
@@ -43,11 +45,11 @@ pub trait Dispatcher<P: Pulse, O> {
 	/// Process and dispatch the given random data from a pulse.
 	///
 	/// # Parameters
-	/// * `pulse` - The pulse containing random data to be processed
+	/// * `pulses` - A collection of pulses containing random data to be processed
 	///
 	/// # Returns
 	/// The result of processing the random data, type depends on implementation
-	fn dispatch(pulse: P) -> O;
+	fn dispatch(pulses: Vec<P>) -> O;
 }
 
 pub trait Consumer<P: Pulse, I, O> {
@@ -86,28 +88,58 @@ pub enum PulseProperty<RandType, RoundType, SigType> {
 /// 2. Enable subscriptions to filter pulses based on specific properties
 /// 3. Allow the secure distribution of randomness through XCM
 pub trait Pulse {
-	  /// The type of the random value contained in this pulse
+	/// The type of the random value contained in this pulse
 	///
 	/// This is typically a fixed-size byte array like `[u8; 32]` that represents
 	/// the random value.
-	type Rand: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
+	type Rand: Decode
+		+ TypeInfo
+		+ MaxEncodedLen
+		+ Debug
+		+ PartialEq
+		+ PartialOrd
+		+ Clone
+		+ EncodeLike;
 
 	/// The type of the round number contained in this pulse
 	///
 	/// This is typically an unsigned integer that represents the sequential
 	/// identifier for this pulse from the randomness beacon.
-	type Round: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
+	type Round: Decode
+		+ TypeInfo
+		+ MaxEncodedLen
+		+ Debug
+		+ PartialEq
+		+ Clone
+		+ EncodeLike
+		+ Saturating
+		+ Into<u64>
+		+ From<u64>;
 
 	/// The type of the signature contained in this pulse
 	///
 	/// This is typically a  byte array or a specific signature type
 	/// that represents the signature for this pulse.
-	type Sig: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
+	type Sig: Decode
+		+ TypeInfo
+		+ MaxEncodedLen
+		+ Debug
+		+ PartialEq
+		+ Clone
+		+ EncodeLike
+		+ AsRef<[u8]>;
 
 	/// The type of the public key required to verify this signature
 	///
 	/// This is typically a  byte array or a specific public key type
-	type Pubkey: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
+	type Pubkey: Decode
+		+ TypeInfo
+		+ MaxEncodedLen
+		+ Debug
+		+ PartialEq
+		+ Clone
+		+ EncodeLike
+		+ AsRef<[u8]>;
 
 	/// Get the random value from this pulse
 	///
@@ -125,8 +157,7 @@ pub trait Pulse {
 	/// Returns the signature contained in this pulse.
 	fn sig(&self) -> Self::Sig;
 
-	// TODO refactor name
-	/// Verifies a pulse validity against the given public key
+	/// Checks if the pulse ([round, signature]-combination) is valid against a beacon public key
 	///
 	/// Returns `true` when valid, `false` otherwise.
 	fn authenticate(&self, pubkey: Self::Pubkey) -> bool;

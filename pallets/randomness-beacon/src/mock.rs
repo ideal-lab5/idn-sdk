@@ -4,6 +4,7 @@ use frame_support::{
 	derive_impl,
 	traits::{ConstU16, ConstU64, ConstU8},
 };
+use sp_consensus_randomness_beacon::types::OpaquePulse;
 use sp_core::{sr25519::Signature, H256};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
@@ -60,6 +61,45 @@ impl pallet_drand_bridge::Config for Test {
 	type SignatureVerifier = QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<10>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
+	type Pulse = OpaquePulse;
+	type Dispatcher = IdnManager;
+}
+
+parameter_types! {
+	pub const MaxSubscriptionDuration: u64 = 100;
+	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
+	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
+	pub const BaseFee: u64 = 10;
+	pub const SDMultiplier: u64 = 10;
+	pub const MaxPulseFilterLen: u32 = 100;
+	pub const MaxSubscriptions: u32 = 1_000_000;
+}
+
+#[derive(TypeInfo)]
+pub struct MaxMetadataLen;
+
+impl Get<u32> for MaxMetadataLen {
+	fn get() -> u32 {
+		8
+	}
+}
+
+impl pallet_idn_manager::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
+	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
+	type PalletId = PalletId;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type Pulse = OpaquePulse;
+	type WeightInfo = ();
+	type Xcm = ();
+	type MaxMetadataLen = MaxMetadataLen;
+	type Credits = u64;
+	type MaxPulseFilterLen = MaxPulseFilterLen;
+	type MaxSubscriptions = MaxSubscriptions;
+	type SubscriptionId = [u8; 32];
+	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
 }
 
 // Build genesis storage according to the mock runtime.

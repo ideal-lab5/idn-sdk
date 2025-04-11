@@ -20,15 +20,15 @@ use sp_runtime::generic::DigestItem;
 
 /// Custom header digest items, inserted as DigestItem::Other
 #[derive(Encode, Decode, Copy, Clone, Eq, PartialEq, RuntimeDebug)]
-pub enum ConsensusLog {
+pub enum ConsensusLog<T> where T: Encode + Decode {
 	#[codec(index = 0)]
 	/// Provides information about the latest drand round number observed by the network
-	LatestRoundNumber(u64),
+	LatestRoundNumber(T),
 }
 
 /// Convert custom application digest item into a concrete digest item
-impl From<ConsensusLog> for DigestItem {
-	fn from(val: ConsensusLog) -> Self {
+impl<T: Encode + Decode> From<ConsensusLog<T>> for DigestItem {
+	fn from(val: ConsensusLog<T>) -> Self {
 		DigestItem::Other(val.encode())
 	}
 }

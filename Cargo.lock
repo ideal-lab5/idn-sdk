@@ -5945,6 +5945,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-collator-selection",
+ "pallet-idn-manager",
  "pallet-message-queue",
  "pallet-session",
  "pallet-sudo",
@@ -5962,8 +5963,10 @@ dependencies = [
  "sp-api 35.0.0",
  "sp-block-builder 35.0.0",
  "sp-consensus-aura",
+ "sp-consensus-randomness-beacon",
  "sp-core 35.0.0",
  "sp-genesis-builder",
+ "sp-idn-traits",
  "sp-inherents 35.0.0",
  "sp-keyring",
  "sp-offchain",
@@ -5991,6 +5994,7 @@ dependencies = [
  "jsonrpsee 0.24.9",
  "libp2p 0.55.0",
  "log",
+ "parity-scale-codec",
  "sc-basic-authorship",
  "sc-cli",
  "sc-client-api",
@@ -9882,7 +9886,6 @@ dependencies = [
  "sp-arithmetic",
  "sp-core 35.0.0",
  "sp-idn-traits",
- "sp-idn-types",
  "sp-io 39.0.0",
  "sp-runtime 40.1.0",
  "staging-xcm",
@@ -9896,6 +9899,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "log",
  "pallet-balances",
  "pallet-xcm",
  "parity-scale-codec",
@@ -10342,11 +10346,11 @@ dependencies = [
  "sp-consensus-randomness-beacon",
  "sp-core 35.0.0",
  "sp-idn-traits",
- "sp-idn-types",
  "sp-inherents 35.0.0",
  "sp-io 39.0.0",
  "sp-keystore 0.41.0",
  "sp-runtime 40.1.0",
+ "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "timelock",
 ]
 
@@ -17619,14 +17623,8 @@ dependencies = [
  "frame-support",
  "parity-scale-codec",
  "scale-info",
+ "sp-arithmetic",
  "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "sp-idn-types"
-version = "0.0.1"
-dependencies = [
- "pallet-idn-manager",
 ]
 
 [[package]]

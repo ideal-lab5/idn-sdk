@@ -26,11 +26,11 @@ frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
 sp-idn-traits.workspace = true
-sp-idn-types.workspace = true
 sp-consensus-randomness-beacon.workspace = true
 sp-core.workspace = true
 sp-io.workspace = true
 sp-runtime.workspace = true
+sp-std.workspace = true
 # crypto dependencies
 sp-ark-bls12-381 = { workspace = true, optional = true }
 ark-bls12-381.workspace = true
@@ -69,7 +69,7 @@ std = [
 	"timelock/std",
 	"sp-consensus-randomness-beacon/std",
 	"sp-idn-traits/std",
-	"sp-idn-types/std",
+	"sp-std/std",
 	"pallet-idn-manager/std",
 ]
 runtime-benchmarks = [

@@ -48,6 +48,8 @@ sp-block-builder.workspace = true
 sp-consensus-aura.workspace = true
 sp-core.workspace = true
 sp-genesis-builder.workspace = true
+sp-idn-traits.workspace = true
+sp-consensus-randomness-beacon.workspace = true
 sp-inherents.workspace = true
 sp-keyring.workspace = true
 sp-offchain.workspace = true
@@ -79,6 +81,9 @@ pallet-collator-selection.workspace = true
 parachains-common.workspace = true
 parachain-info.workspace = true
 
+# IDN
+pallet-idn-manager.workspace = true
+
 [features]
 default = ["std"]
 std = [
@@ -92,6 +97,7 @@ std = [
   "cumulus-primitives-core/std",
   "cumulus-primitives-storage-weight-reclaim/std",
   "cumulus-primitives-utility/std",
+  "pallet-idn-manager/std",
   "frame-benchmarking?/std",
   "frame-executive/std",
   "frame-support/std",
@@ -121,8 +127,10 @@ std = [
   "sp-api/std",
   "sp-block-builder/std",
   "sp-consensus-aura/std",
+  "sp-consensus-randomness-beacon/std",
   "sp-core/std",
   "sp-genesis-builder/std",
+  "sp-idn-traits/std",
   "sp-inherents/std",
   "sp-keyring/std",
   "sp-offchain/std",
@@ -146,6 +154,7 @@ runtime-benchmarks = [
   "frame-support/runtime-benchmarks",
   "frame-system-benchmarking/runtime-benchmarks",
   "frame-system/runtime-benchmarks",
+  "pallet-idn-manager/runtime-benchmarks",
   "pallet-balances/runtime-benchmarks",
   "pallet-collator-selection/runtime-benchmarks",
   "pallet-message-queue/runtime-benchmarks",
