@@ -255,11 +255,6 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 						let serialized_pulses: Vec<Vec<u8>> =
 							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect();
 
-						log::info!(
-							"***************************** serialized pulses len ? {:?}",
-							serialized_pulses.clone().len()
-						);
-
 						let beacon_inherent =
 							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
 								serialized_pulses,
