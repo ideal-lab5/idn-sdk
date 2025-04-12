@@ -12,16 +12,26 @@ homepage = "https://idealabs.network"
 workspace = true
 
 [dependencies]
+async-trait.workspace = true
 codec.workspace = true
 serde = { workspace = true, features = ["derive"] }
 tokio.workspace = true
 libp2p.workspace = true
-prost.workspace = true
 log.workspace = true
+prost.workspace = true
 futures.workspace = true
+prometheus-endpoint.workspace = true
 scale-info.workspace = true
 sc-utils.workspace = true
+sc-consensus.workspace = true
+sc-consensus-manual-seal.workspace = true
+sp-api.workspace = true
+sp-blockchain.workspace = true
+sp-block-builder.workspace = true
+sp-consensus.workspace = true
 sp-consensus-randomness-beacon.workspace = true
+sp-core.workspace = true
+sp-runtime.workspace = true
 
 # arkworks dependencies
 sp-ark-bls12-381 = { workspace = true, optional = true }
@@ -32,7 +42,9 @@ ark-serialize.workspace = true
 async-std = "=1.13.0"
 rand = "=0.8.5"
 tokio.workspace = true
- 
+sc-block-builder.workspace = true
+sc-service.workspace = true
+
 [features]
 e2e = []
 host-arkworks = ["sp-ark-bls12-381/std"]
