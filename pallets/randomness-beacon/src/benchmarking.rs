@@ -119,7 +119,7 @@ mod benchmarks {
 		(0..history_depth).for_each(|i| history.push(i.into()));
 		// we add one more value and 'push out' the oldest one
 		let mut expected_final_history: Vec<BlockNumberFor<T>> = Vec::new();
-		(1..history_depth + 1).for_each(|i| expected_final_history.push(i.into()));
+		(0..history_depth).for_each(|i| expected_final_history.push(i.into()));
 		// pretend that we have missed the maximum number of blocks
 		// and the next will cause the bounded vec to overflow, pushing out the oldest missed block
 		MissedBlocks::<T>::set(BoundedVec::truncate_from(history));
