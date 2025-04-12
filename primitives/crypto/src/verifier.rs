@@ -197,7 +197,7 @@ fn decode_g2(mut bytes: &[u8]) -> Result<G2AffineOpt, Error> {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
 	use super::*;
 
 	pub(crate) type RawPulse = (u64, [u8; 96]);

@@ -85,15 +85,15 @@ pub mod test {
 	use std::any::TypeId;
 
 	#[test]
-	fn test_aggregate_max_encoded_len() {
-		// Get the max encoded length of the Aggregate struct
-		let max_len = Aggregate::max_encoded_len();
+	fn test_accumulation_max_encoded_len() {
+		// Get the max encoded length of the Accumulation struct
+		let max_len = Accumulation::max_encoded_len();
 
 		// Get the max encoded lengths of its individual fields
 		let signature_max_len = OpaqueSignature::max_encoded_len();
 		let message_hash_max_len = OpaqueSignature::max_encoded_len();
 
-		// The maximum encoded length of Aggregate should be the sum of the lengths of its fields
+		// The maximum encoded length of Accumulation should be the sum of the lengths of its fields
 		let expected_max_len = signature_max_len + message_hash_max_len;
 
 		// Assert that the max encoded length matches
@@ -101,42 +101,15 @@ pub mod test {
 	}
 
 	#[test]
-	fn test_aggregate_type_info() {
-		// Get the TypeId for Metadata
-		let type_id = TypeId::of::<Aggregate>();
+	fn test_accumulation_type_info() {
+		// Get the TypeId
+		let type_id = TypeId::of::<Accumulation>();
 
 		// Ensure that the TypeId is consistent and matches the expected TypeId
-		// The TypeId of `Metadata` should be unique, and you can check against itself
-		assert_eq!(type_id, TypeId::of::<Aggregate>());
+		assert_eq!(type_id, TypeId::of::<Accumulation>());
 
 		// Optionally, check the type name to ensure the correct type is used
-		let type_name = core::any::type_name::<Aggregate>();
-		assert_eq!(type_name, "pallet_randomness_beacon::types::Aggregate");
-	}
-
-	#[test]
-	fn test_metadata_max_encoded_len() {
-		// Get the max encoded length of the Aggregate struct
-		let max_len = Metadata::max_encoded_len();
-
-		// Get the max encoded lengths of its individual fields
-		let hash_max_len = OpaqueHash::max_encoded_len();
-
-		// Assert that the max encoded length matches
-		assert_eq!(max_len, hash_max_len);
-	}
-
-	#[test]
-	fn test_metadata_type_info() {
-		// Get the TypeId for Metadata
-		let type_id = TypeId::of::<Metadata>();
-
-		// Ensure that the TypeId is consistent and matches the expected TypeId
-		// The TypeId of `Metadata` should be unique, and you can check against itself
-		assert_eq!(type_id, TypeId::of::<Metadata>());
-
-		// Optionally, check the type name to ensure the correct type is used
-		let type_name = core::any::type_name::<Metadata>();
-		assert_eq!(type_name, "pallet_randomness_beacon::types::Metadata");
+		let type_name = core::any::type_name::<Accumulation>();
+		assert_eq!(type_name, "pallet_randomness_beacon::types::Accumulation");
 	}
 }

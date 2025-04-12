@@ -28,7 +28,7 @@ use codec::Encode;
 use frame_support::{construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage};
 use frame_system as system;
 use sp_runtime::{
-	traits::{Block as BlockT, IdentityLookup},
+	traits::{Block as BlockT, IdentityLookup, parameter_types},
 	AccountId32,
 };
 

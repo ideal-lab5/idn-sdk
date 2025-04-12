@@ -15,9 +15,10 @@
  */
 
 use crate::{
-	mock::*, types::*, verifier::test::*, weights::WeightInfo, Accumulation, BeaconConfig,
+	mock::*, types::*, weights::WeightInfo, SparseAccumulation, BeaconConfig,
 	Call, Error, LatestRound, MissedBlocks,
 };
+use sp_idn_crypto::verifier::tests::*;
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 use frame_system::pallet_prelude::BlockNumberFor;
 
@@ -26,7 +27,7 @@ const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb
 #[test]
 fn can_construct_pallet_and_set_genesis_params() {
 	new_test_ext().execute_with(|| {
-		let actual_initial_sigs = Accumulation::<Test>::get();
+		let actual_initial_sigs = SparseAccumulation::<Test>::get();
 		assert!(actual_initial_sigs.is_none());
 	});
 }
@@ -71,7 +72,7 @@ fn can_submit_valid_pulses_under_the_limit() {
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs));
 
-		let maybe_res = Accumulation::<Test>::get();
+		let maybe_res = SparseAccumulation::<Test>::get();
 		assert!(maybe_res.is_some());
 
 		let aggr = maybe_res.unwrap();
@@ -101,9 +102,12 @@ fn can_fail_when_sig_height_is_exceeds_max() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
+
+		// TODO: Build pulses instead of sigs only
 		let too_many_sigs = (1..10000)
 			.map(|i| [i;48])
 			.collect::<Vec<_>>();
+
 		assert_noop!(
 			Drand::try_submit_asig(RuntimeOrigin::none(), too_many_sigs),
 			Error::<Test>::ExcessiveHeightProvided
@@ -119,6 +123,7 @@ fn can_submit_valid_sigs_in_sequence() {
 
 	let (_asig1, _apk1, sigs1) = get(vec![PULSE1000, PULSE1001]);
 	let (_asig2, _apk2, sigs2) = get(vec![PULSE1002, PULSE1003]);
+
 	// the aggregated values
 	let (asig, apk, _all_sigs) = get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003]);
 
@@ -133,7 +138,7 @@ fn can_submit_valid_sigs_in_sequence() {
 
 		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs2));
 
-		let maybe_res = Accumulation::<Test>::get();
+		let maybe_res = SparseAccumulation::<Test>::get();
 		assert!(maybe_res.is_some());
 
 		let aggr = maybe_res.unwrap();
@@ -181,7 +186,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 			Error::<Test>::VerificationFailed,
 		);
 
-		let maybe_res = Accumulation::<Test>::get();
+		let maybe_res = SparseAccumulation::<Test>::get();
 		assert!(maybe_res.is_some());
 
 		let aggr = maybe_res.unwrap();
@@ -325,7 +330,7 @@ fn can_check_inherent() {
 	});
 }
 
-fn get_config(round: RoundNumber) -> BeaconConfiguration {
+fn get_config(round: RoundNumber) -> BeaconConfiguration<OpaquePublicKey, RoundNumber> {
 	let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
 	let public_key: OpaquePublicKey = pk.try_into().unwrap();
 	BeaconConfiguration { public_key, genesis_round: round }

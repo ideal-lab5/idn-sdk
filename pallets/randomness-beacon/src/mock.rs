@@ -1,10 +1,11 @@
 use crate as pallet_drand_bridge;
-use crate::{verifier::QuicknetVerifier, *};
+use crate::*;
 use frame_support::{
 	derive_impl,
 	traits::{ConstU16, ConstU64, ConstU8},
 };
 use sp_consensus_randomness_beacon::types::OpaquePulse;
+use sp_idn_crypto::verifier::QuicknetVerifier;
 use sp_core::{sr25519::Signature, H256};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
