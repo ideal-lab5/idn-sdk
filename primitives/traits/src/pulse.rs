@@ -27,7 +27,7 @@
 use codec::EncodeLike;
 use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo};
 use sp_arithmetic::traits::Saturating;
-use sp_std::{fmt::Debug, ops::Deref, vec::Vec};
+use sp_std::{fmt::Debug, vec::Vec};
 
 /// A trait for dispatching random data from pulses.
 ///

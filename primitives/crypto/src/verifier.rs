@@ -15,22 +15,20 @@
  */
 
 //! A collection of verifiers for randomness beacon pulses
+#[cfg(test)]
 extern crate alloc;
-use crate::bls12_381;
-use ark_ec::{hashing::HashToCurve, AffineRepr};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use codec::{Decode, Encode, MaxEncodedLen};
-use scale_info::TypeInfo;
-use sha2::{Digest, Sha256};
+use crate::{bls12_381::*, drand::*};
+use ark_ec::AffineRepr;
+use ark_serialize::CanonicalSerialize;
 use sp_std::vec::Vec;
-use timelock::{curves::drand::TinyBLS381, tlock::EngineBLS};
 
 #[cfg(not(feature = "host-arkworks"))]
-use ark_bls12_381::{G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
+use ark_bls12_381::G2Affine;
 #[cfg(feature = "host-arkworks")]
-use sp_ark_bls12_381::{G1Affine as G1AffineOpt, G2Affine as G2AffineOpt};
+use sp_ark_bls12_381::G2Affine;
 
 /// An opaque type to represent a serialized signature and message combination
+#[derive(Debug, PartialEq)]
 pub struct OpaqueAccumulation {
 	/// A signature (e.g. output from the randomness beacon) in G1
 	pub signature: Vec<u8>,
@@ -45,13 +43,14 @@ pub trait SignatureVerifier {
 	/// * `beacon_pk_bytes`:  The *encoded* public key of the randomness beacon
 	/// * `next_sig_bytes`: A vector of *encoded* signatures to be aggregated and verified
 	/// * `start`: The earliest round for which next_sig_bytes has a signature
-	/// * `prev_sig_and_msg`: An optional previous signature and message to aggregate for verification
+	/// * `prev_sig_and_msg`: An optional previous signature and message to aggregate for
+	///   verification
 	fn verify(
 		beacon_pk_bytes: Vec<u8>,
 		next_sig_bytes: Vec<Vec<u8>>,
 		start: u64,
 		accumulation: Option<OpaqueAccumulation>,
-	) -> Result<OpaqueAccumulation, Error>;
+	) -> Result<OpaqueAccumulation, CryptoError>;
 }
 
 #[derive(Debug, PartialEq)]
@@ -62,8 +61,6 @@ pub enum Error {
 	DeserializeG2Failure,
 	/// Verification for the siganture failed.
 	InvalidSignature,
-	/// The input buffer could not be hashed.
-	InvalidBuffer,
 }
 
 /// A verifier to check values received from Drand quicknet. It outputs true if valid, false
@@ -94,13 +91,12 @@ pub enum Error {
 pub struct QuicknetVerifier;
 
 impl SignatureVerifier for QuicknetVerifier {
-
 	fn verify(
 		beacon_pk_bytes: Vec<u8>,
 		next_sig_bytes: Vec<Vec<u8>>,
 		start: u64,
 		accumulation: Option<OpaqueAccumulation>,
-	) -> Result<OpaqueAccumulation, Error> {
+	) -> Result<OpaqueAccumulation, CryptoError> {
 		let height: u64 = next_sig_bytes.len() as u64;
 		let beacon_pk = decode_g2(&beacon_pk_bytes)?;
 		// apk = 0, asig = new_sig
@@ -130,11 +126,11 @@ impl SignatureVerifier for QuicknetVerifier {
 			apk = (apk + q).into()
 		}
 
-		let g2 = G2AffineOpt::generator();
-		let validity = bls12_381::fast_pairing_opt(asig, g2, apk, beacon_pk);
+		let g2 = G2Affine::generator();
+		let validity = fast_pairing_opt(asig, g2, apk, beacon_pk);
 
 		if !validity {
-			return Err(Error::InvalidSignature);
+			return Err(CryptoError::InvalidSignature);
 		}
 
 		// convert to bytes
@@ -142,99 +138,21 @@ impl SignatureVerifier for QuicknetVerifier {
 		// note: this line is untestable
 		// Message for SRLABS: can we use an .expect here instead?
 		asig.serialize_compressed(&mut sig_bytes)
-			.map_err(|_| Error::DeserializeG1Failure)?;
-		// TODO
-		// let new_asig: OpaqueSignature = sig_bytes.clone().try_into().unwrap();
+			.map_err(|_| CryptoError::SerializeG1Failure)?;
 
 		let mut apk_bytes = Vec::new();
 		// note: this line is untestable
 		apk.serialize_compressed(&mut apk_bytes)
-			.map_err(|_| Error::DeserializeG2Failure)?;
-		// let new_apk: OpaqueSignature = apk_bytes.try_into().unwrap();
+			.map_err(|_| CryptoError::SerializeG2Failure)?;
 
 		Ok(OpaqueAccumulation { signature: sig_bytes, message_hash: apk_bytes })
 	}
 }
 
-/// Constructs a message (e.g. signed by drand)
-fn message(current_round: u64, prev_sig: &[u8]) -> Vec<u8> {
-	let mut hasher = Sha256::default();
-	hasher.update(prev_sig);
-	hasher.update(current_round.to_be_bytes());
-	hasher.finalize().to_vec()
-}
-
-/// This computes the point on G1 given a round number (for message construction).
-/// TODO: do we save anything by pulling out the hasher instead of constructing it each time?
-/// https://github.com/ideal-lab5/idn-sdk/issues/119
-pub(crate) fn compute_round_on_g1(round: u64) -> Result<G1AffineOpt, Error> {
-	let message = message(round, &[]);
-	let hasher = <TinyBLS381 as EngineBLS>::hash_to_curve_map();
-	// H(m) \in G1
-	let message_hash = hasher.hash(&message).map_err(|_| Error::InvalidBuffer)?;
-
-	let mut bytes = Vec::new();
-	message_hash
-		.serialize_compressed(&mut bytes)
-		.map_err(|_| Error::DeserializeG1Failure)?;
-
-	decode_g1(&bytes)
-}
-
-/// Computes the 0 point in the G1 group
-pub(crate) fn zero_on_g1() -> G1AffineOpt {
-	G1AffineOpt::zero()
-}
-
-/// Attempts to decode the byte array to a point on G1
-fn decode_g1(mut bytes: &[u8]) -> Result<G1AffineOpt, Error> {
-	G1AffineOpt::deserialize_compressed(&mut bytes).map_err(|_| Error::DeserializeG1Failure)
-}
-
-/// Attempts to decode the byte array to a point on G2
-fn decode_g2(mut bytes: &[u8]) -> Result<G2AffineOpt, Error> {
-	G2AffineOpt::deserialize_compressed(&mut bytes).map_err(|_| Error::DeserializeG2Failure)
-}
-
 #[cfg(test)]
 pub mod tests {
 	use super::*;
-
-	pub(crate) type RawPulse = (u64, [u8; 96]);
-	pub(crate) const PULSE1000: RawPulse = (1000u64, *b"b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39");
-	pub(crate) const PULSE1001: RawPulse = (1001u64, *b"b33bf3667cbd5a82de3a24b4e0e9fe5513cc1a0e840368c6e31f5fcfa79bea03f73896b25883abf2853d10337fb8fa41");
-	pub(crate) const PULSE1002: RawPulse = (1002u64, *b"ab066f9c12dd6de1336fca0f925192fb0c72a771c3e4c82ede1fd362c1a770f9eb05843c6308ce2530b53a99c0281a6e");
-	pub(crate) const PULSE1003: RawPulse = (1003u64, *b"b104c82771698f45fd8dcfead083d482694c31ab519bcef077f126f3736fe98c8392fd5d45d88aeb76b56ccfcb0296d7");
-
-	// output the asig + apk
-	pub(crate) fn get(
-		pulse_data: Vec<RawPulse>,
-	) -> (OpaqueSignature, OpaqueSignature, Vec<OpaqueSignature>) {
-		let mut apk = zero_on_g1();
-		let mut asig = zero_on_g1();
-
-		let mut sigs: Vec<OpaqueSignature> = vec![];
-
-		for pulse in pulse_data {
-			let sig_bytes = hex::decode(&pulse.1).unwrap();
-			sigs.push(sig_bytes.clone().try_into().unwrap());
-			let sig = G1AffineOpt::deserialize_compressed(&mut sig_bytes.as_slice()).unwrap();
-			asig = (asig + sig).into();
-
-			let pk = compute_round_on_g1(pulse.0).unwrap();
-			apk = (apk + pk).into();
-		}
-
-		let mut asig_bytes = Vec::new();
-		asig.serialize_compressed(&mut asig_bytes).unwrap();
-		let asig_out: OpaqueSignature = asig_bytes.try_into().unwrap();
-
-		let mut apk_bytes = Vec::new();
-		apk.serialize_compressed(&mut apk_bytes).unwrap();
-		let apk_out: OpaqueSignature = apk_bytes.try_into().unwrap();
-
-		(asig_out, apk_out, sigs)
-	}
+	use crate::test_utils::*;
 
 	// sk * G \in G2
 	fn get_beacon_pk() -> Vec<u8> {
@@ -249,13 +167,9 @@ pub mod tests {
 		let beacon_pk_bytes = get_beacon_pk();
 		let (asig, apk, sigs) = get(vec![PULSE1000]);
 
-		let aggr = QuicknetVerifier::verify(
-			beacon_pk_bytes.try_into().unwrap(),
-			sigs,
-			1000u64,
-			None,
-		)
-		.unwrap();
+		let aggr =
+			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), sigs, 1000u64, None)
+				.unwrap();
 
 		assert_eq!(asig, aggr.signature);
 		assert_eq!(apk, aggr.message_hash);
@@ -267,13 +181,9 @@ pub mod tests {
 		let beacon_pk_bytes = get_beacon_pk();
 		let (asig, apk, sigs) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
 
-		let aggr = QuicknetVerifier::verify(
-			beacon_pk_bytes.try_into().unwrap(),
-			sigs,
-			1000u64,
-			None,
-		)
-		.unwrap();
+		let aggr =
+			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), sigs, 1000u64, None)
+				.unwrap();
 
 		assert_eq!(asig, aggr.signature);
 		assert_eq!(apk, aggr.message_hash);
@@ -292,7 +202,7 @@ pub mod tests {
 			beacon_pk_bytes.try_into().unwrap(),
 			next_sigs,
 			1001u64,
-			Some(Accumulation { signature: prev_asig, message_hash: prev_apk }),
+			Some(OpaqueAccumulation { signature: prev_asig, message_hash: prev_apk }),
 		)
 		.unwrap();
 
@@ -305,92 +215,9 @@ pub mod tests {
 		let beacon_pk_bytes = get_beacon_pk();
 		let (_asig, _apk, sigs) = get(vec![PULSE1000]);
 
-		let res = QuicknetVerifier::verify(
-			beacon_pk_bytes.try_into().unwrap(),
-			sigs,
-			1002u64,
-			None,
-		);
+		let res =
+			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), sigs, 1002u64, None);
 		assert!(res.is_err());
-		assert_eq!(Err(Error::InvalidSignature), res);
-	}
-
-	#[test]
-	fn test_message_deterministic() {
-		let round: u64 = 42;
-		let prev_sig = b"previous_signature";
-		let msg1 = message(round, prev_sig);
-		let msg2 = message(round, prev_sig);
-		assert_eq!(msg1, msg2, "Message function should be deterministic for the same inputs");
-		assert_eq!(msg1.len(), 32, "SHA256 digest must be 32 bytes long");
-	}
-
-	/// Test that different round numbers result in different message outputs.
-	#[test]
-	fn test_message_different_rounds() {
-		let prev_sig = b"prev";
-		let msg1 = message(1, prev_sig);
-		let msg2 = message(2, prev_sig);
-		assert_ne!(msg1, msg2, "Different rounds should produce different messages");
-	}
-
-	/// Test that `zero_on_g1` returns the identity element on G1.
-	#[test]
-	fn test_zero_on_g1() {
-		let zero_point = zero_on_g1();
-		assert!(zero_point.is_zero(), "zero_on_g1 should return the identity element (zero)");
-	}
-
-	/// Test that a G1 point can be serialized and then correctly deserialized.
-	#[test]
-	fn test_decode_g1_roundtrip() {
-		// Use the identity element as a test case.
-		let point = zero_on_g1();
-		let mut serialized = Vec::new();
-		point.serialize_compressed(&mut serialized).unwrap();
-		let decoded_point = decode_g1(&serialized).expect("Decoding should succeed");
-		assert_eq!(point, decoded_point, "Decoded G1 point should equal the original point");
-	}
-
-	/// Test that `decode_g1` returns an error for invalid input.
-	#[test]
-	fn test_decode_g1_invalid() {
-		let invalid_bytes = b"invalid bytes";
-		let result = decode_g1(invalid_bytes);
-		assert!(result.is_err(), "Decoding invalid G1 bytes should return an error");
-	}
-
-	/// Test that a G2 point (e.g. the generator) can be serialized and then correctly deserialized.
-	#[test]
-	fn test_decode_g2_roundtrip() {
-		let point = G2AffineOpt::generator();
-		let mut serialized = Vec::new();
-		point.serialize_compressed(&mut serialized).unwrap();
-		let decoded_point = decode_g2(&serialized).expect("Decoding should succeed");
-		assert_eq!(
-			point, decoded_point,
-			"Decoded G2 point should equal the original generator point"
-		);
-	}
-
-	/// Test that `decode_g2` returns an error for invalid input.
-	#[test]
-	fn test_decode_g2_invalid() {
-		let invalid_bytes = b"invalid bytes";
-		let result = decode_g2(invalid_bytes);
-		assert!(result.is_err(), "Decoding invalid G2 bytes should return an error");
-		assert_eq!(result, Err(Error::DeserializeG2Failure));
-	}
-
-	/// Test that `compute_round_on_g1` produces a valid point for a given round.
-	#[test]
-	fn test_compute_round_on_g1() {
-		let round = 1;
-		let result = compute_round_on_g1(round);
-		assert!(result.is_ok(), "compute_round_on_g1 should succeed for a valid round");
-		let point = result.unwrap();
-		// While it is possible (though unlikely) for a hash-to-curve result to be the identity,
-		// in practice this should not happen.
-		assert!(!point.is_zero(), "The computed round point should not be the identity element");
+		assert_eq!(Err(CryptoError::InvalidSignature), res);
 	}
 }

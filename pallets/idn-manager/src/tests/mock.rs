@@ -95,9 +95,9 @@ impl sp_idn_traits::pulse::Pulse for Pulse {
 		self.round
 	}
 
-	// fn valid(&self) -> bool {
-	// 	true
-	// }
+	fn authenticate(&self) -> bool {
+		true
+	}
 }
 
 impl pallet_idn_manager::Config for Test {

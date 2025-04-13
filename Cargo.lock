@@ -17629,6 +17629,7 @@ dependencies = [
  "ark-std 0.4.0",
  "array-bytes",
  "async-trait",
+ "hex",
  "parity-scale-codec",
  "prost 0.13.5",
  "prost-build",

@@ -17,6 +17,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 async-trait = { optional = true, workspace = true }
 codec = { workspace = true, features = ["derive"], default-features = false }
+hex.workspace = true
 scale-info = { workspace = true, default-features = false, features = ["derive"] }
 prost.workspace = true
 serde = { workspace = true, features = ["derive"] }

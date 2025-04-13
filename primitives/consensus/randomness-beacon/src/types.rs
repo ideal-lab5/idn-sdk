@@ -22,6 +22,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_core::ConstU32;
+use sp_idn_crypto::verifier::QuicknetVerifier;
 use sp_runtime::BoundedVec;
 
 #[cfg(not(feature = "host-arkworks"))]
@@ -82,46 +83,6 @@ impl TryInto<OpaquePulse> for ProtoPulse {
 	}
 }
 
-impl OpaquePulse {
-	/// Serialize the opaque pulse as a vector
-	pub fn serialize_to_vec(&self) -> Vec<u8> {
-		let mut vec = Vec::new();
-		vec.extend_from_slice(&self.round.to_le_bytes());
-		vec.extend_from_slice(&self.signature);
-		vec
-	}
-
-	/// Deserialize from a slice
-	///
-	/// * `data`: The data to attempt to deserialize
-	pub fn deserialize_from_vec(data: &[u8]) -> Result<Self, String> {
-		if data.len() != 56 {
-			return Err(format!(
-				"Invalid buffer size, expected 56 bytes but received {}",
-				data.len()
-			));
-		}
-
-		let bytes = data[0..8].try_into().map_err(|_| "Failed to parse round".to_string())?;
-		let round = u64::from_le_bytes(bytes);
-
-		let signature: [u8; 48] =
-			data[8..56].try_into().map_err(|_| "Failed to parse signature".to_string())?;
-
-		Ok(OpaquePulse {
-			round,
-			signature,
-		})
-	}
-
-	/// Compute the signature as a group element
-	pub fn signature_point(&self) -> Result<G1AffineOpt, String> {
-		G1AffineOpt::deserialize_compressed(&mut self.signature.as_slice()).map_err(|e| {
-			format!("Failed to deserialize the signature bytes to a point on the G1 curve: {:?}", e)
-		})
-	}
-}
-
 impl sp_idn_traits::pulse::Pulse for OpaquePulse {
 	type Rand = Randomness;
 	type Round = RoundNumber;
@@ -131,7 +92,7 @@ impl sp_idn_traits::pulse::Pulse for OpaquePulse {
 	fn rand(&self) -> Self::Rand {
 		let mut hasher = Sha256::default();
 		hasher.update(self.signature.clone().to_vec());
-		// TODO
+		// TODO: handle unwrap
 		hasher.finalize().try_into().unwrap()
 	}
 
@@ -144,7 +105,12 @@ impl sp_idn_traits::pulse::Pulse for OpaquePulse {
 	}
 
 	fn authenticate(&self, pubkey: Self::Pubkey) -> bool {
-		false
+		QuicknetVerifier::verify(
+			pubkey.into(),
+			self.sig.into(),
+			self.round.into(),
+			None
+		)
 	}
 }
 
