@@ -3,23 +3,20 @@ https://github.com/paritytech/zombienet/releases
 
 Current version for development: 1.3.128
 
-#### Move zombienet to include it in your path, ie
+#### If you'd like, move zombienet to include it in your path, ie
 `mv zombienet* /usr/local/bin/zombienet`
 
-#### Install the polkadot relay chain (needed to run this_works.toml) and polkadot-parachain
-`zombienet setup polkadot polkadot-parachain`
+#### Install the polkadot relay chain
+`zombienet setup polkadot`
 
 #### Add the parachain binaries to your path
 `export PATH=/path/to/your/idn-sdk/e2e:$PATH`
 
-### Build the Kitchen Sink Node by navigating to the kitchensink directory and running
-`cargo build -p idn-sdk-kitchensink-node --release`
+### Build the idn-node by navigating to the ideal-network directory and running
+`cargo build -p idn-node --release`
+
+### Build the idn-consumer-node by navigating to the kitchensink directory and running
+`cargo build -p idn-consumer-node --release`
 
 #### To run the zombienet
-`zombienet -p native spawn your_config_file.toml`
-
-#### The two config options are
-this_works.toml which is just a default polkadot relay chain with a polkadot parachain
-and
-zombienet.toml which attempts to run the kitchen sink node as the relay chain with a polkadot parachain
-If you wish for the kitchen sink node to work, remove the configurations for parachains completely
+`zombienet -p native spawn zombienet.toml`
