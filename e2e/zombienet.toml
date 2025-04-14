@@ -17,12 +17,12 @@ chain = "rococo-local"
 id = 1000
 
   [parachains.collator]
-  name = "idn-consumer"
-  command = "../target/release/idn-consumer-node"
-
-[[parachains]]
-id = 1000
-
-  [parachains.collator]
   name = "idn"
   command = "../target/release/idn-node"
+
+[[parachains]]
+id = 1001
+
+  [parachains.collator]
+  name = "idn-consumer"
+  command = "../target/release/idn-consumer-node"
