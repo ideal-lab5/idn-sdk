@@ -20,3 +20,6 @@ Current version for development: 1.3.128
 
 #### To run the zombienet
 `zombienet -p native spawn zombienet.toml`
+
+#### To run tests
+`zombienet -p native test zombienet-test.zndsl`
