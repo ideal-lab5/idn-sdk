@@ -123,7 +123,7 @@ pub mod pallet {
 	/// The round number type
 	type RoundOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Round;
 	/// The beacon configuration type
-	type BeaconConfigurationOf<T> = BeaconConfiguration<PubkeyOf<T>, RoundOf<T>>;
+	pub(crate) type BeaconConfigurationOf<T> = BeaconConfiguration<PubkeyOf<T>, RoundOf<T>>;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -142,8 +142,6 @@ pub mod pallet {
 		type Pulse: TPulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq;
 		// /// Something that can dispatch pulses
 		type Dispatcher: Dispatcher<Self::Pulse, DispatchResult>;
-		// #[cfg(feature = "runtime-benchmarks")]
-		// type DispatcherWeightInfo: ....
 	}
 
 	/// The round when we start consuming pulses

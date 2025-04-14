@@ -19,7 +19,7 @@ extern crate alloc;
 use crate::drand::compute_round_on_g1;
 use ark_ec::AffineRepr;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use sp_std::vec::Vec;
+use sp_std::{vec, vec::Vec};
 
 #[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::G1Affine;

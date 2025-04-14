@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+//! Crypto used in the ideal network
+
+#![cfg_attr(not(feature = "std"), no_std)]
+
 mod bls12_381;
-mod drand;
-
+pub mod drand;
 pub mod test_utils;
-
 pub mod verifier;
