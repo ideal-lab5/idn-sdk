@@ -21,7 +21,7 @@ id = 1000
   command = "../target/release/idn-consumer-node"
 
 [[parachains]]
-id = 101
+id = 1000
 
   [parachains.collator]
   name = "idn"
