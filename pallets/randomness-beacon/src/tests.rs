@@ -15,8 +15,8 @@
  */
 
 use crate::{
-	mock::*, types::*, verifier::test::*, AggregatedSignature, BeaconConfig, Call, Error,
-	LatestRound, MissedBlocks,
+	mock::*, types::*, verifier::test::*, weights::WeightInfo, AggregatedSignature, BeaconConfig,
+	Call, Error, LatestRound, MissedBlocks,
 };
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 use frame_system::pallet_prelude::BlockNumberFor;
@@ -52,9 +52,11 @@ fn can_set_genesis_round_once_as_root() {
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
 		assert_eq!(BeaconConfig::<Test>::get().unwrap(), config.clone());
 		assert_noop!(
-			Drand::set_beacon_config(RuntimeOrigin::root(), config),
+			Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()),
 			Error::<Test>::BeaconConfigAlreadySet,
 		);
+		// and the latest round is set as the genesis round
+		assert_eq!(LatestRound::<Test>::get().unwrap(), config.genesis_round);
 	});
 }
 
@@ -191,9 +193,22 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 	});
 }
 
+use frame_support::traits::OnInitialize;
+
+#[test]
+fn can_call_on_initialize() {
+	new_test_ext().execute_with(|| {
+		let weight = Drand::on_initialize(0);
+		let expected = <() as WeightInfo>::on_finalize();
+		assert_eq!(weight, expected);
+	});
+}
+
 #[test]
 fn can_track_missed_blocks() {
 	new_test_ext().execute_with(|| {
+		let config = get_config(1000);
+		BeaconConfig::<Test>::set(Some(config.clone()));
 		System::set_block_number(1);
 		Drand::on_finalize(1);
 
@@ -206,6 +221,8 @@ fn can_track_missed_blocks() {
 #[test]
 fn can_track_missed_block_and_manage_overflow() {
 	new_test_ext().execute_with(|| {
+		let config = get_config(1000);
+		BeaconConfig::<Test>::set(Some(config.clone()));
 		let mut expected_final_history: Vec<BlockNumberFor<Test>> = Vec::new();
 		(1..u8::MAX as u32 + 1).for_each(|i| expected_final_history.push(i.into()));
 
@@ -252,7 +269,7 @@ fn can_create_inherent() {
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
 	new_test_ext().execute_with(|| {
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
+		BeaconConfig::<Test>::set(Some(config.clone()));
 		let result = Drand::create_inherent(&inherent_data);
 		if let Some(Call::try_submit_asig { sigs }) = result {
 			assert_eq!(sigs, expected_sigs, "The output should match the aggregated input.");
@@ -297,7 +314,7 @@ fn can_check_inherent() {
 	let config = get_config(1000);
 
 	new_test_ext().execute_with(|| {
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
+		BeaconConfig::<Test>::set(Some(config.clone()));
 		let result = Drand::create_inherent(&inherent_data);
 		if let Some(call) = result {
 			assert!(Drand::is_inherent(&call), "The inherent should be allowed.");
