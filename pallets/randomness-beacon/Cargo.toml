@@ -45,6 +45,7 @@ pallet-idn-manager = { workspace = true, default-features = false }
 [dev-dependencies]
 sp-keystore.workspace = true
 sp-inherents.workspace = true
+pallet-balances.workspace = true
 
 [features]
 default = ["std"]
@@ -73,6 +74,7 @@ std = [
 	"sp-idn-traits/std",
 	"sp-std/std",
 	"pallet-idn-manager/std",
+	"pallet-balances/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -87,5 +89,5 @@ try-runtime = [
 ]
 host-arkworks = [
 	"sp-ark-bls12-381/std",
-	"sp-consensus-randomness-beacon/host-arkworks",
+	# "sp-consensus-randomness-beacon/host-arkworks", TODO should be sp-idn-crypto
 ]

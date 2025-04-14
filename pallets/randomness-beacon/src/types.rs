@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 by Ideal Labs, LLC
+ * Copyright 2025 by Ideal Labs, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,19 +17,11 @@
 use codec::{Decode, Encode};
 use frame_support::pallet_prelude::*;
 use serde::{Deserialize, Serialize};
-use sp_consensus_randomness_beacon::types::{RoundNumber, OpaquePublicKey, OpaqueSignature};
+use sp_consensus_randomness_beacon::types::OpaqueSignature;
 use sp_idn_crypto::verifier::OpaqueAccumulation;
 
 /// Represents an aggregated signature and aggregated public key pair
-#[derive(
-	Clone,
-	Debug,
-	Decode,
-	PartialEq,
-	Encode,
-	MaxEncodedLen,
-	TypeInfo,
-)]
+#[derive(Clone, Debug, Decode, PartialEq, Encode, MaxEncodedLen, TypeInfo)]
 pub struct Accumulation {
 	/// A signature (e.g. output from the randomness beacon) in G1
 	pub signature: OpaqueSignature,
@@ -37,23 +29,34 @@ pub struct Accumulation {
 	pub message_hash: OpaqueSignature,
 }
 
-impl Accumulation {
-	// TODO: handle error
-	// refactor to: try_from_opaque
-	pub fn from_opaque(opaque: OpaqueAccumulation) -> Self {
-		Self {
-			signature: opaque.signature.try_into().unwrap(),
-			message_hash: opaque.message_hash.try_into().unwrap(),
-		}
-	}
+impl TryFrom<OpaqueAccumulation> for Accumulation {
+	type Error = ();
 
-	pub fn into_opaque(self) -> OpaqueAccumulation {
+	fn try_from(opaque: OpaqueAccumulation) -> Result<Self, Self::Error> {
+		let signature: OpaqueSignature = opaque.signature.try_into().map_err(|_| ())?;
+		let message_hash: OpaqueSignature = opaque.message_hash.try_into().map_err(|_| ())?;
+
+		Ok(Self { signature, message_hash })
+	}
+}
+
+impl From<Accumulation> for OpaqueAccumulation {
+	fn from(val: Accumulation) -> Self {
 		OpaqueAccumulation {
-			signature: self.signature.as_slice().to_vec(),
-			message_hash: self.message_hash.as_slice().to_vec(),
+			signature: val.signature.as_slice().to_vec(),
+			message_hash: val.message_hash.as_slice().to_vec(),
 		}
 	}
 }
+
+// impl Into<OpaqueAccumulation> for Accumulation {
+// 	fn into(self) -> OpaqueAccumulation {
+// 		OpaqueAccumulation {
+// 			signature: self.signature.as_slice().to_vec(),
+// 			message_hash: self.message_hash.as_slice().to_vec(),
+// 		}
+// 	}
+// }
 
 /// A drand chain configuration
 #[derive(
@@ -69,10 +72,6 @@ impl Accumulation {
 	TypeInfo,
 )]
 pub struct BeaconConfiguration<P, R> {
-	// /// The beacon public key
-	// pub public_key: OpaquePublicKey,
-	// /// The genesis round from which the IDN begins consuming the beacon
-	// pub genesis_round: RoundNumber,
 	/// The beacon public key
 	pub public_key: P,
 	/// The genesis round from which the IDN begins consuming the beacon
@@ -111,5 +110,15 @@ pub mod test {
 		// Optionally, check the type name to ensure the correct type is used
 		let type_name = core::any::type_name::<Accumulation>();
 		assert_eq!(type_name, "pallet_randomness_beacon::types::Accumulation");
+	}
+
+	#[test]
+	fn test_opaque_acc_to_and_from_acc() {
+		let expected = Accumulation { signature: [1; 48], message_hash: [2; 48] };
+
+		let opaque: OpaqueAccumulation = expected.clone().into();
+		// now convert back
+		let actual: Accumulation = Accumulation::try_from(opaque).unwrap();
+		assert!(actual == expected);
 	}
 }

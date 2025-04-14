@@ -53,6 +53,7 @@ pub(crate) fn compute_round_on_g1(round: u64) -> Result<G1Affine, CryptoError> {
 #[cfg(test)]
 pub mod tests {
 	use super::*;
+	use ark_ec::AffineRepr;
 
 	#[test]
 	fn test_message_deterministic() {

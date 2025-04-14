@@ -17,6 +17,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 async-trait = { optional = true, workspace = true }
 codec.workspace = true
+hex.workspace = true
 prost.workspace = true
 scale-info.workspace = true
 serde = { workspace = true, features = ["derive"] }
@@ -26,11 +27,6 @@ sp-inherents.workspace = true
 sp-idn-crypto.workspace = true
 sp-idn-traits.workspace = true
 sp-runtime.workspace = true
-
-# arkworks dependencies
-sp-ark-bls12-381 = { workspace = true, optional = true }
-ark-bls12-381.workspace = true
-ark-serialize.workspace = true
 
 [dev-dependencies]
 array-bytes = "=6.2.3"
@@ -53,7 +49,5 @@ std = [
 	"sp-runtime/std",
 	"prost/std",
 	"sha2/std",
-	"ark-bls12-381/std",
-	"ark-serialize/std",
 ]
-host-arkworks = ["sp-ark-bls12-381/std"]
+# host-arkworks = ["sp-ark-bls12-381/std"]

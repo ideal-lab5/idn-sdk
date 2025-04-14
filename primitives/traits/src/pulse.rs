@@ -190,18 +190,18 @@ pub trait Pulse {
 /// use sp_idn_traits::pulse::{Pulse, PulseMatch, PulseProperty};
 /// struct MyPulse {
 ///     rand: [u8; 3],
-///     round: u8,
+///     round: u64,
 ///     signature: [u8; 8],
 /// }
 /// impl Pulse for MyPulse {
 ///     type Rand = [u8; 3];
-///     type Round = u8;
+///     type Round = u64;
 ///     type Sig = [u8; 8];
 ///     type Pubkey = [u8;8];
 ///     fn rand(&self) -> Self::Rand { self.rand }
 ///     fn round(&self) -> Self::Round { self.round }
 ///     fn sig(&self) -> Self::Sig { self.signature }
-///     fn valid(&self, pubey: Pubkey) -> bool { true }
+///     fn authenticate(&self, pubkey: Self::Pubkey) -> bool { true }
 /// }
 ///
 /// let my_pulse = MyPulse { rand: [1, 2, 3], round: 42, signature: [1, 2, 3, 4, 5, 6, 7, 8] };

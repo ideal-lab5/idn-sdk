@@ -53,16 +53,6 @@ pub trait SignatureVerifier {
 	) -> Result<OpaqueAccumulation, CryptoError>;
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Error {
-	/// The input could not be deserialized to a point on G1
-	DeserializeG1Failure,
-	/// The input could not be deserialized to a point on G2
-	DeserializeG2Failure,
-	/// Verification for the siganture failed.
-	InvalidSignature,
-}
-
 /// A verifier to check values received from Drand quicknet. It outputs true if valid, false
 /// otherwise
 ///
@@ -165,8 +155,8 @@ pub mod tests {
 	#[test]
 	fn can_verify_single_pulse_with_quicknet_style_verifier_no_prev() {
 		let beacon_pk_bytes = get_beacon_pk();
-		let (asig, apk, sigs) = get(vec![PULSE1000]);
-
+		let (asig, apk, pulses) = get(vec![PULSE1000]);
+		let sigs = pulses.into_iter().map(|s| s.1).collect::<Vec<_>>();
 		let aggr =
 			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), sigs, 1000u64, None)
 				.unwrap();
@@ -179,8 +169,8 @@ pub mod tests {
 	#[test]
 	fn can_verify_aggregated_sigs_no_prev() {
 		let beacon_pk_bytes = get_beacon_pk();
-		let (asig, apk, sigs) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
-
+		let (asig, apk, pulses) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
+		let sigs = pulses.into_iter().map(|s| s.1).collect::<Vec<_>>();
 		let aggr =
 			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), sigs, 1000u64, None)
 				.unwrap();
@@ -194,7 +184,8 @@ pub mod tests {
 	fn can_verify_sigs_with_aggregation() {
 		let beacon_pk_bytes = get_beacon_pk();
 		let (prev_asig, prev_apk, _prev_sigs) = get(vec![PULSE1000]);
-		let (_next_sig, _next_pk, next_sigs) = get(vec![PULSE1001, PULSE1002]);
+		let (_next_sig, _next_pk, next_pulses) = get(vec![PULSE1001, PULSE1002]);
+		let next_sigs = next_pulses.into_iter().map(|s| s.1).collect::<Vec<_>>();
 
 		let (expected_asig, expected_apk, _sigs) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
 
@@ -213,7 +204,8 @@ pub mod tests {
 	#[test]
 	fn can_verify_invalid_with_mismatched_sig_and_round() {
 		let beacon_pk_bytes = get_beacon_pk();
-		let (_asig, _apk, sigs) = get(vec![PULSE1000]);
+		let (_asig, _apk, pulses) = get(vec![PULSE1000]);
+		let sigs = pulses.into_iter().map(|s| s.1).collect::<Vec<_>>();
 
 		let res =
 			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), sigs, 1002u64, None);

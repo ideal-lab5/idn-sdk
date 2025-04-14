@@ -48,10 +48,11 @@ default = ["std"]
 std = [
 	"async-trait",
 	"codec/std",
+	"hex/std",
 	"scale-info/std",
 	"serde/std",
 	"sp-core/std",
-	"sp-idn-traits/std",
+	"sp-idn-traits/std", 
 	"sp-inherents/std",
 	"sp-runtime/std",
 	"sp-std/std",

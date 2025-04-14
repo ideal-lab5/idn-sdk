@@ -89,10 +89,8 @@ mod benchmarks {
 		let mut apk_bytes = Vec::new();
 		apk.serialize_compressed(&mut apk_bytes).unwrap();
 
-		let config = BeaconConfiguration {
-			genesis_round: 1,
-			public_key: pk_bytes.try_into().unwrap(),
-		};
+		let config =
+			BeaconConfiguration { genesis_round: 1, public_key: pk_bytes.try_into().unwrap() };
 
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
 
@@ -138,10 +136,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
-		let config = BeaconConfiguration {
-			genesis_round: 1u64,
-			public_key: [1; 96],
-		};
+		let config = BeaconConfiguration { genesis_round: 1u64, public_key: [1; 96] };
 
 		#[extrinsic_call]
 		_(RawOrigin::Root, config.clone());

@@ -924,17 +924,17 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T>  {
+impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 	/// Dispatches a collection of pulses by distributing it to eligible subscriptions.
 	///
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
-	fn dispatch(pulses: Vec<T::Pulse>) -> DispatchResult { 
+	fn dispatch(pulses: Vec<T::Pulse>) -> DispatchResult {
 		for pulse in pulses {
-			// let round = pulse.round().clone() ;
+			let round = pulse.round().clone();
 			if let Err(e) = Pallet::<T>::distribute(pulse) {
-				// log::warn!(target: LOG_TARGET, "Distribution of pulse # {:?} failed: {:?}", pulse.round(), e);
+				log::warn!(target: LOG_TARGET, "Distribution of pulse # {:?} failed: {:?}", round, e);
 			}
 		}
 

@@ -20,7 +20,10 @@ use sp_runtime::generic::DigestItem;
 
 /// Custom header digest items, inserted as DigestItem::Other
 #[derive(Encode, Decode, Copy, Clone, Eq, PartialEq, RuntimeDebug)]
-pub enum ConsensusLog<T> where T: Encode + Decode {
+pub enum ConsensusLog<T>
+where
+	T: Encode + Decode,
+{
 	#[codec(index = 0)]
 	/// Provides information about the latest drand round number observed by the network
 	LatestRoundNumber(T),

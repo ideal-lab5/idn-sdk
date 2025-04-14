@@ -17,14 +17,14 @@
 extern crate alloc;
 
 use crate::drand::compute_round_on_g1;
-use ark_ec::{hashing::HashToCurve, AffineRepr};
+use ark_ec::AffineRepr;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use sp_std::vec::Vec;
 
 #[cfg(not(feature = "host-arkworks"))]
-use ark_bls12_381::{G1Affine, G2Affine};
+use ark_bls12_381::G1Affine;
 #[cfg(feature = "host-arkworks")]
-use sp_ark_bls12_381::{G1Affine, G2Affine};
+use sp_ark_bls12_381::G1Affine;
 
 // #[cfg(test)]
 pub type RawPulse = (u64, [u8; 96]);
@@ -39,15 +39,15 @@ pub const PULSE1003: RawPulse = (1003u64, *b"b104c82771698f45fd8dcfead083d482694
 
 // #[cfg(test)]
 // output the asig + apk
-pub fn get(pulse_data: Vec<RawPulse>) -> (Vec<u8>, Vec<u8>, Vec<Vec<u8>>) {
+pub fn get(pulse_data: Vec<RawPulse>) -> (Vec<u8>, Vec<u8>, Vec<(u64, Vec<u8>)>) {
 	let mut apk = G1Affine::zero();
 	let mut asig = G1Affine::zero();
 
-	let mut sigs: Vec<Vec<u8>> = vec![];
+	let mut sigs: Vec<(u64, Vec<u8>)> = vec![];
 
 	for pulse in pulse_data {
 		let sig_bytes = hex::decode(&pulse.1).unwrap();
-		sigs.push(sig_bytes.clone().try_into().unwrap());
+		sigs.push((pulse.0, sig_bytes.clone().try_into().unwrap()));
 		let sig = G1Affine::deserialize_compressed(&mut sig_bytes.as_slice()).unwrap();
 		asig = (asig + sig).into();
 

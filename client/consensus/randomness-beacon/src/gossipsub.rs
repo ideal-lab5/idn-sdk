@@ -18,7 +18,8 @@
 //!
 //! The `GossipsubNetwork` is a libp2p node designed to ingest well-formatted messages
 //! from a gossipsub topic. The implemention is intended to be used with
-//! the Drand beacon gossipsub topic, to which `ProtoPulse` messages are published as protobuf messages.
+//! the Drand beacon gossipsub topic, to which `ProtoPulse` messages are published as protobuf
+//! messages.
 //!
 //! ## Overview
 //!

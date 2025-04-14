@@ -28,7 +28,7 @@ use codec::Encode;
 use frame_support::{construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage};
 use frame_system as system;
 use sp_runtime::{
-	traits::{Block as BlockT, IdentityLookup, parameter_types},
+	traits::{Block as BlockT, IdentityLookup},
 	AccountId32,
 };
 
@@ -70,6 +70,7 @@ parameter_types! {
 type Rand = [u8; 32];
 type Sig = [u8; 64];
 type Round = u64;
+type Pubkey = [u8; 64];
 
 #[derive(Encode, Clone, Copy)]
 pub struct Pulse {
@@ -82,6 +83,7 @@ impl sp_idn_traits::pulse::Pulse for Pulse {
 	type Rand = Rand;
 	type Round = Round;
 	type Sig = Sig;
+	type Pubkey = Pubkey;
 
 	fn sig(&self) -> Self::Sig {
 		self.sig
@@ -95,7 +97,7 @@ impl sp_idn_traits::pulse::Pulse for Pulse {
 		self.round
 	}
 
-	fn authenticate(&self) -> bool {
+	fn authenticate(&self, _pk: Self::Pubkey) -> bool {
 		true
 	}
 }

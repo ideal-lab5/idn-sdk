@@ -76,6 +76,8 @@ pub(crate) fn decode_g2(mut bytes: &[u8]) -> Result<G2Affine, CryptoError> {
 pub mod tests {
 
 	use super::*;
+	use ark_ec::AffineRepr;
+	use ark_serialize::CanonicalSerialize;
 
 	/// Test that `zero_on_g1` returns the identity element on G1.
 	#[test]

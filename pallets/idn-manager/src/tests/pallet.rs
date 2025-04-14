@@ -34,7 +34,7 @@ use frame_support::{
 	BoundedVec,
 };
 use sp_idn_traits::pulse::Dispatcher;
-use sp_runtime::{AccountId32, DispatchError, TokenError};
+use sp_runtime::{AccountId32, TokenError};
 use xcm::v5::{Junction, Location};
 
 const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
@@ -807,7 +807,7 @@ fn test_credits_consumption_and_cleanup() {
 }
 
 #[test]
-fn test_credits_consumption_not_enogh_balance() {
+fn test_credits_consumption_not_enough_balance() {
 	ExtBuilder::build().execute_with(|| {
 		// Setup initial conditions
 		let credits: u64 = 1_010_000;
@@ -848,10 +848,7 @@ fn test_credits_consumption_not_enogh_balance() {
 					&sub,
 				);
 				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
-				assert_noop!(
-					IdnManager::dispatch(vec![pulse.into()]),
-					DispatchError::Other("NotEnoughBalance")
-				);
+				assert_ok!(IdnManager::dispatch(vec![pulse.into()]));
 				break;
 			} else {
 				// Dispatch randomness
@@ -1717,7 +1714,7 @@ fn test_pulse_filter_functionality() {
 			let round = block + 1;
 
 			// Create pulse with current round
-			let pulse = mock::Pulse { rand: [block as u8; 32], round, sig: [1u8; 64] };
+			let pulse = mock::Pulse { rand: [0u8; 32], round, sig: [1u8; 64] };
 
 			// Clear previous events
 			System::reset_events();
