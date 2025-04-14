@@ -17,15 +17,15 @@
 use crate::cli::Consensus;
 use futures::FutureExt;
 use idn_sdk_kitchensink_runtime::{interface::OpaqueBlock as Block, RuntimeApi};
-// use polkadot_sdk::{
+use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair, Multiaddr};
+use sc_client_api::backend::Backend;
+use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, GossipsubNetwork};
 use sc_executor::WasmExecutor;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
+use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_runtime::traits::Block as BlockT;
-// 	*,
-// };
-use sc_client_api::backend::Backend;
 use std::sync::Arc;
 
 type HostFunctions = sp_io::SubstrateHostFunctions;
@@ -47,7 +47,9 @@ pub type Service = sc_service::PartialComponents<
 	Option<Telemetry>,
 >;
 
-pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
+pub fn new_partial(
+	config: &Configuration,
+) -> Result<(Service, TracingUnboundedReceiver<u64>), ServiceError> {
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -87,22 +89,26 @@ pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 		.build(),
 	);
 
-	let import_queue = sc_consensus_manual_seal::import_queue(
-		Box::new(client.clone()),
-		&task_manager.spawn_essential_handle(),
-		config.prometheus_registry(),
-	);
+	let (import_queue, latest_round_rx) =
+		sc_consensus_randomness_beacon::consensus::manual_seal::import_queue(
+			Box::new(client.clone()),
+			&task_manager.spawn_essential_handle(),
+			config.prometheus_registry(),
+		);
 
-	Ok(sc_service::PartialComponents {
-		client,
-		backend,
-		task_manager,
-		import_queue,
-		keystore_container,
-		select_chain,
-		transaction_pool,
-		other: (telemetry),
-	})
+	Ok((
+		sc_service::PartialComponents {
+			client,
+			backend,
+			task_manager,
+			import_queue,
+			keystore_container,
+			select_chain,
+			transaction_pool,
+			other: (telemetry),
+		},
+		latest_round_rx,
+	))
 }
 
 /// Builds a new service for a full client.
@@ -110,16 +116,19 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 	config: Configuration,
 	consensus: Consensus,
 ) -> Result<TaskManager, ServiceError> {
-	let sc_service::PartialComponents {
-		client,
-		backend,
-		mut task_manager,
-		import_queue,
-		keystore_container,
-		select_chain,
-		transaction_pool,
-		other: mut telemetry,
-	} = new_partial(&config)?;
+	let (
+		sc_service::PartialComponents {
+			client,
+			backend,
+			mut task_manager,
+			import_queue,
+			keystore_container,
+			select_chain,
+			transaction_pool,
+			other: mut telemetry,
+		},
+		latest_round_rx,
+	) = new_partial(&config)?;
 
 	let net_config = sc_network::config::FullNetworkConfiguration::<
 		Block,
@@ -203,6 +212,31 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 		telemetry.as_ref().map(|x| x.handle()),
 	);
 
+	// setup gossipsub network if you are an authority
+	let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
+	let drand_receiver = DrandReceiver::new(rx, latest_round_rx);
+
+	let topic_str: &str =
+		"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
+	let maddr1: Multiaddr =
+		"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
+			.parse()
+			.expect("The string is a well-formatted multiaddress. qed.");
+	let maddr2: Multiaddr =
+		"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
+			.parse()
+			.expect("The string is a well-formatted multiaddress. qed.");
+
+	let local_identity: Keypair = Keypair::generate_ed25519();
+	let gossipsub_config = GossipsubConfig::default();
+	let mut gossipsub = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None).unwrap();
+	// start consuming from the gossipsub topic
+	tokio::spawn(async move {
+		if let Err(e) = gossipsub.run(topic_str, vec![maddr1, maddr2]).await {
+			log::error!("Failed to run gossipsub network: {:?}", e);
+		}
+	});
+
 	match consensus {
 		Consensus::InstantSeal => {
 			let params = sc_consensus_manual_seal::InstantSealParams {
@@ -212,8 +246,25 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 				pool: transaction_pool,
 				select_chain,
 				consensus_data_provider: None,
-				create_inherent_data_providers: move |_, ()| async move {
-					Ok(sp_timestamp::InherentDataProvider::from_system_time())
+				create_inherent_data_providers: move |_, ()| {
+					let drand_receiver = drand_receiver.clone();
+
+					async move {
+						let pulses = drand_receiver.take().await;
+
+						let serialized_pulses: Vec<Vec<u8>> =
+							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect();
+
+						let beacon_inherent =
+							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
+								serialized_pulses,
+							);
+
+						Ok((
+							sp_timestamp::InherentDataProvider::from_system_time(),
+							beacon_inherent,
+						))
+					}
 				},
 			};
 
@@ -248,8 +299,24 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 				select_chain,
 				commands_stream: Box::pin(commands_stream),
 				consensus_data_provider: None,
-				create_inherent_data_providers: move |_, ()| async move {
-					Ok(sp_timestamp::InherentDataProvider::from_system_time())
+				create_inherent_data_providers: move |_, ()| {
+					let drand_receiver = drand_receiver.clone();
+					async move {
+						let pulses = drand_receiver.take().await;
+
+						let serialized_pulses: Vec<Vec<u8>> =
+							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect();
+
+						let beacon_inherent =
+							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
+								serialized_pulses,
+							);
+
+						Ok((
+							sp_timestamp::InherentDataProvider::from_system_time(),
+							beacon_inherent,
+						))
+					}
 				},
 			};
 			let authorship_future = sc_consensus_manual_seal::run_manual_seal(params);
