@@ -229,7 +229,7 @@ parameter_types! {
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
 	pub const MaxPulseFilterLen: u32 = 100;
-	pub const MaxSubscriptions: u32 = 1_000_000;
+	pub const MaxSubscriptions: u32 = 1_000;
 }
 
 #[derive(TypeInfo)]

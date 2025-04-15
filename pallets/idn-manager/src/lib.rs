@@ -724,6 +724,7 @@ impl<T: Config> Pallet<T> {
 					Subscriptions::<T>::insert(sub_id, &sub);
 
 					// Send the XCM message
+					// #[cfg(not(feature = "runtime-benchmarks"))]
 					T::Xcm::send(origin.into(), versioned_target, versioned_msg)?;
 
 					Self::deposit_event(Event::RandomnessDistributed { sub_id });
