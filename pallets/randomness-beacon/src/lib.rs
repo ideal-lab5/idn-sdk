@@ -85,17 +85,6 @@ pub use pallet::*;
 
 use frame_support::pallet_prelude::*;
 
-// #[cfg(feature = "runtime-benchmarks")]
-// use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
-// #[cfg(feature = "runtime-benchmarks")]
-// use frame_support::traits::fungible::{hold::Mutate as HoldMutate, Inspect};
-// #[cfg(feature = "runtime-benchmarks")]
-// use scale_info::TypeInfo;
-// #[cfg(feature = "runtime-benchmarks")]
-// use sp_arithmetic::traits::Unsigned;
-// #[cfg(feature = "runtime-benchmarks")]
-// use sp_core::H256;
-
 use sp_idn_crypto::verifier::{OpaqueAccumulation, SignatureVerifier};
 use sp_idn_traits::pulse::{Dispatcher, Pulse as TPulse};
 use sp_std::fmt::Debug;
@@ -138,20 +127,6 @@ pub mod pallet {
 	/// The beacon configuration type
 	pub(crate) type BeaconConfigurationOf<T> = BeaconConfiguration<PubkeyOf<T>, RoundOf<T>>;
 
-	// #[cfg(feature = "runtime-benchmarks")]
-	// pub type CreateSubParamsOf<T> = pallet_idn_manager::primitives::CreateSubParams<
-	// 	<T as pallet::Config>::Credits,
-	// 	BlockNumberFor<T>,
-	// 	MetadataOf<T>,
-	// 	PulseFilterOf<T>,
-	// 	<T as pallet::Config>::SubscriptionId,
-	// >;
-
-	// #[cfg(feature = "runtime-benchmarks")]
-	// /// The metadata type used in the pallet, represented as a bounded vector of bytes.
-	// pub type MetadataOf<T> = pallet_idn_manager::primitives::SubscriptionMetadata<<T as
-	// Config>::MaxMetadataLen>;
-
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching runtime event type.
@@ -169,35 +144,6 @@ pub mod pallet {
 		type Pulse: TPulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq;
 		/// Something that can dispatch pulses
 		type Dispatcher: Dispatcher<Self::Pulse, DispatchResult>;
-
-		// #[cfg(feature = "runtime-benchmarks")]
-		// /// Overarching hold reason.
-		// type RuntimeHoldReason: From<pallet_idn_manager::HoldReason>;
-		// #[cfg(feature = "runtime-benchmarks")]
-		// /// The currency type for handling subscription payments
-		// type Currency: Inspect<<Self as frame_system::pallet::Config>::AccountId>
-		// 	+ HoldMutate<
-		// 		<Self as frame_system::pallet::Config>::AccountId,
-		// 		Reason = Self::RuntimeHoldReason,
-		// >;
-		// #[cfg(feature = "runtime-benchmarks")]
-		// type BenchmarkSubscriptionCreator: pallet_idn_manager::BenchmarkSubscriptionCreator<
-		// 	Self,
-		// 	// pallet_idn_manager::CreateSubParamsOf<Self>,
-		// >;
-		// #[cfg(feature = "runtime-benchmarks")]
-		// /// A type to define the amount of credits in a subscription
-		// type Credits: Unsigned + Codec + TypeInfo + MaxEncodedLen + Debug + Saturating + Copy;
-		// #[cfg(feature = "runtime-benchmarks")]
-		// /// Subscription ID type
-		// type SubscriptionId: From<H256>
-		// 	+ Codec
-		// 	+ Copy
-		// 	+ PartialEq
-		// 	+ TypeInfo
-		// 	+ EncodeLike
-		// 	+ MaxEncodedLen
-		// 	+ Debug;
 	}
 
 	/// The round when we start consuming pulses
@@ -333,8 +279,11 @@ pub mod pallet {
 		/// * `origin`: An unsigned origin.
 		/// * `pulses`: A list of drand pulses.
 		#[pallet::call_index(0)]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(T::MaxSigsPerBlock::get().into()).saturating_add(T::Dispatcher::dispatch_weight(pulses.len())))]
-		// + <T as >::...::dispatcher(T::MaxSigs...)  )]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(
+			T::MaxSigsPerBlock::get().into())
+				.saturating_add(
+					T::Dispatcher::dispatch_weight(pulses.len()))
+		)]
 		#[allow(clippy::useless_conversion)]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,

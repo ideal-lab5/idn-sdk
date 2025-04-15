@@ -29,22 +29,17 @@ use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
 use ark_std::{ops::Mul, test_rng, UniformRand};
 use frame_benchmarking::v2::*;
-use frame_support::traits::{fungible::Mutate, OriginTrait};
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use sp_consensus_randomness_beacon::types::{
 	OpaquePublicKey, OpaquePulse, OpaqueSignature, RoundNumber,
 };
-// use pallet_idn_manager::CreateSubParamsOf;
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
-use xcm::v5::{prelude::Junction, Location};
 
 #[benchmarks(
 	where
 		<T::Pulse as Pulse>::Round: From<u64>,
 		<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
-		// T::Currency: Mutate<T::AccountId>,
-		// <T as pallet_idn_manager::Config>::Credits: From<u64>,
 )]
 mod benchmarks {
 	use super::*;
@@ -73,9 +68,6 @@ mod benchmarks {
 	) -> Result<(), BenchmarkError> {
 		let drand = MockDrand::new();
 
-		let subscriber: T::AccountId = whitelisted_caller();
-		// T::Currency::set_balance(&subscriber, 1_000_000u32.into());
-
 		let mut pk_bytes = Vec::new();
 		drand.pk.serialize_compressed(&mut pk_bytes).unwrap();
 		let opk: OpaquePublicKey = pk_bytes.try_into().unwrap();
@@ -85,28 +77,6 @@ mod benchmarks {
 
 		let pulses = (1..r)
 			.map(|i| {
-				// for each pulse, we create the maximum number of subscriptions
-				// let subscriber: T::AccountId = whitelisted_caller();
-				// let credits = 100u64;
-				// let target = Location::new(1, [Junction::PalletInstance(1)]);
-				// let call_index = [1; 2];
-				// let frequency: BlockNumberFor<T> = 1u32.into();
-
-				// T::Currency::set_balance(&subscriber, 1_000_000u32.into());
-
-				// let _ = <pallet_idn_manager::Pallet::<T>>::create_subscription(
-				// 	<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-				// 	CreateSubParamsOf::<T> {
-				// 		credits: credits.into(),
-				// 		target: target.clone(),
-				// 		call_index,
-				// 		frequency,
-				// 		metadata: None,
-				// 		pulse_filter: None,
-				// 		sub_id: None,
-				// 	},
-				// );
-
 				let mut bytes = Vec::new();
 				let id = compute_round_on_g1(i.into()).unwrap();
 				apk = (apk + id).into();

@@ -25,7 +25,6 @@ hex.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
-sp-arithmetic.workspace = true
 sp-idn-crypto.workspace = true
 sp-idn-traits.workspace = true
 sp-consensus-randomness-beacon.workspace = true
@@ -41,13 +40,12 @@ ark-ec.workspace = true
 ark-std.workspace = true
 timelock.workspace = true
 
-pallet-balances.workspace = true
 pallet-idn-manager = { workspace = true, default-features = false }
-xcm.workspace = true
 
 [dev-dependencies]
 sp-keystore.workspace = true
 sp-inherents.workspace = true
+pallet-balances.workspace = true
 
 [features]
 default = ["std"]
@@ -77,8 +75,6 @@ std = [
 	"sp-std/std",
 	"pallet-idn-manager/std",
 	"pallet-balances/std",
-	"xcm/std",
-	"sp-arithmetic/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -95,5 +91,5 @@ try-runtime = [
 ]
 host-arkworks = [
 	"sp-ark-bls12-381/std",
-	# "sp-consensus-randomness-beacon/host-arkworks", TODO should be sp-idn-crypto
+	"sp-idn-crypto/host-arkworks",
 ]

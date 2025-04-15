@@ -44,19 +44,8 @@ impl pallet_drand_bridge::Config for Test {
 	type SignatureVerifier = QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<10>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-	// type Pulse = OpaquePulse;
-	// type Dispatcher = IdnManager;
-
-	// #[cfg(feature = "runtime-benchmarks")]
-	// type Currency = Balances;
-	// #[cfg(feature = "runtime-benchmarks")]
-	// type RuntimeHoldReason = RuntimeHoldReason;
-	// #[cfg(feature = "runtime-benchmarks")]
-	// type BenchmarkSubscriptionCreator = IdnManager;
-	// #[cfg(feature = "runtime-benchmarks")]
-	// type Credits = u64;
-	// #[cfg(feature = "runtime-benchmarks")]
-	// type SubscriptionId = [u8; 32];
+	type Pulse = OpaquePulse;
+	type Dispatcher = IdnManager;
 }
 
 parameter_types! {

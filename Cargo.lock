@@ -8491,7 +8491,6 @@ dependencies = [
  "scale-info",
  "serde",
  "sha2 0.10.8",
- "sp-arithmetic",
  "sp-ark-bls12-381",
  "sp-consensus-randomness-beacon",
  "sp-core 35.0.0",
@@ -8502,7 +8501,6 @@ dependencies = [
  "sp-keystore 0.41.0",
  "sp-runtime 40.1.0",
  "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "staging-xcm",
  "timelock",
 ]
 
