@@ -17,9 +17,7 @@
 //! Benchmarking setup for pallet-randomness-beacon
 use super::*;
 
-use crate::{
-	Pallet, BeaconConfig,
-};
+use crate::{BeaconConfig, Pallet};
 
 #[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::{Fr, G1Affine, G2Affine};
@@ -31,23 +29,22 @@ use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
 use ark_std::{ops::Mul, test_rng, UniformRand};
 use frame_benchmarking::v2::*;
-use frame_support::traits::OriginTrait;
-use frame_support::traits::fungible::Mutate;
+use frame_support::traits::{fungible::Mutate, OriginTrait};
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use sp_consensus_randomness_beacon::types::{
 	OpaquePublicKey, OpaquePulse, OpaqueSignature, RoundNumber,
 };
-use pallet_idn_manager::CreateSubParamsOf;
+// use pallet_idn_manager::CreateSubParamsOf;
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
-use xcm::v5::{Location, prelude::Junction};
+use xcm::v5::{prelude::Junction, Location};
 
 #[benchmarks(
 	where
 		<T::Pulse as Pulse>::Round: From<u64>,
 		<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
-		T::Currency: Mutate<T::AccountId>,
-		<T as pallet_idn_manager::Config>::Credits: From<u64>,
+		// T::Currency: Mutate<T::AccountId>,
+		// <T as pallet_idn_manager::Config>::Credits: From<u64>,
 )]
 mod benchmarks {
 	use super::*;
@@ -77,7 +74,7 @@ mod benchmarks {
 		let drand = MockDrand::new();
 
 		let subscriber: T::AccountId = whitelisted_caller();
-		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+		// T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
 		let mut pk_bytes = Vec::new();
 		drand.pk.serialize_compressed(&mut pk_bytes).unwrap();
@@ -89,26 +86,26 @@ mod benchmarks {
 		let pulses = (1..r)
 			.map(|i| {
 				// for each pulse, we create the maximum number of subscriptions
-				let subscriber: T::AccountId = whitelisted_caller();
-				let credits = 100u64;
-				let target = Location::new(1, [Junction::PalletInstance(1)]);
-				let call_index = [1; 2];
-				let frequency: BlockNumberFor<T> = 1u32.into();
-				
-				T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+				// let subscriber: T::AccountId = whitelisted_caller();
+				// let credits = 100u64;
+				// let target = Location::new(1, [Junction::PalletInstance(1)]);
+				// let call_index = [1; 2];
+				// let frequency: BlockNumberFor<T> = 1u32.into();
 
-				let _ = <pallet_idn_manager::Pallet::<T>>::create_subscription(
-					<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-					CreateSubParamsOf::<T> {
-						credits: credits.into(),
-						target: target.clone(),
-						call_index,
-						frequency,
-						metadata: None,
-						pulse_filter: None,
-						sub_id: None,
-					},
-				);
+				// T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+
+				// let _ = <pallet_idn_manager::Pallet::<T>>::create_subscription(
+				// 	<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
+				// 	CreateSubParamsOf::<T> {
+				// 		credits: credits.into(),
+				// 		target: target.clone(),
+				// 		call_index,
+				// 		frequency,
+				// 		metadata: None,
+				// 		pulse_filter: None,
+				// 		sub_id: None,
+				// 	},
+				// );
 
 				let mut bytes = Vec::new();
 				let id = compute_round_on_g1(i.into()).unwrap();
@@ -120,7 +117,7 @@ mod benchmarks {
 				sig.serialize_compressed(&mut bytes).unwrap();
 				let signature: OpaqueSignature = bytes.try_into().unwrap();
 
-				let op = OpaquePulse { round: i as u64, signature }; 
+				let op = OpaquePulse { round: i as u64, signature };
 				let encoded = op.encode();
 				let out: T::Pulse = T::Pulse::decode(&mut encoded.as_slice()).unwrap();
 				out
@@ -132,12 +129,9 @@ mod benchmarks {
 
 		let mut apk_bytes = Vec::new();
 		apk.serialize_compressed(&mut apk_bytes).unwrap();
-		
+
 		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
-		let config = BeaconConfigurationOf::<T> {
-			genesis_round: 1u64.into(), 
-			public_key: pubkey,
-		};
+		let config = BeaconConfigurationOf::<T> { genesis_round: 1u64.into(), public_key: pubkey };
 
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
 
@@ -185,7 +179,7 @@ mod benchmarks {
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
 		let public_key = [1; 96];
 		let config = BeaconConfigurationOf::<T> {
-			genesis_round: 1u64.into(), 
+			genesis_round: 1u64.into(),
 			public_key: public_key.into(),
 		};
 

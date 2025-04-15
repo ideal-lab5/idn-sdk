@@ -51,6 +51,12 @@ pub struct OpaquePulse {
 	pub signature: OpaqueSignature,
 }
 
+impl Default for OpaquePulse {
+	fn default() -> Self {
+		OpaquePulse { round: 0, signature: [0u8; 48] }
+	}
+}
+
 impl TryInto<OpaquePulse> for ProtoPulse {
 	type Error = String;
 	/// Converts a ProtoPulse into an OpaquePulse

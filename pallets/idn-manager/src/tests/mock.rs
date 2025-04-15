@@ -24,13 +24,18 @@ use crate::{
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
 };
-use codec::Encode;
-use frame_support::{construct_runtime, derive_impl, parameter_types, sp_runtime::BuildStorage};
+use frame_support::{
+	construct_runtime, derive_impl,
+	pallet_prelude::{Decode, Encode, TypeInfo},
+	parameter_types,
+	sp_runtime::BuildStorage,
+};
 use frame_system as system;
 use sp_runtime::{
 	traits::{Block as BlockT, IdentityLookup},
 	AccountId32,
 };
+use sp_std::fmt::Debug;
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -72,7 +77,7 @@ type Sig = [u8; 64];
 type Round = u64;
 type Pubkey = [u8; 64];
 
-#[derive(Encode, Clone, Copy)]
+#[derive(Encode, Clone, Copy, PartialEq, TypeInfo, Debug, Decode)]
 pub struct Pulse {
 	pub rand: Rand,
 	pub round: Round,
@@ -99,6 +104,12 @@ impl sp_idn_traits::pulse::Pulse for Pulse {
 
 	fn authenticate(&self, _pk: Self::Pubkey) -> bool {
 		true
+	}
+}
+
+impl Default for Pulse {
+	fn default() -> Self {
+		Pulse { rand: Rand::default(), round: Round::default(), sig: [0u8; 64] }
 	}
 }
 

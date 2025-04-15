@@ -97,7 +97,8 @@ use frame_support::pallet_prelude::*;
 // use sp_core::H256;
 
 use sp_idn_crypto::verifier::{OpaqueAccumulation, SignatureVerifier};
-use sp_idn_traits::pulse::Pulse as TPulse;
+use sp_idn_traits::pulse::{Dispatcher, Pulse as TPulse};
+use sp_std::fmt::Debug;
 
 extern crate alloc;
 use alloc::vec::Vec;
@@ -131,9 +132,9 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	/// The public key type
-	type PubkeyOf<T> = <<T as pallet_idn_manager::Config>::Pulse as TPulse>::Pubkey;
+	type PubkeyOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Pubkey;
 	/// The round number type
-	type RoundOf<T> = <<T as pallet_idn_manager::Config>::Pulse as TPulse>::Round;
+	type RoundOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Round;
 	/// The beacon configuration type
 	pub(crate) type BeaconConfigurationOf<T> = BeaconConfiguration<PubkeyOf<T>, RoundOf<T>>;
 
@@ -148,10 +149,11 @@ pub mod pallet {
 
 	// #[cfg(feature = "runtime-benchmarks")]
 	// /// The metadata type used in the pallet, represented as a bounded vector of bytes.
-	// pub type MetadataOf<T> = pallet_idn_manager::primitives::SubscriptionMetadata<<T as Config>::MaxMetadataLen>;
+	// pub type MetadataOf<T> = pallet_idn_manager::primitives::SubscriptionMetadata<<T as
+	// Config>::MaxMetadataLen>;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_idn_manager::Config {
+	pub trait Config: frame_system::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
@@ -163,10 +165,10 @@ pub mod pallet {
 		/// The number of historical missed blocks that we store.
 		/// Once the limit is reached, historical missed fblocks are pruned as a FIFO queue.
 		type MissedBlocksHistoryDepth: Get<u32>;
-		// /// The pulse type
-		// type Pulse: TPulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq;
-		// / Something that can dispatch pulses
-		// type Dispatcher: Dispatcher<Self::Pulse, DispatchResult>;
+		/// The pulse type
+		type Pulse: TPulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq;
+		/// Something that can dispatch pulses
+		type Dispatcher: Dispatcher<Self::Pulse, DispatchResult>;
 
 		// #[cfg(feature = "runtime-benchmarks")]
 		// /// Overarching hold reason.
@@ -177,7 +179,7 @@ pub mod pallet {
 		// 	+ HoldMutate<
 		// 		<Self as frame_system::pallet::Config>::AccountId,
 		// 		Reason = Self::RuntimeHoldReason,
-			// >;
+		// >;
 		// #[cfg(feature = "runtime-benchmarks")]
 		// type BenchmarkSubscriptionCreator: pallet_idn_manager::BenchmarkSubscriptionCreator<
 		// 	Self,
@@ -264,7 +266,7 @@ pub mod pallet {
 					//  ignores rounds less than the genesis round
 					let pulses = raw_pulses
 						.iter()
-						.filter_map(|rp| <T as pallet_idn_manager::Config>::Pulse::decode(&mut rp.as_slice()).ok())
+						.filter_map(|rp| T::Pulse::decode(&mut rp.as_slice()).ok())
 						.filter(|op| op.round().into() >= config.genesis_round.clone().into())
 						.collect::<Vec<_>>();
 
@@ -331,7 +333,7 @@ pub mod pallet {
 		/// * `origin`: An unsigned origin.
 		/// * `pulses`: A list of drand pulses.
 		#[pallet::call_index(0)]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(T::MaxSigsPerBlock::get().into()))]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(T::MaxSigsPerBlock::get().into()).saturating_add(T::Dispatcher::dispatch_weight(pulses.len())))]
 		// + <T as >::...::dispatcher(T::MaxSigs...)  )]
 		#[allow(clippy::useless_conversion)]
 		pub fn try_submit_asig(
@@ -379,7 +381,7 @@ pub mod pallet {
 			DidUpdate::<T>::put(true);
 
 			// dispatch pulses to subscribers
-			// T::Dispatcher::dispatch(pulses)?;
+			T::Dispatcher::dispatch(pulses)?;
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 			// Insert the latest round into the header digest

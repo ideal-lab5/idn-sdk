@@ -77,7 +77,7 @@ use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo, Hooks,
-		IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Zero,
+		IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Weight, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
@@ -276,7 +276,7 @@ pub mod pallet {
 		>;
 
 		/// The type for the randomness pulse
-		type Pulse: Pulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq;
+		type Pulse: Pulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq + Default;
 
 		// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
@@ -940,22 +940,21 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 
 		Ok(())
 	}
+
+	fn dispatch_weight(pulses: usize) -> Weight {
+		T::WeightInfo::dispatch_pulse(T::MaxPulseFilterLen::get(), T::MaxSubscriptions::get())
+			.saturating_mul(pulses as u64)
+	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]
 pub trait BenchmarkSubscriptionCreator<T: Config> {
-	fn create(
-		origin: OriginFor<T>,
-		params: CreateSubParamsOf<T>,
-	) -> DispatchResultWithPostInfo;
+	fn create(origin: OriginFor<T>, params: CreateSubParamsOf<T>) -> DispatchResultWithPostInfo;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
 impl<T: Config> BenchmarkSubscriptionCreator<T> for Pallet<T> {
-	fn create(
-		origin: OriginFor<T>,
-		params: CreateSubParamsOf<T>,
-	) -> DispatchResultWithPostInfo {
+	fn create(origin: OriginFor<T>, params: CreateSubParamsOf<T>) -> DispatchResultWithPostInfo {
 		Pallet::<T>::create_subscription(origin, params)
 	}
 }

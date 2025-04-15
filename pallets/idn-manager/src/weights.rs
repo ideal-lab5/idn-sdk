@@ -55,6 +55,7 @@ pub trait WeightInfo {
 	fn kill_subscription() -> Weight;
 	fn update_subscription(l: u32, m: u32, ) -> Weight;
 	fn reactivate_subscription() -> Weight;
+	fn dispatch_pulse(p: u32, s: u32, ) -> Weight;
 }
 
 /// Weights for `pallet_idn_manager` using the IDN SDK Kitchensink Runtime and recommended hardware.
@@ -134,6 +135,11 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(1_u64))
 			.saturating_add(T::DbWeight::get().writes(1_u64))
 	}
+	fn dispatch_pulse(_p: u32, _s: u32, ) -> Weight {
+		Weight::from_parts(15_000_000, 9128)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
 }
 
 // For backwards compatibility and tests.
@@ -208,6 +214,11 @@ impl WeightInfo for () {
 		//  Measured:  `244`
 		//  Estimated: `9128`
 		// Minimum execution time: 14_000_000 picoseconds.
+		Weight::from_parts(15_000_000, 9128)
+			.saturating_add(RocksDbWeight::get().reads(1_u64))
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
+	}
+	fn dispatch_pulse(_p: u32, _s: u32, ) -> Weight {
 		Weight::from_parts(15_000_000, 9128)
 			.saturating_add(RocksDbWeight::get().reads(1_u64))
 			.saturating_add(RocksDbWeight::get().writes(1_u64))

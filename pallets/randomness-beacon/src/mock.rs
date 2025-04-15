@@ -55,7 +55,7 @@ impl pallet_drand_bridge::Config for Test {
 	// type BenchmarkSubscriptionCreator = IdnManager;
 	// #[cfg(feature = "runtime-benchmarks")]
 	// type Credits = u64;
-	// #[cfg(feature = "runtime-benchmarks")] 
+	// #[cfg(feature = "runtime-benchmarks")]
 	// type SubscriptionId = [u8; 32];
 }
 

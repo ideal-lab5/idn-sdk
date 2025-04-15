@@ -25,7 +25,7 @@
 //! * [`crate::pulse::PulseProperty`] - Enum for referencing pulse properties in a type-safe way
 
 use codec::EncodeLike;
-use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo};
+use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo, Weight};
 use sp_arithmetic::traits::Saturating;
 use sp_std::{fmt::Debug, vec::Vec};
 
@@ -50,6 +50,9 @@ pub trait Dispatcher<P: Pulse, O> {
 	/// # Returns
 	/// The result of processing the random data, type depends on implementation
 	fn dispatch(pulses: Vec<P>) -> O;
+
+	/// Returns the weight of dispatching a given number of pulses
+	fn dispatch_weight(pulses: usize) -> Weight;
 }
 
 pub trait Consumer<P: Pulse, I, O> {
