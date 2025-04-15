@@ -653,12 +653,12 @@ mod tests {
 	#[test]
 	fn test_error_handling() {
 		// Verify TooManySubscriptions error is distinct from other errors
-		assert_ne!(Error::TooManySubscriptions, Error::EnvError(u32::MAX));
+		assert_ne!(Error::TooManySubscriptions, Error::NonXcmEnvError);
 
 		// Verify that XCM-specific errors are properly handled in the From implementation
 		// This only tests that our Error enum has the right variants for the XCM errors
 		// since we can't easily construct the actual XCM errors in unit tests
 		assert_ne!(Error::XcmExecutionFailed, Error::XcmSendFailed);
-		assert_ne!(Error::XcmExecutionFailed, Error::EnvError(u32::MAX));
+		assert_ne!(Error::XcmExecutionFailed, Error::NonXcmEnvError);
 	}
 }
