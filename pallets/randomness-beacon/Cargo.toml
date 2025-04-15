@@ -25,6 +25,7 @@ hex.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
+sp-arithmetic.workspace = true
 sp-idn-crypto.workspace = true
 sp-idn-traits.workspace = true
 sp-consensus-randomness-beacon.workspace = true
@@ -40,13 +41,13 @@ ark-ec.workspace = true
 ark-std.workspace = true
 timelock.workspace = true
 
+pallet-balances.workspace = true
 pallet-idn-manager = { workspace = true, default-features = false }
 xcm.workspace = true
 
 [dev-dependencies]
 sp-keystore.workspace = true
 sp-inherents.workspace = true
-pallet-balances.workspace = true
 
 [features]
 default = ["std"]
@@ -77,13 +78,15 @@ std = [
 	"pallet-idn-manager/std",
 	"pallet-balances/std",
 	"xcm/std",
+	"sp-arithmetic/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
-	"pallet-idn-manager/runtime-benchmarks"
+	"pallet-idn-manager/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks"
 ]
 try-runtime = [
 	"frame-support/try-runtime",

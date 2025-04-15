@@ -20,9 +20,9 @@ frame_support::construct_runtime!(
 	pub enum Test
 	{
 		System: frame_system,
-		Drand: pallet_drand_bridge,
 		IdnManager: pallet_idn_manager,
 		Balances: pallet_balances,
+		Drand: pallet_drand_bridge,
 	}
 );
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
@@ -44,8 +44,19 @@ impl pallet_drand_bridge::Config for Test {
 	type SignatureVerifier = QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<10>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-	type Pulse = OpaquePulse;
-	type Dispatcher = IdnManager;
+	// type Pulse = OpaquePulse;
+	// type Dispatcher = IdnManager;
+
+	// #[cfg(feature = "runtime-benchmarks")]
+	// type Currency = Balances;
+	// #[cfg(feature = "runtime-benchmarks")]
+	// type RuntimeHoldReason = RuntimeHoldReason;
+	// #[cfg(feature = "runtime-benchmarks")]
+	// type BenchmarkSubscriptionCreator = IdnManager;
+	// #[cfg(feature = "runtime-benchmarks")]
+	// type Credits = u64;
+	// #[cfg(feature = "runtime-benchmarks")] 
+	// type SubscriptionId = [u8; 32];
 }
 
 parameter_types! {

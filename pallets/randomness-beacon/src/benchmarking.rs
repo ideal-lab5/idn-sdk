@@ -17,7 +17,9 @@
 //! Benchmarking setup for pallet-randomness-beacon
 use super::*;
 
-use crate::{BeaconConfig, Pallet};
+use crate::{
+	Pallet, BeaconConfig,
+};
 
 #[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::{Fr, G1Affine, G2Affine};
@@ -29,20 +31,23 @@ use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
 use ark_std::{ops::Mul, test_rng, UniformRand};
 use frame_benchmarking::v2::*;
+use frame_support::traits::OriginTrait;
+use frame_support::traits::fungible::Mutate;
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
-use pallet_idn_manager::CreateSubParamsOf;
 use sp_consensus_randomness_beacon::types::{
 	OpaquePublicKey, OpaquePulse, OpaqueSignature, RoundNumber,
 };
+use pallet_idn_manager::CreateSubParamsOf;
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
-use xcm::v5::{prelude::Junction, Location};
+use xcm::v5::{Location, prelude::Junction};
 
 #[benchmarks(
 	where
 		<T::Pulse as Pulse>::Round: From<u64>,
 		<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
-		// T: pallet_idn_manager::Config,
+		T::Currency: Mutate<T::AccountId>,
+		<T as pallet_idn_manager::Config>::Credits: From<u64>,
 )]
 mod benchmarks {
 	use super::*;
@@ -71,6 +76,9 @@ mod benchmarks {
 	) -> Result<(), BenchmarkError> {
 		let drand = MockDrand::new();
 
+		let subscriber: T::AccountId = whitelisted_caller();
+		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+
 		let mut pk_bytes = Vec::new();
 		drand.pk.serialize_compressed(&mut pk_bytes).unwrap();
 		let opk: OpaquePublicKey = pk_bytes.try_into().unwrap();
@@ -81,36 +89,26 @@ mod benchmarks {
 		let pulses = (1..r)
 			.map(|i| {
 				// for each pulse, we create the maximum number of subscriptions
-
 				let subscriber: T::AccountId = whitelisted_caller();
-				let origin = RawOrigin::Signed(subscriber.clone());
-				let credits = 100u64.into();
+				let credits = 100u64;
 				let target = Location::new(1, [Junction::PalletInstance(1)]);
 				let call_index = [1; 2];
 				let frequency: BlockNumberFor<T> = 1u32.into();
-				let metadata = None;
-				let pulse_filter = None;
-				let sub_id = None;
-				// T::Currency::set_balance(&subscriber, 1_000_000u32.into());
-				// <pallet_idn_manager::Pallet<T>::Currency<_>>::make_free_balance_be(
-				// 	&subscriber,
-				// 	1_000_000u32.into(),
-				// );
-				// <pallet_balances::<Pallet<T>>::set_balance()
-				// <pallet_balances::Pallet::<T> as frame_support::traits::Currency<_>>::make_free_balance_be(&subscriber, 1_000_000u32);
+				
+				T::Currency::set_balance(&subscriber, 1_000_000u32.into());
 
-				// let _ = <pallet_idn_manager::Pallet<<T>>::create_subscription(
-				// 	<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
-				// 	CreateSubParamsOf::<T> {
-				// 		credits,
-				// 		target: target.clone(),
-				// 		call_index,
-				// 		frequency,
-				// 		metadata,
-				// 		pulse_filter,
-				// 		sub_id,
-				// 	},
-				// );
+				let _ = <pallet_idn_manager::Pallet::<T>>::create_subscription(
+					<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
+					CreateSubParamsOf::<T> {
+						credits: credits.into(),
+						target: target.clone(),
+						call_index,
+						frequency,
+						metadata: None,
+						pulse_filter: None,
+						sub_id: None,
+					},
+				);
 
 				let mut bytes = Vec::new();
 				let id = compute_round_on_g1(i.into()).unwrap();
@@ -122,7 +120,7 @@ mod benchmarks {
 				sig.serialize_compressed(&mut bytes).unwrap();
 				let signature: OpaqueSignature = bytes.try_into().unwrap();
 
-				let op = OpaquePulse { round: i as u64, signature };
+				let op = OpaquePulse { round: i as u64, signature }; 
 				let encoded = op.encode();
 				let out: T::Pulse = T::Pulse::decode(&mut encoded.as_slice()).unwrap();
 				out
@@ -134,9 +132,12 @@ mod benchmarks {
 
 		let mut apk_bytes = Vec::new();
 		apk.serialize_compressed(&mut apk_bytes).unwrap();
-
+		
 		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
-		let config = BeaconConfigurationOf::<T> { genesis_round: 1u64.into(), public_key: pubkey };
+		let config = BeaconConfigurationOf::<T> {
+			genesis_round: 1u64.into(), 
+			public_key: pubkey,
+		};
 
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
 
@@ -154,44 +155,47 @@ mod benchmarks {
 		Ok(())
 	}
 
-	// #[benchmark]
-	// fn on_finalize() -> Result<(), BenchmarkError> {
-	// 	let history_depth = T::MissedBlocksHistoryDepth::get();
-	// 	let block_number: u32 = history_depth;
+	#[benchmark]
+	fn on_finalize() -> Result<(), BenchmarkError> {
+		let history_depth = T::MissedBlocksHistoryDepth::get();
+		let block_number: u32 = history_depth;
 
-	// 	let mut history: Vec<BlockNumberFor<T>> = Vec::new();
-	// 	(0..history_depth).for_each(|i| history.push(i.into()));
-	// 	// we add one more value and 'push out' the oldest one
-	// 	let mut expected_final_history: Vec<BlockNumberFor<T>> = Vec::new();
-	// 	(0..history_depth).for_each(|i| expected_final_history.push(i.into()));
-	// 	// pretend that we have missed the maximum number of blocks
-	// 	// and the next will cause the bounded vec to overflow, pushing out the oldest missed block
-	// 	MissedBlocks::<T>::set(1::truncate_from(history));
-	// 	// ensure that DidUpdate is false
-	// 	DidUpdate::<T>::set(false);
+		let mut history: Vec<BlockNumberFor<T>> = Vec::new();
+		(0..history_depth).for_each(|i| history.push(i.into()));
+		// we add one more value and 'push out' the oldest one
+		let mut expected_final_history: Vec<BlockNumberFor<T>> = Vec::new();
+		(0..history_depth).for_each(|i| expected_final_history.push(i.into()));
+		// pretend that we have missed the maximum number of blocks
+		// and the next will cause the bounded vec to overflow, pushing out the oldest missed block
+		MissedBlocks::<T>::set(BoundedVec::truncate_from(history));
+		// ensure that DidUpdate is false
+		DidUpdate::<T>::set(false);
 
-	// 	#[block]
-	// 	{
-	// 		Pallet::<T>::on_finalize(block_number.into());
-	// 	}
+		#[block]
+		{
+			Pallet::<T>::on_finalize(block_number.into());
+		}
 
-	// 	assert_eq!(MissedBlocks::<T>::get().into_inner(), expected_final_history);
+		assert_eq!(MissedBlocks::<T>::get().into_inner(), expected_final_history);
 
-	// 	Ok(())
-	// }
+		Ok(())
+	}
 
-	// #[benchmark]
-	// fn set_beacon_config() -> Result<(), BenchmarkError> {
-	// 	let public_key: OpaquePublicKey = [1; 96].try_into().unwrap();
-	// 	let config = BeaconConfiguration { genesis_round: 1u64.into(), public_key };
+	#[benchmark]
+	fn set_beacon_config() -> Result<(), BenchmarkError> {
+		let public_key = [1; 96];
+		let config = BeaconConfigurationOf::<T> {
+			genesis_round: 1u64.into(), 
+			public_key: public_key.into(),
+		};
 
-	// 	#[extrinsic_call]
-	// 	_(RawOrigin::Root, config.clone());
+		#[extrinsic_call]
+		_(RawOrigin::Root, config.clone());
 
-	// 	assert_eq!(BeaconConfig::<T>::get().unwrap(), config);
+		assert_eq!(BeaconConfig::<T>::get().unwrap(), config);
 
-	// 	Ok(())
-	// }
+		Ok(())
+	}
 
 	impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
 }

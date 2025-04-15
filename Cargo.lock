@@ -8491,6 +8491,7 @@ dependencies = [
  "scale-info",
  "serde",
  "sha2 0.10.8",
+ "sp-arithmetic",
  "sp-ark-bls12-381",
  "sp-consensus-randomness-beacon",
  "sp-core 35.0.0",

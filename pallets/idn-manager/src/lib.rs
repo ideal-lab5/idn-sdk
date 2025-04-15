@@ -276,7 +276,7 @@ pub mod pallet {
 		>;
 
 		/// The type for the randomness pulse
-		type Pulse: Pulse + Encode;
+		type Pulse: Pulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq;
 
 		// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
@@ -939,6 +939,24 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 		}
 
 		Ok(())
+	}
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+pub trait BenchmarkSubscriptionCreator<T: Config> {
+	fn create(
+		origin: OriginFor<T>,
+		params: CreateSubParamsOf<T>,
+	) -> DispatchResultWithPostInfo;
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+impl<T: Config> BenchmarkSubscriptionCreator<T> for Pallet<T> {
+	fn create(
+		origin: OriginFor<T>,
+		params: CreateSubParamsOf<T>,
+	) -> DispatchResultWithPostInfo {
+		Pallet::<T>::create_subscription(origin, params)
 	}
 }
 
