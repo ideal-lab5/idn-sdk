@@ -553,5 +553,3 @@ mod example_consumer {
 		}
 	}
 }
-
-use ink::{scale, scale_info, storage::traits::StorageLayout};
