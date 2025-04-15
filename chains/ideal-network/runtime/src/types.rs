@@ -16,7 +16,8 @@
 
 //! Types for the IDN runtime.
 
-use frame_support::pallet_prelude::Encode;
+use codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 // TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
 
@@ -24,7 +25,7 @@ type Rand = [u8; 32];
 type Round = u64;
 type Sig = [u8; 48];
 
-#[derive(Encode, Clone, Copy)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, Debug, TypeInfo)]
 pub struct Pulse {
 	pub rand: Rand,
 	pub round: Round,

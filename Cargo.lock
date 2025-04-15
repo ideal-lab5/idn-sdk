@@ -6227,6 +6227,7 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 name = "idn-client-contract-lib"
 version = "0.1.0"
 dependencies = [
+ "idn-runtime",
  "ink",
  "parity-scale-codec",
  "scale-info",
@@ -6361,8 +6362,11 @@ name = "idn-example-consumer-contract"
 version = "0.1.0"
 dependencies = [
  "idn-client-contract-lib",
+ "idn-runtime",
  "ink",
  "ink_e2e",
+ "parity-scale-codec",
+ "scale-info",
  "serde_json",
  "sp-idn-traits",
 ]
