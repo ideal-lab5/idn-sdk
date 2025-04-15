@@ -18,6 +18,7 @@
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
+use crate::primitives::types;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -44,7 +45,6 @@ use polkadot_runtime_common::{
 	xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_consensus_randomness_beacon::types::OpaquePulse;
 use sp_runtime::{AccountId32, Perbill};
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
@@ -322,13 +322,13 @@ impl pallet_idn_manager::Config for Runtime {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u128>;
 	type PalletId = IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = OpaquePulse;
+	type Pulse = types::OpaquePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;
-	type Credits = u64;
+	type Credits = types::Credits;
 	type MaxPulseFilterLen = MaxPulseFilterLen;
 	type MaxSubscriptions = MaxSubscriptions;
-	type SubscriptionId = [u8; 32];
+	type SubscriptionId = types::SubscriptionId;
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
 }

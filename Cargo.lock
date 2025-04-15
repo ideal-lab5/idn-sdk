@@ -9890,7 +9890,9 @@ dependencies = [
  "sp-idn-traits",
  "sp-io 39.0.0",
  "sp-runtime 40.1.0",
+ "staging-parachain-info",
  "staging-xcm",
+ "staging-xcm-builder",
 ]
 
 [[package]]
