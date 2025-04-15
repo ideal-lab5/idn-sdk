@@ -100,6 +100,14 @@ self.idn_client.update_subscription(UpdateSubParams {
 })?;
 ```
 
+## Type Usage and Updates
+
+- **All types such as `Pulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, `PulseFilter`, and `SubscriptionState` are now imported from the runtime or the client contract library. Do not redefine these types locally.**
+
+- The `Pulse` struct is imported from the runtime. If you need to store it in contract storage, use a local wrapper (e.g., `ContractPulse`) with the required ink! storage derives and provide conversion methods.
+
+- Example code and trait signatures have been updated to use the canonical types from the runtime or client library.
+
 ## Example Consumer
 
 The `example-consumer` contract demonstrates a complete implementation of a contract that uses the IDN Client library to create randomness subscriptions and handle received randomness.

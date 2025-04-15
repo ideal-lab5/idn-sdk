@@ -146,7 +146,22 @@ impl RandomnessReceiver for ExampleConsumer {
         Ok(())
     }
 }
+
+### Type Usage and Storage Compatibility
+
+- All types such as `Pulse`, `SubscriptionId`, and others are imported from the runtime or client library.
+- For ink! storage compatibility, this contract uses a local `ContractPulse` wrapper struct with conversion methods to and from the canonical `Pulse` type.
+- Example:
+
+```rust
+use idn_runtime::types::Pulse;
+use crate::ContractPulse;
+
+// Convert and store
+self.last_pulse = Some(ContractPulse::from(pulse));
 ```
+
+Do not redefine these types locally; always import them to ensure consistency.
 
 ## Customizing for Your Project
 

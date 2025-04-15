@@ -51,6 +51,8 @@ use idn_client::{
     RandomnessReceiver, Result, SubscriptionId, UpdateSubParams
 };
 use idn_traits::pulse::Pulse;
+use idn_runtime::types::{Pulse};
+use idn_client_contract_lib::{SubscriptionId, BlockNumber, Metadata, PulseFilter, SubscriptionState, CreateSubParams, UpdateSubParams, Error};
 
 #[ink(storage)]
 pub struct YourContract {
@@ -107,8 +109,8 @@ impl YourContract {
 impl RandomnessReceiver for YourContract {
     fn on_randomness_received(
         &mut self, 
-        pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 48]>, 
-        subscription_id: SubscriptionId
+        pulse: Pulse,
+        subscription_id: SubscriptionId,
     ) -> Result<()> {
         // Verify that the subscription ID matches our active subscription
         if let Some(our_subscription_id) = self.subscription_id {
@@ -120,7 +122,7 @@ impl RandomnessReceiver for YourContract {
         }
         
         // Extract and store the randomness
-        let randomness = pulse.rand();
+        let randomness = pulse.rand;
         self.last_randomness = Some(randomness);
         
         // Store the pulse if possible
@@ -234,6 +236,34 @@ These parameters can be configured when creating an IdnClientImpl instance:
 let idn_client = IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id);
 ```
 
+## Canonical Types
+
+All types such as `Pulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, `PulseFilter`, `SubscriptionState`, `CreateSubParams`, `UpdateSubParams`, and `Error` are now defined in the runtime or this library. **Import them directly**:
+
+```rust
+use idn_runtime::types::{Pulse};
+use idn_client_contract_lib::{SubscriptionId, BlockNumber, Metadata, PulseFilter, SubscriptionState, CreateSubParams, UpdateSubParams, Error};
+```
+
+Do not redefine these types locally in your contracts.
+
+## Example: Receiving Randomness
+
+```rust
+impl RandomnessReceiver for YourContract {
+    fn on_randomness_received(
+        &mut self,
+        pulse: Pulse,
+        subscription_id: SubscriptionId,
+    ) -> Result<()> {
+        // Use canonical types directly
+        let randomness = pulse.rand;
+        // Store or process randomness as needed
+        Ok(())
+    }
+}
+```
+
 ## Using the Pulse Trait
 
 The `Pulse` trait provides additional security and functionality:
@@ -246,7 +276,7 @@ Example of accessing pulse data:
 
 ```rust
 // Get the raw randomness
-let rand_bytes: [u8; 32] = pulse.rand();
+let rand_bytes: [u8; 32] = pulse.rand;
 
 // Get the round number
 let round: u64 = pulse.round();
