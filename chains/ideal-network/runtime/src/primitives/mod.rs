@@ -20,10 +20,14 @@ pub mod types;
 
 use crate::Runtime;
 use frame_support::pallet_prelude::{Decode, Encode, TypeInfo};
-use pallet_idn_manager::{primitives::IdnManagerCall, CreateSubParamsOf};
+
+pub use pallet_idn_manager::{
+	primitives::IdnManagerCall, BlockNumberFor, CreateSubParamsOf, MetadataOf, PulseFilterOf,
+};
 
 #[derive(Encode, Decode, Debug, PartialEq, Clone, TypeInfo)]
-enum Call {
+pub enum Call {
+	// This should match the index of the IDN Manager pallet in the runtime
 	#[codec(index = 40)]
 	IdnManager(IdnManagerCall<CreateSubParamsOf<Runtime>>),
 }

@@ -74,10 +74,7 @@ use frame_support::{
 		Get,
 	},
 };
-use frame_system::{
-	ensure_signed,
-	pallet_prelude::{BlockNumberFor, OriginFor},
-};
+use frame_system::{ensure_signed, pallet_prelude::OriginFor};
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
@@ -96,6 +93,7 @@ use xcm::{
 };
 use xcm_builder::SendController;
 
+pub use frame_system::pallet_prelude::BlockNumberFor;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -121,7 +119,8 @@ pub type SubscriptionOf<T> = Subscription<
 /// A filter that controls which pulses are delivered to a subscription
 ///
 /// See [`PulseFilter`] for more details.
-type PulseFilterOf<T> = PulseFilter<<T as pallet::Config>::Pulse, <T as Config>::MaxPulseFilterLen>;
+pub type PulseFilterOf<T> =
+	PulseFilter<<T as pallet::Config>::Pulse, <T as Config>::MaxPulseFilterLen>;
 
 /// Represents a subscription in the system.
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]

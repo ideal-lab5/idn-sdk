@@ -17,3 +17,7 @@
 //! Types for the IDN runtime
 
 pub use sp_consensus_randomness_beacon::types::RuntimePulse;
+
+// TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
+pub type Credits = u64;
+pub type SubscriptionId = [u8; 32];

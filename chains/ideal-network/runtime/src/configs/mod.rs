@@ -327,10 +327,10 @@ impl pallet_idn_manager::Config for Runtime {
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;
-	type Credits = u64;
+	type Credits = types::Credits;
 	type MaxPulseFilterLen = MaxPulseFilterLen;
 	type MaxSubscriptions = MaxSubscriptions;
-	type SubscriptionId = [u8; 32];
+	type SubscriptionId = types::SubscriptionId;
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
 }
 
