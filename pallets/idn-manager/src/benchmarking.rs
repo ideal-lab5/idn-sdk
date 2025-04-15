@@ -276,6 +276,94 @@ mod benchmarks {
 		assert_eq!(sub.state, SubscriptionState::Active);
 	}
 
+	#[benchmark]
+	fn dispatch_pulse(
+		p: Linear<0, { T::MaxPulseFilterLen::get() }>,
+		s: Linear<1, { T::MaxSubscriptions::get() }>,
+	) {
+		let subscriber: T::AccountId = whitelisted_caller();
+		let credits: T::Credits = 100u64.into();
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let call_index = [1; 2];
+		let frequency: BlockNumberFor<T> = 1u32.into();
+		let metadata = None;
+		let pulse_filter = None;
+		let sub_id: T::SubscriptionId = H256::default().into();
+
+		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+
+		// Create first subscription
+		let _ = IdnManager::<T>::create_subscription(
+			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
+			CreateSubParamsOf::<T> {
+				credits,
+				target: target.clone(),
+				call_index,
+				frequency,
+				metadata,
+				pulse_filter,
+				sub_id: Some(sub_id),
+			},
+		);
+
+		// Fill up the subscriptions with the given number of subscriptions (minus the already
+		// created one)
+		fill_up_subscriptions::<T>(s - 1, p);
+
+		// Create a pulse to dispatch
+		let pulse = T::Pulse::default();
+
+		#[block]
+		{
+			let _ = IdnManager::<T>::dispatch(pulse);
+		}
+
+		// Verify the first subscription was updated
+		let sub = Subscriptions::<T>::get(sub_id).unwrap();
+		assert!(sub.last_delivered.is_some());
+	}
+
+	/// Fill up the subscriptions with the given number of subscriptions and pulse filter length
+	fn fill_up_subscriptions<T: Config>(s: u32, p: u32)
+	where
+		T::Credits: From<u64>,
+		<T::Pulse as Pulse>::Round: From<u64>,
+	{
+		let subscriber: T::AccountId = whitelisted_caller();
+		let credits: T::Credits = 100u64.into();
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let call_index = [1; 2];
+		let frequency: BlockNumberFor<T> = 1u32.into();
+
+		// Create s subscriptions
+		for i in 0..s {
+			let new_sub_id: T::SubscriptionId = H256::from_low_u64_be(i as u64).into();
+			let pulse_filter = if p == 0 {
+				None
+			} else {
+				let pulse_filter_vec = (0..p)
+					.map(|_| {
+						PulsePropertyOf::<<T as pallet::Config>::Pulse>::Round((i as u64).into())
+					})
+					.collect::<Vec<_>>();
+				Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
+			};
+
+			let _ = IdnManager::<T>::create_subscription(
+				<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
+				CreateSubParamsOf::<T> {
+					credits,
+					target: target.clone(),
+					call_index,
+					frequency,
+					metadata: None,
+					pulse_filter,
+					sub_id: Some(new_sub_id),
+				},
+			);
+		}
+	}
+
 	impl_benchmark_test_suite!(
 		IdnManager,
 		crate::tests::mock::ExtBuilder::build(),

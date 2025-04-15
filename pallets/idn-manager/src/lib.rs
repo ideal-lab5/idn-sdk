@@ -274,7 +274,7 @@ pub mod pallet {
 		>;
 
 		/// The type for the randomness pulse
-		type Pulse: Pulse + Encode;
+		type Pulse: Pulse + Encode + Default;
 
 		// The weight information for this pallet.
 		type WeightInfo: WeightInfo;

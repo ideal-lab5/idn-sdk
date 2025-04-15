@@ -100,6 +100,12 @@ impl sp_idn_traits::pulse::Pulse for Pulse {
 	}
 }
 
+impl Default for Pulse {
+	fn default() -> Self {
+		Pulse { rand: Rand::default(), round: Round::default(), sig: [0u8; 64] }
+	}
+}
+
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
