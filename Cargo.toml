@@ -8,11 +8,11 @@ members = [
     "pallets/idn-consumer",
     "pallets/idn-manager",
     "chains/kitchensink/runtime",
-    # "chains/kitchensink/node",
-    # "chains/ideal-network/runtime",
-    # "chains/ideal-network/node",
-    # "chains/idn-consumer/runtime",
-    # "chains/idn-consumer/node",
+    "chains/kitchensink/node",
+    "chains/ideal-network/runtime",
+    "chains/ideal-network/node",
+    "chains/idn-consumer/runtime",
+    "chains/idn-consumer/node",
 ]
 resolver = "2"
 
