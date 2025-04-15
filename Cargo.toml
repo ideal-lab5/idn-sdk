@@ -216,6 +216,8 @@ sc-consensus-randomness-beacon = { path = "./client/consensus/randomness-beacon"
 sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }
 sp-idn-traits = { path = "./primitives/traits", default-features = false }
 sp-idn-types = { path = "./primitives/types", default-features = false }
+idn-client-contract-lib = { path = "./contracts/idn-client-contract-lib", default-features = false }
+idn-example-consumer-contract = { path = "./contracts/idn-example-consumer-contract", default-features = false }
 idn-sdk-kitchensink-runtime = { path = "./chains/kitchensink/runtime" }
 idn-sdk-kitchensink-node = { path = "./chains/kitchensink/node" }
 idn-runtime = { path = "./chains/ideal-network/runtime" }

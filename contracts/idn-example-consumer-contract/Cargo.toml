@@ -1,16 +1,18 @@
 [package]
 name = "idn-example-consumer-contract"
 version = "0.1.0"
-authors = ["Ideal Labs <hello@idealabs.network>"]
-edition = "2021"
-license = "Apache-2.0"
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+edition.workspace = true
 readme = "README.md"
 description = "An example consumer contract for interacting with Ideal Network services"
 
 [dependencies]
 ink = { workspace = true, default-features = false }
-idn-client-contract-lib = { path = "../idn-client-contract-lib", default-features = false }
-sp-idn-traits = { path = "../../primitives/traits", default-features = false }
+idn-client-contract-lib = { workspace = true, default-features = false }
+sp-idn-traits = { workspace = true, default-features = false }
 
 [dev-dependencies]
 ink_e2e = { workspace = true }

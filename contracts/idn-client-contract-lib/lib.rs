@@ -68,8 +68,8 @@ pub enum Error {
 	RandomnessGenerationFailed,
 	/// The system has reached its maximum subscription capacity
 	TooManySubscriptions,
-	/// Original environment error with ReturnErrorCode
-	EnvError(u32),
+	/// Non XCM environment error
+	NonXcmEnvError,
 }
 
 impl From<EnvError> for Error {
@@ -78,10 +78,7 @@ impl From<EnvError> for Error {
 		match env_error {
 			EnvError::ReturnError(ReturnErrorCode::XcmExecutionFailed) => Error::XcmExecutionFailed,
 			EnvError::ReturnError(ReturnErrorCode::XcmSendFailed) => Error::XcmSendFailed,
-			EnvError::ReturnError(code) => Error::EnvError(code as u32), /* all other errors */
-			// with ReturnErrorCode
-			_ => Error::EnvError(u32::MAX), /* Use MAX for unknown errors (those without
-			                                 * ReturnErrorCode) */
+			_ => Error::NonXcmEnvError,
 		}
 	}
 }
