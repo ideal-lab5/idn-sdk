@@ -948,18 +948,6 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 	}
 }
 
-#[cfg(feature = "runtime-benchmarks")]
-pub trait BenchmarkSubscriptionCreator<T: Config> {
-	fn create(origin: OriginFor<T>, params: CreateSubParamsOf<T>) -> DispatchResultWithPostInfo;
-}
-
-#[cfg(feature = "runtime-benchmarks")]
-impl<T: Config> BenchmarkSubscriptionCreator<T> for Pallet<T> {
-	fn create(origin: OriginFor<T>, params: CreateSubParamsOf<T>) -> DispatchResultWithPostInfo {
-		Pallet::<T>::create_subscription(origin, params)
-	}
-}
-
 sp_api::decl_runtime_apis! {
 	#[api_version(1)]
 	pub trait IdnManagerApi<Balance, Credits, AccountId, Subscription, SubscriptionId> where
