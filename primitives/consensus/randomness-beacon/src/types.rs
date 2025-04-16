@@ -80,7 +80,7 @@ impl sp_idn_traits::pulse::Pulse for OpaquePulse {
 	fn rand(&self) -> Self::Rand {
 		let mut hasher = Sha256::default();
 		hasher.update(self.signature.clone().to_vec());
-		hasher.finalize().try_into().unwrap_or([0;32])
+		hasher.finalize().try_into().unwrap_or([0; 32])
 	}
 
 	fn round(&self) -> Self::Round {

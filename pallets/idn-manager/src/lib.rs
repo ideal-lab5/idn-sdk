@@ -717,7 +717,8 @@ impl<T: Config> Pallet<T> {
 
 					// [SRLabs]: If this line throws an error then the entire set of subscriptions
 					// will fail to be distributed for the pulse. Recommendations on handling this?
-					// Our initial idea is to simply log an event and continue, then pause the subscription.
+					// Our initial idea is to simply log an event and continue, then pause the
+					// subscription.
 					Self::collect_fees(&sub, consume_credits)?;
 
 					// Update subscription with consumed credits and last_delivered block number
@@ -730,7 +731,8 @@ impl<T: Config> Pallet<T> {
 					// Send the XCM message
 					// [SRLabs]: If this line throws an error then the entire set of subscriptions
 					// will fail to be distributed for the pulse. Recommendations on handling this?
-					// Our initial idea is to simply log an event and continue, then pause the subscription.
+					// Our initial idea is to simply log an event and continue, then pause the
+					// subscription.
 					T::Xcm::send(origin.into(), versioned_target, versioned_msg)?;
 
 					Self::deposit_event(Event::RandomnessDistributed { sub_id });
