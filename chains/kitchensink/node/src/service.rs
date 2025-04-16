@@ -15,6 +15,7 @@
  */
 
 use crate::cli::Consensus;
+use codec::Encode;
 use futures::FutureExt;
 use idn_sdk_kitchensink_runtime::{interface::OpaqueBlock as Block, RuntimeApi};
 use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair, Multiaddr};
@@ -253,7 +254,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 						let pulses = drand_receiver.take().await;
 
 						let serialized_pulses: Vec<Vec<u8>> =
-							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect();
+							pulses.iter().map(|pulse| pulse.encode()).collect();
 
 						let beacon_inherent =
 							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
@@ -305,7 +306,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 						let pulses = drand_receiver.take().await;
 
 						let serialized_pulses: Vec<Vec<u8>> =
-							pulses.iter().map(|pulse| pulse.serialize_to_vec()).collect();
+							pulses.iter().map(|pulse| pulse.encode()).collect();
 
 						let beacon_inherent =
 							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(

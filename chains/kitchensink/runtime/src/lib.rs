@@ -215,9 +215,11 @@ impl pallet_transaction_payment::Config for Runtime {
 impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
-	type SignatureVerifier = pallet_randomness_beacon::verifier::QuicknetVerifier;
+	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<30>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
+	type Pulse = sp_consensus_randomness_beacon::types::OpaquePulse;
+	type Dispatcher = IdnManager;
 }
 
 parameter_types! {
@@ -227,7 +229,7 @@ parameter_types! {
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
 	pub const MaxPulseFilterLen: u32 = 100;
-	pub const MaxSubscriptions: u32 = 1_000_000;
+	pub const MaxSubscriptions: u32 = 1_000;
 }
 
 #[derive(TypeInfo)]
@@ -239,39 +241,6 @@ impl Get<u32> for MaxMetadataLen {
 	}
 }
 
-type Rand = [u8; 32];
-type Round = u64;
-type Sig = [u8; 48];
-
-#[derive(Encode, Clone, Copy)]
-pub struct Pulse {
-	pub rand: Rand,
-	pub round: Round,
-	pub sig: Sig,
-}
-
-impl sp_idn_traits::pulse::Pulse for Pulse {
-	type Rand = Rand;
-	type Round = Round;
-	type Sig = Sig;
-
-	fn rand(&self) -> Self::Rand {
-		self.rand
-	}
-
-	fn round(&self) -> Self::Round {
-		self.round
-	}
-
-	fn sig(&self) -> Self::Sig {
-		self.sig
-	}
-
-	fn valid(&self) -> bool {
-		true
-	}
-}
-
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -279,7 +248,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = Pulse;
+	type Pulse = sp_consensus_randomness_beacon::types::OpaquePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;
