@@ -76,9 +76,10 @@ where
 		let header = params.header.clone();
 
 		if let Some(round) = header.digest().convert_first(|l| {
-			l.try_to(OpaqueDigestItemId::Other).and_then(|log: ConsensusLog| match log {
-				ConsensusLog::LatestRoundNumber(round) => Some(round),
-			})
+			l.try_to(OpaqueDigestItemId::Other)
+				.and_then(|log: ConsensusLog<u64>| match log {
+					ConsensusLog::<u64>::LatestRoundNumber(round) => Some(round),
+				})
 		}) {
 			let _ = self.sender.unbounded_send(round);
 		}

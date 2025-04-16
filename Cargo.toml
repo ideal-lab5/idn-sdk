@@ -2,8 +2,8 @@
 members = [
     "client/consensus/randomness-beacon",
     "primitives/consensus/randomness-beacon",
+    "primitives/crypto",
     "primitives/traits",
-    "primitives/types",
     "pallets/randomness-beacon",
     "pallets/idn-consumer",
     "pallets/idn-manager",
@@ -22,7 +22,7 @@ authors = ["Ideal Labs <hello@idealabs.network>"]
 repository = "https://github.com/ideal-lab5/idn-sdk"
 homepage = "https://idealabs.network"
 license = "Apache-2.0"
-
+ 
 [workspace.lints.rust]
 suspicious_double_ref_op = { level = "allow", priority = 2 }
 
@@ -207,8 +207,8 @@ pallet-idn-manager = { path = "./pallets/idn-manager", default-features = false 
 pallet-randomness-beacon = { path = "./pallets/randomness-beacon", default-features = false }
 sc-consensus-randomness-beacon = { path = "./client/consensus/randomness-beacon", default-features = false }
 sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }
+sp-idn-crypto = { path = "./primitives/crypto", default-features = false }
 sp-idn-traits = { path = "./primitives/traits", default-features = false }
-sp-idn-types = { path = "./primitives/types", default-features = false }
 idn-sdk-kitchensink-runtime = { path = "./chains/kitchensink/runtime" }
 idn-sdk-kitchensink-node = { path = "./chains/kitchensink/node" }
 idn-runtime = { path = "./chains/ideal-network/runtime" }

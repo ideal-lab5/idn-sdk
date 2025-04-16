@@ -18,7 +18,8 @@
 //!
 //! The `GossipsubNetwork` is a libp2p node designed to ingest well-formatted messages
 //! from a gossipsub topic. The implemention is intended to be used with
-//! the Drand beacon gossipsub topic, to which `Pulse` messages are published as protobuf messages.
+//! the Drand beacon gossipsub topic, to which `ProtoPulse` messages are published as protobuf
+//! messages.
 //!
 //! ## Overview
 //!
@@ -281,7 +282,7 @@ impl GossipsubNetwork {
 }
 
 pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<OpaquePulse, Error> {
-	let pulse = Pulse::decode(data).map_err(|_| Error::UnexpectedMessageFormat)?;
+	let pulse = ProtoPulse::decode(data).map_err(|_| Error::UnexpectedMessageFormat)?;
 	let pulse: OpaquePulse =
 		pulse.try_into().map_err(|_| Error::SignatureBufferCapacityExceeded)?;
 
@@ -296,7 +297,7 @@ mod tests {
 
 	#[test]
 	fn can_convert_valid_data_to_opaque_pulse() {
-		let pulse = Pulse {
+		let pulse = ProtoPulse {
 			round: 14475418,
 			signature: [
 				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
@@ -326,7 +327,7 @@ mod tests {
 
 	#[test]
 	fn can_fail_when_pulse_signature_exceeds_buffer() {
-		let pulse = Pulse {
+		let pulse = ProtoPulse {
 			round: 14475418,
 			signature: [
 				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
@@ -454,7 +455,7 @@ mod tests {
 
 		let receiver = DrandReceiver::new(rx, prune_rx);
 
-		let pulse = Pulse {
+		let pulse = ProtoPulse {
 			round: 14475418,
 			signature: [
 				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
@@ -481,7 +482,7 @@ mod tests {
 
 		let receiver = DrandReceiver::new(rx, prune_rx);
 
-		let pulse = Pulse {
+		let pulse = ProtoPulse {
 			round: 1000,
 			signature: [
 				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
@@ -490,7 +491,7 @@ mod tests {
 			]
 			.to_vec(),
 		};
-		let pulse2 = Pulse {
+		let pulse2 = ProtoPulse {
 			round: 1001,
 			signature: [
 				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
