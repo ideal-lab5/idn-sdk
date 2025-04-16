@@ -31,12 +31,4 @@ cargo llvm-cov --html nextest
 ## License
 
 Apache-2.0
-
-
-# delete later
-
-			// intg
-			// 0. add dep
-			// 1. implement (public) pulse trait
-			// 2. config item to impl to dispatch pulse
-			// 3. call dispatcher
+ 

@@ -717,7 +717,8 @@ impl<T: Config> Pallet<T> {
 
 					// [SRLabs]: If this line throws an error then the entire set of subscriptions
 					// will fail to be distributed for the pulse. Recommendations on handling this?
-					Self::collect_fees(&sub, T::FeesManager::get_consume_credits(&sub))?;
+					// Our initial idea is to simply log an event and continue, then pause the subscription.
+					Self::collect_fees(&sub, consume_credits)?;
 
 					// Update subscription with consumed credits and last_delivered block number
 					sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
@@ -729,6 +730,7 @@ impl<T: Config> Pallet<T> {
 					// Send the XCM message
 					// [SRLabs]: If this line throws an error then the entire set of subscriptions
 					// will fail to be distributed for the pulse. Recommendations on handling this?
+					// Our initial idea is to simply log an event and continue, then pause the subscription.
 					T::Xcm::send(origin.into(), versioned_target, versioned_msg)?;
 
 					Self::deposit_event(Event::RandomnessDistributed { sub_id });
@@ -935,6 +937,7 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
+	/// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
 	fn dispatch(pulses: Vec<T::Pulse>) -> DispatchResult {
 		for pulse in pulses {
 			let round = pulse.round().clone();
