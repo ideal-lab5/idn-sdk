@@ -547,7 +547,7 @@ mod example_consumer {
 	#[cfg(all(test, feature = "e2e-tests"))]
 	mod e2e_tests {
 		/// Just a dummy test to confirm E2E module compilation
-		#[test]
+		#[ink_e2e::test]
 		fn dummy_e2e_test() {
 			assert!(true);
 		}
