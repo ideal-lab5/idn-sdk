@@ -714,6 +714,9 @@ impl<T: Config> Pallet<T> {
 
 					// Make sure credits are consumed before sending the XCM message
 					let consume_credits = T::FeesManager::get_consume_credits(&sub);
+
+					// [SRLabs]: If this line throws an error then the entire set of subscriptions
+					// will fail to be distributed for the pulse. Recommendations on handling this?
 					Self::collect_fees(&sub, T::FeesManager::get_consume_credits(&sub))?;
 
 					// Update subscription with consumed credits and last_delivered block number
@@ -724,7 +727,8 @@ impl<T: Config> Pallet<T> {
 					Subscriptions::<T>::insert(sub_id, &sub);
 
 					// Send the XCM message
-					// #[cfg(not(feature = "runtime-benchmarks"))]
+					// [SRLabs]: If this line throws an error then the entire set of subscriptions
+					// will fail to be distributed for the pulse. Recommendations on handling this?
 					T::Xcm::send(origin.into(), versioned_target, versioned_msg)?;
 
 					Self::deposit_event(Event::RandomnessDistributed { sub_id });

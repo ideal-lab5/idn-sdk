@@ -22,7 +22,7 @@ authors = ["Ideal Labs <hello@idealabs.network>"]
 repository = "https://github.com/ideal-lab5/idn-sdk"
 homepage = "https://idealabs.network"
 license = "Apache-2.0"
-
+ 
 [workspace.lints.rust]
 suspicious_double_ref_op = { level = "allow", priority = 2 }
 

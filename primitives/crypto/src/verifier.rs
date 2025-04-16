@@ -126,7 +126,7 @@ impl SignatureVerifier for QuicknetVerifier {
 		// convert to bytes
 		let mut sig_bytes = Vec::new();
 		// note: this line is untestable
-		// Message for SRLABS: can we use an .expect here instead?
+		// [SRLabs]: can we use an .expect here instead?
 		asig.serialize_compressed(&mut sig_bytes)
 			.map_err(|_| CryptoError::SerializeG1Failure)?;
 
