@@ -35,8 +35,8 @@ fn message(current_round: u64, prev_sig: &[u8]) -> Vec<u8> {
 }
 
 /// This computes the point on G1 given a round number (for message construction).
-/// TODO: do we save anything by pulling out the hasher instead of constructing it each time?
-/// https://github.com/ideal-lab5/idn-sdk/issues/119
+// TODO: do we save anything by pulling out the hasher instead of constructing it each time?
+// https://github.com/ideal-lab5/idn-sdk/issues/119
 pub fn compute_round_on_g1(round: u64) -> Result<G1Affine, CryptoError> {
 	let message = message(round, &[]);
 	let hasher = <TinyBLS381 as EngineBLS>::hash_to_curve_map();

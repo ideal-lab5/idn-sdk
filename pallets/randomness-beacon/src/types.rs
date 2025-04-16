@@ -49,15 +49,6 @@ impl From<Accumulation> for OpaqueAccumulation {
 	}
 }
 
-// impl Into<OpaqueAccumulation> for Accumulation {
-// 	fn into(self) -> OpaqueAccumulation {
-// 		OpaqueAccumulation {
-// 			signature: self.signature.as_slice().to_vec(),
-// 			message_hash: self.message_hash.as_slice().to_vec(),
-// 		}
-// 	}
-// }
-
 /// A drand chain configuration
 #[derive(
 	Clone,

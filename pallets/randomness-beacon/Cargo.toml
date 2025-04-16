@@ -1,4 +1,4 @@
-[package]
+ [package]
 name = "pallet-randomness-beacon"
 description = "FRAME pallet for bridging to drand."
 authors = [

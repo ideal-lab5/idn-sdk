@@ -138,7 +138,7 @@ pub mod pallet {
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;
 		/// The number of historical missed blocks that we store.
-		/// Once the limit is reached, historical missed fblocks are pruned as a FIFO queue.
+		/// Once the limit is reached, historical missed blocks are pruned as a FIFO queue.
 		type MissedBlocksHistoryDepth: Get<u32>;
 		/// The pulse type
 		type Pulse: TPulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq;
@@ -324,7 +324,7 @@ pub mod pallet {
 
 			let new_latest_round = latest_round.saturating_add(height.into());
 			LatestRound::<T>::set(Some(new_latest_round.clone()));
-			// TODO handle error
+
 			let sacc = Accumulation::try_from(acc).map_err(|_| Error::<T>::VerificationFailed)?;
 			SparseAccumulation::<T>::set(Some(sacc));
 			DidUpdate::<T>::put(true);

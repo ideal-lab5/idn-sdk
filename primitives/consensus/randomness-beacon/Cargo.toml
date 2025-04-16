@@ -50,4 +50,3 @@ std = [
 	"prost/std",
 	"sha2/std",
 ]
-# host-arkworks = ["sp-ark-bls12-381/std"]
