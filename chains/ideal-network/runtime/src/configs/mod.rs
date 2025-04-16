@@ -18,6 +18,7 @@
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
+use crate::types::OpaquePulse;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -44,7 +45,6 @@ use polkadot_runtime_common::{
 	xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_consensus_randomness_beacon::types::OpaquePulse;
 use sp_runtime::{AccountId32, Perbill};
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
@@ -331,4 +331,14 @@ impl pallet_idn_manager::Config for Runtime {
 	type MaxSubscriptions = MaxSubscriptions;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
+}
+
+impl pallet_randomness_beacon::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
+	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
+	type MaxSigsPerBlock = ConstU8<30>;
+	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
+	type Pulse = sp_consensus_randomness_beacon::types::OpaquePulse;
+	type Dispatcher = crate::IdnManager;
 }
