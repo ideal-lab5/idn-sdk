@@ -300,52 +300,52 @@ fn can_create_inherent() {
 	});
 }
 
-// #[test]
-// fn can_not_create_inherent_when_genesis_round_is_none() {
-// 	let inherent_data = InherentData::new();
-// 	new_test_ext().execute_with(|| {
-// 		let result = Drand::create_inherent(&inherent_data);
-// 		assert!(result.is_none());
-// 	});
-// }
+#[test]
+fn can_not_create_inherent_when_genesis_round_is_none() {
+	let inherent_data = InherentData::new();
+	new_test_ext().execute_with(|| {
+		let result = Drand::create_inherent(&inherent_data);
+		assert!(result.is_none());
+	});
+}
 
-// #[test]
-// fn can_not_create_inherent_when_data_is_unavailable() {
-// 	let inherent_data = InherentData::new();
-// 	let config = get_config(1000);
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
-// 		let result = Drand::create_inherent(&inherent_data);
-// 		assert!(result.is_none());
-// 	});
-// }
+#[test]
+fn can_not_create_inherent_when_data_is_unavailable() {
+	let inherent_data = InherentData::new();
+	let config = get_config(1000);
+	new_test_ext().execute_with(|| {
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
+		let result = Drand::create_inherent(&inherent_data);
+		assert!(result.is_none());
+	});
+}
 
-// #[test]
-// fn can_check_inherent() {
-// 	// setup the inherent data
-// 	let (asig1, _apk1, _s1) = get(vec![PULSE1000]);
-// 	let pulse1 = OpaquePulse { round: 1000u64, signature: asig1.try_into().unwrap() };
-// 	let (asig2, _apk2, _s2) = get(vec![PULSE1001]);
-// 	let pulse2 = OpaquePulse { round: 1001u64, signature: asig2.try_into().unwrap() };
+#[test]
+fn can_check_inherent() {
+	// setup the inherent data
+	let (asig1, _apk1, _s1) = get(vec![PULSE1000]);
+	let pulse1 = OpaquePulse { round: 1000u64, signature: asig1.try_into().unwrap() };
+	let (asig2, _apk2, _s2) = get(vec![PULSE1001]);
+	let pulse2 = OpaquePulse { round: 1001u64, signature: asig2.try_into().unwrap() };
 
-// 	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode()];
-// 	let mut inherent_data = InherentData::new();
-// 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
+	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode()];
+	let mut inherent_data = InherentData::new();
+	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
-// 	let config = get_config(1000);
+	let config = get_config(1000);
 
-// 	new_test_ext().execute_with(|| {
-// 		BeaconConfig::<Test>::set(Some(config.clone()));
-// 		let result = Drand::create_inherent(&inherent_data);
-// 		if let Some(call) = result {
-// 			assert!(Drand::is_inherent(&call), "The inherent should be allowed.");
-// 			let res = Drand::check_inherent(&call, &inherent_data);
-// 			assert!(res.is_ok(), "The inherent should be allowed.");
-// 		} else {
-// 			panic!("Expected Some(Call::try_submit_asig), got None");
-// 		}
-// 	});
-// }
+	new_test_ext().execute_with(|| {
+		BeaconConfig::<Test>::set(Some(config.clone()));
+		let result = Drand::create_inherent(&inherent_data);
+		if let Some(call) = result {
+			assert!(Drand::is_inherent(&call), "The inherent should be allowed.");
+			let res = Drand::check_inherent(&call, &inherent_data);
+			assert!(res.is_ok(), "The inherent should be allowed.");
+		} else {
+			panic!("Expected Some(Call::try_submit_asig), got None");
+		}
+	});
+}
 
 fn get_config(round: RoundNumber) -> BeaconConfiguration<OpaquePublicKey, RoundNumber> {
 	let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
