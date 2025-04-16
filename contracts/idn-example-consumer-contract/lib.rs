@@ -19,10 +19,9 @@
 #[ink::contract]
 mod example_consumer {
 	use idn_client_contract_lib::{
-		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, RandomnessReceiver, Result,
-		SubscriptionId, UpdateSubParams,
+		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, OpaquePulse, Pulse,
+		RandomnessReceiver, Result, SubscriptionId, UpdateSubParams,
 	};
-	use idn_runtime::types::Pulse;
 	use ink::prelude::vec::Vec;
 
 	/// The Example Consumer contract demonstrates how to use the IDN Client
@@ -67,15 +66,15 @@ mod example_consumer {
 		pub sig: [u8; 48],
 	}
 
-	impl From<idn_runtime::types::Pulse> for ContractPulse {
-		fn from(p: idn_runtime::types::Pulse) -> Self {
-			Self { rand: p.rand, round: p.round, sig: p.sig }
+	impl From<idn_runtime::types::OpaquePulse> for ContractPulse {
+		fn from(p: idn_runtime::types::OpaquePulse) -> Self {
+			Self { rand: p.rand(), round: p.round(), sig: p.sig() }
 		}
 	}
 
-	impl From<ContractPulse> for idn_runtime::types::Pulse {
+	impl From<ContractPulse> for idn_runtime::types::OpaquePulse {
 		fn from(p: ContractPulse) -> Self {
-			Self { rand: p.rand, round: p.round, sig: p.sig }
+			Self { round: p.round, signature: p.sig }
 		}
 	}
 
@@ -418,7 +417,7 @@ mod example_consumer {
 	impl RandomnessReceiver for ExampleConsumer {
 		fn on_randomness_received(
 			&mut self,
-			pulse: Pulse,
+			pulse: OpaquePulse,
 			subscription_id: SubscriptionId,
 		) -> Result<()> {
 			// Verify that the subscription ID matches our active subscription
@@ -431,15 +430,15 @@ mod example_consumer {
 			}
 
 			// Extract the randomness
-			let randomness = pulse.rand;
+			let randomness = pulse.rand();
 
 			// Store the randomness for backward compatibility
 			self.last_randomness = Some(randomness);
 			self.randomness_history.push(randomness);
 
 			// Store the complete pulse
-			self.last_pulse = Some(ContractPulse::from(pulse));
-			self.pulse_history.push(ContractPulse::from(pulse));
+			self.last_pulse = Some(ContractPulse::from(pulse.clone()));
+			self.pulse_history.push(ContractPulse::from(pulse.clone()));
 
 			Ok(())
 		}
@@ -449,12 +448,14 @@ mod example_consumer {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
+		use sha2::{Digest, Sha256};
 
 		#[test]
 		fn test_receive_and_store_randomness() {
 			// Create a test pulse
 			let test_randomness = [42u8; 32];
-			let test_pulse = ContractPulse { rand: test_randomness, round: 1, sig: [1u8; 48] };
+			let test_sig = [1u8; 48];
+			let test_pulse = ContractPulse { rand: test_randomness, round: 1, sig: test_sig };
 
 			// Setup contract
 			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
@@ -464,9 +465,16 @@ mod example_consumer {
 			let result = contract.simulate_pulse_received(test_pulse.clone());
 			assert!(result.is_ok());
 
+			// Compute expected randomness
+			let mut hasher = Sha256::default();
+			hasher.update(test_sig);
+			let expected_rand: [u8; 32] = hasher.finalize().into();
+			let expected_pulse =
+				ContractPulse { rand: expected_rand, round: test_pulse.round, sig: test_pulse.sig };
+
 			// Check stored values
-			assert_eq!(contract.get_last_randomness(), Some(test_randomness));
-			assert_eq!(contract.get_last_pulse(), Some(test_pulse));
+			assert_eq!(contract.get_last_randomness(), Some(expected_rand));
+			assert_eq!(contract.get_last_pulse(), Some(expected_pulse));
 			assert_eq!(contract.get_randomness_history().len(), 1);
 			assert_eq!(contract.get_pulse_history().len(), 1);
 		}
@@ -491,11 +499,29 @@ mod example_consumer {
 			contract.simulate_pulse_received(test_pulse1.clone()).unwrap();
 			contract.simulate_pulse_received(test_pulse2.clone()).unwrap();
 
-			// Check getters
-			assert_eq!(contract.get_last_randomness(), Some([2u8; 32]));
-			assert_eq!(contract.get_last_pulse(), Some(test_pulse2));
-			assert_eq!(contract.get_randomness_history().len(), 2);
-			assert_eq!(contract.get_pulse_history().len(), 2);
+			// Compute expected randomness for test_pulse1
+			let mut hasher1 = Sha256::default();
+			hasher1.update(test_pulse1.sig);
+			let expected_rand1: [u8; 32] = hasher1.finalize().into();
+			let expected_pulse1 = ContractPulse {
+				rand: expected_rand1,
+				round: test_pulse1.round,
+				sig: test_pulse1.sig,
+			};
+			// Compute expected randomness for test_pulse2
+			let mut hasher2 = Sha256::default();
+			hasher2.update(test_pulse2.sig);
+			let expected_rand2: [u8; 32] = hasher2.finalize().into();
+			let expected_pulse2 = ContractPulse {
+				rand: expected_rand2,
+				round: test_pulse2.round,
+				sig: test_pulse2.sig,
+			};
+
+			assert_eq!(contract.get_last_randomness(), Some(expected_rand2));
+			assert_eq!(contract.get_last_pulse(), Some(expected_pulse2));
+			assert_eq!(contract.get_randomness_history(), vec![expected_rand1, expected_rand2]);
+			assert_eq!(contract.get_pulse_history(), vec![expected_pulse1, expected_pulse2]);
 		}
 
 		#[test]
@@ -515,9 +541,16 @@ mod example_consumer {
 			);
 			assert!(result.is_ok());
 
+			// Compute expected randomness
+			let mut hasher = Sha256::default();
+			hasher.update(test_pulse.sig);
+			let expected_rand: [u8; 32] = hasher.finalize().into();
+			let expected_pulse =
+				ContractPulse { rand: expected_rand, round: test_pulse.round, sig: test_pulse.sig };
+
 			// Check stored values
-			assert_eq!(contract.get_last_randomness(), Some([9u8; 32]));
-			assert_eq!(contract.get_last_pulse(), Some(test_pulse));
+			assert_eq!(contract.get_last_randomness(), Some(expected_rand));
+			assert_eq!(contract.get_last_pulse(), Some(expected_pulse));
 		}
 
 		#[test]
@@ -548,9 +581,9 @@ mod example_consumer {
 	mod e2e_tests {
 
 		use super::*;
-        use ink_e2e::ContractsBackend;
+		use ink_e2e::ContractsBackend;
 
-        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+		type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 		#[ink_e2e::test]
 		async fn dummy_e2e_test<Client: E2EBackend>(mut client: Client) -> E2EResult<()> {
