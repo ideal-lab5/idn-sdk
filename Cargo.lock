@@ -9344,6 +9344,7 @@ dependencies = [
 name = "pallet-idn-consumer"
 version = "0.0.1-dev"
 dependencies = [
+ "cumulus-primitives-core",
  "frame-benchmarking",
  "frame-support",
  "frame-system",

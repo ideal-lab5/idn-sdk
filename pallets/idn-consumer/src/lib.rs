@@ -28,7 +28,10 @@ use frame_support::{
 	pallet_prelude::{DispatchResult, EnsureOrigin, Get, IsType, Pays, Weight},
 	sp_runtime::traits::AccountIdConversion,
 };
-use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
+use frame_system::{
+	pallet_prelude::{BlockNumberFor, OriginFor},
+	RawOrigin,
+};
 use idn_runtime::primitives::{
 	types::{Credits as IdnCredits, Pulse as IdnPulse, SubscriptionId as IdnSubscriptionId},
 	Call as IdnRuntimeCall, CreateSubParamsOf, MetadataOf, PulseFilterOf,
@@ -44,9 +47,12 @@ use sp_idn_traits::pulse::{Consumer, Pulse};
 use scale_info::prelude::sync::Arc;
 use sp_idn_traits::pulse::{Consumer, Pulse};
 use sp_idn_types::IdnManagerCall;
-use xcm::v5::{
-	prelude::{OriginKind, Transact, Xcm},
-	Junction, Junctions, Location,
+use xcm::{
+	v5::{
+		prelude::{OriginKind, Transact, Xcm},
+		Junction, Junctions, Location,
+	},
+	VersionedLocation, VersionedXcm,
 };
 use xcm_builder::SendController;
 
@@ -200,9 +206,13 @@ impl<T: Config> Pallet<T> {
 			},
 		]);
 
-		let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
+		let versioned_target: Box<VersionedLocation> =
+			Box::new(T::SiblingIdnLocation::get().into());
 
-		T::Xcm::send(origin.into(), T::SiblingIdnLocation::get(), xcm_call)?;
+		let versioned_msg: Box<VersionedXcm<()>> = Box::new(xcm::VersionedXcm::V5(xcm_call.into()));
+
+		T::Xcm::send(Self::pallet_origin().into(), versioned_target, versioned_msg)
+			.map_err(|_| Error::<T>::XcmSendError)?;
 
 		Ok(sub_id)
 	}
@@ -241,6 +251,10 @@ impl<T: Config> Pallet<T> {
 	/// Get the account id of this pallet
 	fn pallet_account_id() -> T::AccountId {
 		T::PalletId::get().into_account_truncating()
+	}
+
+	fn pallet_origin() -> RawOrigin<T::AccountId> {
+		RawOrigin::Signed(Self::pallet_account_id())
 	}
 
 	/// Get this pallet's xcm Location
