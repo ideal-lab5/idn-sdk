@@ -314,6 +314,8 @@ mod runtime {
 	// IDN
 	#[runtime::pallet_index(40)]
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
+	#[runtime::pallet_index(41)]
+	pub type RandomnessBeacon = pallet_randomness_beacon::Pallet<Runtime>;
 }
 
 cumulus_pallet_parachain_system::register_validate_block! {
