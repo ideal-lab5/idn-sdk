@@ -31,6 +31,9 @@ xcm-builder.workspace = true
 pallet-idn-manager = { workspace = true, default-features = false }
 sp-idn-traits = { workspace = true, default-features = false }
 
+# Polkadot
+cumulus-primitives-core = { workspace = true, default-features = false }
+
 [dev-dependencies]
 sp-io = { workspace = true, default-features = false}
 sp-runtime = { workspace = true, default-features = false}
