@@ -543,13 +543,22 @@ mod example_consumer {
 		}
 	}
 
-	/// Unit tests
+	/// Integration tests
 	#[cfg(all(test, feature = "e2e-tests"))]
 	mod e2e_tests {
-		/// Just a dummy test to confirm E2E module compilation
+
+		use super::*;
+        use ink_e2e::ContractsBackend;
+
+        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
 		#[ink_e2e::test]
-		fn dummy_e2e_test() {
-			assert!(true);
+		async fn dummy_e2e_test<Client: E2EBackend>(mut client: Client) -> E2EResult<()> {
+			// When the function is entered, the contract was already
+			// built in the background via `cargo contract build`.
+			// The `client` object exposes an interface to interact
+			// with the Substrate node.
+			Ok(())
 		}
 	}
 }
