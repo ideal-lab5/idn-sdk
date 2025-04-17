@@ -41,37 +41,38 @@ pub struct ProtoPulse {
 	pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 
-/// This struct is used to encode pulses in the runtime, where we obtain an OpaquePulse by
+/// This struct is used to encode pulses in the runtime, where we obtain an RuntimePulse by
 /// converting a ProtoPulse
+// TODO: fields should be private
 #[derive(Clone, Debug, PartialEq, codec::MaxEncodedLen, scale_info::TypeInfo, Encode, Decode)]
-pub struct OpaquePulse {
+pub struct RuntimePulse {
 	/// The round of the beacon protocol
 	pub round: RoundNumber,
 	/// A compressed BLS signature
 	pub signature: OpaqueSignature,
 }
 
-impl Default for OpaquePulse {
+impl Default for RuntimePulse {
 	fn default() -> Self {
-		OpaquePulse { round: 0, signature: [0u8; 48] }
+		RuntimePulse { round: 0, signature: [0u8; 48] }
 	}
 }
 
-impl TryInto<OpaquePulse> for ProtoPulse {
+impl TryInto<RuntimePulse> for ProtoPulse {
 	type Error = String;
-	/// Converts a ProtoPulse into an OpaquePulse
-	fn try_into(self) -> Result<OpaquePulse, Self::Error> {
+	/// Converts a ProtoPulse into an RuntimePulse
+	fn try_into(self) -> Result<RuntimePulse, Self::Error> {
 		let signature: [u8; 48] = self
 			.signature
 			.clone()
 			.try_into()
 			.map_err(|e| format!("The signature must be 48 bytes: {:?}", e))?;
 
-		Ok(OpaquePulse { round: self.round, signature })
+		Ok(RuntimePulse { round: self.round, signature })
 	}
 }
 
-impl sp_idn_traits::pulse::Pulse for OpaquePulse {
+impl sp_idn_traits::pulse::Pulse for RuntimePulse {
 	type Rand = Randomness;
 	type Round = RoundNumber;
 	type Sig = OpaqueSignature;
@@ -122,8 +123,8 @@ mod tests {
 	#[test]
 	fn test_pulse_to_opaque_pulse_conversion() {
 		let valid_pulse = valid_pulse();
-		let result: Result<OpaquePulse, _> = valid_pulse.clone().try_into();
-		assert!(result.is_ok(), "Valid pulse should convert to OpaquePulse");
+		let result: Result<RuntimePulse, _> = valid_pulse.clone().try_into();
+		assert!(result.is_ok(), "Valid pulse should convert to RuntimePulse");
 		let opaque_pulse = result.unwrap();
 		assert_eq!(opaque_pulse.round, valid_pulse.round);
 		assert_eq!(opaque_pulse.signature, valid_pulse.signature[..]);
@@ -133,14 +134,14 @@ mod tests {
 	fn test_pulse_with_invalid_signature_fails() {
 		let mut bad_size_pulse = invalid_pulse();
 		bad_size_pulse.signature = b"123".to_vec();
-		let result: Result<OpaquePulse, _> = bad_size_pulse.try_into();
+		let result: Result<RuntimePulse, _> = bad_size_pulse.try_into();
 		assert!(result.is_err(), "Pulse with invalid signature should not convert");
 	}
 
 	#[test]
 	fn test_pulse_verification_works_for_valid_pulse() {
 		let valid_pulse = valid_pulse();
-		let good_opaque: OpaquePulse = valid_pulse.clone().try_into().unwrap();
+		let good_opaque: RuntimePulse = valid_pulse.clone().try_into().unwrap();
 
 		let pk_bytes = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 		let pk = hex::decode(pk_bytes).unwrap();
@@ -152,7 +153,7 @@ mod tests {
 	#[test]
 	fn test_pulse_verification_fails_for_invalid_pulse() {
 		let invalid_pulse = invalid_pulse();
-		let bad_opaque: OpaquePulse = invalid_pulse.clone().try_into().unwrap();
+		let bad_opaque: RuntimePulse = invalid_pulse.clone().try_into().unwrap();
 
 		let pk_bytes = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 		let pk = hex::decode(pk_bytes).unwrap();

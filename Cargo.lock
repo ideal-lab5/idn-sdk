@@ -2188,12 +2188,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 
 [[package]]
-name = "constcat"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd7e35aee659887cbfb97aaf227ac12cad1a9d7c71e55ff3376839ed4e282d08"
-
-[[package]]
 name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4005,7 +3999,7 @@ checksum = "6027a409bac4fe95b4d107f965fcdbc252fc89d884a360d076b3070b6128c094"
 dependencies = [
  "frame-metadata 17.0.0",
  "parity-scale-codec",
- "scale-decode",
+ "scale-decode 0.14.0",
  "scale-info",
  "scale-type-resolver",
  "sp-crypto-hashing",
@@ -4591,12 +4585,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "half"
-version = "1.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b43ede17f21864e81be2fa654110bf1e793774238d86ef8555c37e6519c0403"
-
-[[package]]
 name = "hash-db"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5163,16 +5151,85 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
+name = "idn-runtime"
+version = "0.1.0"
+dependencies = [
+ "cumulus-pallet-aura-ext",
+ "cumulus-pallet-parachain-system",
+ "cumulus-pallet-session-benchmarking",
+ "cumulus-pallet-xcm",
+ "cumulus-pallet-xcmp-queue",
+ "cumulus-primitives-aura",
+ "cumulus-primitives-core",
+ "cumulus-primitives-storage-weight-reclaim",
+ "cumulus-primitives-utility",
+ "docify",
+ "frame-benchmarking",
+ "frame-executive",
+ "frame-metadata-hash-extension",
+ "frame-support",
+ "frame-system",
+ "frame-system-benchmarking",
+ "frame-system-rpc-runtime-api",
+ "frame-try-runtime",
+ "hex-literal",
+ "log",
+ "pallet-aura",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-collator-selection",
+ "pallet-idn-manager",
+ "pallet-message-queue",
+ "pallet-randomness-beacon",
+ "pallet-session",
+ "pallet-sudo",
+ "pallet-timestamp",
+ "pallet-transaction-payment",
+ "pallet-transaction-payment-rpc-runtime-api",
+ "pallet-xcm",
+ "parachains-common",
+ "parity-scale-codec",
+ "polkadot-parachain-primitives",
+ "polkadot-runtime-common",
+ "scale-info",
+ "serde_json",
+ "smallvec",
+ "sp-api",
+ "sp-block-builder",
+ "sp-consensus-aura",
+ "sp-consensus-randomness-beacon",
+ "sp-core",
+ "sp-genesis-builder",
+ "sp-idn-crypto",
+ "sp-idn-traits",
+ "sp-inherents",
+ "sp-keyring",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-transaction-pool",
+ "sp-version",
+ "staging-parachain-info",
+ "staging-xcm",
+ "staging-xcm-builder",
+ "staging-xcm-executor",
+ "substrate-wasm-builder",
+]
+
+[[package]]
 name = "idn-sdk-kitchensink-runtime"
 version = "0.1.0"
 dependencies = [
- "array-bytes",
  "frame-benchmarking",
+ "idn-runtime",
+ "pallet-idn-manager",
+ "pallet-randomness-beacon",
  "parity-scale-codec",
  "polkadot-sdk 2503.0.1",
  "scale-info",
  "serde_json",
- "tokio",
+ "sp-idn-crypto",
 ]
 
 [[package]]
@@ -6851,6 +6908,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "808b50db46293432a45e63bc15ea51e0ab4c0a1647b8eb114e31a3e698dd6fbe"
 dependencies = [
  "hash-db",
+]
+
+[[package]]
+name = "merkleized-metadata"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc9b7ac0ce054412d9a85ff39bac27aec27483b06cef8756b57d9c29d448d081"
+dependencies = [
+ "array-bytes",
+ "blake3",
+ "frame-metadata 20.0.0",
+ "parity-scale-codec",
+ "scale-decode 0.13.1",
+ "scale-info",
 ]
 
 [[package]]
@@ -8765,7 +8836,6 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "timelock",
 ]
 
 [[package]]
@@ -9132,6 +9202,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
+ "rand_chacha 0.3.1",
  "scale-info",
  "serde",
  "sp-application-crypto",
@@ -10089,6 +10160,7 @@ dependencies = [
  "log",
  "pallet-asset-rate",
  "pallet-authorship",
+ "pallet-babe",
  "pallet-balances",
  "pallet-broker",
  "pallet-election-provider-multi-phase",
@@ -10181,6 +10253,7 @@ dependencies = [
  "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "staging-xcm",
  "staging-xcm-executor",
+ "static_assertions",
 ]
 
 [[package]]
@@ -12857,6 +12930,19 @@ dependencies = [
 
 [[package]]
 name = "scale-decode"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e98f3262c250d90e700bb802eb704e1f841e03331c2eb815e46516c4edbf5b27"
+dependencies = [
+ "derive_more 0.99.19",
+ "parity-scale-codec",
+ "scale-bits",
+ "scale-type-resolver",
+ "smallvec",
+]
+
+[[package]]
+name = "scale-decode"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ae9cc099ae85ff28820210732b00f019546f36f33225f509fe25d5816864a0"
@@ -12956,7 +13042,7 @@ dependencies = [
  "either",
  "parity-scale-codec",
  "scale-bits",
- "scale-decode",
+ "scale-decode 0.14.0",
  "scale-encode",
  "scale-info",
  "scale-type-resolver",
@@ -13219,16 +13305,6 @@ version = "0.11.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8437fd221bde2d4ca316d61b90e337e9e702b3820b87d63caa9ba6c02bd06d96"
 dependencies = [
- "serde",
-]
-
-[[package]]
-name = "serde_cbor"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bef2ebfde456fb76bbcf9f59315333decc4fda0b2b44b420243c11e0f5ec1f5"
-dependencies = [
- "half",
  "serde",
 ]
 
@@ -13970,6 +14046,7 @@ version = "0.0.1-dev"
 dependencies = [
  "ark-bls12-381 0.4.0",
  "ark-ec 0.4.2",
+ "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
  "array-bytes",
@@ -13986,8 +14063,8 @@ dependencies = [
  "sp-inherents",
  "sp-runtime",
  "sp-std 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "timelock",
  "tokio",
+ "w3f-bls",
 ]
 
 [[package]]
@@ -14796,15 +14873,24 @@ version = "26.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e681dd525b728263041cde9acdd07fa1c4d9f184c9b269a1c9df26e8401dae67"
 dependencies = [
+ "array-bytes",
  "build-helper",
  "cargo_metadata",
  "console",
  "filetime",
+ "frame-metadata 20.0.0",
  "jobserver",
+ "merkleized-metadata",
+ "parity-scale-codec",
  "parity-wasm",
  "polkavm-linker 0.18.0",
+ "sc-executor",
  "shlex",
+ "sp-core",
+ "sp-io",
  "sp-maybe-compressed-blob",
+ "sp-tracing 17.1.0",
+ "sp-version",
  "strum 0.26.3",
  "tempfile",
  "toml 0.8.20",
@@ -14843,7 +14929,7 @@ dependencies = [
  "polkadot-sdk 0.7.0",
  "primitive-types 0.13.1",
  "scale-bits",
- "scale-decode",
+ "scale-decode 0.14.0",
  "scale-encode",
  "scale-info",
  "scale-value",
@@ -15146,35 +15232,6 @@ checksum = "3526739392ec93fd8b359c8e98514cb3e8e021beb4e5f597b00a0221f8ed8a49"
 dependencies = [
  "num-conv",
  "time-core",
-]
-
-[[package]]
-name = "timelock"
-version = "0.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38c11a3f646a6b1b08804166421264d2e44adbcd877088d3ae0f9422f3f9199d"
-dependencies = [
- "aes-gcm",
- "ark-bls12-377",
- "ark-bls12-381 0.4.0",
- "ark-ec 0.4.2",
- "ark-ff 0.4.2",
- "ark-poly 0.4.2",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
- "array-bytes",
- "chacha20poly1305",
- "generic-array 0.14.7",
- "parity-scale-codec",
- "rand_chacha 0.3.1",
- "rand_core 0.6.4",
- "scale-info",
- "serde",
- "serde_cbor",
- "serde_json",
- "sha2 0.10.8",
- "sha3",
- "w3f-bls",
 ]
 
 [[package]]
@@ -15731,9 +15788,9 @@ checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
 name = "w3f-bls"
-version = "0.1.4"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c5da5fa2c6afa2c9158eaa7cd9aee249765eb32b5fb0c63ad8b9e79336a47ec"
+checksum = "e6bfb937b3d12077654a9e43e32a4e9c20177dd9fea0f3aba673e7840bb54f32"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381 0.4.0",
@@ -15742,14 +15799,12 @@ dependencies = [
  "ark-serialize 0.4.2",
  "ark-serialize-derive 0.4.2",
  "arrayref",
- "constcat",
  "digest 0.10.7",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sha2 0.10.8",
  "sha3",
- "thiserror 1.0.69",
  "zeroize",
 ]
 

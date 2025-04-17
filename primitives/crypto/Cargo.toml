@@ -32,9 +32,11 @@ sp-std.workspace = true
 sp-ark-bls12-381 = { workspace = true, optional = true }
 ark-ec.workspace = true
 ark-bls12-381.workspace = true
+ark-ff.workspace = true
 ark-serialize.workspace = true
 ark-std.workspace = true
-timelock.workspace = true
+w3f-bls.workspace = true
+# timelock.workspace = true
 
 [dev-dependencies]
 array-bytes = "=6.2.3"
@@ -57,8 +59,10 @@ std = [
 	"sha2/std",
 	"ark-bls12-381/std",
 	"ark-ec/std",
+	"ark-ff/std",
 	"ark-serialize/std",
 	"ark-std/std",
-	"timelock/std"
+	"w3f-bls/std"
+	# "timelock/std"
 ]
 host-arkworks = ["sp-ark-bls12-381/std"]

@@ -105,7 +105,7 @@ pub enum Error {
 #[derive(Clone)]
 pub struct DrandReceiver {
 	/// A collection of received and unconsumed pulses
-	pub pulses: Arc<Mutex<Vec<OpaquePulse>>>,
+	pub pulses: Arc<Mutex<Vec<RuntimePulse>>>,
 	/// The latest round number (for pruning)
 	pub latest: Arc<Mutex<u64>>,
 }
@@ -113,10 +113,10 @@ pub struct DrandReceiver {
 impl DrandReceiver {
 	/// Constructs a new DrandReceiver and starts receiving pulses
 	///
-	/// * `rx`: A [`TracingUnboundedReceiver`] to which [`OpaquePulses`] are written
+	/// * `rx`: A [`TracingUnboundedReceiver`] to which [`RuntimePulses`] are written
 	///  
 	pub fn new(
-		mut rx: TracingUnboundedReceiver<OpaquePulse>,
+		mut rx: TracingUnboundedReceiver<RuntimePulse>,
 		mut prune_rx: TracingUnboundedReceiver<u64>,
 	) -> Self {
 		let latest = Arc::new(Mutex::new(0u64));
@@ -146,7 +146,7 @@ impl DrandReceiver {
 	}
 
 	/// Consume pulse data from storage
-	pub async fn take(&self) -> Vec<OpaquePulse> {
+	pub async fn take(&self) -> Vec<RuntimePulse> {
 		let mut pulses = self.pulses.lock().await;
 		let latest = self.latest.lock().await;
 		let mut t = std::mem::take(&mut *pulses);
@@ -160,7 +160,7 @@ pub struct GossipsubNetwork {
 	/// The behaviour config for the swam
 	swarm: Swarm<GossipsubBehaviour>,
 	/// The mpsc channel sender
-	sender: TracingUnboundedSender<OpaquePulse>,
+	sender: TracingUnboundedSender<RuntimePulse>,
 	/// The number of peers the node is connected to
 	pub(crate) connected_peers: u8,
 }
@@ -173,12 +173,12 @@ impl GossipsubNetwork {
 	///
 	/// * `key`: A libp2p keypair
 	/// * `gossipsub_config`: A gossipsub config
-	/// * `sender`: A `TracingUnboundedSender` that can send an `OpaquePulse`
+	/// * `sender`: A `TracingUnboundedSender` that can send an `RuntimePulse`
 	/// * `listen_addr`: An optional address to listen on. If None, a random local port is assigned.
 	pub fn new(
 		key: &Keypair,
 		gossipsub_config: GossipsubConfig,
-		sender: TracingUnboundedSender<OpaquePulse>,
+		sender: TracingUnboundedSender<RuntimePulse>,
 		listen_addr: Option<&Multiaddr>,
 	) -> Result<Self, Error> {
 		let message_authenticity = MessageAuthenticity::Signed(key.clone());
@@ -281,9 +281,9 @@ impl GossipsubNetwork {
 	}
 }
 
-pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<OpaquePulse, Error> {
+pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<RuntimePulse, Error> {
 	let pulse = ProtoPulse::decode(data).map_err(|_| Error::UnexpectedMessageFormat)?;
-	let pulse: OpaquePulse =
+	let pulse: RuntimePulse =
 		pulse.try_into().map_err(|_| Error::SignatureBufferCapacityExceeded)?;
 
 	Ok(pulse)
@@ -306,7 +306,7 @@ mod tests {
 			]
 			.to_vec(),
 		};
-		let opaque: OpaquePulse = pulse.clone().try_into().unwrap();
+		let opaque: RuntimePulse = pulse.clone().try_into().unwrap();
 		let mut data = Vec::new();
 		pulse.encode(&mut data).unwrap();
 
@@ -351,7 +351,7 @@ mod tests {
 		);
 	}
 
-	fn build_node() -> (GossipsubNetwork, TracingUnboundedReceiver<OpaquePulse>) {
+	fn build_node() -> (GossipsubNetwork, TracingUnboundedReceiver<RuntimePulse>) {
 		let local_identity: Keypair = Keypair::generate_ed25519();
 		let gossipsub_config = GossipsubConfig::default();
 		let (tx, rx) = tracing_unbounded("drand-notification-channel", 100000);
@@ -464,7 +464,7 @@ mod tests {
 			]
 			.to_vec(),
 		};
-		let opaque: OpaquePulse = pulse.clone().try_into().unwrap();
+		let opaque: RuntimePulse = pulse.clone().try_into().unwrap();
 		// write an opaque pulse
 		tx.unbounded_send(opaque.clone()).unwrap();
 
@@ -500,8 +500,8 @@ mod tests {
 			]
 			.to_vec(),
 		};
-		let opaque: OpaquePulse = pulse.clone().try_into().unwrap();
-		let opaque2: OpaquePulse = pulse2.clone().try_into().unwrap();
+		let opaque: RuntimePulse = pulse.clone().try_into().unwrap();
+		let opaque2: RuntimePulse = pulse2.clone().try_into().unwrap();
 		// write an opaque pulse
 		tx.unbounded_send(opaque.clone()).unwrap();
 		tx.unbounded_send(opaque2.clone()).unwrap();

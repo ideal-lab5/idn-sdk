@@ -280,28 +280,28 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_idn_manager::IdnManagerApi<
-		Block,
-		BalanceOf<Runtime>,
-		u64,
-		AccountId32,
-		SubscriptionOf<Runtime>,
-		<Runtime as pallet_idn_manager::Config>::SubscriptionId,
-	> for Runtime {
-		fn calculate_subscription_fees(
-			credits: <Runtime as pallet_idn_manager::Config>::Credits
-		) -> BalanceOf<Runtime> {
-			pallet_idn_manager::Pallet::<Runtime>::calculate_subscription_fees(&credits)
-		}
-		fn get_subscription(
-			sub_id: <Runtime as pallet_idn_manager::Config>::SubscriptionId
-		) -> Option<SubscriptionOf<Runtime>> {
-			pallet_idn_manager::Pallet::<Runtime>::get_subscription(&sub_id)
-		}
-		fn get_subscriptions_for_subscriber(
-			subscriber: AccountId32
-		) -> Vec<SubscriptionOf<Runtime>> {
-			pallet_idn_manager::Pallet::<Runtime>::get_subscriptions_for_subscriber(&subscriber)
-		}
-	}
+	// impl pallet_idn_manager::IdnManagerApi<
+	// 	Block,
+	// 	BalanceOf<Runtime>,
+	// 	u64,
+	// 	AccountId32,
+	// 	SubscriptionOf<Runtime>,
+	// 	<Runtime as pallet_idn_manager::Config>::SubscriptionId,
+	// > for Runtime {
+	// 	fn calculate_subscription_fees(
+	// 		credits: <Runtime as pallet_idn_manager::Config>::Credits
+	// 	) -> BalanceOf<Runtime> {
+	// 		pallet_idn_manager::Pallet::<Runtime>::calculate_subscription_fees(&credits)
+	// 	}
+	// 	fn get_subscription(
+	// 		sub_id: <Runtime as pallet_idn_manager::Config>::SubscriptionId
+	// 	) -> Option<SubscriptionOf<Runtime>> {
+	// 		pallet_idn_manager::Pallet::<Runtime>::get_subscription(&sub_id)
+	// 	}
+	// 	fn get_subscriptions_for_subscriber(
+	// 		subscriber: AccountId32
+	// 	) -> Vec<SubscriptionOf<Runtime>> {
+	// 		pallet_idn_manager::Pallet::<Runtime>::get_subscriptions_for_subscriber(&subscriber)
+	// 	}
+	// }
 }

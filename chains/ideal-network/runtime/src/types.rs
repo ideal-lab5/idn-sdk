@@ -16,4 +16,4 @@
 
 //! Types for the IDN runtime.
 
-pub use sp_consensus_randomness_beacon::types::OpaquePulse;
+pub use sp_consensus_randomness_beacon::types::RuntimePulse;

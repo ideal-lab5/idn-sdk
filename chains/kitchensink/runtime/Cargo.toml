@@ -1,6 +1,6 @@
 [package]
 name = "idn-sdk-kitchensink-runtime"
-description = "A Kitchensink runtime for the IDN SDK."
+description = "A Kitchensink runtime for the IDN Sdk."
 version = "0.1.0"
 license.workspace = true
 authors.workspace = true
@@ -12,6 +12,7 @@ publish = false
 [dependencies]
 codec.workspace = true
 frame-benchmarking = { optional = true, workspace = true }
+
 scale-info.workspace = true
 polkadot-sdk = { workspace = true, features = [
 	"pallet-balances",
@@ -21,41 +22,17 @@ polkadot-sdk = { workspace = true, features = [
 	"pallet-transaction-payment-rpc-runtime-api",
 	"runtime",
 	"experimental",
-], default-features = false  }
+] }
 serde_json = { workspace = true, default-features = false, features = [
 	"alloc",
 ] }
-
+idn-runtime.workspace = true
 # IDN Deps
 # sp-idn-traits.workspace = true
-# pallet-idn-manager.workspace = true
-# pallet-randomness-beacon.workspace = true
+pallet-idn-manager.workspace = true
+pallet-randomness-beacon.workspace = true
 # sp-consensus-randomness-beacon.workspace = true
-# sp-idn-crypto.workspace = true
-# hex.workspace = true
-# sp-std.workspace = true
-# prost.workspace = true
-
-# async-trait = { optional = true, workspace = true }
-# hex.workspace = true
-# prost.workspace = true
-# serde = { workspace = true, default-features = false, features = ["derive"] }
-# sha2.workspace = true
-# sp-core.workspace = true
-# sp-inherents.workspace = true
-# sp-idn-traits.workspace = true
-# sp-runtime.workspace = true
-# sp-std.workspace = true
-
-# # arkworks dependencies
-# sp-ark-bls12-381 = { workspace = true, optional = true }
-# ark-ec.workspace = true
-# ark-bls12-381.workspace = true
-# ark-serialize.workspace = true
-# ark-std.workspace = true
-# timelock.workspace = true
-# timelock = { version = "0.0.1", default-features = true }
-git a
+sp-idn-crypto.workspace = true
 
 [build-dependencies]
 polkadot-sdk = { optional = true, workspace = true, features = [
@@ -68,36 +45,17 @@ default = ["std"]
 std = [
 	"codec/std",
 	"frame-benchmarking?/std",
+	"idn-runtime/std",
 	"polkadot-sdk/std",
 	"scale-info/std",
 	"serde_json/std",
-
-	# "async-trait",
-	# "hex/std",
-	# "serde/std",
-	# "sp-core/std",
-	# "sp-idn-traits/std", 
-	# "sp-inherents/std",
-	# "sp-runtime/std",
-	# "sp-std/std",
-	# "prost/std",
-	# "sha2/std",
-	# "ark-bls12-381/std",
-	# "ark-ec/std",
-	# "ark-serialize/std",
-	# "ark-std/std",
-	# "timelock/std"
-	# "sp-std/std"
-	# "sp-idn-crypto/std",
-	# "prost/std"
-	# "sp-idn-traits/std",
-	# "pallet-idn-manager/std",
-	# "pallet-randomness-beacon/std",
-	# "sp-consensus-randomness-beacon/std"
+	"sp-idn-crypto/std",
+	"pallet-idn-manager/std",
+	"pallet-randomness-beacon/std",
 ]
 
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
-	# "pallet-idn-manager/runtime-benchmarks",
-	# "pallet-randomness-beacon/runtime-benchmarks",
+	"pallet-idn-manager/runtime-benchmarks",
+	"pallet-randomness-beacon/runtime-benchmarks",
 ]

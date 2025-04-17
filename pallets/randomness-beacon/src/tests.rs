@@ -21,14 +21,14 @@ use crate::{
 use codec::Encode;
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 use frame_system::pallet_prelude::BlockNumberFor;
-use sp_consensus_randomness_beacon::types::{OpaquePublicKey, OpaquePulse, RoundNumber};
+use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RuntimePulse, RoundNumber};
 use sp_idn_crypto::test_utils::{get, PULSE1000, PULSE1001, PULSE1002, PULSE1003};
 
 const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 
-fn as_pulses(raw: Vec<(u64, Vec<u8>)>) -> Vec<OpaquePulse> {
+fn as_pulses(raw: Vec<(u64, Vec<u8>)>) -> Vec<RuntimePulse> {
 	raw.iter()
-		.map(|s| OpaquePulse { round: s.0, signature: s.1.clone().try_into().unwrap() })
+		.map(|s| RuntimePulse { round: s.0, signature: s.1.clone().try_into().unwrap() })
 		.collect::<Vec<_>>()
 }
 
@@ -115,7 +115,7 @@ fn can_fail_when_sig_height_is_exceeds_max() {
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
 		let too_many_sigs = (1..10000)
-			.map(|i| OpaquePulse { round: i, signature: [i as u8; 48] })
+			.map(|i| RuntimePulse { round: i, signature: [i as u8; 48] })
 			.collect::<Vec<_>>();
 
 		assert_noop!(
@@ -274,13 +274,13 @@ fn can_create_inherent() {
 	let config = BeaconConfiguration { public_key, genesis_round: genesis };
 	let (asig1, _apk1, _sig1) = get(vec![PULSE1000]);
 	// this pulse will be ignored
-	let pulse1 = OpaquePulse { round: 1000u64, signature: asig1.try_into().unwrap() };
+	let pulse1 = RuntimePulse { round: 1000u64, signature: asig1.try_into().unwrap() };
 
 	let (asig2, _apk2, _sig2) = get(vec![PULSE1001]);
-	let pulse2 = OpaquePulse { round: 1001u64, signature: asig2.try_into().unwrap() };
+	let pulse2 = RuntimePulse { round: 1001u64, signature: asig2.try_into().unwrap() };
 
 	let (asig3, _apk3, _sig3) = get(vec![PULSE1002]);
-	let pulse3 = OpaquePulse { round: 1002u64, signature: asig3.try_into().unwrap() };
+	let pulse3 = RuntimePulse { round: 1002u64, signature: asig3.try_into().unwrap() };
 
 	let (_asig, _apk, raw) = get(vec![PULSE1001, PULSE1002]);
 	let expected_sigs = as_pulses(raw);
@@ -324,9 +324,9 @@ fn can_not_create_inherent_when_data_is_unavailable() {
 fn can_check_inherent() {
 	// setup the inherent data
 	let (asig1, _apk1, _s1) = get(vec![PULSE1000]);
-	let pulse1 = OpaquePulse { round: 1000u64, signature: asig1.try_into().unwrap() };
+	let pulse1 = RuntimePulse { round: 1000u64, signature: asig1.try_into().unwrap() };
 	let (asig2, _apk2, _s2) = get(vec![PULSE1001]);
-	let pulse2 = OpaquePulse { round: 1001u64, signature: asig2.try_into().unwrap() };
+	let pulse2 = RuntimePulse { round: 1001u64, signature: asig2.try_into().unwrap() };
 
 	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode()];
 	let mut inherent_data = InherentData::new();

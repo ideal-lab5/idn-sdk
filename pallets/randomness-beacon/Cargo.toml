@@ -38,7 +38,6 @@ ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 ark-ec.workspace = true
 ark-std.workspace = true
-timelock.workspace = true
 
 pallet-idn-manager = { workspace = true, default-features = false }
 
@@ -69,7 +68,6 @@ std = [
 	"ark-serialize/std",
 	"ark-ec/std",
 	"ark-std/std",
-	"timelock/std",
 	"sp-consensus-randomness-beacon/std",
 	"sp-idn-traits/std",
 	"sp-std/std",
