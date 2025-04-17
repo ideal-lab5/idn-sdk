@@ -5166,13 +5166,13 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 name = "idn-sdk-kitchensink-runtime"
 version = "0.1.0"
 dependencies = [
+ "array-bytes",
  "frame-benchmarking",
- "hex",
- "pallet-idn-manager",
  "parity-scale-codec",
  "polkadot-sdk 2503.0.1",
  "scale-info",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -13977,7 +13977,6 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "prost 0.13.5",
- "prost-build",
  "scale-info",
  "serde",
  "sha2 0.10.8",
