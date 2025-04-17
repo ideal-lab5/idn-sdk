@@ -20,7 +20,7 @@ codec = { workspace = true, features = ["derive"], default-features = false }
 hex.workspace = true
 scale-info = { workspace = true, default-features = false, features = ["derive"] }
 prost.workspace = true
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, default-features = false, features = ["derive"] }
 sha2.workspace = true
 sp-core.workspace = true
 sp-inherents.workspace = true
@@ -39,9 +39,6 @@ timelock.workspace = true
 [dev-dependencies]
 array-bytes = "=6.2.3"
 tokio.workspace = true
-
-[build-dependencies]
-prost-build = "0.13.4"
 
 [features]
 default = ["std"]

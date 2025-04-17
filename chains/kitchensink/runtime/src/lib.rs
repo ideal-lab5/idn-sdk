@@ -25,12 +25,12 @@ mod benchmarks;
 
 extern crate alloc;
 
-use crate::sp_runtime::AccountId32;
+use crate::{interface::AccountId, sp_runtime::AccountId32};
 use alloc::vec::Vec;
-use pallet_idn_manager::{
-	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
-	BalanceOf, SubscriptionOf,
-};
+// use pallet_idn_manager::{
+// 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
+// 	BalanceOf, SubscriptionOf,
+// };
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_sdk::{
 	polkadot_sdk_frame::{
@@ -46,7 +46,7 @@ pub mod genesis_config_presets {
 	use super::*;
 	use crate::{
 		interface::{Balance, MinimumBalance},
-		sp_keyring::AccountKeyring,
+		sp_keyring::Sr25519Keyring,
 		BalancesConfig, RuntimeGenesisConfig, SudoConfig,
 	};
 
@@ -54,15 +54,18 @@ pub mod genesis_config_presets {
 	use serde_json::Value;
 
 	/// Returns a development genesis config preset.
-	pub fn development_config_genesis() -> Value {
+	pub fn development_config_genesis(endowed_accounts: Vec<AccountId>) -> Value {
 		let endowment = <MinimumBalance as Get<Balance>>::get().max(1) * 1000;
 		let config = RuntimeGenesisConfig {
 			balances: BalancesConfig {
-				balances: AccountKeyring::iter()
-					.map(|a| (a.to_account_id(), endowment))
+				balances: endowed_accounts
+					.iter()
+					.cloned()
+					.map(|k| (k, 1u64 << 60))
 					.collect::<Vec<_>>(),
+				dev_accounts: None,
 			},
-			sudo: SudoConfig { key: Some(AccountKeyring::Alice.to_account_id()) },
+			sudo: SudoConfig { key: Some(Sr25519Keyring::Alice.to_account_id()) },
 			..Default::default()
 		};
 
@@ -72,7 +75,9 @@ pub mod genesis_config_presets {
 	/// Get the set of the available genesis config presets.
 	pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
 		let patch = match id.as_ref() {
-			sp_genesis_builder::DEV_RUNTIME_PRESET => development_config_genesis(),
+			sp_genesis_builder::DEV_RUNTIME_PRESET => development_config_genesis(
+				Sr25519Keyring::well_known().map(|k| k.to_account_id()).collect(),
+			),
 			_ => return None,
 		};
 		Some(
@@ -166,9 +171,9 @@ mod runtime {
 	#[runtime::pallet_index(4)]
 	pub type TransactionPayment = pallet_transaction_payment::Pallet<Runtime>;
 
-	/// Provides a way to manage randomness pulses.
-	#[runtime::pallet_index(5)]
-	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
+	// /// Provides a way to manage randomness pulses.
+	// #[runtime::pallet_index(5)]
+	// pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
 
 	// /// Provides a way to ingest randomness.
 	// #[runtime::pallet_index(5)]
@@ -222,42 +227,42 @@ impl pallet_transaction_payment::Config for Runtime {
 // 	type Dispatcher = IdnManager;
 // }
 
-parameter_types! {
-	pub const MaxSubscriptionDuration: u64 = 100;
-	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
-	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
-	pub const BaseFee: u64 = 10;
-	pub const SDMultiplier: u64 = 10;
-	pub const MaxPulseFilterLen: u32 = 100;
-	pub const MaxSubscriptions: u32 = 1_000;
-}
+// parameter_types! {
+// 	pub const MaxSubscriptionDuration: u64 = 100;
+// 	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
+// 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
+// 	pub const BaseFee: u64 = 10;
+// 	pub const SDMultiplier: u64 = 10;
+// 	pub const MaxPulseFilterLen: u32 = 100;
+// 	pub const MaxSubscriptions: u32 = 1_000;
+// }
 
-#[derive(TypeInfo)]
-pub struct MaxMetadataLen;
+// #[derive(TypeInfo)]
+// pub struct MaxMetadataLen;
 
-impl Get<u32> for MaxMetadataLen {
-	fn get() -> u32 {
-		8
-	}
-}
+// impl Get<u32> for MaxMetadataLen {
+// 	fn get() -> u32 {
+// 		8
+// 	}
+// }
 
-impl pallet_idn_manager::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type Currency = Balances;
-	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
-	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
-	type PalletId = PalletId;
-	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = ();//sp_consensus_randomness_beacon::types::OpaquePulse;
-	type WeightInfo = ();
-	type Xcm = ();
-	type MaxMetadataLen = MaxMetadataLen;
-	type Credits = u64;
-	type MaxPulseFilterLen = MaxPulseFilterLen;
-	type MaxSubscriptions = MaxSubscriptions;
-	type SubscriptionId = [u8; 32];
-	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
-}
+// impl pallet_idn_manager::Config for Runtime {
+// 	type RuntimeEvent = RuntimeEvent;
+// 	type Currency = Balances;
+// 	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
+// 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
+// 	type PalletId = PalletId;
+// 	type RuntimeHoldReason = RuntimeHoldReason;
+// 	type Pulse = ();//sp_consensus_randomness_beacon::types::OpaquePulse;
+// 	type WeightInfo = ();
+// 	type Xcm = ();
+// 	type MaxMetadataLen = MaxMetadataLen;
+// 	type Credits = u64;
+// 	type MaxPulseFilterLen = MaxPulseFilterLen;
+// 	type MaxSubscriptions = MaxSubscriptions;
+// 	type SubscriptionId = [u8; 32];
+// 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
+// }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;
 type Header = HeaderFor<Runtime>;

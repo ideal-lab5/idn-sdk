@@ -121,8 +121,8 @@ sp-arithmetic = { version = "26.0.0", default-features = false }
 sp-api = { version = "36.0.1",  default-features = false }
 sp-blockchain = { version = "39.0.0", default-features = false }
 sp-block-builder = { version = "36.0.0", default-features = false }
-sp-consensus = { version = "0.42.0" }
-sp-core = { version = "36.0.0", default-features = false }
+sp-consensus = { version = "0.42.0", default-features = false }
+sp-core = { version = "36.1.0", default-features = false }
 sp-genesis-builder = { version = "0.17.0", default-features = false }
 sp-inherents = { version = "36.0.0", default-features = false }
 sp-io = { version = "40.0.0", default-features = false }
@@ -132,14 +132,14 @@ sp-std = { version = "14.0.0", default-features = false }
 sp-timestamp = { version = "36.0.0", default-features = false }
 sp-version = { version = "39.0.0", default-features = false }
 substrate-frame-rpc-system = { version = "43.0.0", default-features = false }
-frame-benchmarking-cli = "47.0.0"
+frame-benchmarking-cli = { version = "47.0.0", default-features = false }
 frame-support-procedural = { version = "33.0.0", default-features = false }
 prometheus-endpoint = { version = "0.17.2", default-features = false, package = "substrate-prometheus-endpoint" }
-sc-chain-spec = "42.0.0"
-sc-network-sync = "0.48.0"
-sc-rpc = "44.0.0"
-sc-sysinfo = "42.0.0"
-sc-tracing = "39.0.0"
+sc-chain-spec = { version = "42.0.0", default-features = false }
+sc-network-sync = { version = "0.48.0", default-features = false }
+sc-rpc = { version = "44.0.0", default-features = false }
+sc-sysinfo = { version = "42.0.0", default-features = false }
+sc-tracing = { version = "39.0.0", default-features = false }
 sp-consensus-aura = { version = "0.42.0", default-features = false }
 sp-keyring = { version = "41.0.0", default-features = false }
 sp-offchain = { version = "36.0.0", default-features = false }
@@ -152,9 +152,9 @@ substrate-wasm-builder = "26.0.0"
 
 # Polkadot
 pallet-xcm = { version = "19.1.0", default-features = false }
-polkadot-cli = "23.0.0"
+polkadot-cli = {version = "23.0.0", default-features = false }
 polkadot-parachain-primitives = { version = "16.1.0", default-features = false }
-polkadot-primitives = "18.1.0"
+polkadot-primitives = { version = "18.1.0", default-features = false }
 polkadot-runtime-common = { version = "19.1.0", default-features = false }
 xcm = { version = "16.1.0", default-features = false, package = "staging-xcm" }
 xcm-builder = { version = "20.0.0", default-features = false, package = "staging-xcm-builder" }
@@ -163,10 +163,10 @@ xcm-executor = { version = "19.1.0", package = "staging-xcm-executor", default-f
 # Arkworks & Crypto
 sp-ark-bls12-381 = { git = "https://github.com/paritytech/arkworks-substrate", version = "0.4.2", default-features = false }
 ark-bls12-381 = { version = "0.4.0", features = ["curve"], default-features = false }
-ark-serialize = { version = "0.4.2", features = ["derive"], default-features = false }
-ark-ec = { version = "0.4.2", default-features = false }
+ark-serialize = { version = "0.4.0", features = ["derive"], default-features = false }
+ark-ec = { version = "0.4.0", default-features = false }
 ark-std = { version = "0.4.0", default-features = false }
-sha2 = { version = "0.10.8", default-features = false }
+sha2 = { version = "0.10.2", default-features = false }
 timelock = { version = "0.0.1", default-features = false }
 
 # Logging & Utilities
