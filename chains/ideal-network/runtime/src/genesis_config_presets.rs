@@ -48,6 +48,7 @@ fn testnet_genesis(
 				.cloned()
 				.map(|k| (k, 1u128 << 60))
 				.collect::<Vec<_>>(),
+			dev_accounts: None,
 		},
 		parachain_info: ParachainInfoConfig { parachain_id: id, ..Default::default() },
 		collator_selection: CollatorSelectionConfig {

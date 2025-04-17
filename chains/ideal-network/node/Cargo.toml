@@ -27,6 +27,7 @@ serde_json.workspace = true
 
 # Local
 idn-runtime.workspace = true
+sc-consensus-randomness-beacon.workspace = true
 
 # Substrate
 frame-benchmarking.workspace = true

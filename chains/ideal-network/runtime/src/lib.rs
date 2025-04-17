@@ -215,6 +215,10 @@ pub const MICROUNIT: Balance = 1_000_000;
 /// The existential deposit. Set to 1/10 of the Connected Relay Chain.
 pub const EXISTENTIAL_DEPOSIT: Balance = MILLIUNIT;
 
+const fn deposit(items: u32, bytes: u32) -> Balance {
+	items as Balance * 1 * CENTIUNIT + (bytes as Balance) * 1 * CENTIUNIT
+}
+
 /// We assume that ~5% of the block weight is consumed by `on_initialize` handlers. This is
 /// used to limit the maximal weight of a single extrinsic.
 const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(5);
@@ -265,7 +269,7 @@ mod runtime {
 		RuntimeHoldReason,
 		RuntimeSlashReason,
 		RuntimeLockId,
-		RuntimeTask
+		RuntimeTask,
 	)]
 	pub struct Runtime;
 
@@ -314,8 +318,8 @@ mod runtime {
 	// IDN
 	#[runtime::pallet_index(40)]
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
-	#[runtime::pallet_index(41)]
-	pub type RandomnessBeacon = pallet_randomness_beacon::Pallet<Runtime>;
+	// #[runtime::pallet_index(41)]
+	// pub type RandomnessBeacon = pallet_randomness_beacon::Pallet<Runtime>;
 }
 
 cumulus_pallet_parachain_system::register_validate_block! {

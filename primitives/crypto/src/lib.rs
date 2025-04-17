@@ -16,7 +16,7 @@
 
 //! Crypto used in the ideal network
 
-// #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 mod bls12_381;
 pub mod drand;
