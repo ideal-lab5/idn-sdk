@@ -15,6 +15,6 @@
  */
 
 frame_benchmarking::define_benchmarks!(
-	[pallet_randomness_beacon, RandBeacon]
+	// [pallet_randomness_beacon, RandBeacon]
 	[pallet_idn_manager, IdnManager]
 );

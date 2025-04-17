@@ -166,13 +166,13 @@ mod runtime {
 	#[runtime::pallet_index(4)]
 	pub type TransactionPayment = pallet_transaction_payment::Pallet<Runtime>;
 
-	/// Provides a way to ingest randomness.
-	#[runtime::pallet_index(5)]
-	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
-
 	/// Provides a way to manage randomness pulses.
-	#[runtime::pallet_index(6)]
+	#[runtime::pallet_index(5)]
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
+
+	// /// Provides a way to ingest randomness.
+	// #[runtime::pallet_index(5)]
+	// pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -212,15 +212,15 @@ impl pallet_transaction_payment::Config for Runtime {
 	type LengthToFee = FixedFee<1, <Self as pallet_balances::Config>::Balance>;
 }
 
-impl pallet_randomness_beacon::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = ();
-	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
-	type MaxSigsPerBlock = ConstU8<30>;
-	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-	type Pulse = sp_consensus_randomness_beacon::types::OpaquePulse;
-	type Dispatcher = IdnManager;
-}
+// impl pallet_randomness_beacon::Config for Runtime {
+// 	type RuntimeEvent = RuntimeEvent;
+// 	type WeightInfo = ();
+// 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
+// 	type MaxSigsPerBlock = ConstU8<30>;
+// 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
+// 	type Pulse = sp_consensus_randomness_beacon::types::OpaquePulse;
+// 	type Dispatcher = IdnManager;
+// }
 
 parameter_types! {
 	pub const MaxSubscriptionDuration: u64 = 100;
@@ -248,7 +248,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = sp_consensus_randomness_beacon::types::OpaquePulse;
+	type Pulse = ();//sp_consensus_randomness_beacon::types::OpaquePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;

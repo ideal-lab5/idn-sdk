@@ -334,8 +334,8 @@ pub mod pallet {
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 			// Insert the latest round into the header digest
-			let digest_item: DigestItem = ConsensusLog::LatestRoundNumber(new_latest_round).into();
-			<frame_system::Pallet<T>>::deposit_log(digest_item);
+			// let digest_item: DigestItem = ConsensusLog::LatestRoundNumber(new_latest_round).into();
+			// <frame_system::Pallet<T>>::deposit_log(digest_item);
 			// successful verification is beneficial to the network, so we do not charge when the
 			// signature is correct
 			Ok(Pays::No.into())
@@ -361,10 +361,10 @@ pub mod pallet {
 			let genesis = config.genesis_round;
 			LatestRound::<T>::set(Some(genesis.clone()));
 			// set the genesis round as the default digest log for the initial valid round number
-			let digest_item: DigestItem =
-				ConsensusLog::<RoundOf<T>>::LatestRoundNumber(genesis).into();
+			// let digest_item: DigestItem =
+			// 	ConsensusLog::<RoundOf<T>>::LatestRoundNumber(genesis).into();
+			// <frame_system::Pallet<T>>::deposit_log(digest_item);
 
-			<frame_system::Pallet<T>>::deposit_log(digest_item);
 			Self::deposit_event(Event::<T>::BeaconConfigSet);
 
 			Ok(Pays::No.into())
