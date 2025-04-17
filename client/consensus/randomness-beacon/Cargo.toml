@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 async-trait.workspace = true
 codec.workspace = true
-parking_lot.workspace = true
+# parking_lot.workspace = true
 serde = { workspace = true, features = ["derive"] }
 tokio.workspace = true
 libp2p.workspace = true
@@ -23,7 +23,7 @@ prost.workspace = true
 futures.workspace = true
 prometheus-endpoint.workspace = true
 scale-info.workspace = true
-schnellru.workspace = true
+# schnellru.workspace = true
 
 sc-utils.workspace = true
 sc-consensus.workspace = true

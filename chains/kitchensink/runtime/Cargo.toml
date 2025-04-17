@@ -1,6 +1,6 @@
 [package]
 name = "idn-sdk-kitchensink-runtime"
-description = "A Kitchensink runtime for the IDN Sdk."
+description = "A Kitchensink runtime for the IDN SDK."
 version = "0.1.0"
 license.workspace = true
 authors.workspace = true
@@ -13,19 +13,31 @@ publish = false
 codec.workspace = true
 frame-benchmarking = { optional = true, workspace = true }
 scale-info.workspace = true
-polkadot-sdk = { workspace = true, features = ["pallet-balances", "pallet-sudo", "pallet-timestamp", "pallet-transaction-payment", "pallet-transaction-payment-rpc-runtime-api", "runtime", "experimental"] }
-serde_json = { workspace = true, default-features = false, features = ["alloc"] }
+polkadot-sdk = { workspace = true, features = [
+	"pallet-balances",
+	"pallet-sudo",
+	"pallet-timestamp",
+	"pallet-transaction-payment",
+	"pallet-transaction-payment-rpc-runtime-api",
+	"runtime",
+	"experimental",
+], default-features = false  }
+serde_json = { workspace = true, default-features = false, features = [
+	"alloc",
+] }
 
 # IDN Deps
-sp-idn-traits.workspace = true
+# sp-idn-traits.workspace = true
 pallet-idn-manager.workspace = true
-pallet-randomness-beacon.workspace = true
-sp-consensus-randomness-beacon.workspace = true
-sp-idn-crypto.workspace = true
+# pallet-randomness-beacon.workspace = true
+# sp-consensus-randomness-beacon.workspace = true
+# sp-idn-crypto.workspace = true
 hex.workspace = true
 
 [build-dependencies]
-polkadot-sdk = { optional = true, workspace = true, features = ["substrate-wasm-builder"] }
+polkadot-sdk = { optional = true, workspace = true, features = [
+	"substrate-wasm-builder",
+] }
 
 [features]
 default = ["std"]
@@ -33,16 +45,19 @@ default = ["std"]
 std = [
 	"codec/std",
 	"frame-benchmarking?/std",
+	"hex/std",
 	"polkadot-sdk/std",
 	"scale-info/std",
 	"serde_json/std",
-	"sp-idn-crypto/std",
+	# "sp-idn-crypto/std",
+	# "sp-idn-traits/std",
 	"pallet-idn-manager/std",
-	"pallet-randomness-beacon/std",
+	# "pallet-randomness-beacon/std",
+	# "sp-consensus-randomness-beacon/std"
 ]
 
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"pallet-idn-manager/runtime-benchmarks",
-	"pallet-randomness-beacon/runtime-benchmarks",
+	# "pallet-randomness-beacon/runtime-benchmarks",
 ]
