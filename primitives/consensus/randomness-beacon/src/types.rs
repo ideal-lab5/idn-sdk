@@ -15,7 +15,7 @@
  */
 
 use alloc::{format, string::String, vec};
-use codec::{Decode, Encode};
+use codec::{Decode, DecodeWithMemTracking, Encode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
@@ -44,7 +44,16 @@ pub struct ProtoPulse {
 /// This struct is used to encode pulses in the runtime, where we obtain an RuntimePulse by
 /// converting a ProtoPulse
 // TODO: fields should be private
-#[derive(Clone, Debug, PartialEq, codec::MaxEncodedLen, scale_info::TypeInfo, Encode, Decode)]
+#[derive(
+	Clone,
+	Debug,
+	PartialEq,
+	codec::MaxEncodedLen,
+	scale_info::TypeInfo,
+	Encode,
+	Decode,
+	DecodeWithMemTracking,
+)]
 pub struct RuntimePulse {
 	/// The round of the beacon protocol
 	pub round: RoundNumber,

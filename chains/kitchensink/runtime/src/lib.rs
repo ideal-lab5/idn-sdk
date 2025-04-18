@@ -176,7 +176,7 @@ mod runtime {
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
 
 	/// Provides a way to ingest randomness.
-	#[runtime::pallet_index(5)]
+	#[runtime::pallet_index(6)]
 	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
 }
 
@@ -253,7 +253,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = idn_runtime::types::RuntimePulse;
+	type Pulse = sp_consensus_randomness_beacon::types::RuntimePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;

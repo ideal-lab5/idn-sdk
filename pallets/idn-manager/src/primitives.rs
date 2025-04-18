@@ -16,7 +16,7 @@
 
 //! Types used in the IDN pallet manager
 
-use codec::{Decode, Encode, MaxEncodedLen};
+use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use frame_support::BoundedVec;
 use scale_info::TypeInfo;
 use sp_core::{blake2_256, H256};
@@ -69,7 +69,7 @@ pub type PulseFilter<Pulse, Len> = BoundedVec<PulsePropertyOf<Pulse>, Len>;
 pub type CallIndex = [u8; 2];
 
 /// Parameters for creating a new subscription
-#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
+#[derive(Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
 pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, SubscriptionId> {
 	// Number of random values to receive
 	pub credits: Credits,

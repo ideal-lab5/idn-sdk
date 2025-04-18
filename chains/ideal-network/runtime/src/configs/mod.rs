@@ -18,7 +18,6 @@
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
-use crate::types::RuntimePulse;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -45,7 +44,8 @@ use polkadot_runtime_common::{
 	xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::{AccountId32, Perbill};d
+use crate::types::RuntimePulse;
+use sp_runtime::{AccountId32, Perbill};
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
 
@@ -264,7 +264,7 @@ impl pallet_session::Config for Runtime {
 	// Essentially just Aura, but let's be pedantic.
 	type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
-	type WeightInfo = (); // Configure based on benchmarking results.\
+	type WeightInfo = (); // Configure based on benchmarking results.
 	type DisablingStrategy = ();
 }
 
@@ -306,6 +306,7 @@ impl pallet_collator_selection::Config for Runtime {
 }
 
 parameter_types! {
+	pub const MaxSubscriptionDuration: u64 = 100;
 	pub const IdnManagerPalletId: PalletId = PalletId(*b"idn_mngr");
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const BaseFee: u64 = 10;
@@ -319,10 +320,10 @@ impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
-	type DepositCalculator = DepositCalculatorImpl<10, u64>;
+	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u128>;
 	type PalletId = IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = crate::types::RuntimePulse;
+	type Pulse = RuntimePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;

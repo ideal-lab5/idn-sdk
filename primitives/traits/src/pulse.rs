@@ -24,7 +24,7 @@
 //! * [`crate::pulse::Dispatcher`] - Trait for handling and distributing randomness
 //! * [`crate::pulse::PulseProperty`] - Enum for referencing pulse properties in a type-safe way
 
-use codec::EncodeLike;
+use codec::{DecodeWithMemTracking, EncodeLike};
 use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo, Weight};
 use sp_arithmetic::traits::Saturating;
 use sp_std::{fmt::Debug, vec::Vec};
@@ -64,7 +64,7 @@ pub trait Consumer<P: Pulse, I, O> {
 /// This enum allows systems to refer to the properties of a pulse in a type-safe way. It's
 /// commonly used in filtering logic to specify which property and value subscriptions should
 /// match against.
-#[derive(Encode, Decode, TypeInfo, MaxEncodedLen, Debug, PartialEq, Clone)]
+#[derive(Encode, Decode, DecodeWithMemTracking, TypeInfo, MaxEncodedLen, Debug, PartialEq, Clone)]
 pub enum PulseProperty<RandType, RoundType, SigType> {
 	/// The random value for a pulse.
 	Rand(RandType),
