@@ -9881,6 +9881,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "idn-runtime",
  "pallet-idn-manager",
  "pallet-xcm",
  "parity-scale-codec",

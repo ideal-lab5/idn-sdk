@@ -30,20 +30,12 @@ use frame_system::{
 	RawOrigin,
 };
 use idn_runtime::primitives::{
-	types::{Credits as IdnCredits, Pulse as IdnPulse, SubscriptionId as IdnSubscriptionId},
-	Call as IdnRuntimeCall, CreateSubParamsOf, MetadataOf, PulseFilterOf,
+	types::{Credits as IdnCredits, OpaquePulse as IdnPulse, SubscriptionId as IdnSubscriptionId},
+	Call as IdnRuntimeCall, CreateSubParamsOf, IdnManagerCall, MetadataOf, PulseFilterOf,
 };
 use pallet::*;
-use pallet_idn_manager::primitives::{
-	CreateSubParams, IdnManagerCall, PulseFilter, SubscriptionMetadata,
-};
-use scale_info::prelude::fmt::Debug;
-use sp_arithmetic::traits::Unsigned;
-use sp_core::H256;
-use sp_idn_traits::pulse::{Consumer, Pulse};
 use scale_info::prelude::sync::Arc;
 use sp_idn_traits::pulse::{Consumer, Pulse};
-use sp_idn_types::IdnManagerCall;
 use xcm::{
 	v5::{
 		prelude::{OriginKind, Transact, Xcm},
@@ -121,6 +113,8 @@ pub mod pallet {
 		ConsumeError,
 		/// An error occurred while converting the pallet index to a u8
 		PalletIndexConversionError,
+		/// An error occurred while sending the XCM message
+		XcmSendError,
 	}
 
 	#[pallet::event]
