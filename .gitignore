@@ -41,3 +41,4 @@ substrate.code-workspace
 target*/
 *.profraw
 *chain_spec.json
+Pipfile*
