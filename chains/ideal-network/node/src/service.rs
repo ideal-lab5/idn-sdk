@@ -17,9 +17,9 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 // std
-use std::{sync::Arc, time::Duration};
 use codec::Encode;
 use cumulus_client_cli::CollatorOptions;
+use std::{sync::Arc, time::Duration};
 // Local Runtime Types
 use idn_runtime::{
 	apis::RuntimeApi,
