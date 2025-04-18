@@ -21,7 +21,7 @@ use crate::{
 use codec::Encode;
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 use frame_system::pallet_prelude::BlockNumberFor;
-use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RuntimePulse, RoundNumber};
+use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber, RuntimePulse};
 use sp_idn_crypto::test_utils::{get, PULSE1000, PULSE1001, PULSE1002, PULSE1003};
 
 const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";

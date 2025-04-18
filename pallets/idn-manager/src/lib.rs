@@ -193,7 +193,9 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 /// Parameters for updating an existing subscription.
 ///
 /// When the parameter is `None`, the field is not updated.
-#[derive(Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
+#[derive(
+	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq,
+)]
 pub struct UpdateSubParams<SubId, Credits, BlockNumber, PulseFilter, Metadata> {
 	// The Subscription Id
 	pub sub_id: SubId,

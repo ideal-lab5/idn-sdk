@@ -19,8 +19,8 @@ use ark_serialize::CanonicalSerialize;
 use sha2::{Digest, Sha256};
 use sp_std::vec::Vec;
 
-use ark_ec::bls12::Bls12Config;
 use ark_ec::{
+	bls12::Bls12Config,
 	hashing::{
 		curve_maps::wb::{WBConfig, WBMap},
 		map_to_curve_hasher::{MapToCurve, MapToCurveBasedHasher},

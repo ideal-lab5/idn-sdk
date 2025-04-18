@@ -5834,6 +5834,7 @@ dependencies = [
  "futures",
  "idn-runtime",
  "jsonrpsee",
+ "libp2p 0.55.0",
  "log",
  "pallet-transaction-payment-rpc",
  "parity-scale-codec",
@@ -5856,12 +5857,14 @@ dependencies = [
  "sc-tracing",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
+ "sc-utils",
  "serde",
  "serde_json",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus-aura",
+ "sp-consensus-randomness-beacon",
  "sp-core",
  "sp-genesis-builder",
  "sp-io",
@@ -5872,6 +5875,7 @@ dependencies = [
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
  "substrate-prometheus-endpoint",
+ "tokio",
 ]
 
 [[package]]

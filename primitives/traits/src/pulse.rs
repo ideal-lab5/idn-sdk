@@ -64,7 +64,9 @@ pub trait Consumer<P: Pulse, I, O> {
 /// This enum allows systems to refer to the properties of a pulse in a type-safe way. It's
 /// commonly used in filtering logic to specify which property and value subscriptions should
 /// match against.
-#[derive(Encode, Decode, DecodeWithMemTracking, TypeInfo, MaxEncodedLen, Debug, PartialEq, Clone)]
+#[derive(
+	Encode, Decode, DecodeWithMemTracking, TypeInfo, MaxEncodedLen, Debug, PartialEq, Clone,
+)]
 pub enum PulseProperty<RandType, RoundType, SigType> {
 	/// The random value for a pulse.
 	Rand(RandType),
