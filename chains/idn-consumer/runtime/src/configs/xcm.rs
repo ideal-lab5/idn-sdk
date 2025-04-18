@@ -24,14 +24,14 @@
 // For more information, please refer to <http://unlicense.org>
 
 use crate::{
-	AccountId, AllPalletsWithSystem, Balance, Balances, ParachainInfo, ParachainSystem, PolkadotXcm,
-	Runtime, RuntimeCall, RuntimeEvent, RuntimeHoldReason, RuntimeOrigin, WeightToFee, XcmpQueue,
+	AccountId, AllPalletsWithSystem, Balance, Balances, ParachainInfo, ParachainSystem,
+	PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent, RuntimeHoldReason, RuntimeOrigin, WeightToFee,
+	XcmpQueue,
 };
 use frame_support::{
 	parameter_types,
 	traits::{
-		ConstU32, Contains, Everything, LinearStoragePrice, Nothing,
-		fungible::HoldConsideration,
+		fungible::HoldConsideration, ConstU32, Contains, Everything, LinearStoragePrice, Nothing,
 	},
 	weights::Weight,
 };

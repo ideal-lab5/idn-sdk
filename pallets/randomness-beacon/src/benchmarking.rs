@@ -31,7 +31,7 @@ use ark_std::{ops::Mul, test_rng, UniformRand};
 use frame_benchmarking::v2::*;
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use sp_consensus_randomness_beacon::types::{
-	OpaquePublicKey, RuntimePulse, OpaqueSignature, RoundNumber,
+	OpaquePublicKey, OpaqueSignature, RoundNumber, RuntimePulse,
 };
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;

@@ -44,18 +44,13 @@ use polkadot_sdk::{
 /// Provides getters for genesis configuration presets.
 pub mod genesis_config_presets {
 	use super::*;
-	use crate::{
-		interface::{Balance, MinimumBalance},
-		sp_keyring::Sr25519Keyring,
-		BalancesConfig, RuntimeGenesisConfig, SudoConfig,
-	};
+	use crate::{sp_keyring::Sr25519Keyring, BalancesConfig, RuntimeGenesisConfig, SudoConfig};
 
 	use alloc::{vec, vec::Vec};
 	use serde_json::Value;
 
 	/// Returns a development genesis config preset.
 	pub fn development_config_genesis(endowed_accounts: Vec<AccountId>) -> Value {
-		let endowment = <MinimumBalance as Get<Balance>>::get().max(1) * 1000;
 		let config = RuntimeGenesisConfig {
 			balances: BalancesConfig {
 				balances: endowed_accounts

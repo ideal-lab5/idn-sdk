@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-//! Types for the IDN runtime.
+//! Types for the IDN runtime
 
 pub use sp_consensus_randomness_beacon::types::RuntimePulse;

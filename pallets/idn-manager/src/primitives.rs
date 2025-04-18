@@ -69,7 +69,9 @@ pub type PulseFilter<Pulse, Len> = BoundedVec<PulsePropertyOf<Pulse>, Len>;
 pub type CallIndex = [u8; 2];
 
 /// Parameters for creating a new subscription
-#[derive(Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
+#[derive(
+	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq,
+)]
 pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, SubscriptionId> {
 	// Number of random values to receive
 	pub credits: Credits,
