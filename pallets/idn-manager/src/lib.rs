@@ -73,7 +73,7 @@ use crate::{
 		Subscription as SubscriptionTrait,
 	},
 };
-use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
+use codec::{Codec, Decode, DecodeWithMemTracking, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo, Hooks,
@@ -193,7 +193,7 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 /// Parameters for updating an existing subscription.
 ///
 /// When the parameter is `None`, the field is not updated.
-#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
+#[derive(Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
 pub struct UpdateSubParams<SubId, Credits, BlockNumber, PulseFilter, Metadata> {
 	// The Subscription Id
 	pub sub_id: SubId,
