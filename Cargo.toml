@@ -11,8 +11,8 @@ members = [
     "chains/kitchensink/node",
     "chains/ideal-network/runtime",
     "chains/ideal-network/node",
-    "chains/idn-consumer/runtime",
-    "chains/idn-consumer/node",
+    "chains/idn-consumer-chain/runtime",
+    "chains/idn-consumer-chain/node",
 ]
 resolver = "2"
 
@@ -213,5 +213,5 @@ idn-sdk-kitchensink-runtime = { path = "./chains/kitchensink/runtime" }
 idn-sdk-kitchensink-node = { path = "./chains/kitchensink/node" }
 idn-runtime = { path = "./chains/ideal-network/runtime" }
 idn-node = { path = "./chains/ideal-network/node" }
-idn-consumer-runtime = { path = "./chains/idn-consumer/runtime" }
-idn-consumer-node = { path = "./chains/idn-consumer/node" }
+idn-consumer-runtime = { path = "./chains/idn-consumer-chain/runtime" }
+idn-consumer-node = { path = "./chains/idn-consumer-chain/node" }
