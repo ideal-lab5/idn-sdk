@@ -20,14 +20,13 @@ use frame_support::{
 	weights::Weight,
 };
 use pallet_aura::Authorities;
-use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	traits::Block as BlockT,
 	transaction_validity::{TransactionSource, TransactionValidity},
-	AccountId32, ApplyExtrinsicResult,
+	ApplyExtrinsicResult,
 };
 use sp_std::prelude::Vec;
 use sp_version::RuntimeVersion;
@@ -280,28 +279,28 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_idn_manager::IdnManagerApi<
-		Block,
-		BalanceOf<Runtime>,
-		u64,
-		AccountId32,
-		SubscriptionOf<Runtime>,
-		<Runtime as pallet_idn_manager::Config>::SubscriptionId,
-	> for Runtime {
-		fn calculate_subscription_fees(
-			credits: <Runtime as pallet_idn_manager::Config>::Credits
-		) -> BalanceOf<Runtime> {
-			pallet_idn_manager::Pallet::<Runtime>::calculate_subscription_fees(&credits)
-		}
-		fn get_subscription(
-			sub_id: <Runtime as pallet_idn_manager::Config>::SubscriptionId
-		) -> Option<SubscriptionOf<Runtime>> {
-			pallet_idn_manager::Pallet::<Runtime>::get_subscription(&sub_id)
-		}
-		fn get_subscriptions_for_subscriber(
-			subscriber: AccountId32
-		) -> Vec<SubscriptionOf<Runtime>> {
-			pallet_idn_manager::Pallet::<Runtime>::get_subscriptions_for_subscriber(&subscriber)
-		}
-	}
+	// impl pallet_idn_manager::IdnManagerApi<
+	// 	Block,
+	// 	BalanceOf<Runtime>,
+	// 	u64,
+	// 	AccountId32,
+	// 	SubscriptionOf<Runtime>,
+	// 	<Runtime as pallet_idn_manager::Config>::SubscriptionId,
+	// > for Runtime {
+	// 	fn calculate_subscription_fees(
+	// 		credits: <Runtime as pallet_idn_manager::Config>::Credits
+	// 	) -> BalanceOf<Runtime> {
+	// 		pallet_idn_manager::Pallet::<Runtime>::calculate_subscription_fees(&credits)
+	// 	}
+	// 	fn get_subscription(
+	// 		sub_id: <Runtime as pallet_idn_manager::Config>::SubscriptionId
+	// 	) -> Option<SubscriptionOf<Runtime>> {
+	// 		pallet_idn_manager::Pallet::<Runtime>::get_subscription(&sub_id)
+	// 	}
+	// 	fn get_subscriptions_for_subscriber(
+	// 		subscriber: AccountId32
+	// 	) -> Vec<SubscriptionOf<Runtime>> {
+	// 		pallet_idn_manager::Pallet::<Runtime>::get_subscriptions_for_subscriber(&subscriber)
+	// 	}
+	// }
 }

@@ -363,8 +363,8 @@ pub mod pallet {
 			// set the genesis round as the default digest log for the initial valid round number
 			let digest_item: DigestItem =
 				ConsensusLog::<RoundOf<T>>::LatestRoundNumber(genesis).into();
-
 			<frame_system::Pallet<T>>::deposit_log(digest_item);
+
 			Self::deposit_event(Event::<T>::BeaconConfigSet);
 
 			Ok(Pays::No.into())

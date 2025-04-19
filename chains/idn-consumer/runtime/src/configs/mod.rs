@@ -265,11 +265,27 @@ impl pallet_session::Config for Runtime {
 	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
 	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
 	type SessionManager = CollatorSelection;
-	// Essentially just Aura, but let's be pedantic.
+	// Essentially just Aura, but let's be pedantic.a
 	type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type WeightInfo = (); // Configure based on benchmarking results.
+
+	type DisablingStrategy = ();
 }
+
+// impl pallet_session::Config for Runtime {
+// 	type RuntimeEvent = RuntimeEvent;
+// 	type ValidatorId = <Self as frame_system::Config>::AccountId;
+// 	type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
+// 	type ShouldEndSession = Aura;
+// 	type NextSessionRotation = Aura;
+// 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
+// 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+// 	type Keys = SessionKeys;
+// 	type DisablingStrategy = pallet_session::disabling::UpToLimitWithReEnablingDisablingStrategy;
+
+// 	type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
+// }
 
 impl pallet_aura::Config for Runtime {
 	type AuthorityId = AuraId;

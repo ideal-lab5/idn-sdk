@@ -25,7 +25,7 @@ mod benchmarks;
 
 extern crate alloc;
 
-use crate::sp_runtime::AccountId32;
+use crate::{interface::AccountId, sp_runtime::AccountId32};
 use alloc::vec::Vec;
 use pallet_idn_manager::{
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
@@ -44,25 +44,23 @@ use polkadot_sdk::{
 /// Provides getters for genesis configuration presets.
 pub mod genesis_config_presets {
 	use super::*;
-	use crate::{
-		interface::{Balance, MinimumBalance},
-		sp_keyring::AccountKeyring,
-		BalancesConfig, RuntimeGenesisConfig, SudoConfig,
-	};
+	use crate::{sp_keyring::Sr25519Keyring, BalancesConfig, RuntimeGenesisConfig, SudoConfig};
 
 	use alloc::{vec, vec::Vec};
 	use serde_json::Value;
 
 	/// Returns a development genesis config preset.
-	pub fn development_config_genesis() -> Value {
-		let endowment = <MinimumBalance as Get<Balance>>::get().max(1) * 1000;
+	pub fn development_config_genesis(endowed_accounts: Vec<AccountId>) -> Value {
 		let config = RuntimeGenesisConfig {
 			balances: BalancesConfig {
-				balances: AccountKeyring::iter()
-					.map(|a| (a.to_account_id(), endowment))
+				balances: endowed_accounts
+					.iter()
+					.cloned()
+					.map(|k| (k, 1u64 << 60))
 					.collect::<Vec<_>>(),
+				dev_accounts: None,
 			},
-			sudo: SudoConfig { key: Some(AccountKeyring::Alice.to_account_id()) },
+			sudo: SudoConfig { key: Some(Sr25519Keyring::Alice.to_account_id()) },
 			..Default::default()
 		};
 
@@ -72,7 +70,9 @@ pub mod genesis_config_presets {
 	/// Get the set of the available genesis config presets.
 	pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
 		let patch = match id.as_ref() {
-			sp_genesis_builder::DEV_RUNTIME_PRESET => development_config_genesis(),
+			sp_genesis_builder::DEV_RUNTIME_PRESET => development_config_genesis(
+				Sr25519Keyring::well_known().map(|k| k.to_account_id()).collect(),
+			),
 			_ => return None,
 		};
 		Some(
@@ -166,13 +166,13 @@ mod runtime {
 	#[runtime::pallet_index(4)]
 	pub type TransactionPayment = pallet_transaction_payment::Pallet<Runtime>;
 
-	/// Provides a way to ingest randomness.
-	#[runtime::pallet_index(5)]
-	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
-
 	/// Provides a way to manage randomness pulses.
-	#[runtime::pallet_index(6)]
+	#[runtime::pallet_index(5)]
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
+
+	/// Provides a way to ingest randomness.
+	#[runtime::pallet_index(6)]
+	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -218,7 +218,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<30>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-	type Pulse = sp_consensus_randomness_beacon::types::OpaquePulse;
+	type Pulse = sp_consensus_randomness_beacon::types::RuntimePulse;
 	type Dispatcher = IdnManager;
 }
 
@@ -248,7 +248,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = sp_consensus_randomness_beacon::types::OpaquePulse;
+	type Pulse = sp_consensus_randomness_beacon::types::RuntimePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;
