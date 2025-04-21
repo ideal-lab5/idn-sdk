@@ -42,7 +42,6 @@ use frame_support::{
 };
 use frame_system::{
 	limits::{BlockLength, BlockWeights},
-	pallet_prelude::OriginFor,
 	EnsureRoot,
 };
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
@@ -62,10 +61,11 @@ use xcm::{
 use super::{
 	weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight},
 	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook,
-	Consumer, Hash, MessageQueue, Nonce, PalletInfo, ParachainSystem, Runtime, RuntimeCall,
-	RuntimeEvent, RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session,
-	SessionKeys, System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT,
-	HOURS, MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
+	Consumer, Hash, MessageQueue, Nonce, PalletInfo, ParachainInfo, ParachainSystem, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask,
+	Session, SessionKeys, System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO,
+	EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO,
+	SLOT_DURATION, VERSION,
 };
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
@@ -316,8 +316,8 @@ impl pallet_collator_selection::Config for Runtime {
 const IDN_PARACHAIN_ID: u32 = 2000; // Example IDN parachain ID
 
 parameter_types! {
-	pub const SiblingIdnLocation: Location = Location::new(1, Junction::Parachain(IDN_PARACHAIN_ID));
-	pub const IdnConsumerParaId: ParaId = ParachainInfo::parachain_id();
+	pub SiblingIdnLocation: Location = Location::new(1, Junction::Parachain(IDN_PARACHAIN_ID));
+	pub IdnConsumerParaId: ParaId = ParachainInfo::parachain_id();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 }
 
@@ -326,7 +326,7 @@ impl pallet_idn_consumer::Config for Runtime {
 	type Consumer = Consumer;
 	type SiblingIdnLocation = SiblingIdnLocation;
 	type IdnOrigin = EnsureXcm<Equals<Self::SiblingIdnLocation>>;
-	type Xcm = xcm_builder::Controller<OriginFor<Self>, RuntimeCall, BlockNumber>;
+	type Xcm = pallet_xcm::Pallet<Self>;
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
 }
