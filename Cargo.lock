@@ -5779,6 +5779,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-collator-selection",
+ "pallet-idn-consumer",
  "pallet-message-queue",
  "pallet-session",
  "pallet-sudo",

@@ -25,7 +25,7 @@ use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
 use cumulus_primitives_core::ParaId;
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
-	pallet_prelude::{DispatchResult, EnsureOrigin, Get, IsType, Pays, Weight},
+	pallet_prelude::{EnsureOrigin, Get, IsType, Pays, Weight},
 	sp_runtime::traits::AccountIdConversion,
 };
 use frame_system::{
@@ -33,12 +33,12 @@ use frame_system::{
 	RawOrigin,
 };
 use idn_runtime::primitives::{
-	types::{Credits as IdnCredits, OpaquePulse as IdnPulse, SubscriptionId as IdnSubscriptionId},
-	Call as IdnRuntimeCall, CreateSubParamsOf, IdnManagerCall, MetadataOf, PulseFilterOf,
+	types::Credits as IdnCredits, Call as IdnRuntimeCall, CreateSubParamsOf, IdnManagerCall,
+	MetadataOf, PulseFilterOf,
 };
 use pallet::*;
-use scale_info::prelude::sync::Arc;
-use sp_idn_traits::pulse::{Consumer, Pulse};
+use scale_info::prelude::{boxed::Box, sync::Arc, vec};
+use sp_idn_traits::pulse::Pulse as PulseTrait;
 use xcm::{
 	v5::{
 		prelude::{OriginKind, Transact, Xcm},
@@ -47,6 +47,11 @@ use xcm::{
 	VersionedLocation, VersionedXcm,
 };
 use xcm_builder::SendController;
+
+pub use idn_runtime::primitives::types::{
+	OpaquePulse as IdnPulse, SubscriptionId as IdnSubscriptionId,
+};
+pub use sp_idn_traits::pulse::Consumer as ConsumerTrait;
 
 pub mod support;
 
@@ -64,15 +69,14 @@ pub mod pallet {
 		/// The overarching event type
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-		/// An implementation of the [`Consumer`] trait, which defines how to consume a pulse
-		type Consumer: Consumer<IdnPulse, IdnSubscriptionId, DispatchResult>;
+		/// An implementation of the [`ConsumerTrait`] trait, which defines how to consume a pulse
+		type Consumer: ConsumerTrait<IdnPulse, IdnSubscriptionId, DispatchResultWithPostInfo>;
 
 		/// The location of the sibling IDN chain
 		///
 		/// **Example definition**
 		/// ```nocompile
-		/// pub SiblingIdnParaId: u32 = IDN_PARACHAIN_ID;
-		/// pub SiblingIdnLocation: Location = Location::new(1, Parachain(SiblingIDNParaId::get()));
+		/// pub SiblingIdnLocation: Location = Location::new(1, Parachain(IDN_PARACHAIN_ID));
 		/// ```
 		#[pallet::constant]
 		type SiblingIdnLocation: Get<Location>;
@@ -81,7 +85,7 @@ pub mod pallet {
 		///
 		/// **Example definition**
 		/// ```nocompile
-		/// pub IdnOrigin: EnsureXcm<Equals<Self::SiblingIdnLocation>>
+		/// type IdnOrigin = EnsureXcm<Equals<Self::SiblingIdnLocation>>
 		/// ```
 		type IdnOrigin: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
 
@@ -124,7 +128,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A random value was successfully consumed.
-		RandomnessConsumed { round: <IdnPulse as Pulse>::Round, sub_id: IdnSubscriptionId },
+		RandomnessConsumed { round: <IdnPulse as PulseTrait>::Round, sub_id: IdnSubscriptionId },
 	}
 
 	#[pallet::call]
