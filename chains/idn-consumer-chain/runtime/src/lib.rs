@@ -40,6 +40,8 @@ mod weights;
 
 extern crate alloc;
 
+use frame_support::dispatch::DispatchResultWithPostInfo;
+use idn_consumer::{ConsumerTrait, IdnPulse, IdnSubscriptionId};
 use smallvec::smallvec;
 use sp_runtime::{
 	generic, impl_opaque_keys,
@@ -154,6 +156,16 @@ impl WeightToFeePolynomial for WeightToFee {
 			coeff_frac: Perbill::from_rational(p % q, q),
 			coeff_integer: p / q,
 		}]
+	}
+}
+
+pub(crate) struct Consumer;
+impl ConsumerTrait<IdnPulse, IdnSubscriptionId, DispatchResultWithPostInfo> for Consumer {
+	fn consume(pulse: IdnPulse, sub_id: IdnSubscriptionId) -> DispatchResultWithPostInfo {
+		// Randomness consumption logic goes here.
+		log::info!("IDN Consumer: Consuming pulse: {:?}", pulse);
+		log::info!("IDN Consumer: Subscription ID: {:?}", sub_id);
+		Ok(Pays::No.into())
 	}
 }
 
@@ -322,11 +334,6 @@ mod runtime {
 	// IDN Consumer
 	#[runtime::pallet_index(40)]
 	pub type IdnConsumer = pallet_idn_consumer::Pallet<Runtime>;
-
-	parameter_types! {
-		pub const IdnConsumerPalletId: frame_support::PalletId = frame_support::PalletId(*b"idnconsm");
-		pub const ConsumeCallIndex: u8 = 0;
-	}
 }
 
 cumulus_pallet_parachain_system::register_validate_block! {

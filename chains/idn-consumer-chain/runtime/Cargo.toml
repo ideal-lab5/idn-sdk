@@ -18,6 +18,7 @@ docify.workspace = true
 
 [dependencies]
 codec.workspace = true
+# getrandom = { workspace = true, features = ["js"] }
 hex-literal.workspace = true
 log.workspace = true
 scale-info.workspace = true
@@ -79,6 +80,9 @@ pallet-collator-selection.workspace = true
 parachains-common.workspace = true
 parachain-info.workspace = true
 
+# Ideal Network
+pallet-idn-consumer.workspace = true
+
 [features]
 default = ["std"]
 std = [
@@ -105,6 +109,7 @@ std = [
   "pallet-authorship/std",
   "pallet-balances/std",
   "pallet-collator-selection/std",
+  "pallet-idn-consumer/std",
   "pallet-message-queue/std",
   "pallet-session/std",
   "pallet-sudo/std",
