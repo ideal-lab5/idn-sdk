@@ -40,8 +40,8 @@ mod weights;
 
 extern crate alloc;
 
-use frame_support::dispatch::DispatchResultWithPostInfo;
-use idn_consumer::{ConsumerTrait, IdnPulse, IdnSubscriptionId};
+use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::Pays};
+use pallet_idn_consumer::{ConsumerTrait, IdnPulse, IdnSubscriptionId};
 use smallvec::smallvec;
 use sp_runtime::{
 	generic, impl_opaque_keys,
@@ -159,7 +159,7 @@ impl WeightToFeePolynomial for WeightToFee {
 	}
 }
 
-pub(crate) struct Consumer;
+pub struct Consumer;
 impl ConsumerTrait<IdnPulse, IdnSubscriptionId, DispatchResultWithPostInfo> for Consumer {
 	fn consume(pulse: IdnPulse, sub_id: IdnSubscriptionId) -> DispatchResultWithPostInfo {
 		// Randomness consumption logic goes here.

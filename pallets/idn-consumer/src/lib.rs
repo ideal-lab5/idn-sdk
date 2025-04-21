@@ -36,7 +36,6 @@ use idn_runtime::primitives::{
 	types::Credits as IdnCredits, Call as IdnRuntimeCall, CreateSubParamsOf, IdnManagerCall,
 	MetadataOf, PulseFilterOf,
 };
-use pallet::*;
 use scale_info::prelude::{boxed::Box, sync::Arc, vec};
 use sp_idn_traits::pulse::Pulse as PulseTrait;
 use xcm::{
@@ -51,6 +50,7 @@ use xcm_builder::SendController;
 pub use idn_runtime::primitives::types::{
 	OpaquePulse as IdnPulse, SubscriptionId as IdnSubscriptionId,
 };
+pub use pallet::*;
 pub use sp_idn_traits::pulse::Consumer as ConsumerTrait;
 
 pub mod support;
