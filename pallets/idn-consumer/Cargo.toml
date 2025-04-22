@@ -43,6 +43,7 @@ sp-runtime.workspace = true
 default = [ "std" ]
 std = [
 	"codec/std",
+	"scale-info/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
