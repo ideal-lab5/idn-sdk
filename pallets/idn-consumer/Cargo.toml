@@ -36,6 +36,8 @@ sp-idn-traits.workspace = true
 cumulus-primitives-core.workspace = true
 
 [dev-dependencies]
+log.workspace = true
+pallet-balances.workspace = true
 sp-io.workspace = true
 sp-runtime.workspace = true
 

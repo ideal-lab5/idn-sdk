@@ -21,12 +21,13 @@
 extern crate alloc;
 
 use alloc::vec;
-use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
+use codec::{Codec, Decode, DecodeWithMemTracking, Encode, EncodeLike, MaxEncodedLen};
 use cumulus_primitives_core::ParaId;
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
-	pallet_prelude::{EnsureOrigin, Get, IsType, Pays, Weight},
+	pallet_prelude::{Decode, Encode, EnsureOrigin, Get, IsType, Pays, TypeInfo, Weight},
 	sp_runtime::traits::AccountIdConversion,
+	PalletError,
 };
 use frame_system::{
 	pallet_prelude::{BlockNumberFor, OriginFor},
@@ -39,12 +40,15 @@ use idn_runtime::primitives::{
 use scale_info::prelude::{boxed::Box, sync::Arc, vec};
 use sp_idn_traits::pulse::Pulse as PulseTrait;
 use xcm::{
+	prelude::{send_xcm, SendXcm},
 	v5::{
-		prelude::{OriginKind, Transact, Xcm},
-		Junction, Junctions, Location,
+		prelude::{BuyExecution, OriginKind, SendError as XcmSendError, Transact, Xcm},
+		Asset, Junction, Junctions, Location,
+		WeightLimit::Unlimited,
 	},
 	VersionedLocation, VersionedXcm,
 };
+
 use xcm_builder::SendController;
 
 pub use idn_runtime::primitives::types::{
@@ -54,6 +58,8 @@ pub use pallet::*;
 pub use sp_idn_traits::pulse::Consumer as ConsumerTrait;
 
 pub mod support;
+#[cfg(test)]
+mod tests;
 
 type CreateSubParams = CreateSubParamsOf<idn_runtime::Runtime>;
 type IdnBlockNumber = BlockNumberFor<idn_runtime::Runtime>;
@@ -91,11 +97,9 @@ pub mod pallet {
 
 		/// A type that exposes XCM APIs, allowing contracts to interact with other parachains, and
 		/// execute XCM programs.
-		type Xcm: xcm_builder::Controller<
-			OriginFor<Self>,
-			<Self as frame_system::Config>::RuntimeCall,
-			BlockNumberFor<Self>,
-		>;
+		type Xcm: xcm_builder::SendController<OriginFor<Self>>;
+
+		// type XcmSender: SendXcm;
 
 		/// The IDN Manager pallet id.
 		#[pallet::constant]
@@ -109,12 +113,19 @@ pub mod pallet {
 		/// ```
 		#[pallet::constant]
 		type ParaId: Get<ParaId>;
+
+		/// The asset hub asset ID for paying the IDN fees.
+		///
+		/// E.g. DOT, USDC, etc.
+		#[pallet::constant]
+		type AssetHubFee: Get<u128>;
 	}
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
 	#[pallet::error]
+	#[derive(PartialEq)]
 	pub enum Error<T> {
 		/// An error occurred while consuming the pulse
 		ConsumeError,
@@ -122,7 +133,38 @@ pub mod pallet {
 		PalletIndexConversionError,
 		/// An error occurred while sending the XCM message
 		XcmSendError,
+		// XcmSendError(SendError),
 	}
+
+	// #[derive(
+	// 	Clone, Encode, Decode, DecodeWithMemTracking, Eq, PartialEq, Debug, TypeInfo, PalletError,
+	// )]
+	// pub enum SendError {
+	// 	NotApplicable,
+	// 	NotRoutable,
+	// 	Transport,
+	// 	DestinationUnsupported,
+	// 	ExceedsMaxMessageSize,
+	// 	MissingArgument,
+	// 	Fees,
+	// }
+
+	// impl<T: Config> From<XcmSendError> for Error<T> {
+	// 	fn from(e: XcmSendError) -> Self {
+	// 		match e {
+	// 			XcmSendError::NotApplicable => Error::<T>::XcmSendError(SendError::NotApplicable),
+	// 			XcmSendError::Unroutable => Error::<T>::XcmSendError(SendError::NotRoutable),
+	// 			XcmSendError::Transport(_) => Error::<T>::XcmSendError(SendError::Transport),
+	// 			XcmSendError::DestinationUnsupported =>
+	// 				Error::<T>::XcmSendError(SendError::DestinationUnsupported),
+	// 			XcmSendError::ExceedsMaxMessageSize =>
+	// 				Error::<T>::XcmSendError(SendError::ExceedsMaxMessageSize),
+	// 			XcmSendError::MissingArgument =>
+	// 				Error::<T>::XcmSendError(SendError::MissingArgument),
+	// 			XcmSendError::Fees => Error::<T>::XcmSendError(SendError::Fees),
+	// 		}
+	// 	}
+	// }
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -194,9 +236,11 @@ impl<T: Config> Pallet<T> {
 
 		let call = IdnRuntimeCall::IdnManager(IdnManagerCall::create_subscription { params });
 
+		let asset_hub_fee_asset: Asset = (Location::parent(), T::AssetHubFee::get()).into();
+
 		let xcm_call: Xcm<IdnRuntimeCall> = Xcm(vec![
-			// BuyExecution { weight_limit: Unlimited, ref_time_limit: None, additional_fee: None
-			// },
+			// let xcm_call: Xcm<()> = Xcm(vec![
+			BuyExecution { weight_limit: Unlimited, fees: asset_hub_fee_asset },
 			Transact {
 				origin_kind: OriginKind::Xcm,
 				fallback_max_weight: None,
@@ -210,7 +254,11 @@ impl<T: Config> Pallet<T> {
 		let versioned_msg: Box<VersionedXcm<()>> = Box::new(xcm::VersionedXcm::V5(xcm_call.into()));
 
 		T::Xcm::send(Self::pallet_origin().into(), versioned_target, versioned_msg)
-			.map_err(|_| Error::<T>::XcmSendError)?;
+			.map_err(|_err| Error::<T>::XcmSendError)?;
+
+		// let (_xcm_hash, _assets) =
+		// 	send_xcm::<T::XcmSender>(T::SiblingIdnLocation::get().into(), xcm_call)
+		// 		.map_err(|err| Error::<T>::from(err))?;
 
 		Ok(sub_id)
 	}
