@@ -57,7 +57,6 @@ color-print = "0.3.7"
 serde = { version = "1.0.217", default-features = false }
 serde_json = { version = "1.0.137", default-features = false }
 smallvec = { version = "1.13.2", default-features = false }
-# getrandom = { version = "0.2.15", default-features = false }
 
 # Async, Concurrency, & Networking
 async-trait = "0.1.86"
@@ -212,8 +211,8 @@ sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-bea
 sp-idn-crypto = { path = "./primitives/crypto", default-features = false }
 sp-idn-traits = { path = "./primitives/traits", default-features = false }
 idn-sdk-kitchensink-runtime = { path = "./chains/kitchensink/runtime", default-features = false }
-idn-sdk-kitchensink-node = { path = "./chains/kitchensink/node", default-features = false }
+idn-sdk-kitchensink-node = { path = "./chains/kitchensink/node" }
 idn-runtime = { path = "./chains/ideal-network/runtime", default-features = false }
-idn-node = { path = "./chains/ideal-network/node", default-features = false }
+idn-node = { path = "./chains/ideal-network/node" }
 idn-consumer-runtime = { path = "./chains/idn-consumer-chain/runtime", default-features = false }
-idn-consumer-node = { path = "./chains/idn-consumer-chain/node", default-features = false }
+idn-consumer-node = { path = "./chains/idn-consumer-chain/node" }
