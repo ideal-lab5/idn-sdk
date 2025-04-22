@@ -1,24 +1,35 @@
-/*
- * Copyright 2025 by Ideal Labs, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// This is free and unencumbered software released into the public domain.
+//
+// Anyone is free to copy, modify, publish, use, compile, sell, or
+// distribute this software, either in source code form or as a compiled
+// binary, for any purpose, commercial or non-commercial, and by any
+// means.
+//
+// In jurisdictions that recognize copyright laws, the author or authors
+// of this software dedicate any and all copyright interest in the
+// software to the public domain. We make this dedication for the benefit
+// of the public at large and to the detriment of our heirs and
+// successors. We intend this dedication to be an overt act of
+// relinquishment in perpetuity of all present and future rights to this
+// software under copyright law.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+// IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+// OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+// OTHER DEALINGS IN THE SOFTWARE.
+//
+// For more information, please refer to <http://unlicense.org>
 
-#[path = "xcm.rs"]
 mod xcm_config;
 
+use polkadot_sdk::{staging_parachain_info as parachain_info, staging_xcm as xcm, *};
+#[cfg(not(feature = "runtime-benchmarks"))]
+use polkadot_sdk::{staging_xcm_builder as xcm_builder, staging_xcm_executor as xcm_executor};
+
 // Substrate and Polkadot dependencies
-use crate::types::RuntimePulse;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -35,17 +46,13 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
-use pallet_idn_manager::{
-	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
-	BalanceOf, SubscriptionOf,
-};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
 use polkadot_runtime_common::{
 	xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::{AccountId32, Perbill};
+use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
 
@@ -56,7 +63,7 @@ use super::{
 	MessageQueue, Nonce, PalletInfo, ParachainSystem, Runtime, RuntimeCall, RuntimeEvent,
 	RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
 	System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS,
-	MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
+	MAXIMUM_BLOCK_WEIGHT, MICRO_UNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
 };
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
@@ -122,12 +129,17 @@ impl frame_system::Config for Runtime {
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
+/// Configure the palelt weight reclaim tx.
+impl cumulus_pallet_weight_reclaim::Config for Runtime {
+	type WeightInfo = ();
+}
+
 impl pallet_timestamp::Config for Runtime {
 	/// A timestamp: milliseconds since the unix epoch.
 	type Moment = u64;
 	type OnTimestampSet = Aura;
 	type MinimumPeriod = ConstU64<0>;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = ();
 }
 
 impl pallet_authorship::Config for Runtime {
@@ -148,7 +160,7 @@ impl pallet_balances::Config for Runtime {
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
 	type MaxReserves = ConstU32<50>;
 	type ReserveIdentifier = [u8; 8];
 	type RuntimeHoldReason = RuntimeHoldReason;
@@ -160,7 +172,7 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
 	/// Relay Chain `TransactionByteFee` / 10
-	pub const TransactionByteFee: Balance = 10 * MICROUNIT;
+	pub const TransactionByteFee: Balance = 10 * MICRO_UNIT;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -176,7 +188,7 @@ impl pallet_transaction_payment::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeCall = RuntimeCall;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -186,7 +198,7 @@ parameter_types! {
 }
 
 impl cumulus_pallet_parachain_system::Config for Runtime {
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = ();
 	type RuntimeEvent = RuntimeEvent;
 	type OnSystemEvent = ();
 	type SelfParaId = parachain_info::Pallet<Runtime>;
@@ -208,7 +220,7 @@ parameter_types! {
 
 impl pallet_message_queue::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = ();
 	#[cfg(feature = "runtime-benchmarks")]
 	type MessageProcessor = pallet_message_queue::mock_helpers::NoopMessageProcessor<
 		cumulus_primitives_core::AggregateMessageOrigin,
@@ -238,14 +250,12 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	// Enqueue XCMP messages from siblings for later processing.
 	type XcmpQueue = TransformOrigin<MessageQueue, AggregateMessageOrigin, ParaId, ParaIdToSibling>;
 	type MaxInboundSuspended = sp_core::ConstU32<1_000>;
+	type MaxActiveOutboundChannels = ConstU32<128>;
+	type MaxPageSize = ConstU32<{ 1 << 16 }>;
 	type ControllerOrigin = EnsureRoot<AccountId>;
 	type ControllerOriginConverter = XcmOriginToTransactDispatchOrigin;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = ();
 	type PriceForSiblingDelivery = NoPriceForMessageDelivery<ParaId>;
-	// Limit the number of messages and signals a HRML channel can have at most
-	type MaxActiveOutboundChannels = ConstU32<128>;
-	// Limit the number of HRML channels
-	type MaxPageSize = ConstU32<{ 1 << 16 }>;
 }
 
 parameter_types! {
@@ -264,10 +274,11 @@ impl pallet_session::Config for Runtime {
 	// Essentially just Aura, but let's be pedantic.
 	type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
-	type WeightInfo = (); // Configure based on benchmarking results.
 	type DisablingStrategy = ();
+	type WeightInfo = ();
 }
 
+#[docify::export(aura_config)]
 impl pallet_aura::Config for Runtime {
 	type AuthorityId = AuraId;
 	type DisabledValidators = ();
@@ -302,44 +313,11 @@ impl pallet_collator_selection::Config for Runtime {
 	type ValidatorId = <Self as frame_system::Config>::AccountId;
 	type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
 	type ValidatorRegistration = Session;
-	type WeightInfo = (); // Configure based on benchmarking results.
-}
-
-parameter_types! {
-	pub const MaxSubscriptionDuration: u64 = 100;
-	pub const IdnManagerPalletId: PalletId = PalletId(*b"idn_mngr");
-	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
-	pub const BaseFee: u64 = 10;
-	pub const SDMultiplier: u64 = 10;
-	pub const MaxPulseFilterLen: u32 = 100;
-	pub const MaxSubscriptions: u32 = 1_000_000;
-	pub const MaxMetadataLen: u32 = 8;
-}
-
-impl pallet_idn_manager::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type Currency = Balances;
-	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
-	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u128>;
-	type PalletId = IdnManagerPalletId;
-	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = RuntimePulse;
 	type WeightInfo = ();
-	type Xcm = ();
-	type MaxMetadataLen = MaxMetadataLen;
-	type Credits = u64;
-	type MaxPulseFilterLen = MaxPulseFilterLen;
-	type MaxSubscriptions = MaxSubscriptions;
-	type SubscriptionId = [u8; 32];
-	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
 }
 
-// impl pallet_randomness_beacon::Config for Runtime {
+// /// Configure the pallet template in pallets/template.
+// impl pallet_parachain_template::Config for Runtime {
 // 	type RuntimeEvent = RuntimeEvent;
-// 	type WeightInfo = ();
-// 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
-// 	type MaxSigsPerBlock = ConstU8<30>;
-// 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-// 	type Pulse = RuntimePulse;
-// 	type Dispatcher = crate::IdnManager;
+// 	type WeightInfo = pallet_parachain_template::weights::SubstrateWeight<Runtime>;
 // }

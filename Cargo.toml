@@ -12,7 +12,7 @@ members = [
     "chains/ideal-network/runtime",
     "chains/ideal-network/node",
     "chains/idn-consumer/runtime",
-    "chains/idn-consumer/node",
+    "chains/idn-consumer/node"
 ]
 resolver = "2"
 

@@ -1,36 +1,46 @@
-/*
- * Copyright 2025 by Ideal Labs, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// This is free and unencumbered software released into the public domain.
+//
+// Anyone is free to copy, modify, publish, use, compile, sell, or
+// distribute this software, either in source code form or as a compiled
+// binary, for any purpose, commercial or non-commercial, and by any
+// means.
+//
+// In jurisdictions that recognize copyright laws, the author or authors
+// of this software dedicate any and all copyright interest in the
+// software to the public domain. We make this dedication for the benefit
+// of the public at large and to the detriment of our heirs and
+// successors. We intend this dedication to be an overt act of
+// relinquishment in perpetuity of all present and future rights to this
+// software under copyright law.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+// IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+// OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+// OTHER DEALINGS IN THE SOFTWARE.
+//
+// For more information, please refer to <http://unlicense.org>
 
 // External crates imports
+use alloc::vec::Vec;
+
+use polkadot_sdk::*;
+
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	weights::Weight,
 };
 use pallet_aura::Authorities;
-use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
-	AccountId32,
 	traits::Block as BlockT,
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult,
 };
-use sp_std::prelude::Vec;
 use sp_version::RuntimeVersion;
 
 // Local module imports
@@ -40,10 +50,26 @@ use super::{
 	SLOT_DURATION, VERSION,
 };
 
+// we move some impls outside so we can easily use them with `docify`.
+impl Runtime {
+	#[docify::export]
+	fn impl_slot_duration() -> sp_consensus_aura::SlotDuration {
+		sp_consensus_aura::SlotDuration::from_millis(SLOT_DURATION)
+	}
+
+	#[docify::export]
+	fn impl_can_build_upon(
+		included_hash: <Block as BlockT>::Hash,
+		slot: cumulus_primitives_aura::Slot,
+	) -> bool {
+		ConsensusHook::can_build_upon(included_hash, slot)
+	}
+}
+
 impl_runtime_apis! {
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
 		fn slot_duration() -> sp_consensus_aura::SlotDuration {
-			sp_consensus_aura::SlotDuration::from_millis(SLOT_DURATION)
+			Runtime::impl_slot_duration()
 		}
 
 		fn authorities() -> Vec<AuraId> {
@@ -54,9 +80,9 @@ impl_runtime_apis! {
 	impl cumulus_primitives_aura::AuraUnincludedSegmentApi<Block> for Runtime {
 		fn can_build_upon(
 			included_hash: <Block as BlockT>::Hash,
-			slot: cumulus_primitives_aura::Slot
+			slot: cumulus_primitives_aura::Slot,
 		) -> bool {
-			ConsensusHook::can_build_upon(included_hash, slot)
+			Runtime::impl_can_build_upon(included_hash, slot)
 		}
 	}
 
@@ -85,6 +111,12 @@ impl_runtime_apis! {
 
 		fn metadata_versions() -> Vec<u32> {
 			Runtime::metadata_versions()
+		}
+	}
+
+	impl frame_support::view_functions::runtime_api::RuntimeViewFunction<Block> for Runtime {
+		fn execute_view_function(id: frame_support::view_functions::ViewFunctionId, input: Vec<u8>) -> Result<Vec<u8>, frame_support::view_functions::ViewFunctionDispatchError> {
+			Runtime::execute_view_function(id, input)
 		}
 	}
 
@@ -218,10 +250,10 @@ impl_runtime_apis! {
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn benchmark_metadata(extra: bool) -> (
 			Vec<frame_benchmarking::BenchmarkList>,
-			Vec<frame_support::traits::StorageInfo>,
+			Vec<polkadot_sdk::frame_support::traits::StorageInfo>,
 		) {
 			use frame_benchmarking::BenchmarkList;
-			use frame_support::traits::StorageInfoTrait;
+			use polkadot_sdk::frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
 			use super::*;
@@ -255,7 +287,7 @@ impl_runtime_apis! {
 			use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
 			impl cumulus_pallet_session_benchmarking::Config for Runtime {}
 
-			use frame_support::traits::WhitelistedStorageKeys;
+			use polkadot_sdk::frame_support::traits::WhitelistedStorageKeys;
 			let whitelist = AllPalletsWithSystem::whitelisted_storage_keys();
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
@@ -278,31 +310,6 @@ impl_runtime_apis! {
 
 		fn preset_names() -> Vec<sp_genesis_builder::PresetId> {
 			crate::genesis_config_presets::preset_names()
-		}
-	}
-
-	impl pallet_idn_manager::IdnManagerApi<
-		Block,
-		BalanceOf<Runtime>,
-		u64,
-		AccountId32,
-		SubscriptionOf<Runtime>,
-		<Runtime as pallet_idn_manager::Config>::SubscriptionId,
-	> for Runtime {
-		fn calculate_subscription_fees(
-			credits: <Runtime as pallet_idn_manager::Config>::Credits
-		) -> BalanceOf<Runtime> {
-			pallet_idn_manager::Pallet::<Runtime>::calculate_subscription_fees(&credits)
-		}
-		fn get_subscription(
-			sub_id: <Runtime as pallet_idn_manager::Config>::SubscriptionId
-		) -> Option<SubscriptionOf<Runtime>> {
-			pallet_idn_manager::Pallet::<Runtime>::get_subscription(&sub_id)
-		}
-		fn get_subscriptions_for_subscriber(
-			subscriber: AccountId32
-		) -> Vec<SubscriptionOf<Runtime>> {
-			pallet_idn_manager::Pallet::<Runtime>::get_subscriptions_for_subscriber(&subscriber)
 		}
 	}
 }
