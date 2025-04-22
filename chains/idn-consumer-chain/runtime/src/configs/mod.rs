@@ -319,6 +319,7 @@ parameter_types! {
 	pub SiblingIdnLocation: Location = Location::new(1, Junction::Parachain(IDN_PARACHAIN_ID));
 	pub IdnConsumerParaId: ParaId = ParachainInfo::parachain_id();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
+	pub const AssetHubFee: u128 = 1_000;
 }
 
 impl pallet_idn_consumer::Config for Runtime {
@@ -329,4 +330,5 @@ impl pallet_idn_consumer::Config for Runtime {
 	type Xcm = pallet_xcm::Pallet<Self>;
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
+	type AssetHubFee = AssetHubFee;
 }

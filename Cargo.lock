@@ -9883,6 +9883,8 @@ dependencies = [
  "frame-support",
  "frame-system",
  "idn-runtime",
+ "log",
+ "pallet-balances",
  "pallet-idn-manager",
  "pallet-xcm",
  "parity-scale-codec",
