@@ -334,12 +334,12 @@ impl pallet_idn_manager::Config for Runtime {
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
 }
 
-// impl pallet_randomness_beacon::Config for Runtime {
-// 	type RuntimeEvent = RuntimeEvent;
-// 	type WeightInfo = ();
-// 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
-// 	type MaxSigsPerBlock = ConstU8<30>;
-// 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-// 	type Pulse = RuntimePulse;
-// 	type Dispatcher = crate::IdnManager;
-// }
+impl pallet_randomness_beacon::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
+	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
+	type MaxSigsPerBlock = ConstU8<30>;
+	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
+	type Pulse = RuntimePulse;
+	type Dispatcher = crate::IdnManager;
+}
