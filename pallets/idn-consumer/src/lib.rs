@@ -25,9 +25,8 @@ use codec::{Codec, Decode, DecodeWithMemTracking, Encode, EncodeLike, MaxEncoded
 use cumulus_primitives_core::ParaId;
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
-	pallet_prelude::{Decode, Encode, EnsureOrigin, Get, IsType, Pays, TypeInfo, Weight},
+	pallet_prelude::{Encode, EnsureOrigin, Get, IsType, Pays, Weight},
 	sp_runtime::traits::AccountIdConversion,
-	PalletError,
 };
 use frame_system::{
 	pallet_prelude::{BlockNumberFor, OriginFor},
@@ -40,9 +39,8 @@ use idn_runtime::primitives::{
 use scale_info::prelude::{boxed::Box, sync::Arc, vec};
 use sp_idn_traits::pulse::Pulse as PulseTrait;
 use xcm::{
-	prelude::{send_xcm, SendXcm},
 	v5::{
-		prelude::{BuyExecution, OriginKind, SendError as XcmSendError, Transact, Xcm},
+		prelude::{BuyExecution, OriginKind, Transact, Xcm},
 		Asset, Junction, Junctions, Location,
 		WeightLimit::Unlimited,
 	},
