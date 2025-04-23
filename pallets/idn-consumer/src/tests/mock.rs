@@ -46,7 +46,6 @@ impl frame_system::Config for Test {
 pub struct Consumer;
 impl ConsumerTrait<IdnPulse, IdnSubscriptionId, DispatchResultWithPostInfo> for Consumer {
 	fn consume(pulse: IdnPulse, sub_id: IdnSubscriptionId) -> DispatchResultWithPostInfo {
-		// Randomness consumption logic goes here.
 		log::info!("IDN Consumer: Consuming pulse: {:?}", pulse);
 		log::info!("IDN Consumer: Subscription ID: {:?}", sub_id);
 		Ok(Pays::No.into())
