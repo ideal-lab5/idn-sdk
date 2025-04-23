@@ -14,16 +14,10 @@
  * limitations under the License.
  */
 
-use core::marker::PhantomData;
-
-use crate::{
-	self as pallet_idn_consumer, BlockNumberFor, ConsumerTrait, IdnPulse, IdnSubscriptionId,
-};
+use crate::{self as pallet_idn_consumer, ConsumerTrait, IdnPulse, IdnSubscriptionId};
 use cumulus_primitives_core::{relay_chain::AccountId, ParaId};
 use frame_support::{
-	construct_runtime, derive_impl,
-	dispatch::DispatchResultWithPostInfo,
-	pallet_prelude::{Get, Pays},
+	construct_runtime, derive_impl, dispatch::DispatchResultWithPostInfo, pallet_prelude::Pays,
 	parameter_types, PalletId,
 };
 use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
