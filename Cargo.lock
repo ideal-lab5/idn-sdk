@@ -5991,13 +5991,13 @@ name = "idn-sdk-kitchensink-runtime"
 version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
+ "idn-runtime",
  "pallet-idn-manager",
  "pallet-randomness-beacon",
  "parity-scale-codec",
  "polkadot-sdk 2503.0.1",
  "scale-info",
  "serde_json",
- "sp-consensus-randomness-beacon",
  "sp-idn-crypto",
 ]
 

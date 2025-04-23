@@ -27,6 +27,7 @@ extern crate alloc;
 
 use crate::{interface::AccountId, sp_runtime::AccountId32};
 use alloc::vec::Vec;
+use idn_runtime::types::RuntimePulse;
 use pallet_idn_manager::{
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
@@ -218,7 +219,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<30>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-	type Pulse = sp_consensus_randomness_beacon::types::RuntimePulse;
+	type Pulse = RuntimePulse;
 	type Dispatcher = IdnManager;
 }
 
@@ -248,7 +249,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = sp_consensus_randomness_beacon::types::RuntimePulse;
+	type Pulse = RuntimePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;
