@@ -85,7 +85,7 @@ cumulus-relay-chain-interface.workspace = true
 
 [features]
 default = ["std"]
-std = ["xcm/std"]
+std = ["xcm/std", "idn-runtime/std"]
 runtime-benchmarks = [
   "cumulus-primitives-core/runtime-benchmarks",
   "frame-benchmarking-cli/runtime-benchmarks",
