@@ -254,6 +254,7 @@ impl<T: Config> Pallet<T> {
 		T::PalletId::get().into_account_truncating()
 	}
 
+	/// Get the signed origin of this pallet
 	fn pallet_origin() -> RawOrigin<T::AccountId> {
 		RawOrigin::Signed(Self::pallet_account_id())
 	}
