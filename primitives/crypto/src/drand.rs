@@ -109,7 +109,7 @@ where
 		I: IntoIterator<Item = &'a (Self::PublicKeyPrepared, Self::SignaturePrepared)>,
 	{
 		// We require an ugly unecessary allocation here because
-		// zcash's pairing library cnsumes an iterator of references
+		// zcash's pairing library consumes an iterator of references
 		// to tuples of references, which always requires
 		let (i_a, i_b): (Vec<Self::PublicKeyPrepared>, Vec<Self::SignaturePrepared>) =
 			i.into_iter().cloned().unzip();

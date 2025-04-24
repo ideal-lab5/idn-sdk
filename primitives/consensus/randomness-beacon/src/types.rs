@@ -43,7 +43,7 @@ pub struct ProtoPulse {
 
 /// This struct is used to encode pulses in the runtime, where we obtain an RuntimePulse by
 /// converting a ProtoPulse
-// TODO: fields should be private
+// TODO: fields should be private https://github.com/ideal-lab5/idn-sdk/issues/203
 #[derive(
 	Clone,
 	Debug,

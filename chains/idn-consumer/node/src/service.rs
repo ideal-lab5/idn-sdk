@@ -215,6 +215,7 @@ fn start_consensus(
 		collator_service,
 		authoring_duration: Duration::from_millis(2000),
 		reinitialize: false,
+		// TODO: make sure this is the value that we want
 		max_pov_percentage: None,
 	};
 
