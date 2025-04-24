@@ -29,7 +29,7 @@ use sp_consensus::Error as ConsensusError;
 use sp_consensus_aura::{
 	build_verifier, inherents::AuraInherentData, AuraApi, BuildVerifierParams,
 };
-use sp_consensus_randomness_beacon::types::OpaquePulse;
+use sp_consensus_randomness_beacon::types::RuntimePulse;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::traits::Block as BlockT;
 

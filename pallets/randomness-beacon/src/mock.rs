@@ -5,7 +5,7 @@ use pallet_idn_manager::{
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
 };
-use sp_consensus_randomness_beacon::types::OpaquePulse;
+use sp_consensus_randomness_beacon::types::RuntimePulse;
 use sp_idn_crypto::verifier::QuicknetVerifier;
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
@@ -44,7 +44,7 @@ impl pallet_drand_bridge::Config for Test {
 	type SignatureVerifier = QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<10>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-	type Pulse = OpaquePulse;
+	type Pulse = RuntimePulse;
 	type Dispatcher = IdnManager;
 }
 
@@ -66,7 +66,7 @@ impl pallet_idn_manager::Config for Test {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = OpaquePulse;
+	type Pulse = RuntimePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;
