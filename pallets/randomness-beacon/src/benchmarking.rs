@@ -19,11 +19,7 @@ use super::*;
 
 use crate::{BeaconConfig, Pallet};
 
-#[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::{Fr, G1Affine, G2Affine};
-
-#[cfg(feature = "host-arkworks")]
-use sp_ark_bls12_381::{Fr, G1Affine, G2Affine};
 
 use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;

@@ -22,10 +22,7 @@ use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
 use sp_std::vec::Vec;
 
-#[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::G2Affine;
-#[cfg(feature = "host-arkworks")]
-use sp_ark_bls12_381::G2Affine;
 
 /// An opaque type to represent a serialized signature and message combination
 #[derive(Debug, PartialEq)]

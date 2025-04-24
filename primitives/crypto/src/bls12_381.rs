@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-#[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::{Bls12_381, G1Affine, G2Affine};
-#[cfg(feature = "host-arkworks")]
-use sp_ark_bls12_381::{Bls12_381, G1Affine, G2Affine};
 
 use ark_ec::{pairing::Pairing, AffineRepr};
 use ark_serialize::CanonicalDeserialize;

@@ -33,10 +33,7 @@ use ark_ff::field_hashers::DefaultFieldHasher;
 use core::marker::PhantomData;
 use w3f_bls::EngineBLS;
 
-#[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::G1Affine;
-#[cfg(feature = "host-arkworks")]
-use sp_ark_bls12_381::G1Affine;
 
 pub const QUICKNET_CTX: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
 
