@@ -23,13 +23,20 @@ use frame_support::pallet_prelude::{Decode, Encode, TypeInfo};
 
 pub use pallet_idn_manager::{
 	primitives::IdnManagerCall, BlockNumberFor, CreateSubParamsOf, MetadataOf, PulseFilterOf,
+	SubscriptionIdOf, UpdateSubParamsOf,
 };
 
 #[derive(Encode, Decode, Debug, PartialEq, Clone, TypeInfo)]
 pub enum Call {
 	// This should match the index of the IDN Manager pallet in the runtime
 	#[codec(index = 40)]
-	IdnManager(IdnManagerCall<CreateSubParamsOf<Runtime>>),
+	IdnManager(
+		IdnManagerCall<
+			CreateSubParamsOf<Runtime>,
+			UpdateSubParamsOf<Runtime>,
+			SubscriptionIdOf<Runtime>,
+		>,
+	),
 }
 
 #[cfg(test)]
