@@ -133,3 +133,119 @@ fn test_create_subscription_fails() {
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
 	});
 }
+
+#[test]
+fn test_pause_subscription_success() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+
+		// Call the function and assert success
+		assert_ok!(crate::Pallet::<Test>::pause_subscription(sub_id));
+	});
+}
+
+#[test]
+fn test_kill_subscription_success() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+
+		// Call the function and assert success
+		assert_ok!(crate::Pallet::<Test>::kill_subscription(sub_id));
+	});
+}
+
+#[test]
+fn test_update_subscription_success() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+		let credits = Some(20);
+		let frequency = Some(10);
+		let metadata = Some(None);
+		let pulse_filter = Some(None);
+
+		// Call the function and assert success
+		assert_ok!(crate::Pallet::<Test>::update_subscription(
+			sub_id,
+			credits,
+			frequency,
+			metadata,
+			pulse_filter
+		));
+	});
+}
+
+#[test]
+fn test_reactivate_subscription_success() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+
+		// Call the function and assert success
+		assert_ok!(crate::Pallet::<Test>::reactivate_subscription(sub_id));
+	});
+}
+
+#[test]
+fn test_pause_subscription_fails() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+
+		// Simulate failure at block 1_234_567
+		System::set_block_number(1_234_567);
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::pause_subscription(sub_id);
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+	});
+}
+
+#[test]
+fn test_kill_subscription_fails() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+
+		// Simulate failure at block 1_234_567
+		System::set_block_number(1_234_567);
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::kill_subscription(sub_id);
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+	});
+}
+
+#[test]
+fn test_update_subscription_fails() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+		let credits = Some(20);
+		let frequency = Some(10);
+		let metadata = Some(None);
+		let pulse_filter = Some(None);
+
+		// Simulate failure at block 1_234_567
+		System::set_block_number(1_234_567);
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::update_subscription(
+			sub_id,
+			credits,
+			frequency,
+			metadata,
+			pulse_filter,
+		);
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+	});
+}
+
+#[test]
+fn test_reactivate_subscription_fails() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+
+		// Simulate failure at block 1_234_567
+		System::set_block_number(1_234_567);
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::reactivate_subscription(sub_id);
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+	});
+}

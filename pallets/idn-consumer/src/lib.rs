@@ -30,7 +30,7 @@ use frame_system::{
 };
 use idn_runtime::primitives::{
 	types::Credits as IdnCredits, Call as IdnRuntimeCall, CreateSubParamsOf, IdnManagerCall,
-	MetadataOf, PulseFilterOf,
+	MetadataOf, PulseFilterOf, UpdateSubParamsOf,
 };
 use scale_info::prelude::{boxed::Box, sync::Arc, vec};
 use sp_idn_traits::pulse::Pulse as PulseTrait;
@@ -55,6 +55,7 @@ pub use sp_idn_traits::pulse::Consumer as ConsumerTrait;
 mod tests;
 
 type CreateSubParams = CreateSubParamsOf<idn_runtime::Runtime>;
+type UpdateSubParams = UpdateSubParamsOf<idn_runtime::Runtime>;
 type IdnBlockNumber = BlockNumberFor<idn_runtime::Runtime>;
 type IdnMetadata = MetadataOf<idn_runtime::Runtime>;
 type IdnPulseFilter = PulseFilterOf<idn_runtime::Runtime>;
@@ -196,50 +197,42 @@ impl<T: Config> Pallet<T> {
 
 		let call = IdnRuntimeCall::IdnManager(IdnManagerCall::create_subscription { params });
 
-		let asset_hub_fee_asset: Asset = (Location::parent(), T::AssetHubFee::get()).into();
-
-		let xcm_call: Xcm<IdnRuntimeCall> = Xcm(vec![
-			BuyExecution { weight_limit: Unlimited, fees: asset_hub_fee_asset },
-			Transact {
-				origin_kind: OriginKind::Xcm,
-				fallback_max_weight: None,
-				call: call.encode().into(),
-			},
-		]);
-
-		let versioned_target: Box<VersionedLocation> =
-			Box::new(T::SiblingIdnLocation::get().into());
-
-		let versioned_msg: Box<VersionedXcm<()>> = Box::new(xcm::VersionedXcm::V5(xcm_call.into()));
-
-		T::Xcm::send(Self::pallet_origin().into(), versioned_target, versioned_msg)
-			.map_err(|_err| Error::<T>::XcmSendError)?;
+		Self::xcm_send(call)?;
 
 		Ok(sub_id)
 	}
 
 	/// Pauses a subscription.
-	pub fn pause_subscription() -> Result<(), Error<T>> {
-		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/83
-		Ok(())
+	pub fn pause_subscription(sub_id: IdnSubscriptionId) -> Result<(), Error<T>> {
+		let call = IdnRuntimeCall::IdnManager(IdnManagerCall::pause_subscription { sub_id });
+		Self::xcm_send(call)
 	}
 
 	/// Kills a subscription.
-	pub fn kill_subscription() -> Result<(), Error<T>> {
-		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/84
-		Ok(())
+	pub fn kill_subscription(sub_id: IdnSubscriptionId) -> Result<(), Error<T>> {
+		let call = IdnRuntimeCall::IdnManager(IdnManagerCall::kill_subscription { sub_id });
+		Self::xcm_send(call)
 	}
 
 	/// Updates a subscription.
-	pub fn update_subscription() -> Result<(), Error<T>> {
-		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/82
-		Ok(())
+	pub fn update_subscription(
+		sub_id: IdnSubscriptionId,
+		credits: Option<IdnCredits>,
+		frequency: Option<IdnBlockNumber>,
+		metadata: Option<Option<IdnMetadata>>,
+		pulse_filter: Option<Option<IdnPulseFilter>>,
+	) -> Result<(), Error<T>> {
+		let params = UpdateSubParams { sub_id, credits, frequency, metadata, pulse_filter };
+
+		let call = IdnRuntimeCall::IdnManager(IdnManagerCall::update_subscription { params });
+
+		Self::xcm_send(call)
 	}
 
 	/// Reactivates a subscription.
-	pub fn reactivate_subscription() -> Result<(), Error<T>> {
-		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/83
-		Ok(())
+	pub fn reactivate_subscription(sub_id: IdnSubscriptionId) -> Result<(), Error<T>> {
+		let call = IdnRuntimeCall::IdnManager(IdnManagerCall::reactivate_subscription { sub_id });
+		Self::xcm_send(call)
 	}
 
 	/// Get the index of this pallet in the runtime
@@ -268,5 +261,28 @@ impl<T: Config> Pallet<T> {
 				Junction::PalletInstance(Self::pallet_index()?),
 			])),
 		})
+	}
+
+	fn xcm_send(call: IdnRuntimeCall) -> Result<(), Error<T>> {
+		let asset_hub_fee_asset: Asset = (Location::parent(), T::AssetHubFee::get()).into();
+
+		let xcm_call: Xcm<IdnRuntimeCall> = Xcm(vec![
+			BuyExecution { weight_limit: Unlimited, fees: asset_hub_fee_asset },
+			Transact {
+				origin_kind: OriginKind::Xcm,
+				fallback_max_weight: None,
+				call: call.encode().into(),
+			},
+		]);
+
+		let versioned_target: Box<VersionedLocation> =
+			Box::new(T::SiblingIdnLocation::get().into());
+
+		let versioned_msg: Box<VersionedXcm<()>> = Box::new(xcm::VersionedXcm::V5(xcm_call.into()));
+
+		T::Xcm::send(Self::pallet_origin().into(), versioned_target, versioned_msg)
+			.map_err(|_err| Error::<T>::XcmSendError)?;
+
+		Ok(())
 	}
 }
