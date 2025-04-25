@@ -44,7 +44,6 @@ cumulus-client-consensus-common.workspace = true
 cumulus-client-consensus-aura.workspace = true
 
 # arkworks dependencies
-sp-ark-bls12-381 = { workspace = true, optional = true }
 ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 
@@ -57,4 +56,3 @@ sc-service.workspace = true
 
 [features]
 e2e = []
-host-arkworks = ["sp-ark-bls12-381/std"]

@@ -21,10 +21,7 @@ use ark_ec::AffineRepr;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use sp_std::{vec, vec::Vec};
 
-#[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::G1Affine;
-#[cfg(feature = "host-arkworks")]
-use sp_ark_bls12_381::G1Affine;
 
 pub type RawPulse = (u64, [u8; 96]);
 /// raw pulses fetched from drand (https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/public/1000)
