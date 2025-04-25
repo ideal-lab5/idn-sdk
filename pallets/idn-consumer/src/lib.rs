@@ -187,7 +187,7 @@ impl<T: Config> Pallet<T> {
 			sub_id,
 		};
 
-		// If `sub_id` is not provided, generate a new one and asign it to the params
+		// If `sub_id` is not provided, generate a new one and assign it to the params
 		let sub_id = match sub_id {
 			Some(sub_id) => sub_id,
 			None => {
