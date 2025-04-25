@@ -5930,7 +5930,6 @@ dependencies = [
  "sp-core",
  "sp-genesis-builder",
  "sp-idn-crypto",
- "sp-idn-traits",
  "sp-inherents",
  "sp-keyring",
  "sp-offchain",

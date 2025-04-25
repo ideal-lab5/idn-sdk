@@ -82,6 +82,7 @@ parachain-info.workspace = true
 # IDN
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
+sp-consensus-randomness-beacon.workspace = true
 sp-idn-crypto.workspace = true
 
 [features]
@@ -132,7 +133,7 @@ std = [
   "sp-core/std",
   "sp-genesis-builder/std",
   "sp-idn-crypto/std",
-  "sp-idn-traits/std",
+  # "sp-idn-traits/std",
   "sp-inherents/std",
   "sp-keyring/std",
   "sp-offchain/std",

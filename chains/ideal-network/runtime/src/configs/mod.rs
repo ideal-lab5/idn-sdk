@@ -18,7 +18,7 @@
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
-use crate::types::RuntimePulse;
+use crate::primitives::types;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -323,7 +323,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u128>;
 	type PalletId = IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = RuntimePulse;
+	type Pulse = types::RuntimePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;
@@ -340,6 +340,6 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<30>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-	type Pulse = RuntimePulse;
+	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;
 }

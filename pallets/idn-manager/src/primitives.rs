@@ -70,7 +70,7 @@ pub type CallIndex = [u8; 2];
 
 /// Parameters for creating a new subscription
 #[derive(
-	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq,
+	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, Default,
 )]
 pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, SubscriptionId> {
 	// Number of random values to receive
