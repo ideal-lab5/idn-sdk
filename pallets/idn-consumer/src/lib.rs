@@ -18,10 +18,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-extern crate alloc;
-
-use alloc::vec;
-use codec::{Codec, Decode, DecodeWithMemTracking, Encode, EncodeLike, MaxEncodedLen};
 use cumulus_primitives_core::ParaId;
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
@@ -50,7 +46,7 @@ use xcm::{
 use xcm_builder::SendController;
 
 pub use idn_runtime::primitives::types::{
-	OpaquePulse as IdnPulse, SubscriptionId as IdnSubscriptionId,
+	RuntimePulse as IdnPulse, SubscriptionId as IdnSubscriptionId,
 };
 pub use pallet::*;
 pub use sp_idn_traits::pulse::Consumer as ConsumerTrait;
@@ -151,7 +147,7 @@ pub mod pallet {
 			// ensure origin is coming from IDN
 			let _ = T::IdnOrigin::ensure_origin(origin)?;
 
-			let round = pulse.round().clone();
+			let round = pulse.round();
 
 			T::Consumer::consume(pulse, sub_id)?;
 
