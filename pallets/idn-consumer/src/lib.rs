@@ -28,7 +28,10 @@ use frame_support::{
 	pallet_prelude::{Encode, EnsureOrigin, Get, IsType, Pays, Weight},
 	sp_runtime::traits::AccountIdConversion,
 };
-use frame_system::{pallet_prelude::OriginFor, RawOrigin};
+use frame_system::{
+	pallet_prelude::{BlockNumberFor, OriginFor},
+	RawOrigin,
+};
 use scale_info::prelude::{boxed::Box, sync::Arc, vec};
 use sp_idn_traits::pulse::Pulse as PulseTrait;
 use xcm::{
