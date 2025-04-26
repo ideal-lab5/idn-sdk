@@ -17,12 +17,13 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 // std
-use std::{sync::Arc, time::Duration};
-
+use codec::Encode;
 use cumulus_client_cli::CollatorOptions;
+use std::{sync::Arc, time::Duration};
 // Local Runtime Types
 use idn_runtime::{
 	apis::RuntimeApi,
+	constants::*,
 	opaque::{Block, Hash},
 };
 
@@ -52,7 +53,11 @@ use sc_network::NetworkBlock;
 use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
+use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_keystore::KeystorePtr;
+
+use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair, Multiaddr};
+use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, GossipsubNetwork};
 
 #[docify::export(wasm_executor)]
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
@@ -78,7 +83,9 @@ pub type Service = PartialComponents<
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
 #[docify::export(component_instantiation)]
-pub fn new_partial(config: &Configuration) -> Result<Service, sc_service::Error> {
+pub fn new_partial(
+	config: &Configuration,
+) -> Result<(Service, TracingUnboundedReceiver<u64>), sc_service::Error> {
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -132,7 +139,7 @@ pub fn new_partial(config: &Configuration) -> Result<Service, sc_service::Error>
 
 	let block_import = ParachainBlockImport::new(client.clone(), backend.clone());
 
-	let import_queue = build_import_queue(
+	let (import_queue, rx) = build_import_queue(
 		client.clone(),
 		block_import.clone(),
 		config,
@@ -140,16 +147,19 @@ pub fn new_partial(config: &Configuration) -> Result<Service, sc_service::Error>
 		&task_manager,
 	);
 
-	Ok(PartialComponents {
-		backend,
-		client,
-		import_queue,
-		keystore_container,
-		task_manager,
-		transaction_pool,
-		select_chain: (),
-		other: (block_import, telemetry, telemetry_worker_handle),
-	})
+	Ok((
+		PartialComponents {
+			backend,
+			client,
+			import_queue,
+			keystore_container,
+			task_manager,
+			transaction_pool,
+			select_chain: (),
+			other: (block_import, telemetry, telemetry_worker_handle),
+		},
+		rx,
+	))
 }
 
 /// Build the import queue for the parachain runtime.
@@ -159,8 +169,8 @@ fn build_import_queue(
 	config: &Configuration,
 	telemetry: Option<TelemetryHandle>,
 	task_manager: &TaskManager,
-) -> sc_consensus::DefaultImportQueue<Block> {
-	cumulus_client_consensus_aura::equivocation_import_queue::fully_verifying_import_queue::<
+) -> (sc_consensus::DefaultImportQueue<Block>, TracingUnboundedReceiver<u64>) {
+	sc_consensus_randomness_beacon::consensus::aura::fully_verifying_import_queue::<
 		sp_consensus_aura::sr25519::AuthorityPair,
 		_,
 		_,
@@ -195,6 +205,7 @@ fn start_consensus(
 	collator_key: CollatorPair,
 	overseer_handle: OverseerHandle,
 	announce_block: Arc<dyn Fn(Hash, Option<Vec<u8>>) + Send + Sync>,
+	pulse_receiver: DrandReceiver,
 ) -> Result<(), sc_service::Error> {
 	let proposer_factory = sc_basic_authorship::ProposerFactory::with_proof_recording(
 		task_manager.spawn_handle(),
@@ -214,7 +225,22 @@ fn start_consensus(
 	);
 
 	let params = AuraParams {
-		create_inherent_data_providers: move |_, ()| async move { Ok(()) },
+		create_inherent_data_providers: move |_, ()| {
+			let pulse_receiver = pulse_receiver.clone();
+			async move {
+				let pulses = pulse_receiver.take().await;
+
+				let serialized_pulses: Vec<Vec<u8>> =
+					pulses.iter().map(|pulse| pulse.encode()).collect();
+
+				let beacon_inherent =
+					sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
+						serialized_pulses,
+					);
+
+				Ok(beacon_inherent)
+			}
+		},
 		block_import,
 		para_client: client.clone(),
 		para_backend: backend,
@@ -231,6 +257,7 @@ fn start_consensus(
 		collator_service,
 		authoring_duration: Duration::from_millis(2000),
 		reinitialize: false,
+		max_pov_percentage: None,
 	};
 
 	let fut = aura::run::<Block, sp_consensus_aura::sr25519::AuthorityPair, _, _, _, _, _, _, _, _>(
@@ -252,7 +279,7 @@ pub async fn start_parachain_node(
 ) -> sc_service::error::Result<(TaskManager, Arc<ParachainClient>)> {
 	let parachain_config = prepare_node_config(parachain_config);
 
-	let params = new_partial(&parachain_config)?;
+	let (params, latest_round_rx) = new_partial(&parachain_config)?;
 	let (block_import, mut telemetry, telemetry_worker_handle) = params.other;
 	let prometheus_registry = parachain_config.prometheus_registry().cloned();
 	let net_config = sc_network::config::FullNetworkConfiguration::<
@@ -282,7 +309,7 @@ pub async fn start_parachain_node(
 
 	// NOTE: because we use Aura here explicitly, we can use `CollatorSybilResistance::Resistant`
 	// when starting the network.
-	let (network, system_rpc_tx, tx_handler_controller, start_network, sync_service) =
+	let (network, system_rpc_tx, tx_handler_controller, sync_service) =
 		build_network(BuildNetworkParams {
 			parachain_config: &parachain_config,
 			net_config,
@@ -400,6 +427,27 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
+		// setup a libp2p node for gossipsub
+		let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
+		let pulse_receiver = DrandReceiver::new(rx, latest_round_rx);
+
+		let local_identity: Keypair = Keypair::generate_ed25519();
+		let cfg = GossipsubConfig::default();
+		// [SRLabs] If the gossipsub network fails to construct we consider it a critical failure
+		let mut gossipsub = GossipsubNetwork::new(&local_identity, cfg, tx, None)
+			.expect("The gossipsub network must start.");
+		let primary: Multiaddr =
+			PRIMARY.parse().expect("The string is a well-formatted multiaddress;qed");
+		let secondary: Multiaddr =
+			SECONDARY.parse().expect("The string is a well-formatted multiaddress;qed");
+
+		tokio::spawn(async move {
+			if let Err(e) = gossipsub.run(QUICKNET_GOSSIPSUB_TOPIC, vec![primary, secondary]).await
+			{
+				log::error!("Failed to run gossipsub network: {:?}", e);
+			}
+		});
+
 		start_consensus(
 			client.clone(),
 			backend,
@@ -415,10 +463,9 @@ pub async fn start_parachain_node(
 			collator_key.expect("Command line arguments do not allow this. qed"),
 			overseer_handle,
 			announce_block,
+			pulse_receiver,
 		)?;
 	}
-
-	start_network.start_network();
 
 	Ok((task_manager, client))
 }

@@ -19,11 +19,7 @@ use super::*;
 
 use crate::{BeaconConfig, Pallet};
 
-#[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::{Fr, G1Affine, G2Affine};
-
-#[cfg(feature = "host-arkworks")]
-use sp_ark_bls12_381::{Fr, G1Affine, G2Affine};
 
 use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
@@ -31,7 +27,7 @@ use ark_std::{ops::Mul, test_rng, UniformRand};
 use frame_benchmarking::v2::*;
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use sp_consensus_randomness_beacon::types::{
-	OpaquePublicKey, OpaquePulse, OpaqueSignature, RoundNumber,
+	OpaquePublicKey, OpaqueSignature, RoundNumber, RuntimePulse,
 };
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
@@ -87,7 +83,7 @@ mod benchmarks {
 				sig.serialize_compressed(&mut bytes).unwrap();
 				let signature: OpaqueSignature = bytes.try_into().unwrap();
 
-				let op = OpaquePulse { round: i as u64, signature };
+				let op = RuntimePulse { round: i as u64, signature };
 				let encoded = op.encode();
 				let out: T::Pulse = T::Pulse::decode(&mut encoded.as_slice()).unwrap();
 				out

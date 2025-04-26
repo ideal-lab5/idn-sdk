@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-use codec::{Decode, Encode};
+use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::pallet_prelude::*;
 use serde::{Deserialize, Serialize};
 use sp_consensus_randomness_beacon::types::OpaqueSignature;
 use sp_idn_crypto::verifier::OpaqueAccumulation;
 
 /// Represents an aggregated signature and aggregated public key pair
-#[derive(Clone, Debug, Decode, PartialEq, Encode, MaxEncodedLen, TypeInfo)]
+#[derive(
+	Clone, Debug, Decode, DecodeWithMemTracking, PartialEq, Encode, MaxEncodedLen, TypeInfo,
+)]
 pub struct Accumulation {
 	/// A signature (e.g. output from the randomness beacon) in G1
 	pub signature: OpaqueSignature,
@@ -54,6 +56,7 @@ impl From<Accumulation> for OpaqueAccumulation {
 	Clone,
 	Debug,
 	Decode,
+	DecodeWithMemTracking,
 	Default,
 	PartialEq,
 	Encode,

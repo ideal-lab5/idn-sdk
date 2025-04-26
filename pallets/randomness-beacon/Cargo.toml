@@ -33,12 +33,10 @@ sp-io.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
 # crypto dependencies
-sp-ark-bls12-381 = { workspace = true, optional = true }
 ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 ark-ec.workspace = true
 ark-std.workspace = true
-timelock.workspace = true
 
 pallet-idn-manager = { workspace = true, default-features = false }
 
@@ -64,12 +62,11 @@ std = [
 	"sp-runtime/std",
 	"serde/std",
 	"hex/std",
-	"sp-ark-bls12-381/std",
+
 	"ark-bls12-381/std",
 	"ark-serialize/std",
 	"ark-ec/std",
 	"ark-std/std",
-	"timelock/std",
 	"sp-consensus-randomness-beacon/std",
 	"sp-idn-traits/std",
 	"sp-std/std",
@@ -88,8 +85,4 @@ try-runtime = [
 	"frame-support/try-runtime",
 	"frame-system/try-runtime",
 	"sp-runtime/try-runtime",
-]
-host-arkworks = [
-	"sp-ark-bls12-381/std",
-	"sp-idn-crypto/host-arkworks",
 ]

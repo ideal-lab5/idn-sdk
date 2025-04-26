@@ -12,20 +12,30 @@ publish = false
 [dependencies]
 codec.workspace = true
 frame-benchmarking = { optional = true, workspace = true }
-scale-info.workspace = true
-polkadot-sdk = { workspace = true, features = ["pallet-balances", "pallet-sudo", "pallet-timestamp", "pallet-transaction-payment", "pallet-transaction-payment-rpc-runtime-api", "runtime", "experimental"] }
-serde_json = { workspace = true, default-features = false, features = ["alloc"] }
 
+scale-info.workspace = true
+polkadot-sdk = { workspace = true, features = [
+	"pallet-balances",
+	"pallet-sudo",
+	"pallet-timestamp",
+	"pallet-transaction-payment",
+	"pallet-transaction-payment-rpc-runtime-api",
+	"runtime",
+	"experimental",
+] }
+serde_json = { workspace = true, default-features = false, features = [
+	"alloc",
+] }
 # IDN Deps
-sp-idn-traits.workspace = true
+idn-runtime.workspace = true
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
-sp-consensus-randomness-beacon.workspace = true
 sp-idn-crypto.workspace = true
-hex.workspace = true
 
 [build-dependencies]
-polkadot-sdk = { optional = true, workspace = true, features = ["substrate-wasm-builder"] }
+polkadot-sdk = { optional = true, workspace = true, features = [
+	"substrate-wasm-builder",
+] }
 
 [features]
 default = ["std"]
@@ -33,6 +43,7 @@ default = ["std"]
 std = [
 	"codec/std",
 	"frame-benchmarking?/std",
+	"idn-runtime/std",
 	"polkadot-sdk/std",
 	"scale-info/std",
 	"serde_json/std",
