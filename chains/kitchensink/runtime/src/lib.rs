@@ -27,7 +27,8 @@ extern crate alloc;
 
 use crate::{interface::AccountId, sp_runtime::AccountId32};
 use alloc::vec::Vec;
-use idn_runtime::types::RuntimePulse;
+use frame_support::traits::Nothing;
+use idn_runtime::{configs::RuntimeBlockWeights, types::RuntimePulse, Balance, BlockNumber, Hash};
 use pallet_idn_manager::{
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
@@ -88,6 +89,24 @@ pub mod genesis_config_presets {
 		vec![PresetId::from(sp_genesis_builder::DEV_RUNTIME_PRESET)]
 	}
 }
+
+// Unit = the base number of indivisible units for balances
+pub const UNIT: Balance = 1_000_000_000_000;
+pub const CENTIUNIT: Balance = 10_000_000_000;
+pub const MILLIUNIT: Balance = 1_000_000_000;
+pub const MICROUNIT: Balance = 1_000_000;
+
+/// The existential deposit. Set to 1/10 of the Connected Relay Chain.
+pub const EXISTENTIAL_DEPOSIT: Balance = MILLIUNIT;
+
+const fn deposit(items: u32, bytes: u32) -> Balance {
+	items as Balance * CENTIUNIT + bytes as Balance * CENTIUNIT
+}
+
+type EventRecord = frame_system::EventRecord<
+	<Runtime as frame_system::Config>::RuntimeEvent,
+	<Runtime as frame_system::Config>::Hash,
+>;
 
 /// The runtime version.
 #[runtime_version]
@@ -174,6 +193,9 @@ mod runtime {
 	/// Provides a way to ingest randomness.
 	#[runtime::pallet_index(6)]
 	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
+
+	#[runtime::pallet_index(7)]
+	pub type Contracts = pallet_contracts::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -258,6 +280,56 @@ impl pallet_idn_manager::Config for Runtime {
 	type MaxSubscriptions = MaxSubscriptions;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
+}
+
+parameter_types! {
+	pub const DepositPerItem: interface::Balance = deposit(1, 0) as u64;
+	pub const DepositPerByte: interface::Balance = deposit(0, 1) as u64;
+	pub const DefaultDepositLimit: interface::Balance = deposit(1024, 1024 * 1024) as u64;
+	pub Schedule: pallet_contracts::Schedule<Runtime> = Default::default();
+	pub CodeHashLockupDepositPercent: Perbill = Perbill::from_percent(30);
+}
+
+impl pallet_contracts::Config for Runtime {
+	type Time = Timestamp;
+	type Randomness = RandBeacon;
+	type Currency = Balances;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
+	/// The safest default is to allow no calls at all.
+	///
+	/// Runtimes should whitelist dispatchables that are allowed to be called from contracts
+	/// and make sure they are stable. Dispatchables exposed to contracts are not allowed to
+	/// change because that would break already deployed contracts. The `Call` structure itself
+	/// is not allowed to change the indices of existing pallets, too.
+	type CallFilter = Nothing;
+	type DepositPerItem = DepositPerItem;
+	type DepositPerByte = DepositPerByte;
+	type DefaultDepositLimit = DefaultDepositLimit;
+	type CallStack = [pallet_contracts::Frame<Self>; 5];
+	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
+	type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
+	type ChainExtension = ();
+	type Schedule = Schedule;
+	type AddressGenerator = pallet_contracts::DefaultAddressGenerator;
+	type MaxCodeLen = ConstU32<{ 123 * 1024 }>;
+	type MaxStorageKeyLen = ConstU32<128>;
+	type UnsafeUnstableInterface = ConstBool<false>;
+	type UploadOrigin = EnsureSigned<Self::AccountId>;
+	type InstantiateOrigin = EnsureSigned<Self::AccountId>;
+	type MaxDebugBufferLen = ConstU32<{ 2 * 1024 * 1024 }>;
+	type MaxTransientStorageSize = ConstU32<{ 1 * 1024 * 1024 }>;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type Migrations = ();
+	#[cfg(feature = "runtime-benchmarks")]
+	type Migrations = pallet_contracts::migration::codegen::BenchMigrations;
+	type MaxDelegateDependencies = ConstU32<32>;
+	type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
+	type Debug = ();
+	type Environment = ();
+	type ApiVersion = ();
+	type Xcm = ();
 }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;
@@ -411,6 +483,80 @@ impl_runtime_apis! {
 			add_benchmarks!(params, batches);
 
 			Ok(batches)
+		}
+	}
+
+	impl pallet_contracts::ContractsApi<Block, AccountId, Balance, BlockNumber, Hash, EventRecord> for Runtime
+	{
+		fn call(
+			origin: AccountId,
+			dest: AccountId,
+			value: Balance,
+			gas_limit: Option<Weight>,
+			storage_deposit_limit: Option<Balance>,
+			input_data: Vec<u8>,
+		) -> pallet_contracts::ContractExecResult<Balance, EventRecord> {
+			let gas_limit = gas_limit.unwrap_or(RuntimeBlockWeights::get().max_block);
+			Contracts::bare_call(
+				origin,
+				dest,
+				value,
+				gas_limit,
+				storage_deposit_limit,
+				input_data,
+				pallet_contracts::DebugInfo::UnsafeDebug,
+				pallet_contracts::CollectEvents::UnsafeCollect,
+				pallet_contracts::Determinism::Enforced,
+			)
+		}
+
+		fn instantiate(
+			origin: AccountId,
+			value: Balance,
+			gas_limit: Option<Weight>,
+			storage_deposit_limit: Option<Balance>,
+			code: pallet_contracts::Code<Hash>,
+			data: Vec<u8>,
+			salt: Vec<u8>,
+		) -> pallet_contracts::ContractInstantiateResult<AccountId, Balance, EventRecord>
+		{
+			let gas_limit = gas_limit.unwrap_or(RuntimeBlockWeights::get().max_block);
+			Contracts::bare_instantiate(
+				origin,
+				value,
+				gas_limit,
+				storage_deposit_limit,
+				code,
+				data,
+				salt,
+				pallet_contracts::DebugInfo::UnsafeDebug,
+				pallet_contracts::CollectEvents::UnsafeCollect,
+			)
+		}
+
+		fn upload_code(
+			origin: AccountId,
+			code: Vec<u8>,
+			storage_deposit_limit: Option<Balance>,
+			determinism: pallet_contracts::Determinism,
+		) -> pallet_contracts::CodeUploadResult<Hash, Balance>
+		{
+			Contracts::bare_upload_code(
+				origin,
+				code,
+				storage_deposit_limit,
+				determinism,
+			)
+		}
+
+		fn get_storage(
+			address: AccountId,
+			key: Vec<u8>,
+		) -> pallet_contracts::GetStorageResult {
+			Contracts::get_storage(
+				address,
+				key
+			)
 		}
 	}
 }

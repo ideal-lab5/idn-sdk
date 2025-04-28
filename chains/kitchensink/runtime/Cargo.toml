@@ -12,10 +12,12 @@ publish = false
 [dependencies]
 codec.workspace = true
 frame-benchmarking = { optional = true, workspace = true }
-
+log.workspace = true
 scale-info.workspace = true
 polkadot-sdk = { workspace = true, features = [
+	"pallet-authorship",
 	"pallet-balances",
+	"pallet-contracts",
 	"pallet-sudo",
 	"pallet-timestamp",
 	"pallet-transaction-payment",
@@ -30,6 +32,7 @@ serde_json = { workspace = true, default-features = false, features = [
 idn-runtime.workspace = true
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
+# pallet-revive.workspace = true
 sp-idn-crypto.workspace = true
 
 [build-dependencies]

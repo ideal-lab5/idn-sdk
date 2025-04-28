@@ -5992,6 +5992,7 @@ version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "idn-runtime",
+ "log",
  "pallet-idn-manager",
  "pallet-randomness-beacon",
  "parity-scale-codec",

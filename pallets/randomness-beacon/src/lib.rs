@@ -83,8 +83,10 @@
 
 pub use pallet::*;
 
-use frame_support::pallet_prelude::*;
+use frame_support::{pallet_prelude::*, traits::Randomness};
+use frame_system::pallet_prelude::BlockNumberFor;
 
+use sp_runtime::traits::Hash;
 use sp_idn_crypto::verifier::{OpaqueAccumulation, SignatureVerifier};
 use sp_idn_traits::pulse::{Dispatcher, Pulse as TPulse};
 use sp_std::fmt::Debug;
@@ -141,7 +143,7 @@ pub mod pallet {
 		/// Once the limit is reached, historical missed blocks are pruned as a FIFO queue.
 		type MissedBlocksHistoryDepth: Get<u32>;
 		/// The pulse type
-		type Pulse: TPulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq;
+		type Pulse: TPulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq + codec::MaxEncodedLen;
 		/// Something that can dispatch pulses
 		type Dispatcher: Dispatcher<Self::Pulse, DispatchResult>;
 	}
@@ -157,6 +159,10 @@ pub mod pallet {
 	/// The aggregated signature and aggregated public key (identifier) of all observed pulses
 	#[pallet::storage]
 	pub type SparseAccumulation<T: Config> = StorageValue<_, Accumulation, OptionQuery>;
+
+	#[pallet::storage]
+	pub type LatestPulses<T: Config> =
+		StorageValue<_, BoundedVec<T::Pulse, T::MissedBlocksHistoryDepth>, ValueQuery>;
 
 	/// The collection of blocks for which collators could not report an aggregated signature
 	#[pallet::storage]
@@ -327,6 +333,7 @@ pub mod pallet {
 
 			let sacc = Accumulation::try_from(acc).map_err(|_| Error::<T>::VerificationFailed)?;
 			SparseAccumulation::<T>::set(Some(sacc));
+			LatestPulses::<T>::set(BoundedVec::truncate_from(pulses.clone()));
 			DidUpdate::<T>::put(true);
 
 			// dispatch pulses to subscribers
@@ -363,11 +370,36 @@ pub mod pallet {
 			// set the genesis round as the default digest log for the initial valid round number
 			let digest_item: DigestItem =
 				ConsensusLog::<RoundOf<T>>::LatestRoundNumber(genesis).into();
-			<frame_system::Pallet<T>>::deposit_log(digest_item);
 
+			<frame_system::Pallet<T>>::deposit_log(digest_item);
 			Self::deposit_event(Event::<T>::BeaconConfigSet);
 
 			Ok(Pays::No.into())
 		}
+	}
+}
+
+pub trait InternalPulseDispatcher<Pulse> {
+	fn latest() -> Vec<Pulse>;
+}
+
+impl <T:Config> InternalPulseDispatcher<T::Pulse> for Pallet<T> {
+	fn latest() -> Vec<T::Pulse> {
+		LatestPulses::<T>::get().to_vec()
+	}
+}
+
+impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T> {
+	// this function hashes together the subject with the latest known randomness from quicknet
+	fn random(context: &[u8]) -> (T::Hash, BlockNumberFor<T>) {
+		let block_number_minus_one = <frame_system::Pallet<T>>::block_number() - One::one();
+
+		let mut entropy = T::Hash::default();
+		if let Some(Accumulation  { signature, message_hash }) = SparseAccumulation::<T>::get() {
+			entropy = (context, block_number_minus_one, signature, message_hash)
+				.using_encoded(T::Hashing::hash);
+		}
+
+		(entropy, block_number_minus_one)
 	}
 }
