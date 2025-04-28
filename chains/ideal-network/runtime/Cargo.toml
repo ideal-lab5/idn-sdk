@@ -133,7 +133,6 @@ std = [
   "sp-core/std",
   "sp-genesis-builder/std",
   "sp-idn-crypto/std",
-  # "sp-idn-traits/std",
   "sp-inherents/std",
   "sp-keyring/std",
   "sp-offchain/std",
