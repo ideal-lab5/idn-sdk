@@ -69,7 +69,7 @@ jobs:
         run: cargo doc --no-deps --all-features -p idn-consumer-node
         
       - name: Build
-        run: cargo build --verbose --all-features -p idn-consumer-node --release
+        run: cargo build --all-features -p idn-consumer-node --release
     
   build_idn:
     runs-on: ubuntu-latest
