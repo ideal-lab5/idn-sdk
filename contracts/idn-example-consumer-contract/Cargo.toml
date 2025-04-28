@@ -13,7 +13,7 @@ description = "An example consumer contract for interacting with Ideal Network s
 ink = { workspace = true, default-features = false }
 idn-client-contract-lib = { workspace = true, default-features = false }
 sp-idn-traits = { workspace = true, default-features = false }
-idn-runtime = { workspace = true }
+idn-runtime = { workspace = true, default-features = false }
 codec = { workspace = true, default-features = false, features = ["derive"] }
 scale-info = { workspace = true, default-features = false, features = ["derive"] }
 
