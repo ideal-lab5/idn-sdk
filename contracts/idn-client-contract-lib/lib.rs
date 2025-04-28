@@ -30,7 +30,7 @@ use alloc::sync::Arc;
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
-pub use idn_runtime::types::OpaquePulse;
+pub use idn_runtime::types::RuntimePulse;
 pub use sp_idn_traits::pulse::Pulse;
 
 /// Call index for the create_subscription function in the IDN Manager pallet
@@ -220,7 +220,7 @@ pub trait RandomnessReceiver {
 	/// * `Result<()>` - Success or error
 	fn on_randomness_received(
 		&mut self,
-		pulse: OpaquePulse,
+		pulse: RuntimePulse,
 		subscription_id: SubscriptionId,
 	) -> Result<()>;
 }

@@ -29,4 +29,8 @@ std = [
     "codec/std",
     "scale-info/std",
     "sp-idn-traits/std",
+    "idn-runtime/std",
+]
+runtime-benchmarks = [
+    "idn-runtime/runtime-benchmarks",
 ]

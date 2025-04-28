@@ -19,8 +19,8 @@
 #[ink::contract]
 mod example_consumer {
 	use idn_client_contract_lib::{
-		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, OpaquePulse, Pulse,
-		RandomnessReceiver, Result, SubscriptionId, UpdateSubParams,
+		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, Pulse, RandomnessReceiver,
+		Result, RuntimePulse, SubscriptionId, UpdateSubParams,
 	};
 	use ink::prelude::vec::Vec;
 
@@ -66,13 +66,13 @@ mod example_consumer {
 		pub sig: [u8; 48],
 	}
 
-	impl From<idn_runtime::types::OpaquePulse> for ContractPulse {
-		fn from(p: idn_runtime::types::OpaquePulse) -> Self {
+	impl From<idn_runtime::types::RuntimePulse> for ContractPulse {
+		fn from(p: idn_runtime::types::RuntimePulse) -> Self {
 			Self { rand: p.rand(), round: p.round(), sig: p.sig() }
 		}
 	}
 
-	impl From<ContractPulse> for idn_runtime::types::OpaquePulse {
+	impl From<ContractPulse> for idn_runtime::types::RuntimePulse {
 		fn from(p: ContractPulse) -> Self {
 			Self { round: p.round, signature: p.sig }
 		}
@@ -417,7 +417,7 @@ mod example_consumer {
 	impl RandomnessReceiver for ExampleConsumer {
 		fn on_randomness_received(
 			&mut self,
-			pulse: OpaquePulse,
+			pulse: RuntimePulse,
 			subscription_id: SubscriptionId,
 		) -> Result<()> {
 			// Verify that the subscription ID matches our active subscription
