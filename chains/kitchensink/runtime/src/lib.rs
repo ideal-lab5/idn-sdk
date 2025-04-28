@@ -27,7 +27,7 @@ extern crate alloc;
 
 use crate::{interface::AccountId, sp_runtime::AccountId32};
 use alloc::vec::Vec;
-use idn_runtime::types::RuntimePulse;
+use idn_runtime::primitives::types::RuntimePulse;
 use pallet_idn_manager::{
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
