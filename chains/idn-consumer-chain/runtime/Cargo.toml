@@ -200,3 +200,8 @@ metadata-hash = ["substrate-wasm-builder/metadata-hash"]
 # A convenience feature for enabling things when doing a build
 # for an on-chain release.
 on-chain-release-build = ["metadata-hash"]
+
+# Do not create a wasm binary for the IDN runtime.
+skip-idn-runtime-wasm = [
+  "pallet-idn-consumer/skip-idn-runtime-wasm",
+]

@@ -87,6 +87,7 @@ sp-idn-crypto.workspace = true
 
 [features]
 default = ["std"]
+skip-wasm = [] # Add this feature to skip the build script
 std = [
   "codec/std",
   "cumulus-pallet-aura-ext/std",

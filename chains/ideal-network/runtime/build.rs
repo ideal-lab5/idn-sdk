@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#[cfg(all(feature = "std", feature = "metadata-hash"))]
+#[cfg(all(feature = "std", feature = "metadata-hash", not(feature = "skip-wasm")))]
 #[docify::export(template_enable_metadata_hash)]
 fn main() {
 	substrate_wasm_builder::WasmBuilder::init_with_defaults()
@@ -22,7 +22,7 @@ fn main() {
 		.build();
 }
 
-#[cfg(all(feature = "std", not(feature = "metadata-hash")))]
+#[cfg(all(feature = "std", not(feature = "metadata-hash"), not(feature = "skip-wasm")))]
 fn main() {
 	substrate_wasm_builder::WasmBuilder::build_using_defaults();
 }

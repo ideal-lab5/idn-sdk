@@ -73,3 +73,6 @@ runtime-benchmarks = [
 	"pallet-idn-manager/runtime-benchmarks",
 	"cumulus-primitives-core/runtime-benchmarks",
 ]
+skip-idn-runtime-wasm = [
+	"idn-runtime/skip-wasm",
+]
