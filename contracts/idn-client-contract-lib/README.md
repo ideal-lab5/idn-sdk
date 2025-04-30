@@ -1,4 +1,4 @@
-# IDN Client Library
+# IDN Client Contract Library
 
 A client library for ink! smart contracts to interact with the Ideal Network services through XCM. This library makes it simple for contracts on other parachains to subscribe to and receive randomness from the Ideal Network.
 
@@ -17,7 +17,7 @@ The library provides:
 
 1. **IdnClient Trait**: The main interface for interacting with the IDN Manager pallet
 2. **RandomnessReceiver Trait**: Interface that contracts must implement to receive randomness
-3. **IdnPulse Struct**: Implementation of the `Pulse` trait for handling randomness with metadata
+3. **ContractPulse Struct**: Implementation of the `Pulse` trait for handling randomness with metadata
 4. **IdnClientImpl**: Reference implementation of the IdnClient trait with configurable parameters
 5. **Helper Types**: Subscription IDs, error types, CreateSubParams, UpdateSubParams, and other necessary types
 
@@ -29,14 +29,12 @@ First, add the IDN Client library to your contract's `Cargo.toml`:
 
 ```toml
 [dependencies]
-idn-client = { path = "../idn-client", default-features = false }
-idn-traits = { path = "../../primitives/traits", default-features = false }
+idn-client-contract-lib = { path = "../idn-client-contract-lib", default-features = false }
 
 [features]
 default = ["std"]
 std = [
-    "idn-client/std",
-    "idn-traits/std",
+    "idn-client-contract-lib/std",
     # other dependencies with std feature
 ]
 ```
@@ -46,13 +44,11 @@ std = [
 In your contract's `lib.rs`, use the IDN Client as follows:
 
 ```rust
-use idn_client::{
-    CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, IdnPulse,
+use idn_client_contract_lib::{
+    CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, ContractPulse,
     RandomnessReceiver, Result, SubscriptionId, UpdateSubParams
 };
-use idn_traits::pulse::Pulse;
-use idn_runtime::types::{Pulse};
-use idn_client_contract_lib::{SubscriptionId, BlockNumber, Metadata, PulseFilter, SubscriptionState, CreateSubParams, UpdateSubParams, Error};
+use idn_client_contract_lib::Pulse;
 
 #[ink(storage)]
 pub struct YourContract {
@@ -61,7 +57,7 @@ pub struct YourContract {
     // The last received randomness
     last_randomness: Option<[u8; 32]>,
     // The last received pulse (contains randomness, round number, and signature)
-    last_pulse: Option<IdnPulse>,
+    last_pulse: Option<ContractPulse>,
     // The parachain ID where this contract is deployed
     destination_para_id: u32,
     // The contracts pallet index on the destination chain
@@ -109,7 +105,7 @@ impl YourContract {
 impl RandomnessReceiver for YourContract {
     fn on_randomness_received(
         &mut self, 
-        pulse: Pulse,
+        pulse: ContractPulse,
         subscription_id: SubscriptionId,
     ) -> Result<()> {
         // Verify that the subscription ID matches our active subscription
@@ -122,27 +118,25 @@ impl RandomnessReceiver for YourContract {
         }
         
         // Extract and store the randomness
-        let randomness = pulse.rand;
+        let randomness = pulse.rand();
         self.last_randomness = Some(randomness);
         
-        // Store the pulse if possible
-        if let Some(concrete_pulse) = self.clone_pulse(pulse) {
-            self.last_pulse = Some(concrete_pulse);
-        }
+        // Store the pulse
+        self.last_pulse = Some(pulse);
         
         Ok(())
     }
 }
 
 // Create a subscription
-#[ink(message)]
+#[ink(message, payable)]
 pub fn create_subscription(
     &mut self, 
     credits: u32, 
     frequency: u32, 
     metadata: Option<Vec<u8>>,
     pulse_filter: Option<Vec<u8>>
-) -> Result<()> {
+) -> core::result::Result<(), Error> {
     // Create subscription parameters
     let params = CreateSubParams {
         credits,
@@ -166,27 +160,27 @@ pub fn create_subscription(
 }
 
 // Pause a subscription
-#[ink(message)]
-pub fn pause_subscription(&mut self) -> Result<()> {
+#[ink(message, payable)]
+pub fn pause_subscription(&mut self) -> core::result::Result<(), Error> {
     let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
     self.idn_client.pause_subscription(subscription_id)
 }
 
 // Reactivate a paused subscription
-#[ink(message)]
-pub fn reactivate_subscription(&mut self) -> Result<()> {
+#[ink(message, payable)]
+pub fn reactivate_subscription(&mut self) -> core::result::Result<(), Error> {
     let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
     self.idn_client.reactivate_subscription(subscription_id)
 }
 
 // Update a subscription
-#[ink(message)]
+#[ink(message, payable)]
 pub fn update_subscription(
     &mut self,
     credits: u32,
     frequency: u32,
     pulse_filter: Option<Vec<u8>>
-) -> Result<()> {
+) -> core::result::Result<(), Error> {
     let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
     
     // Create update parameters
@@ -201,8 +195,8 @@ pub fn update_subscription(
 }
 
 // Kill a subscription
-#[ink(message)]
-pub fn kill_subscription(&mut self) -> Result<()> {
+#[ink(message, payable)]
+pub fn kill_subscription(&mut self) -> core::result::Result<(), Error> {
     let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
     self.idn_client.kill_subscription(subscription_id)
 }
@@ -211,18 +205,18 @@ pub fn kill_subscription(&mut self) -> Result<()> {
 
 The `call_index` parameter is crucial for receiving randomness properly:
 
-1. The first byte is the pallet index in your contract's runtime
-2. The second byte is the function index within that pallet
+1. The first byte is typically the contracts pallet index on the destination chain
+2. The second byte is typically the first byte of the selector for the function that will receive randomness
 
 This must correspond to a function that can receive and process randomness data from the IDN Network.
 
 ## Configurable Parameters
 
-The IDN Client library now allows configuring the following parameters at instantiation time:
+The IDN Client library allows configuring the following parameters at instantiation time:
 
 1. **IDN Manager Pallet Index**: The pallet index for the IDN Manager pallet on the Ideal Network
    ```rust
-   // Default value is 42, can be overridden
+   // Example value, use the correct value for your network
    let idn_manager_pallet_index: u8 = 42;
    ```
 
@@ -236,53 +230,37 @@ These parameters can be configured when creating an IdnClientImpl instance:
 let idn_client = IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id);
 ```
 
-## Canonical Types
+## Using Types from the Library
 
-All types such as `Pulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, `PulseFilter`, `SubscriptionState`, `CreateSubParams`, `UpdateSubParams`, and `Error` are now defined in the runtime or this library. **Import them directly**:
+All types such as `Pulse` (trait), `ContractPulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, `PulseFilter`, `SubscriptionState`, `CreateSubParams`, `UpdateSubParams`, and `Error` are defined within this library. Import them directly:
 
 ```rust
-use idn_runtime::types::{Pulse};
-use idn_client_contract_lib::{SubscriptionId, BlockNumber, Metadata, PulseFilter, SubscriptionState, CreateSubParams, UpdateSubParams, Error};
+use idn_client_contract_lib::{
+    Pulse, ContractPulse, SubscriptionId, BlockNumber, Metadata, 
+    PulseFilter, SubscriptionState, CreateSubParams, UpdateSubParams, Error
+};
 ```
 
-Do not redefine these types locally in your contracts.
+## Using the Pulse Trait and ContractPulse
 
-## Example: Receiving Randomness
+The library provides:
 
-```rust
-impl RandomnessReceiver for YourContract {
-    fn on_randomness_received(
-        &mut self,
-        pulse: Pulse,
-        subscription_id: SubscriptionId,
-    ) -> Result<()> {
-        // Use canonical types directly
-        let randomness = pulse.rand;
-        // Store or process randomness as needed
-        Ok(())
-    }
-}
-```
-
-## Using the Pulse Trait
-
-The `Pulse` trait provides additional security and functionality:
-
-1. **Round Numbers**: Track which round of randomness you're receiving
-2. **Signatures**: Verify the authenticity of the randomness
-3. **Type Safety**: Ensures proper handling of randomness data
-
-Example of accessing pulse data:
+1. A `Pulse` trait defining the interface for randomness data
+2. A `ContractPulse` implementation of the Pulse trait that is optimized for storage in ink! contracts
 
 ```rust
+// Working with ContractPulse
 // Get the raw randomness
-let rand_bytes: [u8; 32] = pulse.rand;
+let rand_bytes = pulse.rand();
 
 // Get the round number
-let round: u64 = pulse.round();
+let round = pulse.round();
 
 // Get the signature
-let signature: [u8; 48] = pulse.sig();
+let signature = pulse.sig();
+
+// Authenticate (if applicable)
+let is_valid = pulse.authenticate(pubkey);
 ```
 
 ## Security Considerations
@@ -297,11 +275,10 @@ When using this library:
 
 ## Testing
 
-See the `example-consumer` contract for examples of how to test contracts that use this library, including:
+See the `idn-example-consumer-contract` for examples of how to test contracts that use this library, including:
 
 - Unit tests for subscription management
-- Simulating randomness reception with Pulse objects
-- E2E tests using ink_e2e
+- Simulating randomness reception with ContractPulse objects
 
 ## License
 

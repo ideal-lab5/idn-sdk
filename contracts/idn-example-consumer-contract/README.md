@@ -1,6 +1,6 @@
 # Example Consumer Contract
 
-This contract demonstrates how to use the IDN Client library to interact with the Ideal Network's randomness subscription service. It serves as a reference implementation that can be used as a starting point for developing your own contracts that consume randomness from the IDN Network.
+This contract demonstrates how to use the IDN Client Contract Library to interact with the Ideal Network's randomness subscription service. It serves as a reference implementation that can be used as a starting point for developing your own contracts that consume randomness from the IDN Network.
 
 ## Features
 
@@ -29,8 +29,14 @@ To deploy this contract:
 
 1. Build the contract:
    ```bash
-   cd contracts/example-consumer
-   cargo contract build
+   cd contracts
+   sh build_all_contracts.sh
+   ```
+
+   Or directly:
+   ```bash
+   cd contracts/idn-example-consumer-contract
+   cargo contract build --release
    ```
 
 2. Deploy to your parachain using your preferred method (e.g., Contracts UI)
@@ -81,8 +87,8 @@ kill_subscription()
 ```
 get_last_randomness() -> Option<[u8; 32]>
 get_randomness_history() -> Vec<[u8; 32]>
-get_last_pulse() -> Option<IdnPulse>
-get_pulse_history() -> Vec<IdnPulse>
+get_last_pulse() -> Option<ContractPulse>
+get_pulse_history() -> Vec<ContractPulse>
 ```
 
 #### Accessing Configuration
@@ -99,26 +105,24 @@ The pulse-based methods provide access to additional data beyond just randomness
 
 ### Testing
 
-The contract includes both unit tests and end-to-end tests:
+The contract includes comprehensive unit tests for all functionality:
 
 ```bash
 # Run unit tests
 cargo test
-
-# Run E2E tests
-cargo test --features e2e-tests
 ```
 
-## Implementing the Pulse Trait
+## Implementation Details
 
-The contract demonstrates how to implement and use the Pulse trait:
+### RandomnessReceiver Implementation
+
+The contract demonstrates how to implement the RandomnessReceiver trait:
 
 ```rust
-// Receiving a pulse through the RandomnessReceiver trait
 impl RandomnessReceiver for ExampleConsumer {
     fn on_randomness_received(
         &mut self,
-        pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 48]>,
+        pulse: ContractPulse,
         subscription_id: SubscriptionId
     ) -> Result<()> {
         // Verify that the subscription ID matches our active subscription
@@ -130,38 +134,51 @@ impl RandomnessReceiver for ExampleConsumer {
             return Err(Error::SubscriptionNotFound);
         }
         
-        // Extract the randomness
-        let randomness = pulse.rand();
+        // Compute randomness as Sha256(sig)
+        let mut hasher = Sha256::default();
+        hasher.update(pulse.sig());
+        let randomness: [u8; 32] = hasher.finalize().into();
         
-        // Store the randomness for backward compatibility
+        // Store the randomness
         self.last_randomness = Some(randomness);
         self.randomness_history.push(randomness);
         
-        // Store the complete pulse if possible
-        if let Some(concrete_pulse) = self.clone_pulse(pulse) {
-            self.last_pulse = Some(concrete_pulse.clone());
-            self.pulse_history.push(concrete_pulse);
-        }
+        // Store the pulse
+        let normalized_pulse = ContractPulse {
+            rand: randomness,
+            round: pulse.round(),
+            sig: pulse.sig(),
+        };
+        self.last_pulse = Some(normalized_pulse);
+        self.pulse_history.push(normalized_pulse);
         
         Ok(())
     }
 }
-
-### Type Usage and Storage Compatibility
-
-- All types such as `Pulse`, `SubscriptionId`, and others are imported from the runtime or client library.
-- For ink! storage compatibility, this contract uses a local `ContractPulse` wrapper struct with conversion methods to and from the canonical `Pulse` type.
-- Example:
-
-```rust
-use idn_runtime::types::Pulse;
-use crate::ContractPulse;
-
-// Convert and store
-self.last_pulse = Some(ContractPulse::from(pulse));
 ```
 
-Do not redefine these types locally; always import them to ensure consistency.
+### Simulated Receiving
+
+For testing purposes, the contract includes methods to simulate receiving randomness:
+
+```rust
+#[ink(message)]
+pub fn simulate_pulse_received(
+    &mut self,
+    pulse: ContractPulse,
+) -> core::result::Result<(), ContractError> {
+    self.ensure_authorized()?;
+    
+    let subscription_id = if let Some(id) = self.subscription_id {
+        id
+    } else {
+        return Err(ContractError::NoActiveSubscription);
+    };
+    
+    self.on_randomness_received(pulse, subscription_id)
+        .map_err(ContractError::IdnClientError)
+}
+```
 
 ## Customizing for Your Project
 

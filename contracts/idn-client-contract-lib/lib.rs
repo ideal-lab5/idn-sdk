@@ -13,25 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#![cfg_attr(not(feature = "std"), no_std)]
 
-#![cfg_attr(not(feature = "std"), no_std, no_main)]
+use ink::{
+	env::Error as EnvError,
+	prelude::{vec, vec::Vec},
+	xcm::prelude::*,
+};
+use parity_scale_codec::{Decode, Encode};
 
-#[cfg(not(feature = "std"))]
-extern crate alloc;
-
-#[cfg(not(feature = "std"))]
-use alloc::vec;
-
-use codec::{Decode, Encode};
-use ink::{env::Error as EnvError, prelude::vec::Vec, xcm::prelude::*};
-
-#[cfg(not(feature = "std"))]
-use alloc::sync::Arc;
-#[cfg(feature = "std")]
-use std::sync::Arc;
-
-pub use idn_runtime::types::OpaquePulse;
-pub use sp_idn_traits::pulse::Pulse;
+mod traits;
+mod types;
+pub use traits::Pulse;
+pub use types::ContractPulse;
 
 /// Call index for the create_subscription function in the IDN Manager pallet
 pub const IDN_MANAGER_CREATE_SUB_INDEX: u8 = 0;
@@ -52,6 +46,7 @@ pub const IDN_MANAGER_KILL_SUB_INDEX: u8 = 4;
 pub type CallIndex = [u8; 2];
 
 /// Represents possible errors that can occur when interacting with the IDN network
+#[allow(clippy::cast_possible_truncation)]
 #[derive(Debug, PartialEq, Eq)]
 #[ink::scale_derive(Encode, Decode, TypeInfo)]
 pub enum Error {
@@ -100,6 +95,7 @@ pub type Metadata = Vec<u8>;
 pub type PulseFilter = Vec<u8>;
 
 /// Represents the state of a subscription
+#[allow(clippy::cast_possible_truncation)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[ink::scale_derive(Encode, Decode, TypeInfo)]
 pub enum SubscriptionState {
@@ -220,7 +216,7 @@ pub trait RandomnessReceiver {
 	/// * `Result<()>` - Success or error
 	fn on_randomness_received(
 		&mut self,
-		pulse: OpaquePulse,
+		pulse: ContractPulse,
 		subscription_id: SubscriptionId,
 	) -> Result<()>;
 }
@@ -274,15 +270,18 @@ impl IdnClientImpl {
 	) -> Location {
 		Location {
 			parents: 1, // Go up to the relay chain
-			interior: Junctions::X3(Arc::new([
-				Junction::Parachain(destination_para_id), // Target parachain
-				Junction::PalletInstance(contracts_pallet_index), // Contracts pallet
-				Junction::AccountId32 {
-					// Contract address
-					network: None,
-					id: *contract_account_id,
-				},
-			])),
+			interior: Junctions::X3(
+				[
+					Junction::Parachain(destination_para_id), // Target parachain
+					Junction::PalletInstance(contracts_pallet_index), // Contracts pallet
+					Junction::AccountId32 {
+						// Contract address
+						network: None,
+						id: *contract_account_id,
+					},
+				]
+				.into(),
+			),
 		}
 	}
 
@@ -314,7 +313,7 @@ impl IdnClientImpl {
 	/// Constructs an XCM message for creating a subscription
 	fn construct_create_subscription_xcm(&self, params: &CreateSubParams) -> Xcm<()> {
 		// Encode the parameters for create_subscription call
-		let encoded_params = codec::Encode::encode(params);
+		let encoded_params = params.encode();
 
 		// Use the helper function to construct the XCM message
 		self.construct_xcm_for_idn_manager(IDN_MANAGER_CREATE_SUB_INDEX, encoded_params)
@@ -323,7 +322,7 @@ impl IdnClientImpl {
 	/// Constructs an XCM message for pausing a subscription
 	fn construct_pause_subscription_xcm(&self, subscription_id: SubscriptionId) -> Xcm<()> {
 		// Encode the parameters for pause_subscription call
-		let encoded_params = codec::Encode::encode(&subscription_id);
+		let encoded_params = subscription_id.encode();
 
 		// Use the helper function to construct the XCM message
 		self.construct_xcm_for_idn_manager(IDN_MANAGER_PAUSE_SUB_INDEX, encoded_params)
@@ -332,7 +331,7 @@ impl IdnClientImpl {
 	/// Constructs an XCM message for reactivating a subscription
 	fn construct_reactivate_subscription_xcm(&self, subscription_id: SubscriptionId) -> Xcm<()> {
 		// Encode the parameters for reactivate_subscription call
-		let encoded_params = codec::Encode::encode(&subscription_id);
+		let encoded_params = subscription_id.encode();
 
 		// Use the helper function to construct the XCM message
 		self.construct_xcm_for_idn_manager(IDN_MANAGER_REACTIVATE_SUB_INDEX, encoded_params)
@@ -341,7 +340,7 @@ impl IdnClientImpl {
 	/// Constructs an XCM message for updating a subscription
 	fn construct_update_subscription_xcm(&self, params: &UpdateSubParams) -> Xcm<()> {
 		// Encode the parameters for update_subscription call
-		let encoded_params = codec::Encode::encode(params);
+		let encoded_params = params.encode();
 
 		// Use the helper function to construct the XCM message
 		self.construct_xcm_for_idn_manager(IDN_MANAGER_UPDATE_SUB_INDEX, encoded_params)
@@ -350,7 +349,7 @@ impl IdnClientImpl {
 	/// Constructs an XCM message for canceling a subscription
 	fn construct_kill_subscription_xcm(&self, subscription_id: SubscriptionId) -> Xcm<()> {
 		// Encode the parameters for kill_subscription call
-		let encoded_params = codec::Encode::encode(&subscription_id);
+		let encoded_params = subscription_id.encode();
 
 		// Use the helper function to construct the XCM message
 		self.construct_xcm_for_idn_manager(IDN_MANAGER_KILL_SUB_INDEX, encoded_params)
@@ -373,12 +372,9 @@ impl IdnClient for IdnClientImpl {
 
 		// Create the destination MultiLocation (IDN parachain)
 		let junction = Junction::Parachain(self.ideal_network_para_id);
-		let junctions_array = [junction; 1];
-		let destinations = Arc::new(junctions_array);
-
 		let destination = Location {
 			parents: 1, // Parent (relay chain)
-			interior: Junctions::X1(destinations),
+			interior: Junctions::X1([junction].into()),
 		};
 
 		// Send the XCM message
@@ -398,12 +394,9 @@ impl IdnClient for IdnClientImpl {
 
 		// Create the destination MultiLocation (IDN parachain)
 		let junction = Junction::Parachain(self.ideal_network_para_id);
-		let junctions_array = [junction; 1];
-		let destinations = Arc::new(junctions_array);
-
 		let destination = Location {
 			parents: 1, // Parent (relay chain)
-			interior: Junctions::X1(destinations),
+			interior: Junctions::X1([junction].into()),
 		};
 
 		// Send the XCM message
@@ -421,12 +414,9 @@ impl IdnClient for IdnClientImpl {
 
 		// Create the destination MultiLocation (IDN parachain)
 		let junction = Junction::Parachain(self.ideal_network_para_id);
-		let junctions_array = [junction; 1];
-		let destinations = Arc::new(junctions_array);
-
 		let destination = Location {
 			parents: 1, // Parent (relay chain)
-			interior: Junctions::X1(destinations),
+			interior: Junctions::X1([junction].into()),
 		};
 
 		// Send the XCM message
@@ -444,12 +434,9 @@ impl IdnClient for IdnClientImpl {
 
 		// Create the destination MultiLocation (IDN parachain)
 		let junction = Junction::Parachain(self.ideal_network_para_id);
-		let junctions_array = [junction; 1];
-		let destinations = Arc::new(junctions_array);
-
 		let destination = Location {
 			parents: 1, // Parent (relay chain)
-			interior: Junctions::X1(destinations),
+			interior: Junctions::X1([junction].into()),
 		};
 
 		// Send the XCM message
@@ -467,12 +454,9 @@ impl IdnClient for IdnClientImpl {
 
 		// Create the destination MultiLocation (IDN parachain)
 		let junction = Junction::Parachain(self.ideal_network_para_id);
-		let junctions_array = [junction; 1];
-		let destinations = Arc::new(junctions_array);
-
 		let destination = Location {
 			parents: 1, // Parent (relay chain)
-			interior: Junctions::X1(destinations),
+			interior: Junctions::X1([junction].into()),
 		};
 
 		// Send the XCM message
@@ -564,7 +548,7 @@ mod tests {
 		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Encode the client
-		let encoded = Encode::encode(&client);
+		let encoded = client.encode();
 
 		// Decode the client
 		let decoded: IdnClientImpl = Decode::decode(&mut &encoded[..]).unwrap();

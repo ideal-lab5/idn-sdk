@@ -13,8 +13,6 @@ members = [
     "chains/ideal-network/node",
     "chains/idn-consumer/runtime",
     "chains/idn-consumer/node",
-    "contracts/idn-client-contract-lib",
-    "contracts/idn-example-consumer-contract",
 ]
 resolver = "2"
 
@@ -193,10 +191,6 @@ scale-info = { version = "2.11.6", default-features = false, features = [
     "derive",
 ] }
 
-# ink! dependencies
-ink = { version = "5.1.1", default-features = false }
-ink_e2e = { version = "5.1.1" }
-
 # Cumulus
 cumulus-client-cli = { version = "0.22.0", default-features = false }
 cumulus-client-collator = { version = "0.22.0", default-features = false }
@@ -226,9 +220,6 @@ sc-consensus-randomness-beacon = { path = "./client/consensus/randomness-beacon"
 sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }
 sp-idn-crypto = { path = "./primitives/crypto", default-features = false }
 sp-idn-traits = { path = "./primitives/traits", default-features = false }
-sp-idn-types = { path = "./primitives/types", default-features = false }
-idn-client-contract-lib = { path = "./contracts/idn-client-contract-lib", default-features = false }
-idn-example-consumer-contract = { path = "./contracts/idn-example-consumer-contract", default-features = false }
 idn-sdk-kitchensink-runtime = { path = "./chains/kitchensink/runtime" }
 idn-sdk-kitchensink-node = { path = "./chains/kitchensink/node" }
 idn-runtime = { path = "./chains/ideal-network/runtime", default-features = false }

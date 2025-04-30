@@ -15,14 +15,16 @@
  */
 
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
+#![allow(clippy::cast_possible_truncation)]
 
 #[ink::contract]
 mod example_consumer {
 	use idn_client_contract_lib::{
-		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, OpaquePulse, Pulse,
+		CallIndex, ContractPulse, CreateSubParams, Error, IdnClient, IdnClientImpl, Pulse,
 		RandomnessReceiver, Result, SubscriptionId, UpdateSubParams,
 	};
 	use ink::prelude::vec::Vec;
+	use sha2::{Digest, Sha256};
 
 	/// The Example Consumer contract demonstrates how to use the IDN Client
 	/// to interact with the IDN Network for randomness subscriptions.
@@ -46,36 +48,6 @@ mod example_consumer {
 		pulse_history: Vec<ContractPulse>,
 		/// IDN client implementation
 		idn_client: IdnClientImpl,
-	}
-
-	/// Local Pulse wrapper for ink! storage compatibility
-	#[derive(
-		ink::scale::Encode,
-		ink::scale::Decode,
-		Clone,
-		Copy,
-		PartialEq,
-		Eq,
-		Debug,
-		ink::scale_info::TypeInfo,
-		ink::storage::traits::StorageLayout,
-	)]
-	pub struct ContractPulse {
-		pub rand: [u8; 32],
-		pub round: u64,
-		pub sig: [u8; 48],
-	}
-
-	impl From<idn_runtime::types::OpaquePulse> for ContractPulse {
-		fn from(p: idn_runtime::types::OpaquePulse) -> Self {
-			Self { rand: p.rand(), round: p.round(), sig: p.sig() }
-		}
-	}
-
-	impl From<ContractPulse> for idn_runtime::types::OpaquePulse {
-		fn from(p: ContractPulse) -> Self {
-			Self { round: p.round, signature: p.sig }
-		}
 	}
 
 	/// Errors that can occur in the Example Consumer contract
@@ -353,7 +325,7 @@ mod example_consumer {
 				return Err(ContractError::NoActiveSubscription);
 			};
 
-			self.on_randomness_received(pulse.into(), subscription_id)
+			self.on_randomness_received(pulse, subscription_id)
 				.map_err(ContractError::IdnClientError)
 		}
 
@@ -391,7 +363,7 @@ mod example_consumer {
 			pulse: ContractPulse,
 			subscription_id: SubscriptionId,
 		) -> core::result::Result<(), ContractError> {
-			self.on_randomness_received(pulse.into(), subscription_id)
+			self.on_randomness_received(pulse, subscription_id)
 				.map_err(ContractError::IdnClientError)
 		}
 
@@ -417,7 +389,7 @@ mod example_consumer {
 	impl RandomnessReceiver for ExampleConsumer {
 		fn on_randomness_received(
 			&mut self,
-			pulse: OpaquePulse,
+			pulse: ContractPulse,
 			subscription_id: SubscriptionId,
 		) -> Result<()> {
 			// Verify that the subscription ID matches our active subscription
@@ -429,16 +401,20 @@ mod example_consumer {
 				return Err(Error::SubscriptionNotFound);
 			}
 
-			// Extract the randomness
-			let randomness = pulse.rand();
+			// Compute randomness as Sha256(sig)
+			let mut hasher = Sha256::default();
+			hasher.update(pulse.sig());
+			let randomness: [u8; 32] = hasher.finalize().into();
 
 			// Store the randomness for backward compatibility
 			self.last_randomness = Some(randomness);
 			self.randomness_history.push(randomness);
 
-			// Store the complete pulse
-			self.last_pulse = Some(ContractPulse::from(pulse.clone()));
-			self.pulse_history.push(ContractPulse::from(pulse.clone()));
+			// Store the complete pulse (with normalized rand field)
+			let normalized_pulse =
+				ContractPulse { rand: randomness, round: pulse.round(), sig: pulse.sig() };
+			self.last_pulse = Some(normalized_pulse);
+			self.pulse_history.push(normalized_pulse);
 
 			Ok(())
 		}
@@ -450,7 +426,7 @@ mod example_consumer {
 		use super::*;
 		use sha2::{Digest, Sha256};
 
-		#[test]
+		#[ink::test]
 		fn test_receive_and_store_randomness() {
 			// Create a test pulse
 			let test_randomness = [42u8; 32];
@@ -479,7 +455,7 @@ mod example_consumer {
 			assert_eq!(contract.get_pulse_history().len(), 1);
 		}
 
-		#[test]
+		#[ink::test]
 		fn test_randomness_getters() {
 			// Create a test contract
 			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
@@ -501,7 +477,7 @@ mod example_consumer {
 
 			// Compute expected randomness for test_pulse1
 			let mut hasher1 = Sha256::default();
-			hasher1.update(test_pulse1.sig);
+			hasher1.update(test_pulse1.sig());
 			let expected_rand1: [u8; 32] = hasher1.finalize().into();
 			let expected_pulse1 = ContractPulse {
 				rand: expected_rand1,
@@ -510,7 +486,7 @@ mod example_consumer {
 			};
 			// Compute expected randomness for test_pulse2
 			let mut hasher2 = Sha256::default();
-			hasher2.update(test_pulse2.sig);
+			hasher2.update(test_pulse2.sig());
 			let expected_rand2: [u8; 32] = hasher2.finalize().into();
 			let expected_pulse2 = ContractPulse {
 				rand: expected_rand2,
@@ -524,7 +500,7 @@ mod example_consumer {
 			assert_eq!(contract.get_pulse_history(), vec![expected_pulse1, expected_pulse2]);
 		}
 
-		#[test]
+		#[ink::test]
 		fn test_randomness_receiver_trait() {
 			// Create a test contract
 			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
@@ -534,16 +510,13 @@ mod example_consumer {
 			let test_pulse = ContractPulse { rand: [9u8; 32], round: 42, sig: [5u8; 48] };
 
 			// Call the trait method directly
-			let result = RandomnessReceiver::on_randomness_received(
-				&mut contract,
-				test_pulse.clone().into(),
-				5,
-			);
+			let result =
+				RandomnessReceiver::on_randomness_received(&mut contract, test_pulse.clone(), 5);
 			assert!(result.is_ok());
 
 			// Compute expected randomness
 			let mut hasher = Sha256::default();
-			hasher.update(test_pulse.sig);
+			hasher.update(test_pulse.sig());
 			let expected_rand: [u8; 32] = hasher.finalize().into();
 			let expected_pulse =
 				ContractPulse { rand: expected_rand, round: test_pulse.round, sig: test_pulse.sig };
@@ -553,7 +526,7 @@ mod example_consumer {
 			assert_eq!(contract.get_last_pulse(), Some(expected_pulse));
 		}
 
-		#[test]
+		#[ink::test]
 		fn test_randomness_receiver_wrong_subscription() {
 			// Create a test contract
 			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
@@ -563,35 +536,13 @@ mod example_consumer {
 			let test_pulse = ContractPulse { rand: [9u8; 32], round: 42, sig: [5u8; 48] };
 
 			// Call with wrong subscription ID
-			let result = RandomnessReceiver::on_randomness_received(
-				&mut contract,
-				test_pulse.clone().into(),
-				6,
-			);
+			let result =
+				RandomnessReceiver::on_randomness_received(&mut contract, test_pulse.clone(), 6);
 			assert!(result.is_err());
 
 			// Should not have stored anything
 			assert_eq!(contract.get_last_randomness(), None);
 			assert_eq!(contract.get_last_pulse(), None);
-		}
-	}
-
-	/// Integration tests
-	#[cfg(all(test, feature = "e2e-tests"))]
-	mod e2e_tests {
-
-		use super::*;
-		use ink_e2e::ContractsBackend;
-
-		type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-		#[ink_e2e::test]
-		async fn dummy_e2e_test<Client: E2EBackend>(mut client: Client) -> E2EResult<()> {
-			// When the function is entered, the contract was already
-			// built in the background via `cargo contract build`.
-			// The `client` object exposes an interface to interact
-			// with the Substrate node.
-			Ok(())
 		}
 	}
 }

@@ -4,12 +4,12 @@ This directory contains ink! smart contracts for the Ideal Network.
 
 ## Current Contracts
 
-- **idn-client**: A client library for interacting with the Ideal Network services via XCM, focusing on randomness subscriptions.
-- **example-consumer**: An example contract that demonstrates how to use the idn-client library to subscribe to and receive randomness.
+- **idn-client-contract-lib**: A client library for interacting with the Ideal Network services via XCM, focusing on randomness subscriptions.
+- **idn-example-consumer-contract**: An example contract that demonstrates how to use the idn-client-contract-lib library to subscribe to and receive randomness.
 
 ## IDN Client Library
 
-The `idn-client` library provides functionality for interacting with the Ideal Network's IDN Manager pallet through XCM. This allows contracts on other parachains to subscribe to and receive randomness from the Ideal Network.
+The `idn-client-contract-lib` library provides functionality for interacting with the Ideal Network's IDN Manager pallet through XCM. This allows contracts on other parachains to subscribe to and receive randomness from the Ideal Network.
 
 ### Features
 
@@ -27,14 +27,12 @@ To use the IDN Client library in your contract:
 
 ```toml
 [dependencies]
-idn-client = { path = "../idn-client", default-features = false }
-idn-traits = { path = "../../primitives/traits", default-features = false }
+idn-client-contract-lib = { path = "../idn-client-contract-lib", default-features = false }
 
 [features]
 default = ["std"]
 std = [
-    "idn-client/std",
-    "idn-traits/std",
+    "idn-client-contract-lib/std",
     # other dependencies with std feature
 ]
 ```
@@ -42,14 +40,17 @@ std = [
 2. Import and implement the required traits:
 
 ```rust
-use idn_client::{IdnClient, IdnClientImpl, IdnPulse, RandomnessReceiver, SubscriptionId};
-use idn_traits::pulse::Pulse;
+use idn_client_contract_lib::{
+    ContractPulse, IdnClient, IdnClientImpl, RandomnessReceiver, 
+    SubscriptionId, Result, Error
+};
+use idn_client_contract_lib::Pulse;
 
 // Implement the RandomnessReceiver trait to handle incoming randomness
 impl RandomnessReceiver for YourContract {
     fn on_randomness_received(
         &mut self, 
-        pulse: impl Pulse<Rand = [u8; 32], Round = u64, Sig = [u8; 64]>,
+        pulse: ContractPulse,
         subscription_id: SubscriptionId
     ) -> Result<()> {
         // Access the raw randomness
@@ -70,7 +71,7 @@ impl RandomnessReceiver for YourContract {
 // Initialize IDN client with configurable parameters
 let idn_client = IdnClientImpl::new(
     idn_manager_pallet_index, // The pallet index for IDN Manager
-    ideal_network_para_id      // The parachain ID of the Ideal Network
+    ideal_network_para_id     // The parachain ID of the Ideal Network
 );
 ```
 
@@ -102,17 +103,17 @@ self.idn_client.update_subscription(UpdateSubParams {
 
 ## Type Usage and Updates
 
-- **All types such as `Pulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, `PulseFilter`, and `SubscriptionState` are now imported from the runtime or the client contract library. Do not redefine these types locally.**
+- **All types such as `Pulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, `PulseFilter`, and `SubscriptionState` are imported from the idn-client-contract-lib library. Do not redefine these types locally.**
 
-- The `Pulse` struct is imported from the runtime. If you need to store it in contract storage, use a local wrapper (e.g., `ContractPulse`) with the required ink! storage derives and provide conversion methods.
+- The `ContractPulse` struct is provided by the library for use in contracts. This implements the `Pulse` trait with the required ink! storage derives.
 
-- Example code and trait signatures have been updated to use the canonical types from the runtime or client library.
+- Example code and trait signatures have been updated to use the canonical types from the client library.
 
 ## Example Consumer
 
-The `example-consumer` contract demonstrates a complete implementation of a contract that uses the IDN Client library to create randomness subscriptions and handle received randomness.
+The `idn-example-consumer-contract` contract demonstrates a complete implementation of a contract that uses the IDN Client library to create randomness subscriptions and handle received randomness.
 
-See the `example-consumer/lib.rs` file for details on how to:
+See the `idn-example-consumer-contract/lib.rs` file for details on how to:
 - Initialize a contract with IDN Client capabilities
 - Create and manage randomness subscriptions
 - Process received randomness with the Pulse trait
@@ -130,9 +131,17 @@ To work with ink! contracts, you need to have the following tools installed:
 
 ### Building Contracts
 
-To build a contract, navigate to the contract directory and run:
+To build all contracts, run the `build_all_contracts.sh` script in the contracts directory:
 
 ```bash
+cd contracts
+sh build_all_contracts.sh
+```
+
+Or to build a specific contract:
+
+```bash
+cd contracts/idn-example-consumer-contract
 cargo contract build
 ```
 

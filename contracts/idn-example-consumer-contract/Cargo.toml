@@ -1,26 +1,23 @@
 [package]
 name = "idn-example-consumer-contract"
 version = "0.1.0"
-authors.workspace = true
-license.workspace = true
-homepage.workspace = true
-repository.workspace = true
-edition.workspace = true
+authors = ["Ideal Network Contributors <info@ideal.network>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://ideal.network"
+repository = "https://github.com/ideal-lab5/idn-sdk"
+edition = "2021"
 readme = "README.md"
-description = "An example consumer contract for interacting with Ideal Network services"
+description = "An example consumer contract for Ideal Network services"
 
 [dependencies]
-ink = { workspace = true, default-features = false }
-idn-client-contract-lib = { workspace = true, default-features = false }
-sp-idn-traits = { workspace = true, default-features = false }
-idn-runtime = { workspace = true }
-codec = { workspace = true, default-features = false, features = ["derive"] }
-scale-info = { workspace = true, default-features = false, features = ["derive"] }
+ink = { version = "5.1.1", default-features = false }
+parity-scale-codec = { version = "3.7.4", default-features = false, features = ["derive"] }
+scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
+sha2 = { version = "0.10.8", default-features = false }
+idn-client-contract-lib = { path = "../idn-client-contract-lib", default-features = false, features = ["ink-as-dependency"] }
 
 [dev-dependencies]
-ink_e2e = { workspace = true }
-serde_json = { workspace = true }
-sha2 = { workspace = true }
+serde = { version = "1.0", optional = false }
 
 [lib]
 path = "lib.rs"
@@ -29,8 +26,10 @@ path = "lib.rs"
 default = ["std"]
 std = [
     "ink/std",
+    "parity-scale-codec/std",
+    "scale-info/std",
+    "sha2/std",
     "idn-client-contract-lib/std",
-    "sp-idn-traits/std",
 ]
+
 ink-as-dependency = []
-e2e-tests = []
