@@ -18,7 +18,7 @@
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
-use crate::types::Pulse;
+use crate::types::RuntimePulse;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -265,6 +265,7 @@ impl pallet_session::Config for Runtime {
 	type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type WeightInfo = (); // Configure based on benchmarking results.
+	type DisablingStrategy = ();
 }
 
 impl pallet_aura::Config for Runtime {
@@ -322,7 +323,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u128>;
 	type PalletId = IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = Pulse;
+	type Pulse = RuntimePulse;
 	type WeightInfo = ();
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;
@@ -331,4 +332,14 @@ impl pallet_idn_manager::Config for Runtime {
 	type MaxSubscriptions = MaxSubscriptions;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
+}
+
+impl pallet_randomness_beacon::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
+	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
+	type MaxSigsPerBlock = ConstU8<30>;
+	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
+	type Pulse = RuntimePulse;
+	type Dispatcher = crate::IdnManager;
 }

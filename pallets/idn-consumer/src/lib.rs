@@ -18,6 +18,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
+use alloc::vec;
 use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
@@ -25,11 +28,13 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
 use pallet::*;
+use pallet_idn_manager::primitives::{
+	CreateSubParams, IdnManagerCall, PulseFilter, SubscriptionMetadata,
+};
 use scale_info::prelude::fmt::Debug;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_idn_traits::pulse::{Consumer, Pulse};
-use sp_idn_types::{CreateSubParams, IdnManagerCall, PulseFilter, SubscriptionMetadata};
 use xcm::v5::{
 	prelude::{OriginKind, Transact, Xcm},
 	Location,

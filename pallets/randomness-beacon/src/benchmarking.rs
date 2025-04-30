@@ -17,24 +17,26 @@
 //! Benchmarking setup for pallet-randomness-beacon
 use super::*;
 
-use crate::{
-	verifier::{compute_round_on_g1, zero_on_g1},
-	Pallet,
-};
+use crate::{BeaconConfig, Pallet};
 
-#[cfg(not(feature = "host-arkworks"))]
 use ark_bls12_381::{Fr, G1Affine, G2Affine};
-
-#[cfg(feature = "host-arkworks")]
-use sp_ark_bls12_381::{Fr, G1Affine, G2Affine};
 
 use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
 use ark_std::{ops::Mul, test_rng, UniformRand};
 use frame_benchmarking::v2::*;
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
+use sp_consensus_randomness_beacon::types::{
+	OpaquePublicKey, OpaqueSignature, RoundNumber, RuntimePulse,
+};
+use sp_idn_crypto::drand::compute_round_on_g1;
+use sp_idn_traits::pulse::Pulse;
 
-#[benchmarks]
+#[benchmarks(
+	where
+		<T::Pulse as Pulse>::Round: From<u64>,
+		<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
+)]
 mod benchmarks {
 	use super::*;
 
@@ -64,11 +66,12 @@ mod benchmarks {
 
 		let mut pk_bytes = Vec::new();
 		drand.pk.serialize_compressed(&mut pk_bytes).unwrap();
+		let opk: OpaquePublicKey = pk_bytes.try_into().unwrap();
 
-		let mut asig = zero_on_g1();
-		let mut apk = zero_on_g1();
+		let mut asig = G1Affine::zero();
+		let mut apk = G1Affine::zero();
 
-		let sigs = (1..r)
+		let pulses = (1..r)
 			.map(|i| {
 				let mut bytes = Vec::new();
 				let id = compute_round_on_g1(i.into()).unwrap();
@@ -78,7 +81,12 @@ mod benchmarks {
 				asig = (asig + sig).into();
 
 				sig.serialize_compressed(&mut bytes).unwrap();
-				OpaqueSignature::truncate_from(bytes)
+				let signature: OpaqueSignature = bytes.try_into().unwrap();
+
+				let op = RuntimePulse { round: i as u64, signature };
+				let encoded = op.encode();
+				let out: T::Pulse = T::Pulse::decode(&mut encoded.as_slice()).unwrap();
+				out
 			})
 			.collect::<Vec<_>>();
 
@@ -88,21 +96,19 @@ mod benchmarks {
 		let mut apk_bytes = Vec::new();
 		apk.serialize_compressed(&mut apk_bytes).unwrap();
 
-		let config = BeaconConfiguration {
-			genesis_round: 1,
-			public_key: OpaquePublicKey::truncate_from(pk_bytes),
-		};
+		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
+		let config = BeaconConfigurationOf::<T> { genesis_round: 1u64.into(), public_key: pubkey };
 
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
 
 		#[extrinsic_call]
-		_(RawOrigin::None, sigs);
+		_(RawOrigin::None, pulses);
 
 		assert_eq!(
-			AggregatedSignature::<T>::get(),
-			Some(Aggregate {
-				signature: OpaqueSignature::truncate_from(asig_bytes),
-				message_hash: OpaqueSignature::truncate_from(apk_bytes.to_vec())
+			SparseAccumulation::<T>::get(),
+			Some(Accumulation {
+				signature: asig_bytes.try_into().unwrap(),
+				message_hash: apk_bytes.try_into().unwrap(),
 			}),
 		);
 
@@ -137,9 +143,10 @@ mod benchmarks {
 
 	#[benchmark]
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
-		let config = BeaconConfiguration {
-			genesis_round: 1u64,
-			public_key: OpaquePublicKey::truncate_from([1; 96].to_vec()),
+		let public_key = [1; 96];
+		let config = BeaconConfigurationOf::<T> {
+			genesis_round: 1u64.into(),
+			public_key: public_key.into(),
 		};
 
 		#[extrinsic_call]

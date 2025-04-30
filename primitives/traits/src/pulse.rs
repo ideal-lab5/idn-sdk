@@ -24,8 +24,10 @@
 //! * [`crate::pulse::Dispatcher`] - Trait for handling and distributing randomness
 //! * [`crate::pulse::PulseProperty`] - Enum for referencing pulse properties in a type-safe way
 
-use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo};
-use sp_std::fmt::Debug;
+use codec::{DecodeWithMemTracking, EncodeLike};
+use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo, Weight};
+use sp_arithmetic::traits::Saturating;
+use sp_std::{fmt::Debug, vec::Vec};
 
 /// A trait for dispatching random data from pulses.
 ///
@@ -43,11 +45,14 @@ pub trait Dispatcher<P: Pulse, O> {
 	/// Process and dispatch the given random data from a pulse.
 	///
 	/// # Parameters
-	/// * `pulse` - The pulse containing random data to be processed
+	/// * `pulses` - A collection of pulses containing random data to be processed
 	///
 	/// # Returns
 	/// The result of processing the random data, type depends on implementation
-	fn dispatch(pulse: P) -> O;
+	fn dispatch(pulses: Vec<P>) -> O;
+
+	/// Returns the weight of dispatching a given number of pulses
+	fn dispatch_weight(pulses: usize) -> Weight;
 }
 
 pub trait Consumer<P: Pulse, I, O> {
@@ -59,7 +64,9 @@ pub trait Consumer<P: Pulse, I, O> {
 /// This enum allows systems to refer to the properties of a pulse in a type-safe way. It's
 /// commonly used in filtering logic to specify which property and value subscriptions should
 /// match against.
-#[derive(Encode, Decode, TypeInfo, MaxEncodedLen, Debug, PartialEq, Clone)]
+#[derive(
+	Encode, Decode, DecodeWithMemTracking, TypeInfo, MaxEncodedLen, Debug, PartialEq, Clone,
+)]
 pub enum PulseProperty<RandType, RoundType, SigType> {
 	/// The random value for a pulse.
 	Rand(RandType),
@@ -90,19 +97,54 @@ pub trait Pulse {
 	///
 	/// This is typically a fixed-size byte array like `[u8; 32]` that represents
 	/// the random value.
-	type Rand: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
+	type Rand: Decode
+		+ TypeInfo
+		+ MaxEncodedLen
+		+ Debug
+		+ PartialEq
+		+ PartialOrd
+		+ Clone
+		+ EncodeLike;
 
 	/// The type of the round number contained in this pulse
 	///
 	/// This is typically an unsigned integer that represents the sequential
 	/// identifier for this pulse from the randomness beacon.
-	type Round: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
+	type Round: Decode
+		+ TypeInfo
+		+ MaxEncodedLen
+		+ Debug
+		+ PartialEq
+		+ Clone
+		+ EncodeLike
+		+ Saturating
+		+ Into<u64>
+		+ From<u64>;
 
 	/// The type of the signature contained in this pulse
 	///
 	/// This is typically a  byte array or a specific signature type
 	/// that represents the signature for this pulse.
-	type Sig: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone;
+	type Sig: Decode
+		+ TypeInfo
+		+ MaxEncodedLen
+		+ Debug
+		+ PartialEq
+		+ Clone
+		+ EncodeLike
+		+ AsRef<[u8]>;
+
+	/// The type of the public key required to verify this signature
+	///
+	/// This is typically a  byte array or a specific public key type
+	type Pubkey: Decode
+		+ TypeInfo
+		+ MaxEncodedLen
+		+ Debug
+		+ PartialEq
+		+ Clone
+		+ EncodeLike
+		+ AsRef<[u8]>;
 
 	/// Get the random value from this pulse
 	///
@@ -120,10 +162,10 @@ pub trait Pulse {
 	/// Returns the signature contained in this pulse.
 	fn sig(&self) -> Self::Sig;
 
-	/// Verifies a pulse validity
+	/// Checks if the pulse ([round, signature]-combination) is valid against a beacon public key
 	///
 	/// Returns `true` when valid, `false` otherwise.
-	fn valid(&self) -> bool;
+	fn authenticate(&self, pubkey: Self::Pubkey) -> bool;
 }
 
 /// A trait for matching pulse properties against specific values
@@ -153,17 +195,18 @@ pub trait Pulse {
 /// use sp_idn_traits::pulse::{Pulse, PulseMatch, PulseProperty};
 /// struct MyPulse {
 ///     rand: [u8; 3],
-///     round: u8,
+///     round: u64,
 ///     signature: [u8; 8],
 /// }
 /// impl Pulse for MyPulse {
 ///     type Rand = [u8; 3];
-///     type Round = u8;
+///     type Round = u64;
 ///     type Sig = [u8; 8];
+///     type Pubkey = [u8;8];
 ///     fn rand(&self) -> Self::Rand { self.rand }
 ///     fn round(&self) -> Self::Round { self.round }
 ///     fn sig(&self) -> Self::Sig { self.signature }
-///     fn valid(&self) -> bool { true }
+///     fn authenticate(&self, pubkey: Self::Pubkey) -> bool { true }
 /// }
 ///
 /// let my_pulse = MyPulse { rand: [1, 2, 3], round: 42, signature: [1, 2, 3, 4, 5, 6, 7, 8] };

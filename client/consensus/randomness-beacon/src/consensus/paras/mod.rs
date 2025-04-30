@@ -14,6 +14,4 @@
  * limitations under the License.
  */
 
-#![cfg_attr(not(feature = "std"), no_std)]
-
-pub use pallet_idn_manager::primitives::*;
+pub mod aura;

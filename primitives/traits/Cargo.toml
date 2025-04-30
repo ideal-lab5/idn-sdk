@@ -13,10 +13,15 @@ publish = false
 codec.workspace = true
 frame-support.workspace = true
 scale-info.workspace = true
+sp-arithmetic.workspace = true
 sp-std.workspace = true
 
 [features]
 default = ["std"]
 std = [
-	"frame-support/std"
+	"codec/std",
+	"frame-support/std",
+	"scale-info/std",
+	"sp-arithmetic/std",
+	"sp-std/std",
 ]

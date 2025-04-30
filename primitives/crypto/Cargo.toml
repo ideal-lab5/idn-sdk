@@ -1,0 +1,64 @@
+ [package]
+name = "sp-idn-crypto"
+version = "0.0.1-dev"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Crypto primitives for the trustless randomness beacon bridge"
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+async-trait = { optional = true, workspace = true }
+codec = { workspace = true, features = ["derive"], default-features = false }
+hex.workspace = true
+scale-info = { workspace = true, default-features = false, features = ["derive"] }
+prost.workspace = true
+serde = { workspace = true, default-features = false, features = ["derive"] }
+sha2.workspace = true
+sp-core.workspace = true
+sp-inherents.workspace = true
+sp-idn-traits.workspace = true
+sp-runtime.workspace = true
+sp-std.workspace = true
+
+# arkworks dependencies
+ark-ec.workspace = true
+ark-bls12-381.workspace = true
+ark-ff.workspace = true
+ark-serialize.workspace = true
+ark-std.workspace = true
+w3f-bls.workspace = true
+
+[dev-dependencies]
+array-bytes = "=6.2.3"
+tokio.workspace = true
+
+[features]
+default = ["std"]
+std = [
+	"async-trait",
+	"codec/std",
+	"hex/std",
+	"scale-info/std",
+	"serde/std",
+	"sp-core/std",
+	"sp-idn-traits/std", 
+	"sp-inherents/std",
+	"sp-runtime/std",
+	"sp-std/std",
+	"prost/std",
+	"sha2/std",
+	"ark-bls12-381/std",
+	"ark-ec/std",
+	"ark-ff/std",
+	"ark-serialize/std",
+	"ark-std/std",
+	"w3f-bls/std"
+]

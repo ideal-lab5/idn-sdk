@@ -269,6 +269,8 @@ impl pallet_session::Config for Runtime {
 	type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type WeightInfo = (); // Configure based on benchmarking results.
+
+	type DisablingStrategy = ();
 }
 
 impl pallet_aura::Config for Runtime {

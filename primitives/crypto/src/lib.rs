@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-mod solochain;
-pub use solochain::manual_seal;
+//! Crypto used in the ideal network
 
-mod paras;
-pub use paras::aura;
+#![cfg_attr(not(feature = "std"), no_std)]
+
+mod bls12_381;
+pub mod drand;
+pub mod test_utils;
+pub mod verifier;

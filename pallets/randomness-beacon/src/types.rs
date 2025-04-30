@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 by Ideal Labs, LLC
+ * Copyright 2025 by Ideal Labs, LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,37 +14,41 @@
  * limitations under the License.
  */
 
-use codec::{Decode, Encode};
+use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::pallet_prelude::*;
 use serde::{Deserialize, Serialize};
-
-/// Represents an opaque public key used in drand's quicknet
-pub type OpaquePublicKey = BoundedVec<u8, ConstU32<96>>;
-/// Represents an element of the signature group
-pub type OpaqueSignature = BoundedVec<u8, ConstU32<48>>;
-/// an opaque bounded storage type for 64 bit hashes
-pub type OpaqueHash = BoundedVec<u8, ConstU32<64>>;
-/// the round number to track rounds of the beacon
-pub type RoundNumber = u64;
+use sp_consensus_randomness_beacon::types::OpaqueSignature;
+use sp_idn_crypto::verifier::OpaqueAccumulation;
 
 /// Represents an aggregated signature and aggregated public key pair
 #[derive(
-	Clone,
-	Debug,
-	Decode,
-	Default,
-	PartialEq,
-	Encode,
-	Serialize,
-	Deserialize,
-	MaxEncodedLen,
-	TypeInfo,
+	Clone, Debug, Decode, DecodeWithMemTracking, PartialEq, Encode, MaxEncodedLen, TypeInfo,
 )]
-pub struct Aggregate {
+pub struct Accumulation {
 	/// A signature (e.g. output from the randomness beacon) in G1
 	pub signature: OpaqueSignature,
 	/// The message signed by the signature, hashed to G1
 	pub message_hash: OpaqueSignature,
+}
+
+impl TryFrom<OpaqueAccumulation> for Accumulation {
+	type Error = ();
+
+	fn try_from(opaque: OpaqueAccumulation) -> Result<Self, Self::Error> {
+		let signature: OpaqueSignature = opaque.signature.try_into().map_err(|_| ())?;
+		let message_hash: OpaqueSignature = opaque.message_hash.try_into().map_err(|_| ())?;
+
+		Ok(Self { signature, message_hash })
+	}
+}
+
+impl From<Accumulation> for OpaqueAccumulation {
+	fn from(val: Accumulation) -> Self {
+		OpaqueAccumulation {
+			signature: val.signature.as_slice().to_vec(),
+			message_hash: val.message_hash.as_slice().to_vec(),
+		}
+	}
 }
 
 /// A drand chain configuration
@@ -52,6 +56,7 @@ pub struct Aggregate {
 	Clone,
 	Debug,
 	Decode,
+	DecodeWithMemTracking,
 	Default,
 	PartialEq,
 	Encode,
@@ -60,28 +65,11 @@ pub struct Aggregate {
 	MaxEncodedLen,
 	TypeInfo,
 )]
-pub struct BeaconConfiguration {
+pub struct BeaconConfiguration<P, R> {
 	/// The beacon public key
-	pub public_key: OpaquePublicKey,
+	pub public_key: P,
 	/// The genesis round from which the IDN begins consuming the beacon
-	pub genesis_round: RoundNumber,
-}
-
-/// metadata for the drand beacon configuration
-#[derive(
-	Clone,
-	Debug,
-	Decode,
-	Default,
-	PartialEq,
-	Encode,
-	Serialize,
-	Deserialize,
-	MaxEncodedLen,
-	TypeInfo,
-)]
-pub struct Metadata {
-	pub beacon_id: OpaqueHash,
+	pub genesis_round: R,
 }
 
 #[cfg(test)]
@@ -90,15 +78,15 @@ pub mod test {
 	use std::any::TypeId;
 
 	#[test]
-	fn test_aggregate_max_encoded_len() {
-		// Get the max encoded length of the Aggregate struct
-		let max_len = Aggregate::max_encoded_len();
+	fn test_accumulation_max_encoded_len() {
+		// Get the max encoded length of the Accumulation struct
+		let max_len = Accumulation::max_encoded_len();
 
 		// Get the max encoded lengths of its individual fields
 		let signature_max_len = OpaqueSignature::max_encoded_len();
 		let message_hash_max_len = OpaqueSignature::max_encoded_len();
 
-		// The maximum encoded length of Aggregate should be the sum of the lengths of its fields
+		// The maximum encoded length of Accumulation should be the sum of the lengths of its fields
 		let expected_max_len = signature_max_len + message_hash_max_len;
 
 		// Assert that the max encoded length matches
@@ -106,42 +94,25 @@ pub mod test {
 	}
 
 	#[test]
-	fn test_aggregate_type_info() {
-		// Get the TypeId for Metadata
-		let type_id = TypeId::of::<Aggregate>();
+	fn test_accumulation_type_info() {
+		// Get the TypeId
+		let type_id = TypeId::of::<Accumulation>();
 
 		// Ensure that the TypeId is consistent and matches the expected TypeId
-		// The TypeId of `Metadata` should be unique, and you can check against itself
-		assert_eq!(type_id, TypeId::of::<Aggregate>());
+		assert_eq!(type_id, TypeId::of::<Accumulation>());
 
 		// Optionally, check the type name to ensure the correct type is used
-		let type_name = core::any::type_name::<Aggregate>();
-		assert_eq!(type_name, "pallet_randomness_beacon::types::Aggregate");
+		let type_name = core::any::type_name::<Accumulation>();
+		assert_eq!(type_name, "pallet_randomness_beacon::types::Accumulation");
 	}
 
 	#[test]
-	fn test_metadata_max_encoded_len() {
-		// Get the max encoded length of the Aggregate struct
-		let max_len = Metadata::max_encoded_len();
+	fn test_opaque_acc_to_and_from_acc() {
+		let expected = Accumulation { signature: [1; 48], message_hash: [2; 48] };
 
-		// Get the max encoded lengths of its individual fields
-		let hash_max_len = OpaqueHash::max_encoded_len();
-
-		// Assert that the max encoded length matches
-		assert_eq!(max_len, hash_max_len);
-	}
-
-	#[test]
-	fn test_metadata_type_info() {
-		// Get the TypeId for Metadata
-		let type_id = TypeId::of::<Metadata>();
-
-		// Ensure that the TypeId is consistent and matches the expected TypeId
-		// The TypeId of `Metadata` should be unique, and you can check against itself
-		assert_eq!(type_id, TypeId::of::<Metadata>());
-
-		// Optionally, check the type name to ensure the correct type is used
-		let type_name = core::any::type_name::<Metadata>();
-		assert_eq!(type_name, "pallet_randomness_beacon::types::Metadata");
+		let opaque: OpaqueAccumulation = expected.clone().into();
+		// now convert back
+		let actual: Accumulation = Accumulation::try_from(opaque).unwrap();
+		assert!(actual == expected);
 	}
 }

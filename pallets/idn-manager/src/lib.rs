@@ -73,11 +73,11 @@ use crate::{
 		Subscription as SubscriptionTrait,
 	},
 };
-use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
+use codec::{Codec, Decode, DecodeWithMemTracking, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo, Hooks,
-		IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Zero,
+		IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Weight, Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
@@ -110,6 +110,8 @@ use xcm_builder::SendController;
 
 pub use pallet::*;
 pub use weights::WeightInfo;
+
+const LOG_TARGET: &str = "pallet-idn-manager";
 
 /// The balance type used in the pallet, derived from the currency type in the configuration.
 pub type BalanceOf<T> =
@@ -191,7 +193,9 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 /// Parameters for updating an existing subscription.
 ///
 /// When the parameter is `None`, the field is not updated.
-#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq)]
+#[derive(
+	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq,
+)]
 pub struct UpdateSubParams<SubId, Credits, BlockNumber, PulseFilter, Metadata> {
 	// The Subscription Id
 	pub sub_id: SubId,
@@ -274,7 +278,7 @@ pub mod pallet {
 		>;
 
 		/// The type for the randomness pulse
-		type Pulse: Pulse + Encode;
+		type Pulse: Pulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq + Default;
 
 		// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
@@ -695,7 +699,7 @@ impl<T: Config> Pallet<T> {
 				// and custom filter criteria
 				if
 				// Subscription must be active
-				sub.state ==   SubscriptionState::Active   &&
+				sub.state ==  SubscriptionState::Active   &&
 					// And either never delivered before, or enough blocks have passed since last delivery
 					(sub.last_delivered.is_none() ||
 					current_block >= sub.last_delivered.unwrap() + sub.frequency) &&
@@ -712,7 +716,12 @@ impl<T: Config> Pallet<T> {
 
 					// Make sure credits are consumed before sending the XCM message
 					let consume_credits = T::FeesManager::get_consume_credits(&sub);
-					Self::collect_fees(&sub, T::FeesManager::get_consume_credits(&sub))?;
+
+					// [SRLabs]: If this line throws an error then the entire set of subscriptions
+					// will fail to be distributed for the pulse. Recommendations on handling this?
+					// Our initial idea is to simply log an event and continue, then pause the
+					// subscription.
+					Self::collect_fees(&sub, consume_credits)?;
 
 					// Update subscription with consumed credits and last_delivered block number
 					sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
@@ -722,6 +731,10 @@ impl<T: Config> Pallet<T> {
 					Subscriptions::<T>::insert(sub_id, &sub);
 
 					// Send the XCM message
+					// [SRLabs]: If this line throws an error then the entire set of subscriptions
+					// will fail to be distributed for the pulse. Recommendations on handling this?
+					// Our initial idea is to simply log an event and continue, then pause the
+					// subscription.
 					T::Xcm::send(origin.into(), versioned_target, versioned_msg)?;
 
 					Self::deposit_event(Event::RandomnessDistributed { sub_id });
@@ -923,13 +936,26 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
-	/// Dispatches a given pulse by distributing it to eligible subscriptions.
+	/// Dispatches a collection of pulses by distributing it to eligible subscriptions.
 	///
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
-	fn dispatch(pulse: T::Pulse) -> DispatchResult {
-		Pallet::<T>::distribute(pulse)
+	/// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
+	fn dispatch(pulses: Vec<T::Pulse>) -> DispatchResult {
+		for pulse in pulses {
+			let round = pulse.round().clone();
+			if let Err(e) = Pallet::<T>::distribute(pulse) {
+				log::warn!(target: LOG_TARGET, "Distribution of pulse # {:?} failed: {:?}", round, e);
+			}
+		}
+
+		Ok(())
+	}
+
+	fn dispatch_weight(pulses: usize) -> Weight {
+		T::WeightInfo::dispatch_pulse(T::MaxPulseFilterLen::get(), T::MaxSubscriptions::get())
+			.saturating_mul(pulses as u64)
 	}
 }
 
