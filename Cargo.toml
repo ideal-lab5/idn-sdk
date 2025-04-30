@@ -165,7 +165,6 @@ xcm-builder = { version = "20.0.0", default-features = false, package = "staging
 xcm-executor = { version = "19.1.0", package = "staging-xcm-executor", default-features = false }
 
 # Arkworks & Crypto
-sp-ark-bls12-381 = { git = "https://github.com/paritytech/arkworks-substrate", version = "0.4.2", default-features = false }
 ark-bls12-381 = { version = "0.4.0", features = [
     "curve",
 ], default-features = false }
