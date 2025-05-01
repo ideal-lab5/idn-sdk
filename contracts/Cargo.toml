@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "idn-client-contract-lib",
+    "idn-example-consumer-contract",
+]
