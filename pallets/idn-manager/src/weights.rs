@@ -56,6 +56,7 @@ pub trait WeightInfo {
 	fn update_subscription(l: u32, m: u32, ) -> Weight;
 	fn reactivate_subscription() -> Weight;
 	fn dispatch_pulse(p: u32, s: u32, ) -> Weight;
+	fn on_finalize(s: u32) -> Weight;
 }
 
 /// Weights for `pallet_idn_manager` using the IDN SDK Kitchensink Runtime and recommended hardware.
@@ -156,6 +157,10 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(Weight::from_parts(0, 2).saturating_mul(p.into()))
 			.saturating_add(Weight::from_parts(0, 1).saturating_mul(s.into()))
 	}
+
+	fn on_finalize(_s: u32) -> Weight {
+		Weight::from_parts(0, 0)
+	}
 }
 
 // For backwards compatibility and tests.
@@ -254,5 +259,9 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().writes(4_u64))
 			.saturating_add(Weight::from_parts(0, 2).saturating_mul(p.into()))
 			.saturating_add(Weight::from_parts(0, 1).saturating_mul(s.into()))
+	}
+
+	fn on_finalize(_s: u32) -> Weight {
+		Weight::from_parts(0, 0)
 	}
 }

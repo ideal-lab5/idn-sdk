@@ -27,7 +27,6 @@ extern crate alloc;
 
 use crate::{interface::AccountId, sp_runtime::AccountId32};
 use alloc::vec::Vec;
-use idn_runtime::types::RuntimePulse;
 use pallet_idn_manager::{
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
@@ -41,6 +40,7 @@ use polkadot_sdk::{
 	},
 	*,
 };
+use sp_consensus_randomness_beacon::types::RuntimePulse;
 
 /// Provides getters for genesis configuration presets.
 pub mod genesis_config_presets {

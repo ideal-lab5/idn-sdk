@@ -18,7 +18,8 @@
 
 use super::*;
 use crate::{
-	pallet::Pallet as IdnManager, primitives::PulsePropertyOf, CreateSubParamsOf, UpdateSubParamsOf,
+	pallet::Pallet as IdnManager, primitives::PulsePropertyOf, CreateSubParamsOf, SubscriptionOf,
+	UpdateSubParamsOf,
 };
 use frame_benchmarking::v2::*;
 use frame_support::{
@@ -312,6 +313,8 @@ mod benchmarks {
 		// created one)
 		fill_up_subscriptions::<T>(s - 1, p);
 
+		assert_eq!(Subscriptions::<T>::iter().count(), s as usize);
+
 		// Create a pulse to dispatch
 		let pulse = T::Pulse::default();
 
@@ -325,10 +328,37 @@ mod benchmarks {
 		assert!(sub.last_delivered.is_some());
 	}
 
+	#[benchmark]
+	fn on_finalize(s: Linear<1, { T::MaxSubscriptions::get() }>) {
+		fill_up_subscriptions::<T>(s, 0);
+
+		assert_eq!(Subscriptions::<T>::iter().count(), s as usize);
+
+		// iterate over all subscriptions and update the credits_left parameter
+		Subscriptions::<T>::iter().for_each(
+			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| {
+				// update the credits_left parameter
+				sub.credits_left = 0u64.into();
+				// update the subscription
+				Subscriptions::<T>::insert(sub_id, sub);
+			},
+		);
+
+		let block_number = frame_system::Pallet::<T>::block_number();
+
+		#[block]
+		{
+			Pallet::<T>::on_finalize(block_number);
+		}
+
+		assert_eq!(Subscriptions::<T>::iter().count(), 0);
+	}
+
 	/// Fill up the subscriptions with the given number of subscriptions and pulse filter length
 	fn fill_up_subscriptions<T: Config>(s: u32, p: u32)
 	where
 		T::Credits: From<u64>,
+		T::Currency: Mutate<T::AccountId>,
 		<T::Pulse as Pulse>::Round: From<u64>,
 	{
 		let subscriber: T::AccountId = whitelisted_caller();
@@ -336,6 +366,8 @@ mod benchmarks {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
+
+		T::Currency::set_balance(&subscriber, u32::MAX.into());
 
 		// Create s subscriptions
 		for _ in 0..s {
@@ -352,7 +384,7 @@ mod benchmarks {
 				Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
 			};
 
-			let _ = IdnManager::<T>::create_subscription(
+			let res = IdnManager::<T>::create_subscription(
 				<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
 				CreateSubParamsOf::<T> {
 					credits,
@@ -363,6 +395,12 @@ mod benchmarks {
 					pulse_filter,
 					sub_id: None,
 				},
+			);
+
+			assert!(res.is_ok(), "{:?}", res.unwrap_err());
+
+			frame_system::Pallet::<T>::set_block_number(
+				frame_system::Pallet::<T>::block_number() + 1u32.into(),
 			);
 		}
 	}
