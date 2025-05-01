@@ -82,6 +82,9 @@ impl From<EnvError> for Error {
 /// Result type for IDN client operations
 pub type Result<T> = core::result::Result<T, Error>;
 
+// TODO: import the following types from runtime/idn-manager 
+// https://github.com/ideal-lab5/idn-sdk/issues/188
+
 /// Subscription ID is a unique identifier for an IDN randomness subscription
 pub type SubscriptionId = u64;
 
