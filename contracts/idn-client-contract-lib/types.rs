@@ -1,6 +1,6 @@
-use crate::traits::Pulse;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use sp_idn_traits::pulse::Pulse;
 
 /// A minimal Pulse implementation for contracts, avoiding runtime dependencies.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Encode, Decode, TypeInfo)]
