@@ -80,6 +80,7 @@ parachains-common.workspace = true
 parachain-info.workspace = true
 
 # IDN
+bp-idn = { workspace = true, default-features = false }
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
 sp-consensus-randomness-beacon.workspace = true
@@ -87,8 +88,8 @@ sp-idn-crypto.workspace = true
 
 [features]
 default = ["std"]
-skip-wasm = [] # Add this feature to skip the build script
 std = [
+  "bp-idn/std",
   "codec/std",
   "cumulus-pallet-aura-ext/std",
   "cumulus-pallet-parachain-system/std",

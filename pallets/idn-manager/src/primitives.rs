@@ -105,12 +105,3 @@ impl<
 		H256::from_slice(&blake2_256(&encoded)).into()
 	}
 }
-
-/// A minimized version of `pallet-idn-manager::Call` that can be used without a runtime.
-#[derive(Encode, Decode, Debug, PartialEq, Clone, TypeInfo)]
-#[allow(non_camel_case_types)]
-pub enum IdnManagerCall<CreateSubParams> {
-	/// `pallet-idn-manager::Call::create_subscription`
-	#[codec(index = 0)]
-	create_subscription { params: CreateSubParams },
-}

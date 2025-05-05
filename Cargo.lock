@@ -1672,6 +1672,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "bp-idn"
+version = "0.0.1-dev"
+dependencies = [
+ "frame-support",
+ "pallet-idn-manager",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-consensus-randomness-beacon",
+ "sp-runtime",
+]
+
+[[package]]
 name = "bp-messages"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5883,6 +5895,7 @@ dependencies = [
 name = "idn-runtime"
 version = "0.1.0"
 dependencies = [
+ "bp-idn",
  "cumulus-pallet-aura-ext",
  "cumulus-pallet-parachain-system",
  "cumulus-pallet-session-benchmarking",
@@ -9344,14 +9357,13 @@ dependencies = [
 name = "pallet-idn-consumer"
 version = "0.0.1-dev"
 dependencies = [
+ "bp-idn",
  "cumulus-primitives-core",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "idn-runtime",
  "log",
  "pallet-balances",
- "pallet-idn-manager",
  "pallet-xcm",
  "parity-scale-codec",
  "scale-info",

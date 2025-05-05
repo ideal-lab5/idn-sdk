@@ -224,7 +224,6 @@ impl pallet_randomness_beacon::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MaxSubscriptionDuration: u64 = 100;
 	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const BaseFee: u64 = 10;

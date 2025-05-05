@@ -18,7 +18,7 @@
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
-use crate::primitives::types;
+use bp_idn::types;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -35,17 +35,14 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
-use pallet_idn_manager::{
-	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
-	BalanceOf, SubscriptionOf,
-};
+use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
 use polkadot_runtime_common::{
 	xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::{AccountId32, Perbill};
+use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
 
@@ -305,33 +302,27 @@ impl pallet_collator_selection::Config for Runtime {
 	type WeightInfo = (); // Configure based on benchmarking results.
 }
 
-parameter_types! {
-	pub const MaxSubscriptionDuration: u64 = 100;
-	pub const IdnManagerPalletId: PalletId = PalletId(*b"idn_mngr");
-	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
-	pub const BaseFee: u64 = 10;
-	pub const SDMultiplier: u64 = 10;
-	pub const MaxPulseFilterLen: u32 = 100;
-	pub const MaxSubscriptions: u32 = 1_000_000;
-	pub const MaxMetadataLen: u32 = 8;
-}
-
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
-	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u128>;
-	type PalletId = IdnManagerPalletId;
+	type FeesManager = types::FeesManagerImpl<
+		types::TreasuryAccount,
+		types::BaseFee,
+		SubscriptionOf<Runtime>,
+		Balances,
+	>;
+	type DepositCalculator = types::DepositCalculatorImpl<types::SDMultiplier, types::Deposit>;
+	type PalletId = types::IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = types::RuntimePulse;
 	type WeightInfo = ();
 	type Xcm = ();
-	type MaxMetadataLen = MaxMetadataLen;
+	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
-	type MaxPulseFilterLen = MaxPulseFilterLen;
-	type MaxSubscriptions = MaxSubscriptions;
+	type MaxPulseFilterLen = types::MaxPulseFilterLen;
+	type MaxSubscriptions = types::MaxSubscriptions;
 	type SubscriptionId = types::SubscriptionId;
-	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
+	type DiffBalance = types::DiffBalanceImpl<BalanceOf<Runtime>>;
 }
 
 impl pallet_randomness_beacon::Config for Runtime {

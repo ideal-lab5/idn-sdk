@@ -28,8 +28,7 @@ xcm.workspace = true
 xcm-builder.workspace = true
 
 # IDN
-idn-runtime.workspace = true
-pallet-idn-manager.workspace = true
+bp-idn.workspace = true
 sp-idn-traits.workspace = true
 
 # Polkadot
@@ -44,6 +43,7 @@ sp-runtime.workspace = true
 [features]
 default = [ "std" ]
 std = [
+	"bp-idn/std",
 	"codec/std",
 	"scale-info/std",
 	"frame-benchmarking?/std",
@@ -55,8 +55,6 @@ std = [
 	"sp-core/std",
 	"xcm/std",
 	"xcm-builder/std",
-	"idn-runtime/std",
-	"pallet-idn-manager/std",
 	"sp-idn-traits/std",
 	"cumulus-primitives-core/std",
 	"sp-io/std",
@@ -69,10 +67,5 @@ runtime-benchmarks = [
 	"pallet-xcm/runtime-benchmarks",
 	"xcm/runtime-benchmarks",
 	"xcm-builder/runtime-benchmarks",
-	"idn-runtime/runtime-benchmarks",
-	"pallet-idn-manager/runtime-benchmarks",
 	"cumulus-primitives-core/runtime-benchmarks",
-]
-skip-idn-runtime-wasm = [
-	"idn-runtime/skip-wasm",
 ]

@@ -27,11 +27,11 @@ mod benchmarks;
 pub mod configs;
 pub mod constants;
 mod genesis_config_presets;
-pub mod primitives;
 mod weights;
 
 extern crate alloc;
 
+use bp_idn::types::BlockNumber;
 use smallvec::smallvec;
 use sp_runtime::{
 	generic, impl_opaque_keys,
@@ -71,9 +71,6 @@ pub type Nonce = u32;
 
 /// A hash of some data used by the chain.
 pub type Hash = sp_core::H256;
-
-/// An index to a block.
-pub type BlockNumber = u32;
 
 /// The address format for describing accounts.
 pub type Address = MultiAddress<AccountId, ()>;
@@ -313,7 +310,7 @@ mod runtime {
 
 	// IDN
 	// This index should be the same as the one defined in the
-	// [`crate::primitives::Call::IdnManager`]
+	// [`bp_idn::Call::IdnManager`]
 	#[runtime::pallet_index(40)]
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
 	#[runtime::pallet_index(41)]

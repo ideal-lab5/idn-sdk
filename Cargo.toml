@@ -11,6 +11,7 @@ members = [
     "chains/kitchensink/node",
     "chains/ideal-network/runtime",
     "chains/ideal-network/node",
+    "chains/ideal-network/bridge",
     "chains/idn-consumer-chain/runtime",
     "chains/idn-consumer-chain/node",
 ]
@@ -214,6 +215,7 @@ parachains-common = { version = "21.0.0", default-features = false }
 parachain-info = { version = "0.20.0", package = "staging-parachain-info", default-features = false }
 
 # IDN
+bp-idn = { path = "./chains/ideal-network/bridge", default-features = false }
 pallet-idn-manager = { path = "./pallets/idn-manager", default-features = false }
 pallet-idn-consumer = { path = "./pallets/idn-consumer", default-features = false }
 pallet-randomness-beacon = { path = "./pallets/randomness-beacon", default-features = false }
