@@ -16,12 +16,15 @@
 
 //! Types of IDN runtime
 use frame_support::{parameter_types, PalletId};
+use pallet_idn_manager::{
+	primitives::{
+		CreateSubParams as MngCreateSubParams, PulseFilter as MngPulseFilter, SubscriptionMetadata,
+	},
+	UpdateSubParams as MngUpdateSubParams,
+};
 use sp_runtime::AccountId32;
 
 pub use pallet_idn_manager::impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl};
-use pallet_idn_manager::primitives::{
-	CreateSubParams as MngCreateSubParams, PulseFilter as MngPulseFilter, SubscriptionMetadata,
-};
 pub use sp_consensus_randomness_beacon::types::RuntimePulse;
 
 // TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
@@ -65,3 +68,9 @@ pub type PulseFilter = MngPulseFilter<RuntimePulse, MaxPulseFilterLen>;
 /// See [`pallet_idn_manager::primitives::CreateSubParams`] for more details.
 pub type CreateSubParams =
 	MngCreateSubParams<Credits, BlockNumber, Metadata, PulseFilter, SubscriptionId>;
+/// The parameters for updating an existing subscription, containing various details about the
+/// subscription.
+///
+/// See [`pallet_idn_manager::UpdateSubParams`] for more details.
+pub type UpdateSubParams =
+	MngUpdateSubParams<SubscriptionId, Credits, BlockNumber, PulseFilter, Metadata>;

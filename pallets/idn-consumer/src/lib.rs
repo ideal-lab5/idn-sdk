@@ -19,7 +19,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use bp_idn::{
-	types::{BlockNumber as IdnBlockNumber, CreateSubParams, Credits, Metadata, PulseFilter},
+	types::{
+		BlockNumber as IdnBlockNumber, CreateSubParams, Credits, Metadata, PulseFilter,
+		UpdateSubParams,
+	},
 	Call as RuntimeCall, IdnManagerCall,
 };
 use cumulus_primitives_core::ParaId;
@@ -28,10 +31,7 @@ use frame_support::{
 	pallet_prelude::{Encode, EnsureOrigin, Get, IsType, Pays, Weight},
 	sp_runtime::traits::AccountIdConversion,
 };
-use frame_system::{
-	pallet_prelude::{BlockNumberFor, OriginFor},
-	RawOrigin,
-};
+use frame_system::{pallet_prelude::OriginFor, RawOrigin};
 use scale_info::prelude::{boxed::Box, sync::Arc, vec};
 use sp_idn_traits::pulse::Pulse as PulseTrait;
 use xcm::{
@@ -195,35 +195,35 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Pauses a subscription.
-	pub fn pause_subscription(sub_id: IdnSubscriptionId) -> Result<(), Error<T>> {
-		let call = IdnRuntimeCall::IdnManager(IdnManagerCall::pause_subscription { sub_id });
+	pub fn pause_subscription(sub_id: SubscriptionId) -> Result<(), Error<T>> {
+		let call = RuntimeCall::IdnManager(IdnManagerCall::pause_subscription { sub_id });
 		Self::xcm_send(call)
 	}
 
 	/// Kills a subscription.
-	pub fn kill_subscription(sub_id: IdnSubscriptionId) -> Result<(), Error<T>> {
-		let call = IdnRuntimeCall::IdnManager(IdnManagerCall::kill_subscription { sub_id });
+	pub fn kill_subscription(sub_id: SubscriptionId) -> Result<(), Error<T>> {
+		let call = RuntimeCall::IdnManager(IdnManagerCall::kill_subscription { sub_id });
 		Self::xcm_send(call)
 	}
 
 	/// Updates a subscription.
 	pub fn update_subscription(
-		sub_id: IdnSubscriptionId,
-		credits: Option<IdnCredits>,
+		sub_id: SubscriptionId,
+		credits: Option<Credits>,
 		frequency: Option<IdnBlockNumber>,
-		metadata: Option<Option<IdnMetadata>>,
-		pulse_filter: Option<Option<IdnPulseFilter>>,
+		metadata: Option<Option<Metadata>>,
+		pulse_filter: Option<Option<PulseFilter>>,
 	) -> Result<(), Error<T>> {
 		let params = UpdateSubParams { sub_id, credits, frequency, metadata, pulse_filter };
 
-		let call = IdnRuntimeCall::IdnManager(IdnManagerCall::update_subscription { params });
+		let call = RuntimeCall::IdnManager(IdnManagerCall::update_subscription { params });
 
 		Self::xcm_send(call)
 	}
 
 	/// Reactivates a subscription.
-	pub fn reactivate_subscription(sub_id: IdnSubscriptionId) -> Result<(), Error<T>> {
-		let call = IdnRuntimeCall::IdnManager(IdnManagerCall::reactivate_subscription { sub_id });
+	pub fn reactivate_subscription(sub_id: SubscriptionId) -> Result<(), Error<T>> {
+		let call = RuntimeCall::IdnManager(IdnManagerCall::reactivate_subscription { sub_id });
 		Self::xcm_send(call)
 	}
 
@@ -255,7 +255,7 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
-	fn xcm_send(call: IdnRuntimeCall) -> Result<(), Error<T>> {
+	fn xcm_send(call: RuntimeCall) -> Result<(), Error<T>> {
 		let asset_hub_fee_asset: Asset = (Location::parent(), T::AssetHubFee::get()).into();
 
 		let xcm_call: Xcm<RuntimeCall> = Xcm(vec![

@@ -21,7 +21,7 @@
 pub mod types;
 
 use frame_support::pallet_prelude::{Decode, Encode, TypeInfo};
-use types::{CreateSubParams, SubscriptionId};
+use types::{CreateSubParams, SubscriptionId, UpdateSubParams};
 
 /// A minimized version of `pallet-idn-manager::Call` that can be used without a runtime.
 #[derive(Encode, Decode, Debug, PartialEq, Clone, TypeInfo)]
