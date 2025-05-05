@@ -14,6 +14,7 @@ ink = { version = "5.1.1", default-features = false }
 parity-scale-codec = { version = "3.7.4", default-features = false, features = ["derive"] }
 scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
 sha2 = { version = "0.10.8", default-features = false }
+sp-idn-traits = { path = "../../primitives/traits", default-features = false }
 
 [dev-dependencies]
 serde = { version = "1.0", optional = false }
@@ -27,6 +28,7 @@ std = [
     "ink/std",
     "parity-scale-codec/std",
     "scale-info/std",
-    "sha2/std"
+    "sha2/std",
+    "sp-idn-traits/std",
 ]
 ink-as-dependency = []
