@@ -6003,8 +6003,8 @@ dependencies = [
 name = "idn-sdk-kitchensink-runtime"
 version = "0.1.0"
 dependencies = [
+ "bp-idn",
  "frame-benchmarking",
- "idn-runtime",
  "pallet-idn-manager",
  "pallet-randomness-beacon",
  "parity-scale-codec",

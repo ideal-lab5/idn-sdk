@@ -309,7 +309,7 @@ mod runtime {
 	pub type MessageQueue = pallet_message_queue::Pallet<Runtime>;
 
 	// IDN
-	// This index should be the same as the one defined in the
+	// This index must be the same as the one defined in the
 	// [`bp_idn::Call::IdnManager`]
 	#[runtime::pallet_index(40)]
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;

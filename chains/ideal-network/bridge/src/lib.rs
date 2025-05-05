@@ -32,9 +32,12 @@ pub enum IdnManagerCall {
 	create_subscription { params: CreateSubParams },
 }
 
+/// `Idn` Runtime `Call` enum.
+///
+/// This enum is used to define the different calls that can be made to the IDN runtime.
 #[derive(Encode, Decode, Debug, PartialEq, Clone, TypeInfo)]
 pub enum Call {
-	// This should match the index of the IDN Manager pallet in the runtime
+	// This must match the index of the IDN Manager pallet in the runtime
 	#[codec(index = 40)]
 	IdnManager(IdnManagerCall),
 }

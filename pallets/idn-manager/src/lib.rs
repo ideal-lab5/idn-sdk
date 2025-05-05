@@ -931,7 +931,7 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
-	/// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
+	// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
 	fn dispatch(pulses: Vec<T::Pulse>) -> DispatchResult {
 		for pulse in pulses {
 			let round = pulse.round().clone();

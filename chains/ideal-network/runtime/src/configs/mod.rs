@@ -311,7 +311,7 @@ impl pallet_idn_manager::Config for Runtime {
 		SubscriptionOf<Runtime>,
 		Balances,
 	>;
-	type DepositCalculator = types::DepositCalculatorImpl<types::SDMultiplier, types::Deposit>;
+	type DepositCalculator = types::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
 	type PalletId = types::IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = types::RuntimePulse;
