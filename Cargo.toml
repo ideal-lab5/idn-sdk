@@ -11,8 +11,9 @@ members = [
     "chains/kitchensink/node",
     "chains/ideal-network/runtime",
     "chains/ideal-network/node",
-    "chains/idn-consumer/runtime",
-    "chains/idn-consumer/node",
+    "chains/ideal-network/bridge",
+    "chains/idn-consumer-chain/runtime",
+    "chains/idn-consumer-chain/node",
 ]
 resolver = "2"
 
@@ -56,7 +57,7 @@ default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
 color-print = "0.3.7"
 serde = { version = "1.0.217", default-features = false }
 serde_json = { version = "1.0.137", default-features = false }
-smallvec = "1.13.2"
+smallvec = { version = "1.13.2", default-features = false }
 
 # Async, Concurrency, & Networking
 async-trait = "0.1.86"
@@ -178,10 +179,10 @@ w3f-bls = { version = "=0.1.9", default-features = false }
 
 # Logging & Utilities
 clap = { version = "4.5.26", features = ["derive"] }
-docify = { version = "0.2.9" }
+docify = { version = "0.2.9", default-features = false }
 jsonrpsee = { version = "0.24.7", features = ["server"] }
 log = { version = "0.4.26", default-features = false }
-simple-mermaid = { version = "0.1.1" }
+simple-mermaid = { version = "0.1.1", default-features = false }
 
 # Parity SCALE Codec
 codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = [
@@ -214,15 +215,17 @@ parachains-common = { version = "21.0.0", default-features = false }
 parachain-info = { version = "0.20.0", package = "staging-parachain-info", default-features = false }
 
 # IDN
+bp-idn = { path = "./chains/ideal-network/bridge", default-features = false }
 pallet-idn-manager = { path = "./pallets/idn-manager", default-features = false }
+pallet-idn-consumer = { path = "./pallets/idn-consumer", default-features = false }
 pallet-randomness-beacon = { path = "./pallets/randomness-beacon", default-features = false }
 sc-consensus-randomness-beacon = { path = "./client/consensus/randomness-beacon", default-features = false }
 sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }
 sp-idn-crypto = { path = "./primitives/crypto", default-features = false }
 sp-idn-traits = { path = "./primitives/traits", default-features = false }
-idn-sdk-kitchensink-runtime = { path = "./chains/kitchensink/runtime" }
+idn-sdk-kitchensink-runtime = { path = "./chains/kitchensink/runtime", default-features = false }
 idn-sdk-kitchensink-node = { path = "./chains/kitchensink/node" }
 idn-runtime = { path = "./chains/ideal-network/runtime", default-features = false }
 idn-node = { path = "./chains/ideal-network/node" }
-idn-consumer-runtime = { path = "./chains/idn-consumer/runtime" }
-idn-consumer-node = { path = "./chains/idn-consumer/node" }
+idn-consumer-runtime = { path = "./chains/idn-consumer-chain/runtime", default-features = false }
+idn-consumer-node = { path = "./chains/idn-consumer-chain/node" }

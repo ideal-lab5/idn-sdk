@@ -18,7 +18,6 @@
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
-use bp_idn::types;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -26,7 +25,8 @@ use frame_support::{
 	dispatch::DispatchClass,
 	parameter_types,
 	traits::{
-		ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, TransformOrigin, VariantCountOf,
+		ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, Equals, TransformOrigin,
+		VariantCountOf,
 	},
 	weights::{ConstantMultiplier, Weight},
 	PalletId,
@@ -35,7 +35,6 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
-use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
 use polkadot_runtime_common::{
@@ -44,16 +43,20 @@ use polkadot_runtime_common::{
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
-use xcm::latest::prelude::BodyId;
+use xcm::{
+	latest::prelude::BodyId,
+	v5::{Junction, Location},
+};
 
 // Local module imports
 use super::{
 	weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight},
-	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook, Hash,
-	MessageQueue, Nonce, PalletInfo, ParachainSystem, Runtime, RuntimeCall, RuntimeEvent,
-	RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
-	System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS,
-	MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
+	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook,
+	Consumer, Hash, MessageQueue, Nonce, PalletInfo, ParachainInfo, ParachainSystem, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask,
+	Session, SessionKeys, System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO,
+	EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO,
+	SLOT_DURATION, VERSION,
 };
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
@@ -262,6 +265,7 @@ impl pallet_session::Config for Runtime {
 	type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type WeightInfo = (); // Configure based on benchmarking results.
+
 	type DisablingStrategy = ();
 }
 
@@ -302,35 +306,22 @@ impl pallet_collator_selection::Config for Runtime {
 	type WeightInfo = (); // Configure based on benchmarking results.
 }
 
-impl pallet_idn_manager::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type Currency = Balances;
-	type FeesManager = types::FeesManagerImpl<
-		types::TreasuryAccount,
-		types::BaseFee,
-		SubscriptionOf<Runtime>,
-		Balances,
-	>;
-	type DepositCalculator = types::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
-	type PalletId = types::IdnManagerPalletId;
-	type RuntimeHoldReason = RuntimeHoldReason;
-	type Pulse = types::RuntimePulse;
-	type WeightInfo = ();
-	type Xcm = ();
-	type MaxMetadataLen = types::MaxMetadataLen;
-	type Credits = types::Credits;
-	type MaxPulseFilterLen = types::MaxPulseFilterLen;
-	type MaxSubscriptions = types::MaxSubscriptions;
-	type SubscriptionId = types::SubscriptionId;
-	type DiffBalance = types::DiffBalanceImpl<BalanceOf<Runtime>>;
+const IDN_PARACHAIN_ID: u32 = 2000; // Example IDN parachain ID
+
+parameter_types! {
+	pub SiblingIdnLocation: Location = Location::new(1, Junction::Parachain(IDN_PARACHAIN_ID));
+	pub IdnConsumerParaId: ParaId = ParachainInfo::parachain_id();
+	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
+	pub const AssetHubFee: u128 = 1_000;
 }
 
-impl pallet_randomness_beacon::Config for Runtime {
+impl pallet_idn_consumer::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = ();
-	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
-	type MaxSigsPerBlock = ConstU8<30>;
-	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
-	type Pulse = types::RuntimePulse;
-	type Dispatcher = crate::IdnManager;
+	type Consumer = Consumer;
+	type SiblingIdnLocation = SiblingIdnLocation;
+	type IdnOrigin = EnsureXcm<Equals<Self::SiblingIdnLocation>>;
+	type Xcm = pallet_xcm::Pallet<Self>;
+	type PalletId = IdnConsumerPalletId;
+	type ParaId = IdnConsumerParaId;
+	type AssetHubFee = AssetHubFee;
 }
