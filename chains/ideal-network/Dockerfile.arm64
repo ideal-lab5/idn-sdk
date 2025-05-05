@@ -7,7 +7,7 @@ COPY . .
 # from the paritytech/ci-linux:production is 1.68.0.
 RUN rustup toolchain uninstall nightly
 RUN rustup toolchain install nightly
-RUN rustup target add wasm32v1-none --toolchain nightly-aarch64-unknown-linux-gnu
+RUN rustup target add wasm32-unknown-unknown --toolchain nightly-aarch64-unknown-linux-gnu
 RUN rustup component add rust-src --toolchain nightly-aarch64-unknown-linux-gnu
 RUN cargo +nightly build --release
 
