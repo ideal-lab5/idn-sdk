@@ -106,6 +106,9 @@ pub type BalanceOf<T> =
 /// The metadata type used in the pallet, represented as a bounded vector of bytes.
 pub type MetadataOf<T> = SubscriptionMetadata<<T as Config>::MaxMetadataLen>;
 
+/// The subscription ID type used in the pallet, derived from the configuration.
+pub type SubscriptionIdOf<T> = <T as pallet::Config>::SubscriptionId;
+
 /// The subscription type used in the pallet, containing various details about the subscription.
 pub type SubscriptionOf<T> = Subscription<
 	<T as frame_system::Config>::AccountId,
@@ -113,7 +116,7 @@ pub type SubscriptionOf<T> = Subscription<
 	<T as pallet::Config>::Credits,
 	MetadataOf<T>,
 	PulseFilterOf<T>,
-	<T as pallet::Config>::SubscriptionId,
+	SubscriptionIdOf<T>,
 >;
 
 /// A filter that controls which pulses are delivered to a subscription
@@ -174,7 +177,7 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 	BlockNumberFor<T>,
 	MetadataOf<T>,
 	PulseFilterOf<T>,
-	<T as pallet::Config>::SubscriptionId,
+	SubscriptionIdOf<T>,
 >;
 
 /// Parameters for updating an existing subscription.
