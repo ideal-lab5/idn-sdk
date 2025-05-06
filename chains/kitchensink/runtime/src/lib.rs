@@ -218,7 +218,6 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type WeightInfo = ();
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<30>;
-	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
 	type Pulse = RuntimePulse;
 	type Dispatcher = IdnManager;
 }
