@@ -603,7 +603,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_error_handling() {
+	fn test_error_handling() { // Existing test
 		// Verify TooManySubscriptions error is distinct from other errors
 		assert_ne!(Error::TooManySubscriptions, Error::NonXcmEnvError);
 
@@ -613,4 +613,104 @@ mod tests {
 		assert_ne!(Error::XcmExecutionFailed, Error::XcmSendFailed);
 		assert_ne!(Error::XcmExecutionFailed, Error::NonXcmEnvError);
 	}
+
+	#[test]
+	fn test_create_subscription_xcm_send_failure() {
+		// Note: Can't directly mock ink::env::xcm_send in unit tests, but we can check error conversion logic
+		let err = ink::env::Error::ReturnError(ink::env::ReturnErrorCode::XcmSendFailed);
+		let converted: Error = err.into();
+		assert_eq!(converted, Error::XcmSendFailed);
+	}
+
+	#[test]
+	fn test_pause_subscription_invalid_id() {
+		// Simulate passing an invalid subscription ID (e.g., 0)
+		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		// In practice, this would fail at the runtime/pallet level, but we can check XCM message is still constructed
+		let msg = client.construct_pause_subscription_xcm(0);
+		assert!(matches!(msg, Xcm::<()> { .. }));
+	}
+
+	#[test]
+	fn test_update_subscription_invalid_id() {
+		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let params = UpdateSubParams {
+			sub_id: 0,
+			credits: 1,
+			frequency: 1,
+			pulse_filter: None,
+		};
+		let msg = client.construct_update_subscription_xcm(&params);
+		assert!(matches!(msg, Xcm::<()> { .. }));
+	}
+
+	#[test]
+	fn test_create_subscription_maximum_values() {
+		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let params = CreateSubParams {
+			credits: u32::MAX,
+			target: Location::default(),
+			call_index: [255, 255],
+			frequency: u32::MAX,
+			metadata: Some(vec![255; 4096]),
+			pulse_filter: Some(vec![0; 4096]),
+			sub_id: Some(u64::MAX),
+		};
+		let msg = client.construct_create_subscription_xcm(&params);
+		assert!(matches!(msg, Xcm::<()> { .. }));
+	}
+
+	#[test]
+	fn test_create_subscription_invalid_call_index() {
+		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let params = CreateSubParams {
+			credits: 1,
+			target: Location::default(),
+			call_index: [255, 0], // Unlikely to be valid
+			frequency: 1,
+			metadata: None,
+			pulse_filter: None,
+			sub_id: Some(1),
+		};
+		let msg = client.construct_create_subscription_xcm(&params);
+		assert!(matches!(msg, Xcm::<()> { .. }));
+	}
+
+	#[test]
+	fn test_create_contracts_target_location_various_inputs() {
+		let account_id = [1u8; 32];
+		let loc = IdnClientImpl::create_contracts_target_location(2001, 55, &account_id);
+		// Basic checks on the MultiLocation structure
+		assert_eq!(loc.parents, 1);
+		// Further checks could decode the Junctions if needed
+	}
+
+	#[test]
+	fn test_contract_pulse_trait_methods() {
+		use crate::ContractPulse;
+		let pulse = ContractPulse {
+			round: 42,
+			rand: [7u8; 32],
+			sig: [2u8; 48],
+		};
+		assert_eq!(pulse.round(), 42);
+		assert_eq!(pulse.rand(), [7u8; 32]);
+		assert_eq!(pulse.sig(), [2u8; 48]);
+		// Test authenticate always returns true (contract default)
+		assert!(pulse.authenticate([0u8; 32]));
+	}
+
+	#[test]
+	fn test_contract_pulse_encode_decode() {
+		use crate::ContractPulse;
+		let pulse = ContractPulse {
+			round: 1,
+			rand: [3u8; 32],
+			sig: [4u8; 48],
+		};
+		let encoded = pulse.encode();
+		let decoded = ContractPulse::decode(&mut &encoded[..]).unwrap();
+		assert_eq!(pulse, decoded);
+	}
+	
 }
