@@ -19,7 +19,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use bp_idn::{
-	types::{BlockNumber as IdnBlockNumber, CreateSubParams, Credits, Metadata, PulseFilter},
+	types::{
+		BlockNumber as IdnBlockNumber, CreateSubParams, Credits, Metadata, PulseFilter,
+		UpdateSubParams,
+	},
 	Call as RuntimeCall, IdnManagerCall,
 };
 use cumulus_primitives_core::ParaId;
@@ -186,6 +189,45 @@ impl<T: Config> Pallet<T> {
 
 		let call = RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params });
 
+		Self::xcm_send(call)?;
+
+		Ok(sub_id)
+	}
+
+	/// Pauses a subscription.
+	pub fn pause_subscription(sub_id: SubscriptionId) -> Result<(), Error<T>> {
+		let call = RuntimeCall::IdnManager(IdnManagerCall::pause_subscription { sub_id });
+		Self::xcm_send(call)
+	}
+
+	/// Kills a subscription.
+	pub fn kill_subscription(sub_id: SubscriptionId) -> Result<(), Error<T>> {
+		let call = RuntimeCall::IdnManager(IdnManagerCall::kill_subscription { sub_id });
+		Self::xcm_send(call)
+	}
+
+	/// Updates a subscription.
+	pub fn update_subscription(
+		sub_id: SubscriptionId,
+		credits: Option<Credits>,
+		frequency: Option<IdnBlockNumber>,
+		metadata: Option<Option<Metadata>>,
+		pulse_filter: Option<Option<PulseFilter>>,
+	) -> Result<(), Error<T>> {
+		let params = UpdateSubParams { sub_id, credits, frequency, metadata, pulse_filter };
+
+		let call = RuntimeCall::IdnManager(IdnManagerCall::update_subscription { params });
+
+		Self::xcm_send(call)
+	}
+
+	/// Reactivates a subscription.
+	pub fn reactivate_subscription(sub_id: SubscriptionId) -> Result<(), Error<T>> {
+		let call = RuntimeCall::IdnManager(IdnManagerCall::reactivate_subscription { sub_id });
+		Self::xcm_send(call)
+	}
+
+	fn xcm_send(call: RuntimeCall) -> Result<(), Error<T>> {
 		let asset_hub_fee_asset: Asset = (Location::parent(), T::AssetHubFee::get()).into();
 
 		let xcm_call: Xcm<RuntimeCall> = Xcm(vec![
@@ -205,30 +247,6 @@ impl<T: Config> Pallet<T> {
 		T::Xcm::send(Self::pallet_origin().into(), versioned_target, versioned_msg)
 			.map_err(|_err| Error::<T>::XcmSendError)?;
 
-		Ok(sub_id)
-	}
-
-	/// Pauses a subscription.
-	pub fn pause_subscription() -> Result<(), Error<T>> {
-		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/83
-		Ok(())
-	}
-
-	/// Kills a subscription.
-	pub fn kill_subscription() -> Result<(), Error<T>> {
-		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/84
-		Ok(())
-	}
-
-	/// Updates a subscription.
-	pub fn update_subscription() -> Result<(), Error<T>> {
-		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/82
-		Ok(())
-	}
-
-	/// Reactivates a subscription.
-	pub fn reactivate_subscription() -> Result<(), Error<T>> {
-		// TODO: finish implementation https://github.com/ideal-lab5/idn-sdk/issues/83
 		Ok(())
 	}
 
