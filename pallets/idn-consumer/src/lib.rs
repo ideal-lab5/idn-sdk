@@ -277,4 +277,32 @@ impl<T: Config> Pallet<T> {
 
 		Ok(())
 	}
+
+	/// Get the index of this pallet in the runtime
+	fn pallet_index() -> Result<u8, Error<T>> {
+		<Self as frame_support::traits::PalletInfoAccess>::index()
+			.try_into()
+			.map_err(|_| Error::<T>::PalletIndexConversionError)
+	}
+
+	/// Get the account id of this pallet
+	fn pallet_account_id() -> T::AccountId {
+		T::PalletId::get().into_account_truncating()
+	}
+
+	/// Get the signed origin of this pallet
+	fn pallet_origin() -> RawOrigin<T::AccountId> {
+		RawOrigin::Signed(Self::pallet_account_id())
+	}
+
+	/// Get this pallet's xcm Location
+	fn pallet_location() -> Result<Location, Error<T>> {
+		Ok(Location {
+			parents: 1,
+			interior: Junctions::X2(Arc::new([
+				Junction::Parachain(T::ParaId::get().into()),
+				Junction::PalletInstance(Self::pallet_index()?),
+			])),
+		})
+	}
 }
