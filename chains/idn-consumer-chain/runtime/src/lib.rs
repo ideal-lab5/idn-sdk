@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
@@ -25,13 +26,13 @@ pub mod apis;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarks;
 pub mod configs;
-pub mod constants;
 mod genesis_config_presets;
 mod weights;
 
 extern crate alloc;
 
-use bp_idn::types::BlockNumber;
+use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::Pays};
+use pallet_idn_consumer::{ConsumerTrait, Pulse, SubscriptionId};
 use smallvec::smallvec;
 use sp_runtime::{
 	generic, impl_opaque_keys,
@@ -71,6 +72,9 @@ pub type Nonce = u32;
 
 /// A hash of some data used by the chain.
 pub type Hash = sp_core::H256;
+
+/// An index to a block.
+pub type BlockNumber = u32;
 
 /// The address format for describing accounts.
 pub type Address = MultiAddress<AccountId, ()>;
@@ -146,6 +150,16 @@ impl WeightToFeePolynomial for WeightToFee {
 	}
 }
 
+pub struct Consumer;
+impl ConsumerTrait<Pulse, SubscriptionId, DispatchResultWithPostInfo> for Consumer {
+	fn consume(pulse: Pulse, sub_id: SubscriptionId) -> DispatchResultWithPostInfo {
+		// Randomness consumption logic goes here.
+		log::info!("IDN Consumer: Consuming pulse: {:?}", pulse);
+		log::info!("IDN Consumer: Subscription ID: {:?}", sub_id);
+		Ok(Pays::No.into())
+	}
+}
+
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
 /// of data like extrinsics, allowing for them to continue syncing the network through upgrades
@@ -176,8 +190,8 @@ impl_opaque_keys! {
 
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: Cow::Borrowed("idn-runtime"),
-	impl_name: Cow::Borrowed("idn-runtime"),
+	spec_name: Cow::Borrowed("idn-consumer-runtime"),
+	impl_name: Cow::Borrowed("idn-consumer-runtime"),
 	authoring_version: 1,
 	spec_version: 1,
 	impl_version: 0,
@@ -211,6 +225,10 @@ pub const MICROUNIT: Balance = 1_000_000;
 
 /// The existential deposit. Set to 1/10 of the Connected Relay Chain.
 pub const EXISTENTIAL_DEPOSIT: Balance = MILLIUNIT;
+
+const fn deposit(items: u32, bytes: u32) -> Balance {
+	items as Balance * CENTIUNIT + bytes as Balance * CENTIUNIT
+}
 
 /// We assume that ~5% of the block weight is consumed by `on_initialize` handlers. This is
 /// used to limit the maximal weight of a single extrinsic.
@@ -308,13 +326,9 @@ mod runtime {
 	#[runtime::pallet_index(33)]
 	pub type MessageQueue = pallet_message_queue::Pallet<Runtime>;
 
-	// IDN
-	// This index must be the same as the one defined in the
-	// [`bp_idn::Call::IdnManager`]
+	// IDN Consumer
 	#[runtime::pallet_index(40)]
-	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
-	#[runtime::pallet_index(41)]
-	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
+	pub type IdnConsumer = pallet_idn_consumer::Pallet<Runtime>;
 }
 
 cumulus_pallet_parachain_system::register_validate_block! {

@@ -1,0 +1,33 @@
+[package]
+name = "bp-idn"
+description = "Primitives of IDN runtime."
+version = "0.0.1-dev"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+codec.workspace = true
+scale-info.workspace = true
+
+# Substrate
+frame-support.workspace = true
+sp-runtime.workspace = true
+
+# IDN
+pallet-idn-manager.workspace = true
+sp-consensus-randomness-beacon.workspace = true
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"scale-info/std",
+	"frame-support/std",
+	"pallet-idn-manager/std",
+	"sp-consensus-randomness-beacon/std",
+	"sp-runtime/std",
+]

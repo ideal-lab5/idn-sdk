@@ -70,7 +70,7 @@ pub type CallIndex = [u8; 2];
 
 /// Parameters for creating a new subscription
 #[derive(
-	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq,
+	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, Default,
 )]
 pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, SubscriptionId> {
 	// Number of random values to receive
@@ -104,13 +104,4 @@ impl<
 		// Hash the encoded bytes using blake2_256.
 		H256::from_slice(&blake2_256(&encoded)).into()
 	}
-}
-
-/// A minimized version of `pallet-idn-manager::Call` that can be used without a runtime.
-#[derive(Encode, Decode, Debug, PartialEq, Clone, TypeInfo)]
-#[allow(non_camel_case_types)]
-pub enum IdnManagerCall<CreateSubParams> {
-	/// `pallet-idn-manager::Call::create_subscription`
-	#[codec(index = 0)]
-	create_subscription { params: CreateSubParams },
 }

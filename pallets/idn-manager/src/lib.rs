@@ -40,19 +40,7 @@
 //! - Removed from storage
 //! - Storage deposit returned
 //! - Unused credits refunded to the origin
-//!
-//! ## Pulse Filtering Security
-// [SRLABS]
-//! ### Overview
-//! Subscribers can specify filters to receive only pulses that match specific criteria. For
-//! security reasons, we only allow filtering by round numbers and prohibit filtering by
-//! randomness values.
-//!
-//! ### Security Concern
-//! If filtering by pulses were allowed, a subscriber could potentially:
-//! - Set up filters to only receive specific randomness patterns
-//! - Game the system by cherry-picking favorable pulses
-//! - Undermine the fairness and unpredictability of the randomness distribution
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
@@ -86,10 +74,7 @@ use frame_support::{
 		Get,
 	},
 };
-use frame_system::{
-	ensure_signed,
-	pallet_prelude::{BlockNumberFor, OriginFor},
-};
+use frame_system::{ensure_signed, pallet_prelude::OriginFor};
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
@@ -108,6 +93,7 @@ use xcm::{
 };
 use xcm_builder::SendController;
 
+pub use frame_system::pallet_prelude::BlockNumberFor;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -133,7 +119,8 @@ pub type SubscriptionOf<T> = Subscription<
 /// A filter that controls which pulses are delivered to a subscription
 ///
 /// See [`PulseFilter`] for more details.
-type PulseFilterOf<T> = PulseFilter<<T as pallet::Config>::Pulse, <T as Config>::MaxPulseFilterLen>;
+pub type PulseFilterOf<T> =
+	PulseFilter<<T as pallet::Config>::Pulse, <T as Config>::MaxPulseFilterLen>;
 
 /// Represents a subscription in the system.
 #[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
@@ -296,15 +283,18 @@ pub mod pallet {
 		type PalletId: Get<frame_support::PalletId>;
 
 		/// Maximum metadata size
+		#[pallet::constant]
 		type MaxMetadataLen: Get<u32>;
 
 		/// Maximum Pulse Filter size
+		#[pallet::constant]
 		type MaxPulseFilterLen: Get<u32>;
 
 		/// A type to define the amount of credits in a subscription
 		type Credits: Unsigned + Codec + TypeInfo + MaxEncodedLen + Debug + Saturating + Copy;
 
 		/// Maximum number of subscriptions allowed
+		#[pallet::constant]
 		type MaxSubscriptions: Get<u32>;
 
 		/// Subscription ID type
@@ -941,7 +931,7 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
-	/// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
+	// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
 	fn dispatch(pulses: Vec<T::Pulse>) -> DispatchResult {
 		for pulse in pulses {
 			let round = pulse.round().clone();

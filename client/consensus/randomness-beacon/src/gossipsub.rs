@@ -113,7 +113,8 @@ pub struct DrandReceiver {
 impl DrandReceiver {
 	/// Constructs a new DrandReceiver and starts receiving pulses
 	///
-	/// * `rx`: A [`TracingUnboundedReceiver`] to which [`RuntimePulses`] are written
+	/// * `rx`: A [`TracingUnboundedReceiver`] to which
+	///   [`sp_consensus_randomness_beacon::types::RuntimePulse`] are written
 	///  
 	pub fn new(
 		mut rx: TracingUnboundedReceiver<RuntimePulse>,

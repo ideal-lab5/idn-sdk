@@ -27,7 +27,7 @@ serde_json = { workspace = true, default-features = false, features = [
 	"alloc",
 ] }
 # IDN Deps
-idn-runtime.workspace = true
+bp-idn.workspace = true
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
 sp-idn-crypto.workspace = true
@@ -41,9 +41,9 @@ polkadot-sdk = { optional = true, workspace = true, features = [
 default = ["std"]
 
 std = [
+	"bp-idn/std",
 	"codec/std",
 	"frame-benchmarking?/std",
-	"idn-runtime/std",
 	"polkadot-sdk/std",
 	"scale-info/std",
 	"serde_json/std",
