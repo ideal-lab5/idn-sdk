@@ -3,7 +3,7 @@
 
 [relaychain]
 chain = "dev"
-default_command = "../target/release/idn-sdk-kitchensink-node"
+default_command = "../../target/release/idn-sdk-kitchensink-node"
 
 [[relaychain.nodes]]
 name = "alice"
