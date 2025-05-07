@@ -33,9 +33,9 @@ impl pallet_balances::Config for Test {
 	type AccountStore = System;
 }
 
-pub struct Dispatcher;
+pub struct MockDispatcher;
 impl sp_idn_traits::pulse::Dispatcher<RuntimePulse, Result<(), sp_runtime::DispatchError>>
-	for Dispatcher
+	for MockDispatcher
 {
 	fn dispatch(_pulses: Vec<RuntimePulse>) -> Result<(), sp_runtime::DispatchError> {
 		Ok(())
@@ -53,7 +53,7 @@ impl pallet_drand_bridge::Config for Test {
 	type MaxSigsPerBlock = ConstU8<10>;
 	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
 	type Pulse = RuntimePulse;
-	type Dispatcher = Dispatcher;
+	type Dispatcher = MockDispatcher;
 }
 
 parameter_types! {
