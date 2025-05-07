@@ -317,8 +317,9 @@ pub mod pallet {
 		/// Origin check for XCM locations that can interact with the IDN Manager.
 		///
 		/// **Example definition**
-		/// ```nocompile
-		/// type SiblingOrigin = pallet_xcm_origin::EnsureXcm<AllowSiblingsOnly>;
+		/// ```rust
+		/// use pallet_idn_manager::primitives::AllowSiblingsOnly;
+		/// type SiblingOrigin = pallet_xcm::EnsureXcm<AllowSiblingsOnly>;
 		/// ```
 		type SiblingOrigin: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
 	}
