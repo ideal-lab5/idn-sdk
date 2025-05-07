@@ -56,16 +56,6 @@ impl pallet_drand_bridge::Config for Test {
 	type Dispatcher = MockDispatcher;
 }
 
-parameter_types! {
-	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
-	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
-	pub const BaseFee: u64 = 10;
-	pub const SDMultiplier: u64 = 10;
-	pub const MaxPulseFilterLen: u32 = 100;
-	pub const MaxSubscriptions: u32 = 100;
-	pub const MaxMetadataLen: u32 = 8;
-}
-
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let t = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
