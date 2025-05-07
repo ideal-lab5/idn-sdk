@@ -114,3 +114,22 @@ impl Contains<Location> for AllowSiblingsOnly {
 		matches!(location.unpack(), (1, [Parachain(_)]))
 	}
 }
+
+pub type QuoteReqRef = [u8; 32];
+
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct Quote<Balance> {
+	pub req_ref: QuoteReqRef,
+	pub fees: Balance,
+	pub deposit: Balance,
+}
+
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct QuoteRequest<CreateSubParams> {
+	pub req_ref: QuoteReqRef,
+	pub create_sub_params: CreateSubParams,
+}

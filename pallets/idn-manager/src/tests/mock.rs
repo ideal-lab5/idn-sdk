@@ -127,7 +127,7 @@ impl<F: Contains<Location>> frame_support::traits::EnsureOrigin<RuntimeOrigin>
 
 	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
 		if origin.clone().into_signer().unwrap() == SIBLING_PARA_ACCOUNT {
-			return Ok(Parachain(SIBLING_PARA_ID).into());
+			return Ok(Location::new(1, [Parachain(SIBLING_PARA_ID)]));
 		}
 		Err(origin)
 	}

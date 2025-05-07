@@ -56,6 +56,7 @@ pub trait WeightInfo {
 	fn update_subscription(l: u32, m: u32, ) -> Weight;
 	fn reactivate_subscription() -> Weight;
 	fn dispatch_pulse(p: u32, s: u32, ) -> Weight;
+	fn quote_subscription(l: u32, ) -> Weight;
 }
 
 /// Weights for `pallet_idn_manager` using the IDN SDK Kitchensink Runtime and recommended hardware.
@@ -156,6 +157,16 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(Weight::from_parts(0, 2).saturating_mul(p.into()))
 			.saturating_add(Weight::from_parts(0, 1).saturating_mul(s.into()))
 	}
+	fn quote_subscription(l: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 0 picoseconds.
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0).saturating_mul(l.into()))
+			.saturating_add(T::DbWeight::get().reads(0_u64))
+			.saturating_add(T::DbWeight::get().writes(0_u64))
+	}
 }
 
 // For backwards compatibility and tests.
@@ -254,5 +265,15 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().writes(4_u64))
 			.saturating_add(Weight::from_parts(0, 2).saturating_mul(p.into()))
 			.saturating_add(Weight::from_parts(0, 1).saturating_mul(s.into()))
+	}
+	fn quote_subscription(l: u32, ) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 0 picoseconds.
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0).saturating_mul(l.into()))
+			.saturating_add(RocksDbWeight::get().reads(0_u64))
+			.saturating_add(RocksDbWeight::get().writes(0_u64))
 	}
 }

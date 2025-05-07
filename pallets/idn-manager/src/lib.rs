@@ -55,7 +55,9 @@ pub mod traits;
 pub mod weights;
 
 use crate::{
-	primitives::{CallIndex, CreateSubParams, PulseFilter, SubscriptionMetadata},
+	primitives::{
+		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteRequest, SubscriptionMetadata,
+	},
 	traits::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
 		Subscription as SubscriptionTrait,
@@ -72,7 +74,7 @@ use frame_support::{
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
 		tokens::Precision,
-		Get,
+		Get, OriginTrait,
 	},
 };
 use frame_system::{ensure_signed, pallet_prelude::OriginFor};
@@ -106,6 +108,13 @@ pub type BalanceOf<T> =
 
 /// The metadata type used in the pallet, represented as a bounded vector of bytes.
 pub type MetadataOf<T> = SubscriptionMetadata<<T as Config>::MaxMetadataLen>;
+
+/// The quote type used in the pallet, representing a quote for a subscription.
+pub type QuoteOf<T> = Quote<BalanceOf<T>>;
+
+/// The quote request type used in the pallet, containing details about the subscription to be
+/// quoted.
+pub type QuoteRequestOf<T> = QuoteRequest<CreateSubParamsOf<T>>;
 
 /// The subscription ID type used in the pallet, derived from the configuration.
 pub type SubscriptionIdOf<T> = <T as pallet::Config>::SubscriptionId;
@@ -351,8 +360,8 @@ pub mod pallet {
 		RandomnessDistributed { sub_id: T::SubscriptionId },
 		/// Fees collected
 		FeesCollected { sub_id: T::SubscriptionId, fees: BalanceOf<T> },
-		/// Fees calculated
-		FeesCalculated { location: Location, credits: T::Credits, fees: BalanceOf<T> },
+		/// Subscription Fees quoted
+		SubQuoted { requester: Location, quote: QuoteOf<T> },
 	}
 
 	#[pallet::error]
@@ -373,6 +382,8 @@ pub mod pallet {
 		TooManySubscriptions,
 		/// An error occurred while sending the XCM message
 		XcmSendError,
+		/// Invalid subscriber
+		InvalidSubscriber,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -664,28 +675,96 @@ pub mod pallet {
 			})
 		}
 
-		/// Calculates the subscription fees and sends the result back to the caller specified
-		/// function via XCM.
+		/// Calculates the subscription fees and deposit and sends the result back to the caller
+		/// specified function via XCM.
 		#[pallet::call_index(5)]
 		// TODO update this to use the correct weight
 		#[pallet::weight(T::WeightInfo::reactivate_subscription())]
-		pub fn get_calculate_subscription_fee(
+		pub fn quote_subscription(
 			origin: OriginFor<T>,
-			credits: T::Credits,
+			request: QuoteRequestOf<T>,
 			call_index: CallIndex,
 		) -> DispatchResult {
 			// Ensure the origin is a sibling, and get the location
-			let location = T::SiblingOrigin::ensure_origin(origin)?;
-			let fees = Self::calculate_subscription_fees(&credits);
+			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
 
-			Self::xcm_send(&location, (call_index, fees).encode().into())?;
-			Self::deposit_event(Event::FeesCalculated { location, credits, fees });
+			let deposit = Self::calculate_storage_deposit_from_create_params(
+				&origin
+					.into_signer()
+					// we know that the origin is a sibling, thus signed, so this should never be
+					// reached
+					.ok_or(DispatchError::from(Error::<T>::InvalidSubscriber))?,
+				&request.create_sub_params,
+			);
+			let fees = Self::calculate_subscription_fees(&request.create_sub_params.credits);
+
+			let quote = Quote { req_ref: request.req_ref, fees, deposit };
+
+			Self::xcm_send(&requester, (call_index, fees).encode().into())?;
+			Self::deposit_event(Event::SubQuoted { requester, quote });
 			Ok(())
 		}
 	}
 }
 
 impl<T: Config> Pallet<T> {
+	/// Computes the fee for a given number of credits.
+	///
+	/// This function calculates the subscription fee based on the specified number of credits
+	/// using the [`FeesManager`] implementation.
+	pub fn calculate_subscription_fees(credits: &T::Credits) -> BalanceOf<T> {
+		T::FeesManager::calculate_subscription_fees(credits)
+	}
+
+	/// Retrieves a specific subscription by its ID.
+	///
+	/// This function retrieves a subscription from storage based on the provided subscription ID.
+	pub fn get_subscription(sub_id: &T::SubscriptionId) -> Option<SubscriptionOf<T>> {
+		Subscriptions::<T>::get(sub_id)
+	}
+
+	/// Retrieves all subscriptions for a specific subscriber.
+	///
+	/// This function retrieves all subscriptions from storage that are associated with the
+	/// provided subscriber account.
+	pub fn get_subscriptions_for_subscriber(subscriber: &T::AccountId) -> Vec<SubscriptionOf<T>> {
+		Subscriptions::<T>::iter()
+			.filter(|(_, sub)| &sub.details.subscriber == subscriber)
+			.map(|(_, sub)| sub)
+			.collect()
+	}
+
+	/// Calculates the storage deposit for a subscription based on its creation parameters.
+	///
+	/// It creates an ephimeral dummy subscription to calculate the fees.
+	pub(crate) fn calculate_storage_deposit_from_create_params(
+		subscriber: &T::AccountId,
+		params: &CreateSubParamsOf<T>,
+	) -> BalanceOf<T> {
+		let current_block = frame_system::Pallet::<T>::block_number();
+
+		let details = SubscriptionDetails {
+			subscriber: subscriber.clone(),
+			target: params.target.clone(),
+			call_index: params.call_index,
+		};
+
+		let subscription = Subscription {
+			id: SubscriptionIdOf::<T>::from(H256::default()),
+			state: SubscriptionState::Active,
+			credits_left: params.credits,
+			details,
+			created_at: current_block,
+			updated_at: current_block,
+			credits: params.credits,
+			frequency: params.frequency,
+			metadata: params.metadata.clone(),
+			last_delivered: None,
+			pulse_filter: params.pulse_filter.clone(),
+		};
+		T::DepositCalculator::calculate_storage_deposit(&subscription)
+	}
+
 	/// Finishes a subscription by removing it from storage and emitting a finish event.
 	pub(crate) fn finish_subscription(
 		sub: &SubscriptionOf<T>,
@@ -908,34 +987,6 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	// /// Constructs an XCM message for delivering randomness to a subscriber
-	// ///
-	// /// This function creates a complete XCM message that will:
-	// /// 1. Execute without payment at the destination chain ([`UnpaidExecution`])
-	// /// 2. Execute a call on the destination chain using the provided call index and randomness
-	// data ///    ([`Transact`])
-	// /// 3. Expect successful execution and check status code (ExpectTransactStatus)
-	// fn construct_xcm_msg(
-	// 	call_index: CallIndex,
-	// 	pulse: &T::Pulse,
-	// 	sub_id: &T::SubscriptionId,
-	// ) -> Xcm<()> {
-	// 	Xcm(vec![
-	// 		UnpaidExecution { weight_limit: Unlimited, check_origin: None },
-	// 		Transact {
-	// 			origin_kind: OriginKind::Xcm,
-	// 			fallback_max_weight: None,
-	// 			// Create a tuple of call_index and pulse, encode it using SCALE codec, then convert
-	// 			// to Vec<u8> The encoded data will be used by the receiving chain to:
-	// 			// 1. Find the target pallet using first byte of call_index
-	// 			// 2. Find the target function using second byte of call_index
-	// 			// 3. Pass the parameters to that function
-	// 			call: (call_index, pulse, sub_id).encode().into(),
-	// 		},
-	// 		ExpectTransactStatus(MaybeErrorCode::Success),
-	// 	])
-	// }
-
 	fn xcm_send(target: &Location, call: DoubleEncoded<()>) -> DispatchResult {
 		let msg = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
@@ -949,32 +1000,6 @@ impl<T: Config> Pallet<T> {
 		T::Xcm::send(origin.into(), versioned_target, versioned_msg)
 			.map_err(|_err| Error::<T>::XcmSendError)?;
 		Ok(())
-	}
-
-	/// Computes the fee for a given number of credits.
-	///
-	/// This function calculates the subscription fee based on the specified number of credits
-	/// using the [`FeesManager`] implementation.
-	pub fn calculate_subscription_fees(credits: &T::Credits) -> BalanceOf<T> {
-		T::FeesManager::calculate_subscription_fees(credits)
-	}
-
-	/// Retrieves a specific subscription by its ID.
-	///
-	/// This function retrieves a subscription from storage based on the provided subscription ID.
-	pub fn get_subscription(sub_id: &T::SubscriptionId) -> Option<SubscriptionOf<T>> {
-		Subscriptions::<T>::get(sub_id)
-	}
-
-	/// Retrieves all subscriptions for a specific subscriber.
-	///
-	/// This function retrieves all subscriptions from storage that are associated with the
-	/// provided subscriber account.
-	pub fn get_subscriptions_for_subscriber(subscriber: &T::AccountId) -> Vec<SubscriptionOf<T>> {
-		Subscriptions::<T>::iter()
-			.filter(|(_, sub)| &sub.details.subscriber == subscriber)
-			.map(|(_, sub)| sub)
-			.collect()
 	}
 }
 

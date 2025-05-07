@@ -17,7 +17,7 @@
 //! # Tests for the IDN Manager pallet
 
 use crate::{
-	primitives::PulsePropertyOf,
+	primitives::{PulsePropertyOf, Quote, QuoteRequest},
 	runtime_decl_for_idn_manager_api::IdnManagerApiV1,
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
@@ -35,7 +35,7 @@ use frame_support::{
 };
 use sp_idn_traits::pulse::Dispatcher;
 use sp_runtime::{AccountId32, DispatchError::BadOrigin, TokenError};
-use xcm::v5::{Junction, Junction::Parachain, Location};
+use xcm::v5::{Junction, Location};
 
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 pub const BOB: AccountId32 = AccountId32::new([2u8; 32]);
@@ -1874,27 +1874,39 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 }
 
 #[test]
-fn test_get_calculate_subscription_fee_works() {
+fn test_quote_subscription_works() {
 	ExtBuilder::build().execute_with(|| {
 		let credits: u64 = 50;
 		let call_index = [1; 2];
 
 		let origin = RuntimeOrigin::signed(mock::SIBLING_PARA_ACCOUNT);
 
+		let create_sub_params = CreateSubParamsOf::<Test> {
+			credits,
+			target: Location::new(1, [Junction::PalletInstance(1)]),
+			call_index,
+			frequency: 10,
+			metadata: None,
+			pulse_filter: None,
+			sub_id: None,
+		};
+
+		let req_ref = [1; 32];
+
+		let quote_request = QuoteRequest { req_ref, create_sub_params };
 		// Call the function
-		assert_ok!(IdnManager::get_calculate_subscription_fee(origin, credits, call_index));
+		assert_ok!(IdnManager::quote_subscription(origin, quote_request, call_index));
 
 		// Verify the XCM message was sent
-		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::FeesCalculated {
-			location: Parachain(SIBLING_PARA_ID).into(),
-			credits: 50,
-			fees: 5000,
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubQuoted {
+			requester: Location::new(1, [Junction::Parachain(mock::SIBLING_PARA_ID)]),
+			quote: Quote { req_ref, fees: 5000, deposit: 1140 },
 		}));
 	});
 }
 
 #[test]
-fn test_get_calculate_subscription_fee_fails_for_invalid_origin() {
+fn test_quote_subscription_fails_for_invalid_origin() {
 	ExtBuilder::build().execute_with(|| {
 		let credits: u64 = 50;
 		let call_index = [1; 2];
@@ -1902,9 +1914,23 @@ fn test_get_calculate_subscription_fee_fails_for_invalid_origin() {
 		// Use an invalid origin (not a sibling)
 		let invalid_origin = RuntimeOrigin::signed(ALICE);
 
+		let create_sub_params = CreateSubParamsOf::<Test> {
+			credits,
+			target: Location::new(1, [Junction::PalletInstance(1)]),
+			call_index,
+			frequency: 10,
+			metadata: None,
+			pulse_filter: None,
+			sub_id: None,
+		};
+
+		let req_ref = [1; 32];
+
+		let quote_request = QuoteRequest { req_ref, create_sub_params };
+
 		// Call the function and expect it to fail
 		assert_noop!(
-			IdnManager::get_calculate_subscription_fee(invalid_origin, credits, call_index),
+			IdnManager::quote_subscription(invalid_origin, quote_request, call_index),
 			BadOrigin
 		);
 	});
