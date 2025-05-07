@@ -18,6 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod impls;
 pub mod types;
 
 use frame_support::pallet_prelude::{Decode, Encode, TypeInfo};

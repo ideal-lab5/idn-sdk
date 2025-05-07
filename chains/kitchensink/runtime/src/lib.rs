@@ -25,7 +25,10 @@ mod benchmarks;
 
 extern crate alloc;
 
-use crate::{interface::AccountId, sp_runtime::AccountId32};
+use crate::{
+	interface::AccountId,
+	sp_runtime::{traits::TryConvert, AccountId32},
+};
 use alloc::vec::Vec;
 use bp_idn::types::RuntimePulse;
 use pallet_idn_manager::{
@@ -41,6 +44,7 @@ use polkadot_sdk::{
 	},
 	*,
 };
+use xcm::v5::{Junction::Parachain, Location};
 
 /// Provides getters for genesis configuration presets.
 pub mod genesis_config_presets {
@@ -241,6 +245,19 @@ impl Get<u32> for MaxMetadataLen {
 	}
 }
 
+pub struct AllowSiblingsOnly;
+impl Contains<Location> for AllowSiblingsOnly {
+	fn contains(location: &Location) -> bool {
+		matches!(location.unpack(), (1, [Parachain(_)]))
+	}
+}
+
+impl TryConvert<RuntimeOrigin, Location> for AllowSiblingsOnly {
+	fn try_convert(_origin: RuntimeOrigin) -> Result<Location, RuntimeOrigin> {
+		Ok(Location::here())
+	}
+}
+
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -257,6 +274,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type MaxSubscriptions = MaxSubscriptions;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
+	type SiblingOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, AllowSiblingsOnly>;
 }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;

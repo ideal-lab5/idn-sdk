@@ -32,6 +32,7 @@ use frame_support::{
 	sp_runtime::traits::AccountIdConversion,
 };
 use frame_system::{pallet_prelude::OriginFor, RawOrigin};
+use pallet_idn_manager::traits::FeesManager;
 use scale_info::prelude::{boxed::Box, sync::Arc, vec};
 use sp_idn_traits::pulse::Pulse as PulseTrait;
 use xcm::{
@@ -225,6 +226,27 @@ impl<T: Config> Pallet<T> {
 	pub fn reactivate_subscription(sub_id: SubscriptionId) -> Result<(), Error<T>> {
 		let call = RuntimeCall::IdnManager(IdnManagerCall::reactivate_subscription { sub_id });
 		Self::xcm_send(call)
+	}
+
+	pub fn calculate_subscription_fee(
+		credits: Credits,
+		frequency: IdnBlockNumber,
+	) -> Result<u128, Error<T>> {
+		let params = CreateSubParams {
+			credits,
+			target: Self::pallet_location()?,
+			call_index: [Self::pallet_index()?, 0],
+			frequency,
+			metadata: None,
+			pulse_filter: None,
+			sub_id: None,
+		};
+
+		let call = RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params });
+
+		let fee = bp_idn::impls::FeesManagerImpl::calculate_subscription_fees(&credits)?;
+
+		Ok(fee)
 	}
 
 	fn xcm_send(call: RuntimeCall) -> Result<(), Error<T>> {

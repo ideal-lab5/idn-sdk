@@ -24,7 +24,6 @@ use pallet_idn_manager::{
 };
 use sp_runtime::AccountId32;
 
-pub use pallet_idn_manager::impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl};
 pub use sp_consensus_randomness_beacon::types::RuntimePulse;
 
 // TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186

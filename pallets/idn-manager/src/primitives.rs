@@ -17,12 +17,12 @@
 //! Types used in the IDN pallet manager
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
-use frame_support::BoundedVec;
+use frame_support::{traits::Contains, BoundedVec};
 use scale_info::TypeInfo;
 use sp_core::{blake2_256, H256};
 use sp_idn_traits::pulse::{Pulse, PulseProperty};
 use sp_std::vec::Vec;
-use xcm::v5::Location;
+use xcm::v5::{Junction::Parachain, Location};
 
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
 
@@ -103,5 +103,50 @@ impl<
 		let encoded = id_tuple.encode();
 		// Hash the encoded bytes using blake2_256.
 		H256::from_slice(&blake2_256(&encoded)).into()
+	}
+}
+
+pub struct AllowSiblingsOnly;
+impl Contains<Location> for AllowSiblingsOnly {
+	fn contains(location: &Location) -> bool {
+		matches!(location.unpack(), (1, [Parachain(_)]))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use sp_std::sync::Arc;
+	use xcm::v5::{Junction, Junctions};
+
+	#[test]
+	fn test_allow_siblings_only() {
+		// Valid sibling parachain location
+		let sibling_location =
+			Location::new(1, Junctions::X1(Arc::new([Junction::Parachain(100)])));
+		assert!(
+			AllowSiblingsOnly::contains(&sibling_location),
+			"Sibling parachain should be allowed"
+		);
+
+		// Invalid location: not a sibling parachain
+		let non_sibling_location = Location::new(
+			0,
+			Junctions::X1(Arc::new([Junction::AccountId32 { network: None, id: [0u8; 32] }])),
+		);
+		assert!(
+			!AllowSiblingsOnly::contains(&non_sibling_location),
+			"Non-sibling location should not be allowed"
+		);
+
+		// Invalid location: sibling but not a parachain
+		let sibling_non_parachain_location = Location::new(
+			1,
+			Junctions::X1(Arc::new([Junction::AccountId32 { network: None, id: [0u8; 32] }])),
+		);
+		assert!(
+			!AllowSiblingsOnly::contains(&sibling_non_parachain_location),
+			"Sibling non-parachain location should not be allowed"
+		);
 	}
 }

@@ -34,11 +34,11 @@ use frame_support::{
 	BoundedVec,
 };
 use sp_idn_traits::pulse::Dispatcher;
-use sp_runtime::{AccountId32, TokenError};
-use xcm::v5::{Junction, Location};
+use sp_runtime::{AccountId32, DispatchError::BadOrigin, TokenError};
+use xcm::v5::{Junction, Junction::Parachain, Location};
 
-const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-const BOB: AccountId32 = AccountId32::new([2u8; 32]);
+pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+pub const BOB: AccountId32 = AccountId32::new([2u8; 32]);
 
 fn event_not_emitted(event: Event<Test>) -> bool {
 	!System::events().iter().any(|record| {
@@ -1869,6 +1869,43 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 				(count_active_rounds * <Test as Config>::FeesManager::get_consume_credits(&sub) +
 					count_idle_rounds * <Test as Config>::FeesManager::get_idle_credits(&sub))
 					as u64
+		);
+	});
+}
+
+#[test]
+fn test_get_calculate_subscription_fee_works() {
+	ExtBuilder::build().execute_with(|| {
+		let credits: u64 = 50;
+		let call_index = [1; 2];
+
+		let origin = RuntimeOrigin::signed(mock::SIBLING_PARA_ACCOUNT);
+
+		// Call the function
+		assert_ok!(IdnManager::get_calculate_subscription_fee(origin, credits, call_index));
+
+		// Verify the XCM message was sent
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::FeesCalculated {
+			location: Parachain(SIBLING_PARA_ID).into(),
+			credits: 50,
+			fees: 5000,
+		}));
+	});
+}
+
+#[test]
+fn test_get_calculate_subscription_fee_fails_for_invalid_origin() {
+	ExtBuilder::build().execute_with(|| {
+		let credits: u64 = 50;
+		let call_index = [1; 2];
+
+		// Use an invalid origin (not a sibling)
+		let invalid_origin = RuntimeOrigin::signed(ALICE);
+
+		// Call the function and expect it to fail
+		assert_noop!(
+			IdnManager::get_calculate_subscription_fee(invalid_origin, credits, call_index),
+			BadOrigin
 		);
 	});
 }

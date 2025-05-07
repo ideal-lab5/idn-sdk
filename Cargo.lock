@@ -6012,6 +6012,8 @@ dependencies = [
  "scale-info",
  "serde_json",
  "sp-idn-crypto",
+ "staging-xcm",
+ "staging-xcm-builder",
 ]
 
 [[package]]
@@ -9364,6 +9366,7 @@ dependencies = [
  "frame-system",
  "log",
  "pallet-balances",
+ "pallet-idn-manager",
  "pallet-xcm",
  "parity-scale-codec",
  "scale-info",

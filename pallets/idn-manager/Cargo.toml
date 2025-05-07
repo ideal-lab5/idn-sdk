@@ -39,6 +39,8 @@ sp-consensus-randomness-beacon.workspace = true
 [dev-dependencies]
 pallet-balances.workspace = true
 sp-version.workspace = true
+# Polkadot
+# cumulus-primitives-core.workspace = true
 
 [features]
 default = ["std"]
@@ -58,7 +60,9 @@ std = [
 	"xcm/std",
 	"pallet-xcm/std",
 	"pallet-balances/std",
-	"xcm-builder/std"
+	"xcm-builder/std",
+	# "cumulus-primitives-core/std",
+	"sp-runtime/std",
 ]
 
 runtime-benchmarks = [
@@ -68,4 +72,5 @@ runtime-benchmarks = [
 	"xcm-builder/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
+	# "cumulus-primitives-core/runtime-benchmarks",
 ]

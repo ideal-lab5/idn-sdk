@@ -64,8 +64,9 @@ use crate::{
 use codec::{Codec, Decode, DecodeWithMemTracking, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::{
-		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo, Hooks,
-		IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Weight, Zero,
+		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo,
+		EnsureOrigin, Hooks, IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Weight,
+		Zero,
 	},
 	sp_runtime::traits::AccountIdConversion,
 	traits::{
@@ -89,7 +90,7 @@ use xcm::{
 		},
 		Location,
 	},
-	VersionedLocation, VersionedXcm,
+	DoubleEncoded, VersionedLocation, VersionedXcm,
 };
 use xcm_builder::SendController;
 
@@ -312,6 +313,14 @@ pub mod pallet {
 
 		/// Type for indicating balance movements across subscribers and IDN
 		type DiffBalance: DiffBalance<BalanceOf<Self>>;
+
+		/// Origin check for XCM locations that can interact with the IDN Manager.
+		///
+		/// **Example definition**
+		/// ```nocompile
+		/// type SiblingOrigin = pallet_xcm_origin::EnsureXcm<AllowSiblingsOnly>;
+		/// ```
+		type SiblingOrigin: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
 	}
 
 	/// The subscription storage. It maps a subscription ID to a subscription.
@@ -341,6 +350,8 @@ pub mod pallet {
 		RandomnessDistributed { sub_id: T::SubscriptionId },
 		/// Fees collected
 		FeesCollected { sub_id: T::SubscriptionId, fees: BalanceOf<T> },
+		/// Fees calculated
+		FeesCalculated { location: Location, credits: T::Credits, fees: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -359,6 +370,8 @@ pub mod pallet {
 		FilterRandNotPermitted,
 		/// Too many subscriptions in storage
 		TooManySubscriptions,
+		/// An error occurred while sending the XCM message
+		XcmSendError,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -649,6 +662,25 @@ pub mod pallet {
 				Ok(())
 			})
 		}
+
+		/// Calculates the subscription fees and sends the result back to the caller specified
+		/// function via XCM.
+		#[pallet::call_index(5)]
+		// TODO update this to use the correct weight
+		#[pallet::weight(T::WeightInfo::reactivate_subscription())]
+		pub fn get_calculate_subscription_fee(
+			origin: OriginFor<T>,
+			credits: T::Credits,
+			call_index: CallIndex,
+		) -> DispatchResult {
+			// Ensure the origin is a sibling, and get the location
+			let location = T::SiblingOrigin::ensure_origin(origin)?;
+			let fees = Self::calculate_subscription_fees(&credits);
+
+			Self::xcm_send(&location, (call_index, fees).encode().into())?;
+			Self::deposit_event(Event::FeesCalculated { location, credits, fees });
+			Ok(())
+		}
 	}
 }
 
@@ -700,13 +732,6 @@ impl<T: Config> Pallet<T> {
 					// see the [Pulse Filtering Security](#pulse-filtering-security) section
 					Self::custom_filter(&sub.pulse_filter, &pulse)
 				{
-					let msg = Self::construct_xcm_msg(sub.details.call_index, &pulse, &sub_id);
-					let versioned_target: Box<VersionedLocation> =
-						Box::new(sub.details.target.clone().into());
-					let versioned_msg: Box<VersionedXcm<()>> =
-						Box::new(xcm::VersionedXcm::V5(msg.into()));
-					let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
-
 					// Make sure credits are consumed before sending the XCM message
 					let consume_credits = T::FeesManager::get_consume_credits(&sub);
 
@@ -728,7 +753,16 @@ impl<T: Config> Pallet<T> {
 					// will fail to be distributed for the pulse. Recommendations on handling this?
 					// Our initial idea is to simply log an event and continue, then pause the
 					// subscription.
-					T::Xcm::send(origin.into(), versioned_target, versioned_msg)?;
+					Self::xcm_send(
+						&sub.details.target,
+						// Create a tuple of call_index and pulse, encode it using SCALE codec,
+						// then convert to Vec<u8> The encoded data will be used by the
+						// receiving chain to:
+						// 1. Find the target pallet using first byte of call_index
+						// 2. Find the target function using second byte of call_index
+						// 3. Pass the parameters to that function
+						(sub.details.call_index, &pulse, &sub_id).encode().into(),
+					)?;
 
 					Self::deposit_event(Event::RandomnessDistributed { sub_id });
 				} else {
@@ -873,32 +907,47 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// Constructs an XCM message for delivering randomness to a subscriber
-	///
-	/// This function creates a complete XCM message that will:
-	/// 1. Execute without payment at the destination chain ([`UnpaidExecution`])
-	/// 2. Execute a call on the destination chain using the provided call index and randomness data
-	///    ([`Transact`])
-	/// 3. Expect successful execution and check status code (ExpectTransactStatus)
-	fn construct_xcm_msg(
-		call_index: CallIndex,
-		pulse: &T::Pulse,
-		sub_id: &T::SubscriptionId,
-	) -> Xcm<()> {
-		Xcm(vec![
+	// /// Constructs an XCM message for delivering randomness to a subscriber
+	// ///
+	// /// This function creates a complete XCM message that will:
+	// /// 1. Execute without payment at the destination chain ([`UnpaidExecution`])
+	// /// 2. Execute a call on the destination chain using the provided call index and randomness
+	// data ///    ([`Transact`])
+	// /// 3. Expect successful execution and check status code (ExpectTransactStatus)
+	// fn construct_xcm_msg(
+	// 	call_index: CallIndex,
+	// 	pulse: &T::Pulse,
+	// 	sub_id: &T::SubscriptionId,
+	// ) -> Xcm<()> {
+	// 	Xcm(vec![
+	// 		UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+	// 		Transact {
+	// 			origin_kind: OriginKind::Xcm,
+	// 			fallback_max_weight: None,
+	// 			// Create a tuple of call_index and pulse, encode it using SCALE codec, then convert
+	// 			// to Vec<u8> The encoded data will be used by the receiving chain to:
+	// 			// 1. Find the target pallet using first byte of call_index
+	// 			// 2. Find the target function using second byte of call_index
+	// 			// 3. Pass the parameters to that function
+	// 			call: (call_index, pulse, sub_id).encode().into(),
+	// 		},
+	// 		ExpectTransactStatus(MaybeErrorCode::Success),
+	// 	])
+	// }
+
+	fn xcm_send(target: &Location, call: DoubleEncoded<()>) -> DispatchResult {
+		let msg = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
-			Transact {
-				origin_kind: OriginKind::Xcm,
-				fallback_max_weight: None,
-				// Create a tuple of call_index and pulse, encode it using SCALE codec, then convert
-				// to Vec<u8> The encoded data will be used by the receiving chain to:
-				// 1. Find the target pallet using first byte of call_index
-				// 2. Find the target function using second byte of call_index
-				// 3. Pass the parameters to that function
-				call: (call_index, pulse, sub_id).encode().into(),
-			},
+			Transact { origin_kind: OriginKind::Xcm, fallback_max_weight: None, call },
 			ExpectTransactStatus(MaybeErrorCode::Success),
-		])
+		]);
+		let versioned_target: Box<VersionedLocation> = Box::new(target.clone().into());
+		let versioned_msg: Box<VersionedXcm<()>> = Box::new(xcm::VersionedXcm::V5(msg.into()));
+		let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
+
+		T::Xcm::send(origin.into(), versioned_target, versioned_msg)
+			.map_err(|_err| Error::<T>::XcmSendError)?;
+		Ok(())
 	}
 
 	/// Computes the fee for a given number of credits.
