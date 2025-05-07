@@ -234,6 +234,7 @@ parameter_types! {
 	pub const SDMultiplier: u64 = 10;
 	pub const MaxPulseFilterLen: u32 = 100;
 	pub const MaxSubscriptions: u32 = 1_000;
+	pub const SiblingParaId: u32 = 88;
 }
 
 #[derive(TypeInfo)]
@@ -253,8 +254,9 @@ impl Contains<Location> for AllowSiblingsOnly {
 }
 
 impl TryConvert<RuntimeOrigin, Location> for AllowSiblingsOnly {
+	// There's no XCM in the Kitchensink runtime, so we can just return a hardcoded value.
 	fn try_convert(_origin: RuntimeOrigin) -> Result<Location, RuntimeOrigin> {
-		Ok(Location::here())
+		Ok(Location::new(1, [Parachain(SiblingParaId::get())]))
 	}
 }
 

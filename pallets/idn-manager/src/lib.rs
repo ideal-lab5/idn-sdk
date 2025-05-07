@@ -678,13 +678,13 @@ pub mod pallet {
 		/// Calculates the subscription fees and deposit and sends the result back to the caller
 		/// specified function via XCM.
 		#[pallet::call_index(5)]
-		// TODO update this to use the correct weight
-		#[pallet::weight(T::WeightInfo::reactivate_subscription())]
+		#[pallet::weight(T::WeightInfo::quote_subscription(T::MaxPulseFilterLen::get()))]
+		#[allow(clippy::useless_conversion)]
 		pub fn quote_subscription(
 			origin: OriginFor<T>,
 			request: QuoteRequestOf<T>,
 			call_index: CallIndex,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			// Ensure the origin is a sibling, and get the location
 			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
 
@@ -702,7 +702,15 @@ pub mod pallet {
 
 			Self::xcm_send(&requester, (call_index, fees).encode().into())?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
-			Ok(())
+
+			Ok(Some(T::WeightInfo::quote_subscription(
+				if let Some(pf) = request.create_sub_params.pulse_filter {
+					pf.len().try_into().unwrap_or(T::MaxPulseFilterLen::get())
+				} else {
+					0
+				},
+			))
+			.into())
 		}
 	}
 }
