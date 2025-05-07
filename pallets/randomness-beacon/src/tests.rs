@@ -15,12 +15,11 @@
  */
 
 use crate::{
-	mock::*, types::*, weights::WeightInfo, BeaconConfig, Call, Error, LatestRound, MissedBlocks,
+	mock::*, types::*, weights::WeightInfo, BeaconConfig, Call, Error, LatestRound,
 	SparseAccumulation,
 };
 use codec::Encode;
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
-use frame_system::pallet_prelude::BlockNumberFor;
 use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber, RuntimePulse};
 use sp_idn_crypto::test_utils::{get, PULSE1000, PULSE1001, PULSE1002, PULSE1003};
 
@@ -223,39 +222,6 @@ fn can_call_on_initialize() {
 		let weight = Drand::on_initialize(0);
 		let expected = <() as WeightInfo>::on_finalize();
 		assert_eq!(weight, expected);
-	});
-}
-
-#[test]
-fn can_track_missed_blocks() {
-	new_test_ext().execute_with(|| {
-		let config = get_config(1000);
-		BeaconConfig::<Test>::set(Some(config.clone()));
-		System::set_block_number(1);
-		Drand::on_finalize(1);
-
-		let missed_blocks = MissedBlocks::<Test>::get();
-		assert_eq!(missed_blocks.len(), 1);
-		assert_eq!(missed_blocks.into_inner(), vec![1]);
-	});
-}
-
-#[test]
-fn can_track_missed_block_and_manage_overflow() {
-	new_test_ext().execute_with(|| {
-		let config = get_config(1000);
-		BeaconConfig::<Test>::set(Some(config.clone()));
-		let mut expected_final_history: Vec<BlockNumberFor<Test>> = Vec::new();
-		(1..u8::MAX as u32 + 1).for_each(|i| expected_final_history.push(i.into()));
-
-		(0..u8::MAX as u32 + 1).for_each(|i| {
-			Drand::on_finalize(i as u64);
-		});
-
-		let missed_blocks = MissedBlocks::<Test>::get();
-		assert_eq!(missed_blocks.len(), u8::MAX as usize);
-		// block '1' was pruned
-		assert_eq!(missed_blocks.into_inner(), expected_final_history);
 	});
 }
 

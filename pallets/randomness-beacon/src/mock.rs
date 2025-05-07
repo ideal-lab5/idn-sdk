@@ -1,4 +1,4 @@
-use crate as pallet_drand_bridge;
+use crate as pallet_randomness_beacon;
 use crate::*;
 use frame_support::{derive_impl, traits::ConstU8};
 use pallet_idn_manager::{
@@ -22,7 +22,7 @@ frame_support::construct_runtime!(
 		System: frame_system,
 		IdnManager: pallet_idn_manager,
 		Balances: pallet_balances,
-		Drand: pallet_drand_bridge,
+		Drand: pallet_randomness_beacon,
 	}
 );
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
@@ -38,12 +38,11 @@ impl pallet_balances::Config for Test {
 	type AccountStore = System;
 }
 
-impl pallet_drand_bridge::Config for Test {
+impl pallet_randomness_beacon::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type SignatureVerifier = QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<10>;
-	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
 	type Pulse = RuntimePulse;
 	type Dispatcher = IdnManager;
 }

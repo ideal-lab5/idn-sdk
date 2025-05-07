@@ -25,7 +25,7 @@ use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
 use ark_std::{ops::Mul, test_rng, UniformRand};
 use frame_benchmarking::v2::*;
-use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
+use frame_system::RawOrigin;
 use sp_consensus_randomness_beacon::types::{
 	OpaquePublicKey, OpaqueSignature, RoundNumber, RuntimePulse,
 };
@@ -117,26 +117,13 @@ mod benchmarks {
 
 	#[benchmark]
 	fn on_finalize() -> Result<(), BenchmarkError> {
-		let history_depth = T::MissedBlocksHistoryDepth::get();
-		let block_number: u32 = history_depth;
-
-		let mut history: Vec<BlockNumberFor<T>> = Vec::new();
-		(0..history_depth).for_each(|i| history.push(i.into()));
-		// we add one more value and 'push out' the oldest one
-		let mut expected_final_history: Vec<BlockNumberFor<T>> = Vec::new();
-		(0..history_depth).for_each(|i| expected_final_history.push(i.into()));
-		// pretend that we have missed the maximum number of blocks
-		// and the next will cause the bounded vec to overflow, pushing out the oldest missed block
-		MissedBlocks::<T>::set(BoundedVec::truncate_from(history));
-		// ensure that DidUpdate is false
+		let block_number: u32 = 1u32;
 		DidUpdate::<T>::set(false);
 
 		#[block]
 		{
 			Pallet::<T>::on_finalize(block_number.into());
 		}
-
-		assert_eq!(MissedBlocks::<T>::get().into_inner(), expected_final_history);
 
 		Ok(())
 	}
