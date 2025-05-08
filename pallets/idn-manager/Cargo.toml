@@ -59,7 +59,6 @@ std = [
 	"pallet-xcm/std",
 	"pallet-balances/std",
 	"xcm-builder/std",
-	# "cumulus-primitives-core/std",
 	"sp-runtime/std",
 ]
 
@@ -70,5 +69,4 @@ runtime-benchmarks = [
 	"xcm-builder/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
-	# "cumulus-primitives-core/runtime-benchmarks",
 ]

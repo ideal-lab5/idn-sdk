@@ -72,8 +72,6 @@ impl QuoteConsumer<Quote, (), ()> for QuoteConsumerImpl {
 	}
 }
 
-// pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>;
-
 // Mock implementation of EnsureXcm
 pub struct MockEnsureXcmIdn;
 
@@ -117,7 +115,6 @@ parameter_types! {
 	pub IdnConsumerParaId: ParaId = 2001.into();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 	pub const AssetHubFee: u128 = 1_000;
-	// pub RelayNetwork: Option<NetworkId> = Some(NetworkId::ByGenesis([0; 32]));
 }
 
 impl pallet_idn_consumer::Config for Test {
