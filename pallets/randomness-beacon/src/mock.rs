@@ -4,10 +4,7 @@ use frame_support::{derive_impl, traits::ConstU8};
 use sp_consensus_randomness_beacon::types::RuntimePulse;
 use sp_idn_crypto::verifier::QuicknetVerifier;
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
-use sp_runtime::{
-	traits::{parameter_types, IdentityLookup},
-	AccountId32, BuildStorage,
-};
+use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 

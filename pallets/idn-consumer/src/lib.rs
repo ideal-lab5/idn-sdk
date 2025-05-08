@@ -180,6 +180,7 @@ pub mod pallet {
 		#[pallet::call_index(1)]
 		// TODO: benchmark this, even if it pays no weight https://github.com/ideal-lab5/idn-sdk/issues/99
 		#[pallet::weight(Weight::from_parts(0, 0))]
+		#[allow(clippy::useless_conversion)]
 		pub fn consume_quote(origin: OriginFor<T>, quote: Quote) -> DispatchResultWithPostInfo {
 			// ensure origin is coming from IDN
 			let _ = T::IdnOrigin::ensure_origin(origin)?;

@@ -115,7 +115,7 @@ impl Contains<Location> for AllowSiblingsOnly {
 	}
 }
 
-/// An arbitrary refeerence for a quote request. There is no uniqueness guarantee as this could be
+/// An arbitrary reference for a quote request. There is no uniqueness guarantee as this could be
 /// anything specified by the requester.
 pub type QuoteReqRef = [u8; 32];
 
