@@ -115,21 +115,30 @@ impl Contains<Location> for AllowSiblingsOnly {
 	}
 }
 
+/// An arbitrary refeerence for a quote request. There is no uniqueness guarantee as this could be
+/// anything specified by the requester.
 pub type QuoteReqRef = [u8; 32];
 
+/// A quote for a subscription.
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
 pub struct Quote<Balance> {
+	/// References the [`QuoteRequest`]` for this quote.
 	pub req_ref: QuoteReqRef,
+	/// The fees quoted.
 	pub fees: Balance,
+	/// The deposit quoted.
 	pub deposit: Balance,
 }
 
+/// A request for a quote. This is used to get a quote for a subscription before creating it.
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
 pub struct QuoteRequest<CreateSubParams> {
+	/// The arbitrary reference for this quote request.
 	pub req_ref: QuoteReqRef,
+	/// It specifies the parameters for the subscription.
 	pub create_sub_params: CreateSubParams,
 }
