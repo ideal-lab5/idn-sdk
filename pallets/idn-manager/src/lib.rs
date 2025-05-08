@@ -56,7 +56,8 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteRequest, SubscriptionMetadata,
+		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteRequest, QuoteSubParams,
+		SubscriptionMetadata,
 	},
 	traits::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
@@ -114,7 +115,7 @@ pub type QuoteOf<T> = Quote<BalanceOf<T>>;
 
 /// The quote request type used in the pallet, containing details about the subscription to be
 /// quoted.
-pub type QuoteRequestOf<T> = QuoteRequest<CreateSubParamsOf<T>>;
+pub type QuoteSubParamsOf<T> = QuoteSubParams<CreateSubParamsOf<T>>;
 
 /// The subscription ID type used in the pallet, derived from the configuration.
 pub type SubscriptionIdOf<T> = <T as pallet::Config>::SubscriptionId;
@@ -682,8 +683,7 @@ pub mod pallet {
 		#[allow(clippy::useless_conversion)]
 		pub fn quote_subscription(
 			origin: OriginFor<T>,
-			request: QuoteRequestOf<T>,
-			call_index: CallIndex,
+			params: QuoteSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
 			// Ensure the origin is a sibling, and get the location
 			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
@@ -694,17 +694,18 @@ pub mod pallet {
 					// we know that the origin is a sibling, thus signed, so this should never be
 					// reached
 					.ok_or(DispatchError::from(Error::<T>::InvalidSubscriber))?,
-				&request.create_sub_params,
+				&params.quote_request.create_sub_params,
 			);
-			let fees = Self::calculate_subscription_fees(&request.create_sub_params.credits);
+			let fees =
+				Self::calculate_subscription_fees(&params.quote_request.create_sub_params.credits);
 
-			let quote = Quote { req_ref: request.req_ref, fees, deposit };
+			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
 
-			Self::xcm_send(&requester, (call_index, fees).encode().into())?;
+			Self::xcm_send(&requester, (params.call_index, fees).encode().into())?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
 
 			Ok(Some(T::WeightInfo::quote_subscription(
-				if let Some(pf) = request.create_sub_params.pulse_filter {
+				if let Some(pf) = params.quote_request.create_sub_params.pulse_filter {
 					pf.len().try_into().unwrap_or(T::MaxPulseFilterLen::get())
 				} else {
 					0

@@ -142,3 +142,16 @@ pub struct QuoteRequest<CreateSubParams> {
 	/// It specifies the parameters for the subscription.
 	pub create_sub_params: CreateSubParams,
 }
+
+/// The parameters for requesting a quote for a subscription.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct QuoteSubParams<CreateSubParams> {
+	/// The quote request details.
+	pub quote_request: QuoteRequest<CreateSubParams>,
+	/// The call index for the dispatchable that handles the generated quote.
+	/// This is the function in the parachain that originated the request that will be called by
+	/// the IDN parachain and receive the [`Quote`].
+	pub call_index: CallIndex,
+}

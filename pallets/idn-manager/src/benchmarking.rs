@@ -312,9 +312,10 @@ mod benchmarks {
 		};
 		let req_ref = [1; 32];
 		let quote_request = QuoteRequest { req_ref, create_sub_params: params.clone() };
+		let quote_sub_params = QuoteSubParams { quote_request, call_index };
 
 		#[extrinsic_call]
-		_(origin, quote_request, call_index);
+		_(origin, quote_sub_params);
 
 		let deposit = IdnManager::<T>::calculate_storage_deposit_from_create_params(
 			&sibling_account,
