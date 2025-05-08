@@ -19,14 +19,15 @@ use crate::{
 	traits::{PulseConsumer, QuoteConsumer},
 	Pulse, Quote, SubscriptionId,
 };
-use cumulus_primitives_core::{relay_chain::AccountId, ParaId};
-use frame_support::{construct_runtime, derive_impl, parameter_types, PalletId};
+use cumulus_primitives_core::ParaId;
+use frame_support::{
+	construct_runtime, derive_impl, parameter_types, traits::OriginTrait, PalletId,
+};
 use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 use xcm::{
 	v5::{prelude::*, Location},
 	VersionedLocation, VersionedXcm,
 };
-use xcm_builder::{EnsureXcmOrigin, SignedToAccountId32};
 
 construct_runtime!(
 	pub enum Test
@@ -35,6 +36,9 @@ construct_runtime!(
 		IdnConsumer: pallet_idn_consumer,
 	}
 );
+pub const IDN_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+pub const IDN_PARA_ID: u32 = 88;
+pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 
 #[derive_impl(frame_system::config_preludes::ParaChainDefaultConfig)]
 impl frame_system::Config for Test {
@@ -47,6 +51,10 @@ impl frame_system::Config for Test {
 pub struct PulseConsumerImpl;
 impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
 	fn consume_pulse(pulse: Pulse, sub_id: SubscriptionId) -> Result<(), ()> {
+		// Simulate a failure if sub_id is [123; 32]
+		if sub_id == [123; 32] {
+			return Err(());
+		}
 		log::info!("IDN Consumer: Consuming pulse: {:?}, from sub id: {:?}", pulse, sub_id);
 		Ok(())
 	}
@@ -55,13 +63,35 @@ impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
 pub struct QuoteConsumerImpl;
 impl QuoteConsumer<Quote, (), ()> for QuoteConsumerImpl {
 	fn consume_quote(quote: Quote) -> Result<(), ()> {
+		// Simulate a failure if req_ref is [123; 32]
+		if quote.req_ref == [123; 32] {
+			return Err(());
+		}
 		log::info!("IDN Consumer: Consuming quote: {:?}", quote);
 		Ok(())
 	}
 }
 
-pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>;
+// pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>;
 
+// Mock implementation of EnsureXcm
+pub struct MockEnsureXcmIdn;
+
+impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for MockEnsureXcmIdn {
+	type Success = Location;
+
+	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+		if origin.clone().into_signer().unwrap() == IDN_PARA_ACCOUNT {
+			return Ok(Location::new(1, [Parachain(IDN_PARA_ID)]));
+		}
+		Err(origin)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+		Ok(RuntimeOrigin::root())
+	}
+}
 pub struct MockXcm;
 
 impl xcm_builder::SendController<RuntimeOrigin> for MockXcm {
@@ -87,7 +117,7 @@ parameter_types! {
 	pub IdnConsumerParaId: ParaId = 2001.into();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 	pub const AssetHubFee: u128 = 1_000;
-	pub RelayNetwork: Option<NetworkId> = Some(NetworkId::ByGenesis([0; 32]));
+	// pub RelayNetwork: Option<NetworkId> = Some(NetworkId::ByGenesis([0; 32]));
 }
 
 impl pallet_idn_consumer::Config for Test {
@@ -95,7 +125,7 @@ impl pallet_idn_consumer::Config for Test {
 	type PulseConsumer = PulseConsumerImpl;
 	type QuoteConsumer = QuoteConsumerImpl;
 	type SiblingIdnLocation = IdnLocation;
-	type IdnOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
+	type IdnOrigin = MockEnsureXcmIdn;
 	type Xcm = MockXcm;
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
