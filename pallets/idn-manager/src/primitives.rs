@@ -117,7 +117,7 @@ impl Contains<Location> for AllowSiblingsOnly {
 
 /// An arbitrary reference for a quote request. There is no uniqueness guarantee as this could be
 /// anything specified by the requester.
-pub type QuoteReqRef = [u8; 32];
+pub type RequestReference = [u8; 32];
 
 /// A quote for a subscription.
 #[derive(
@@ -125,7 +125,7 @@ pub type QuoteReqRef = [u8; 32];
 )]
 pub struct Quote<Balance> {
 	/// References the [`QuoteRequest`]` for this quote.
-	pub req_ref: QuoteReqRef,
+	pub req_ref: RequestReference,
 	/// The fees quoted.
 	pub fees: Balance,
 	/// The deposit quoted.
@@ -138,7 +138,7 @@ pub struct Quote<Balance> {
 )]
 pub struct QuoteRequest<CreateSubParams> {
 	/// The arbitrary reference for this quote request.
-	pub req_ref: QuoteReqRef,
+	pub req_ref: RequestReference,
 	/// It specifies the parameters for the subscription.
 	pub create_sub_params: CreateSubParams,
 }
@@ -153,5 +153,19 @@ pub struct QuoteSubParams<CreateSubParams> {
 	/// The call index for the dispatchable that handles the generated quote.
 	/// This is the function in the parachain that originated the request that will be called by
 	/// the IDN parachain and receive the [`Quote`].
+	pub call_index: CallIndex,
+}
+
+/// The parameters for requesting a subscription info by its Id.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct SubInfoParams<SubId> {
+	/// An arbitrary reference for this subscription info request.
+	pub req_ref: RequestReference,
+	/// The subscription Id to get the info for.
+	pub sub_id: SubId,
+	/// The call index for the dispatchable that handles the generated subscription info on the
+	/// target parachain.
 	pub call_index: CallIndex,
 }

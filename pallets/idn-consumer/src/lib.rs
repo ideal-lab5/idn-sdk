@@ -26,7 +26,7 @@ pub mod traits;
 use bp_idn::{
 	types::{
 		BlockNumber as IdnBlockNumber, CallIndex, CreateSubParams, Credits, Metadata, PulseFilter,
-		QuoteReqRef, QuoteRequest, QuoteSubParams, UpdateSubParams,
+		QuoteRequest, QuoteSubParams, RequestReference, UpdateSubParams,
 	},
 	Call as RuntimeCall, IdnManagerCall,
 };
@@ -289,7 +289,7 @@ impl<T: Config> Pallet<T> {
 		// Optional Subscription Id
 		sub_id: Option<SubscriptionId>,
 		// Optional quote request reference, if None, a new one will be generated
-		req_ref: Option<QuoteReqRef>,
+		req_ref: Option<RequestReference>,
 	) -> Result<SubscriptionId, Error<T>> {
 		let create_sub_params = CreateSubParams {
 			credits,

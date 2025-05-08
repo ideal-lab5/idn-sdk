@@ -56,7 +56,8 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteSubParams, SubscriptionMetadata,
+		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteSubParams, SubInfoParams,
+		SubscriptionMetadata,
 	},
 	traits::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
@@ -115,6 +116,8 @@ pub type QuoteOf<T> = Quote<BalanceOf<T>>;
 /// The quote request type used in the pallet, containing details about the subscription to be
 /// quoted.
 pub type QuoteSubParamsOf<T> = QuoteSubParams<CreateSubParamsOf<T>>;
+
+pub type GetSubParamsOf<T> = SubInfoParams<SubscriptionIdOf<T>>;
 
 /// The subscription ID type used in the pallet, derived from the configuration.
 pub type SubscriptionIdOf<T> = <T as pallet::Config>::SubscriptionId;
@@ -362,6 +365,8 @@ pub mod pallet {
 		FeesCollected { sub_id: T::SubscriptionId, fees: BalanceOf<T> },
 		/// Subscription Fees quoted
 		SubQuoted { requester: Location, quote: QuoteOf<T> },
+		/// Subscription Distributed
+		SubscriptionDistributed { sub_id: T::SubscriptionId },
 	}
 
 	#[pallet::error]
@@ -711,6 +716,28 @@ pub mod pallet {
 				},
 			))
 			.into())
+		}
+
+		/// Gets a subscription by its ID and sends the result back to the caller
+		/// specified function via XCM.
+		#[pallet::call_index(6)]
+		// TODO: benchmark this
+		#[pallet::weight(T::WeightInfo::quote_subscription(T::MaxPulseFilterLen::get()))]
+		#[allow(clippy::useless_conversion)]
+		pub fn get_subscription_xcm(
+			origin: OriginFor<T>,
+			params: GetSubParamsOf<T>,
+		) -> DispatchResultWithPostInfo {
+			// Ensure the origin is a sibling, and get the location
+			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
+
+			let sub = Self::get_subscription(&params.sub_id)
+				.ok_or(Error::<T>::SubscriptionDoesNotExist)?;
+
+			Self::xcm_send(&requester, (params.call_index, sub).encode().into())?;
+			Self::deposit_event(Event::SubscriptionDistributed { sub_id: params.sub_id });
+
+			Ok(Some(T::WeightInfo::quote_subscription(T::MaxPulseFilterLen::get())).into())
 		}
 	}
 }
