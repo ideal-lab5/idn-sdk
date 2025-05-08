@@ -56,8 +56,7 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteRequest, QuoteSubParams,
-		SubscriptionMetadata,
+		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteSubParams, SubscriptionMetadata,
 	},
 	traits::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,

@@ -39,8 +39,6 @@ sp-consensus-randomness-beacon.workspace = true
 [dev-dependencies]
 pallet-balances.workspace = true
 sp-version.workspace = true
-# Polkadot
-# cumulus-primitives-core.workspace = true
 
 [features]
 default = ["std"]

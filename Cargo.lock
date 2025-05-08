@@ -9366,7 +9366,6 @@ dependencies = [
  "frame-system",
  "log",
  "pallet-balances",
- "pallet-idn-manager",
  "pallet-xcm",
  "parity-scale-codec",
  "scale-info",

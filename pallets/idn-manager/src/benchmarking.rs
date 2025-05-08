@@ -18,7 +18,9 @@
 
 use super::*;
 use crate::{
-	pallet::Pallet as IdnManager, primitives::PulsePropertyOf, CreateSubParamsOf, UpdateSubParamsOf,
+	pallet::Pallet as IdnManager,
+	primitives::{PulsePropertyOf, QuoteRequest},
+	CreateSubParamsOf, UpdateSubParamsOf,
 };
 use frame_benchmarking::v2::*;
 use frame_support::{

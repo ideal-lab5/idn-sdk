@@ -30,7 +30,6 @@ xcm-builder.workspace = true
 # IDN
 bp-idn.workspace = true
 sp-idn-traits.workspace = true
-pallet-idn-manager.workspace = true
 
 # Polkadot
 cumulus-primitives-core.workspace = true
@@ -61,7 +60,6 @@ std = [
 	"sp-io/std",
 	"sp-runtime/std",
 	"pallet-balances/std",
-	"pallet-idn-manager/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -71,5 +69,4 @@ runtime-benchmarks = [
 	"xcm/runtime-benchmarks",
 	"xcm-builder/runtime-benchmarks",
 	"cumulus-primitives-core/runtime-benchmarks",
-	"pallet-idn-manager/runtime-benchmarks",
 ]

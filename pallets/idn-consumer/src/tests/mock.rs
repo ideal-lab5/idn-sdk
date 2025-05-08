@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-use crate::{self as pallet_idn_consumer, traits::PulseConsumer, Pulse, SubscriptionId};
-use cumulus_primitives_core::{relay_chain::AccountId, ParaId};
-use frame_support::{
-	construct_runtime, derive_impl, dispatch::DispatchResultWithPostInfo, pallet_prelude::Pays,
-	parameter_types, PalletId,
+use crate::{
+	self as pallet_idn_consumer,
+	traits::{PulseConsumer, QuoteConsumer},
+	Pulse, Quote, SubscriptionId,
 };
+use cumulus_primitives_core::{relay_chain::AccountId, ParaId};
+use frame_support::{construct_runtime, derive_impl, parameter_types, PalletId};
 use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 use xcm::{
 	v5::{prelude::*, Location},
@@ -43,12 +44,19 @@ impl frame_system::Config for Test {
 	type AccountData = pallet_balances::AccountData<u64>;
 }
 
-pub struct Consumer;
-impl PulseConsumer<Pulse, SubscriptionId, DispatchResultWithPostInfo> for Consumer {
-	fn consume_pulse(pulse: Pulse, sub_id: SubscriptionId) -> DispatchResultWithPostInfo {
-		log::info!("IDN Consumer: Consuming pulse: {:?}", pulse);
-		log::info!("IDN Consumer: Subscription ID: {:?}", sub_id);
-		Ok(Pays::No.into())
+pub struct PulseConsumerImpl;
+impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
+	fn consume_pulse(pulse: Pulse, sub_id: SubscriptionId) -> Result<(), ()> {
+		log::info!("IDN Consumer: Consuming pulse: {:?}, from sub id: {:?}", pulse, sub_id);
+		Ok(())
+	}
+}
+
+pub struct QuoteConsumerImpl;
+impl QuoteConsumer<Quote, (), ()> for QuoteConsumerImpl {
+	fn consume_quote(quote: Quote) -> Result<(), ()> {
+		log::info!("IDN Consumer: Consuming quote: {:?}", quote);
+		Ok(())
 	}
 }
 
@@ -84,7 +92,8 @@ parameter_types! {
 
 impl pallet_idn_consumer::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type Consumer = Consumer;
+	type PulseConsumer = PulseConsumerImpl;
+	type QuoteConsumer = QuoteConsumerImpl;
 	type SiblingIdnLocation = IdnLocation;
 	type IdnOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type Xcm = MockXcm;

@@ -18,11 +18,15 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use crate::traits::PulseConsumer;
+#[cfg(test)]
+mod tests;
+
+pub mod traits;
+
 use bp_idn::{
 	types::{
-		BlockNumber as IdnBlockNumber, CreateSubParams, Credits, Metadata, PulseFilter,
-		UpdateSubParams,
+		BlockNumber as IdnBlockNumber, CallIndex, CreateSubParams, Credits, Metadata, PulseFilter,
+		QuoteReqRef, QuoteRequest, QuoteSubParams, UpdateSubParams,
 	},
 	Call as RuntimeCall, IdnManagerCall,
 };
@@ -35,12 +39,12 @@ use frame_support::{
 	sp_runtime::traits::AccountIdConversion,
 };
 use frame_system::{pallet_prelude::OriginFor, RawOrigin};
-use pallet_idn_manager::traits::FeesManager;
 use scale_info::{
 	prelude::{boxed::Box, sync::Arc, vec},
 	TypeInfo,
 };
 use sp_idn_traits::pulse::Pulse as PulseTrait;
+use traits::{PulseConsumer, QuoteConsumer};
 use xcm::{
 	v5::{
 		prelude::{BuyExecution, OriginKind, Transact, Xcm},
@@ -51,13 +55,8 @@ use xcm::{
 };
 use xcm_builder::SendController;
 
-pub use bp_idn::types::{RuntimePulse as Pulse, SubscriptionId};
+pub use bp_idn::types::{Quote, RuntimePulse as Pulse, SubscriptionId};
 pub use pallet::*;
-
-#[cfg(test)]
-mod tests;
-
-mod traits;
 
 #[derive(Clone, PartialEq, Debug, Encode, Decode, TypeInfo, DecodeWithMemTracking)]
 struct SubFeesQuote {
@@ -75,7 +74,11 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// An implementation of the [`PulseConsumer`] trait, which defines how to consume a pulse
-		type Consumer: PulseConsumer<Pulse, SubscriptionId, DispatchResultWithPostInfo>;
+		type PulseConsumer: PulseConsumer<Pulse, SubscriptionId, (), ()>;
+
+		/// An implementation of the [`QuoteConsumer`] trait, which defines how to consume a
+		/// quote
+		type QuoteConsumer: QuoteConsumer<Quote, (), ()>;
 
 		/// The location of the sibling IDN chain
 		///
@@ -130,7 +133,9 @@ pub mod pallet {
 	#[derive(PartialEq)]
 	pub enum Error<T> {
 		/// An error occurred while consuming the pulse
-		ConsumeError,
+		ConsumePulseError,
+		/// An error occurred while consuming the quote
+		ConsumeQuoteError,
 		/// An error occurred while converting the pallet index to a u8
 		PalletIndexConversionError,
 		/// An error occurred while sending the XCM message
@@ -141,19 +146,16 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A random value was successfully consumed.
-		RandomnessConsumed {
-			round: <Pulse as PulseTrait>::Round,
-			sub_id: SubscriptionId,
-		},
-		SubFeesQuoteConsumed {
-			quote: SubFeesQuote,
-		},
+		RandomnessConsumed { round: <Pulse as PulseTrait>::Round, sub_id: SubscriptionId },
+		/// A subscription quote was successfully consumed.
+		QuoteConsumed { quote: Quote },
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Consumes a pulse from the IDN chain.
 		#[pallet::call_index(0)]
+		// TODO: benchmark this, even if it pays no weight https://github.com/ideal-lab5/idn-sdk/issues/99
 		#[pallet::weight(Weight::from_parts(0, 0))]
 		#[allow(clippy::useless_conversion)]
 		pub fn consume_pulse(
@@ -166,7 +168,8 @@ pub mod pallet {
 
 			let round = pulse.round();
 
-			T::Consumer::consume_pulse(pulse, sub_id)?;
+			T::PulseConsumer::consume_pulse(pulse, sub_id)
+				.map_err(|_| Error::<T>::ConsumePulseError)?;
 
 			Self::deposit_event(Event::RandomnessConsumed { round, sub_id });
 
@@ -175,18 +178,16 @@ pub mod pallet {
 
 		/// Consumes a subscription fees quote from the IDN chain.
 		#[pallet::call_index(1)]
+		// TODO: benchmark this, even if it pays no weight https://github.com/ideal-lab5/idn-sdk/issues/99
 		#[pallet::weight(Weight::from_parts(0, 0))]
-		pub fn consume_sub_fees_quote(
-			origin: OriginFor<T>,
-			credits: Credits,
-			frequency: IdnBlockNumber,
-		) -> DispatchResultWithPostInfo {
+		pub fn consume_quote(origin: OriginFor<T>, quote: Quote) -> DispatchResultWithPostInfo {
 			// ensure origin is coming from IDN
 			let _ = T::IdnOrigin::ensure_origin(origin)?;
 
-			// let fee = Self::calculate_subscription_fee(credits, frequency)?;
+			T::QuoteConsumer::consume_quote(quote.clone())
+				.map_err(|_| Error::<T>::ConsumeQuoteError)?;
 
-			// Self::deposit_event(Event::SubFeesQuoteConsumed { round: 0, sub_id: [0u8; 32] });
+			Self::deposit_event(Event::QuoteConsumed { quote });
 
 			Ok(Pays::No.into())
 		}
@@ -211,7 +212,7 @@ impl<T: Config> Pallet<T> {
 			credits,
 			target: Self::pallet_location()?,
 			// the `0` on the second element is the call index for the `consume` call
-			call_index: [Self::pallet_index()?, 0],
+			call_index: Self::pulse_callback_index()?,
 			frequency,
 			metadata,
 			pulse_filter,
@@ -273,27 +274,51 @@ impl<T: Config> Pallet<T> {
 	///
 	/// This function dispatches an XCM message to the IDN chain to get the fee quote.
 	/// The request should then be handled by the IDN chain and return the fee quote to the
-	/// [`pallet::consume_sub_fees_quote`] function along with the `quote_id`.
+	/// [`Pallet::consume_quote`] function along with the `quote_id`.
 	/// The `quote_id` is generated by this function and used to identify the quote when returned.
-	pub fn request_sub_fees_quote(
+	pub fn quote_subscription(
+		// Number of random values to receive
 		credits: Credits,
+		// Distribution interval for pulses
 		frequency: IdnBlockNumber,
-	) -> Result<u128, Error<T>> {
-		let params = CreateSubParams {
+		// Bounded vector for additional data
+		metadata: Option<Metadata>,
+		// Optional Pulse Filter
+		pulse_filter: Option<PulseFilter>,
+		// Optional Subscription Id
+		sub_id: Option<SubscriptionId>,
+		// Optional quote request reference, if None, a new one will be generated
+		req_ref: Option<QuoteReqRef>,
+	) -> Result<SubscriptionId, Error<T>> {
+		let create_sub_params = CreateSubParams {
 			credits,
 			target: Self::pallet_location()?,
-			call_index: [Self::pallet_index()?, 0],
+			// the `0` on the second element is the call index for the `consume` call
+			call_index: Self::pulse_callback_index()?,
 			frequency,
-			metadata: None,
-			pulse_filter: None,
-			sub_id: None,
+			metadata,
+			pulse_filter,
+			sub_id,
 		};
 
-		let call = RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params });
+		// If `req_ref` is not provided, generate a new one and assign it to the params
+		let req_ref = match req_ref {
+			Some(req_ref) => req_ref,
+			None => {
+				let salt = frame_system::Pallet::<T>::block_number().encode();
+				create_sub_params.hash(salt)
+			},
+		};
 
-		let fee = bp_idn::impls::FeesManagerImpl::calculate_subscription_fees(&credits)?;
+		let quote_request = QuoteRequest { req_ref, create_sub_params };
 
-		Ok(fee)
+		let params = QuoteSubParams { quote_request, call_index: Self::quote_callback_index()? };
+
+		let call = RuntimeCall::IdnManager(IdnManagerCall::quote_subscription { params });
+
+		Self::xcm_send(call)?;
+
+		Ok(req_ref)
 	}
 
 	fn xcm_send(call: RuntimeCall) -> Result<(), Error<T>> {
@@ -345,5 +370,19 @@ impl<T: Config> Pallet<T> {
 				Junction::PalletInstance(Self::pallet_index()?),
 			])),
 		})
+	}
+
+	/// Get the call index for the [`Pallet::consume_pulse`] call
+	fn pulse_callback_index() -> Result<CallIndex, Error<T>> {
+		// IMPORTANT: The second element of the call index MUST MATCH the index of the
+		// `consume_pulse` dispatchable.
+		Ok([Self::pallet_index()?, 0])
+	}
+
+	/// Get the call index for the [`Pallet::consume_quote`] call
+	fn quote_callback_index() -> Result<CallIndex, Error<T>> {
+		// IMPORTANT: The second element of the call index MUST MATCH the index of the
+		// `consume_quote` dispatchable.
+		Ok([Self::pallet_index()?, 1])
 	}
 }

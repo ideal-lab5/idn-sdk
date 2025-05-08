@@ -31,7 +31,6 @@ mod weights;
 
 extern crate alloc;
 
-use bp_idn::types::BlockNumber;
 use smallvec::smallvec;
 use sp_runtime::{
 	generic, impl_opaque_keys,
@@ -56,15 +55,14 @@ pub use sp_runtime::BuildStorage;
 
 use weights::ExtrinsicBaseWeight;
 
+pub use bp_idn::types::{Balance, BlockNumber};
+
 /// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
 pub type Signature = MultiSignature;
 
 /// Some way of identifying an account on the chain. We intentionally make it equivalent
 /// to the public key of our transaction signing scheme.
 pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
-
-/// Balance of an account.
-pub type Balance = u128;
 
 /// Index of a transaction in the chain.
 pub type Nonce = u32;
