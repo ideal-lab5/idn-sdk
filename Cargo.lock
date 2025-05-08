@@ -9821,7 +9821,6 @@ dependencies = [
  "hex",
  "log",
  "pallet-balances",
- "pallet-idn-manager",
  "parity-scale-codec",
  "scale-info",
  "serde",

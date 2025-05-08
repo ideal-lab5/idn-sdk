@@ -544,5 +544,72 @@ mod example_consumer {
 			assert_eq!(contract.get_last_randomness(), None);
 			assert_eq!(contract.get_last_pulse(), None);
 		}
+
+		#[ink::test]
+		fn test_pause_without_subscription() {
+			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
+			let result = contract.pause_subscription();
+			assert_eq!(result, Err(ContractError::NoActiveSubscription));
+		}
+
+		#[ink::test]
+		fn test_error_mapping() {
+			let err = ContractError::from(Error::TooManySubscriptions);
+			assert_eq!(err, ContractError::SystemAtCapacity);
+			let err2 = ContractError::from(Error::RandomnessGenerationFailed);
+			assert!(matches!(err2, ContractError::IdnClientError(_)));
+		}
+
+		#[ink::test]
+		fn test_update_subscription_edge_cases() {
+			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
+			let result = contract.update_subscription(100, 10, None);
+			assert_eq!(result, Err(ContractError::NoActiveSubscription));
+		}
 	}
+
+	#[cfg(all(test, feature = "e2e-tests"))]
+    mod e2e_tests {
+        use super::*;
+        use ink_e2e::{ChainBackend, ContractsBackend};
+
+        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+        #[ink_e2e::test]
+        async fn basic_contract_works<Client: E2EBackend>(mut client: Client) -> E2EResult<()> {
+            // given: contract parameters
+            let ideal_network_para_id = 2000; // The parachain ID of the Ideal Network
+            let idn_manager_pallet_index = 10; // The pallet index for the IDN Manager pallet
+            let destination_para_id = 1000;    // The parachain ID where this contract is deployed
+            let contracts_pallet_index = 50;   // The contracts pallet index on the destination chain
+
+            // when: we instantiate the contract
+            let mut constructor = ExampleConsumerRef::new(
+                ideal_network_para_id,
+                idn_manager_pallet_index,
+                destination_para_id, 
+                contracts_pallet_index
+            );
+            
+            let contract = client
+                .instantiate("idn-example-consumer-contract", &ink_e2e::alice(), &mut constructor)
+                .submit()
+                .await
+                .expect("deployment failed");
+                
+            let call_builder = contract.call_builder::<ExampleConsumer>();
+
+            // then: we can call a method and get the expected result
+            let get_last_randomness = call_builder.get_last_randomness();
+            let last_randomness_result = client
+                .call(&ink_e2e::alice(), &get_last_randomness)
+                .dry_run()
+                .await?;
+            
+            // initially, last_randomness should be None
+            assert_eq!(last_randomness_result.return_value(), None);
+
+            Ok(())
+        }
+    }
 }
