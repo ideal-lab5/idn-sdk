@@ -56,7 +56,7 @@ pub trait WeightInfo {
 	fn update_subscription(l: u32, m: u32, ) -> Weight;
 	fn reactivate_subscription() -> Weight;
 	fn quote_subscription(l: u32, ) -> Weight;
-	fn get_subscription_xcm() -> Weight;
+	fn get_subscription_info() -> Weight;
 	fn dispatch_pulse(p: u32, s: u32, ) -> Weight;
 }
 
@@ -149,7 +149,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	}
 	/// Storage: `IdnManager::Subscriptions` (r:1 w:0)
 	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5663), added: 8138, mode: `MaxEncodedLen`)
-	fn get_subscription_xcm() -> Weight {
+	fn get_subscription_info() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `244`
 		//  Estimated: `9128`
@@ -271,7 +271,7 @@ impl WeightInfo for () {
 	}
 	/// Storage: `IdnManager::Subscriptions` (r:1 w:0)
 	/// Proof: `IdnManager::Subscriptions` (`max_values`: None, `max_size`: Some(5663), added: 8138, mode: `MaxEncodedLen`)
-	fn get_subscription_xcm() -> Weight {
+	fn get_subscription_info() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `244`
 		//  Estimated: `9128`

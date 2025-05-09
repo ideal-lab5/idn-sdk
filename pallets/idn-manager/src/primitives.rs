@@ -19,9 +19,7 @@
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use frame_support::{traits::Contains, BoundedVec};
 use scale_info::TypeInfo;
-use sp_core::{blake2_256, H256};
 use sp_idn_traits::pulse::{Pulse, PulseProperty};
-use sp_std::vec::Vec;
 use xcm::v5::{Junction::Parachain, Location};
 
 /// The type for the metadata of a subscription
@@ -90,23 +88,6 @@ pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, Subscripti
 	pub sub_id: Option<SubscriptionId>,
 }
 
-impl<
-		Credits: Encode,
-		Frequency: Encode,
-		Metadata: Encode,
-		PulseFilter: Encode,
-		SubscriptionId: From<H256> + Encode,
-	> CreateSubParams<Credits, Frequency, Metadata, PulseFilter, SubscriptionId>
-{
-	pub fn hash(&self, salt: Vec<u8>) -> SubscriptionId {
-		let id_tuple = (self, salt);
-		// Encode the tuple using SCALE codec.
-		let encoded = id_tuple.encode();
-		// Hash the encoded bytes using blake2_256.
-		H256::from_slice(&blake2_256(&encoded)).into()
-	}
-}
-
 /// XCM filter for allowing only sibling parachains to call certain functions in the IDN Manager
 pub struct AllowSiblingsOnly;
 impl Contains<Location> for AllowSiblingsOnly {
@@ -143,7 +124,7 @@ pub struct QuoteRequest<CreateSubParams> {
 	pub create_sub_params: CreateSubParams,
 }
 
-/// The parameters for requesting a quote for a subscription.
+/// Contains the parameters for requesting a quote for a subscription.
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
@@ -156,7 +137,7 @@ pub struct QuoteSubParams<CreateSubParams> {
 	pub call_index: CallIndex,
 }
 
-/// The parameters for requesting a subscription info by its Id.
+/// Contains the parameters for requesting a subscription info by its Id.
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
@@ -174,7 +155,7 @@ pub struct SubInfoRequest<SubId> {
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct SubInfo<Sub> {
+pub struct SubInfoResponse<Sub> {
 	/// References the [`SubInfoRequest`]`
 	pub req_ref: RequestReference,
 	pub sub: Sub,

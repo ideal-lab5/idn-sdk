@@ -82,7 +82,10 @@ use frame_system::{ensure_signed, pallet_prelude::OriginFor};
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
-use sp_idn_traits::pulse::{Dispatcher, Pulse, PulseMatch};
+use sp_idn_traits::{
+	pulse::{Dispatcher, Pulse, PulseMatch},
+	Hashable,
+};
 use sp_runtime::traits::Saturating;
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use xcm::{
@@ -139,44 +142,48 @@ pub type PulseFilterOf<T> =
 	PulseFilter<<T as pallet::Config>::Pulse, <T as Config>::MaxPulseFilterLen>;
 
 /// Represents a subscription in the system.
-#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
 pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter, SubscriptionId> {
 	// The subscription ID
-	id: SubscriptionId,
+	pub id: SubscriptionId,
 	// The immutable params of the subscription
-	details: SubscriptionDetails<AccountId>,
+	pub details: SubscriptionDetails<AccountId>,
 	// Number of random values left to distribute
-	credits_left: Credits,
+	pub credits_left: Credits,
 	// The state of the subscription
-	state: SubscriptionState,
+	pub state: SubscriptionState,
 	// A timestamp for creation
-	created_at: BlockNumber,
+	pub created_at: BlockNumber,
 	// A timestamp for update
-	updated_at: BlockNumber,
+	pub updated_at: BlockNumber,
 	// Credits subscribed for
-	credits: Credits,
+	pub credits: Credits,
 	// How often to receive pulses
-	frequency: BlockNumber,
+	pub frequency: BlockNumber,
 	// Optional metadata that can be used by the subscriber
-	metadata: Option<Metadata>,
+	pub metadata: Option<Metadata>,
 	// Last block in which a pulse was received
-	last_delivered: Option<BlockNumber>,
+	pub last_delivered: Option<BlockNumber>,
 	// A custom filter for receiving pulses
-	pulse_filter: Option<PulseFilter>,
+	pub pulse_filter: Option<PulseFilter>,
 }
 
 /// Details specific to a subscription for pulse delivery
 ///
 /// This struct contains information about the subscription owner, where randomness should be
 /// delivered, how to deliver it via XCM, and any additional metadata for the subscription.
-#[derive(Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug)]
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
 pub struct SubscriptionDetails<AccountId> {
 	// The account that created and pays for the subscription
-	subscriber: AccountId,
+	pub subscriber: AccountId,
 	// The XCM location where randomness should be delivered
-	target: Location,
+	pub target: Location,
 	// Identifier for dispatching the XCM call, see [`crate::CallIndex`]
-	call_index: CallIndex,
+	pub call_index: CallIndex,
 }
 
 /// The subscription details type used in the pallet, containing information about the subscription
@@ -233,7 +240,9 @@ pub type UpdateSubParamsOf<T> = UpdateSubParams<
 ///   is temporarily suspended.
 ///
 /// See [Subscription State Lifecycle](./index.html#subscription-state-lifecycle) for more details.
-#[derive(Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug)]
+#[derive(
+	Encode, Decode, Clone, PartialEq, TypeInfo, MaxEncodedLen, Debug, DecodeWithMemTracking,
+)]
 pub enum SubscriptionState {
 	/// The subscription is active and randomness is being distributed.
 	Active,
@@ -722,9 +731,9 @@ pub mod pallet {
 		/// specified function via XCM.
 		#[pallet::call_index(6)]
 		// TODO: benchmark this
-		#[pallet::weight(T::WeightInfo::get_subscription_xcm())]
+		#[pallet::weight(T::WeightInfo::get_subscription_info())]
 		#[allow(clippy::useless_conversion)]
-		pub fn get_subscription_xcm(
+		pub fn get_subscription_info(
 			origin: OriginFor<T>,
 			req: SubInfoRequestOf<T>,
 		) -> DispatchResult {
@@ -957,7 +966,7 @@ impl<T: Config> Pallet<T> {
 	) -> T::SubscriptionId {
 		let mut salt = current_block.encode();
 		salt.extend(subscriber.encode());
-		params.hash(salt)
+		params.hash(salt).into()
 	}
 
 	/// Holds fees for a subscription.

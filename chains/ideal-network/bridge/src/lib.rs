@@ -22,7 +22,7 @@ pub mod impls;
 pub mod types;
 
 use frame_support::pallet_prelude::{Decode, Encode, TypeInfo};
-use types::{CreateSubParams, QuoteSubParams, SubscriptionId, UpdateSubParams};
+use types::{CreateSubParams, QuoteSubParams, SubInfoRequest, SubscriptionId, UpdateSubParams};
 
 /// A minimized version of `pallet-idn-manager::Call` that can be used without a runtime.
 #[derive(Encode, Decode, Debug, PartialEq, Clone, TypeInfo)]
@@ -46,6 +46,9 @@ pub enum IdnManagerCall {
 	/// `pallet-idn-manager::Call::quote_subscription`
 	#[codec(index = 5)]
 	quote_subscription { params: QuoteSubParams },
+	/// `pallet-idn-manager::Call::get_subscription_info`
+	#[codec(index = 6)]
+	get_subscription_info { req: SubInfoRequest },
 }
 
 /// `Idn` Runtime `Call` enum.

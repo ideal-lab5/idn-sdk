@@ -32,11 +32,7 @@ mod weights;
 extern crate alloc;
 
 use smallvec::smallvec;
-use sp_runtime::{
-	generic, impl_opaque_keys,
-	traits::{BlakeTwo256, IdentifyAccount, Verify},
-	Cow, MultiSignature,
-};
+use sp_runtime::{generic, impl_opaque_keys, traits::BlakeTwo256, Cow};
 
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -55,14 +51,7 @@ pub use sp_runtime::BuildStorage;
 
 use weights::ExtrinsicBaseWeight;
 
-pub use bp_idn::types::{Balance, BlockNumber};
-
-/// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
-pub type Signature = MultiSignature;
-
-/// Some way of identifying an account on the chain. We intentionally make it equivalent
-/// to the public key of our transaction signing scheme.
-pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
+pub use bp_idn::types::{AccountId, Balance, BlockNumber, Signature};
 
 /// Index of a transaction in the chain.
 pub type Nonce = u32;

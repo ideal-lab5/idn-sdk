@@ -1970,7 +1970,7 @@ fn test_get_subscription_xcm_works() {
 		let req = SubInfoRequestOf::<Test> { sub_id, req_ref, call_index };
 
 		// Call the function
-		assert_ok!(IdnManager::get_subscription_xcm(
+		assert_ok!(IdnManager::get_subscription_info(
 			RuntimeOrigin::signed(SIBLING_PARA_ACCOUNT.clone()),
 			req
 		));
@@ -1994,7 +1994,7 @@ fn test_get_subscription_xcm_fails_invalid_origin() {
 
 		// Call the function with an invalid origin
 		assert_noop!(
-			IdnManager::get_subscription_xcm(RuntimeOrigin::signed(ALICE), req),
+			IdnManager::get_subscription_info(RuntimeOrigin::signed(ALICE), req),
 			BadOrigin
 		);
 	});
@@ -2012,7 +2012,7 @@ fn test_get_subscription_xcm_fails_subscription_not_found() {
 
 		// Call the function with a non-existent subscription ID
 		assert_noop!(
-			IdnManager::get_subscription_xcm(RuntimeOrigin::signed(SIBLING_PARA_ACCOUNT), req),
+			IdnManager::get_subscription_info(RuntimeOrigin::signed(SIBLING_PARA_ACCOUNT), req),
 			Error::<Test>::SubscriptionDoesNotExist
 		);
 	});

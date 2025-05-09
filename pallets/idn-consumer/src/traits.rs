@@ -27,3 +27,8 @@ pub trait PulseConsumer<P: Pulse, I, O, E> {
 pub trait QuoteConsumer<Q, E, O> {
 	fn consume_quote(quote: Q) -> Result<O, E>;
 }
+
+/// A trait for describing a subscription info consumtion behavior.
+pub trait SubInfoConsumer<S, E, O> {
+	fn consume_sub_info(sub_info: S) -> Result<O, E>;
+}

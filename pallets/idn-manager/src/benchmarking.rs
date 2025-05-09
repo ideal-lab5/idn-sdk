@@ -334,7 +334,7 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn get_subscription_xcm() {
+	fn get_subscription_info() {
 		let sibling_account: T::AccountId = [88u8; 32].into();
 		let origin = RawOrigin::Signed(sibling_account.clone());
 		let credits: T::Credits = 100u64.into();
