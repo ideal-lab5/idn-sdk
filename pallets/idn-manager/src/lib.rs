@@ -730,7 +730,6 @@ pub mod pallet {
 		/// Gets a subscription by its ID and sends the result back to the caller
 		/// specified function via XCM.
 		#[pallet::call_index(6)]
-		// TODO: benchmark this
 		#[pallet::weight(T::WeightInfo::get_subscription_info())]
 		#[allow(clippy::useless_conversion)]
 		pub fn get_subscription_info(

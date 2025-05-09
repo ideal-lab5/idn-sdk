@@ -448,7 +448,8 @@ fn test_consume_sub_info_bubbles_up_consumer_trait_failure() {
 	ExtBuilder::build().execute_with(|| {
 		let mut sub = MOCK_SUB.clone();
 		sub.id = [123; 32]; // This sub_id triggers a failure in the consumer
-					  // Mock inputs
+
+		// Mock inputs
 		let sub_info = SubInfoResponse { sub, req_ref: [1; 32] };
 
 		// Call the function and assert failure

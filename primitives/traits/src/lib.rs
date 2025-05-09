@@ -38,7 +38,8 @@ pub mod pulse;
 use frame_support::pallet_prelude::Encode;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
-/// Trait for hashing
+
+/// Trait for hashing with a salt.
 pub trait Hashable {
 	fn hash(&self, salt: Vec<u8>) -> H256;
 }
