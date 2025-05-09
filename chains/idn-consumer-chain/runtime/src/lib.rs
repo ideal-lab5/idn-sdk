@@ -32,8 +32,8 @@ mod weights;
 extern crate alloc;
 
 use pallet_idn_consumer::{
-	traits::{PulseConsumer, QuoteConsumer},
-	Pulse, Quote, SubscriptionId,
+	traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer},
+	Pulse, Quote, SubInfoResponse, SubscriptionId,
 };
 use smallvec::smallvec;
 use sp_runtime::{
@@ -168,6 +168,16 @@ impl QuoteConsumer<Quote, (), ()> for QuoteConsumerImpl {
 	fn consume_quote(quote: Quote) -> Result<(), ()> {
 		// Quote consumption logic goes here.
 		log::info!("IDN Consumer: Consuming quote: {:?}", quote);
+		Ok(())
+	}
+}
+
+/// Dummy implementation of the ['SubInfoConsumer'] trait.
+pub struct SubInfoConsumerImpl;
+impl SubInfoConsumer<SubInfoResponse, (), ()> for SubInfoConsumerImpl {
+	fn consume_sub_info(sub_info: SubInfoResponse) -> Result<(), ()> {
+		// Subscription info consumption logic goes here.
+		log::info!("IDN Consumer: Consuming subscription info: {:?}", sub_info);
 		Ok(())
 	}
 }
