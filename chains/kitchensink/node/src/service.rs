@@ -25,7 +25,7 @@ use sc_executor::WasmExecutor;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
-use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
+use sc_utils::mpsc::tracing_unbounded;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
@@ -48,9 +48,7 @@ pub type Service = sc_service::PartialComponents<
 	Option<Telemetry>,
 >;
 
-pub fn new_partial(
-	config: &Configuration,
-) -> Result<(Service, TracingUnboundedReceiver<u64>), ServiceError> {
+pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -90,26 +88,22 @@ pub fn new_partial(
 		.build(),
 	);
 
-	let (import_queue, latest_round_rx) =
-		sc_consensus_randomness_beacon::consensus::manual_seal::import_queue(
-			Box::new(client.clone()),
-			&task_manager.spawn_essential_handle(),
-			config.prometheus_registry(),
-		);
+	let import_queue = sc_consensus_manual_seal::import_queue(
+		Box::new(client.clone()),
+		&task_manager.spawn_essential_handle(),
+		config.prometheus_registry(),
+	);
 
-	Ok((
-		sc_service::PartialComponents {
-			client,
-			backend,
-			task_manager,
-			import_queue,
-			keystore_container,
-			select_chain,
-			transaction_pool,
-			other: (telemetry),
-		},
-		latest_round_rx,
-	))
+	Ok(sc_service::PartialComponents {
+		client,
+		backend,
+		task_manager,
+		import_queue,
+		keystore_container,
+		select_chain,
+		transaction_pool,
+		other: (telemetry),
+	})
 }
 
 /// Builds a new service for a full client.
@@ -117,19 +111,16 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 	config: Configuration,
 	consensus: Consensus,
 ) -> Result<TaskManager, ServiceError> {
-	let (
-		sc_service::PartialComponents {
-			client,
-			backend,
-			mut task_manager,
-			import_queue,
-			keystore_container,
-			select_chain,
-			transaction_pool,
-			other: mut telemetry,
-		},
-		latest_round_rx,
-	) = new_partial(&config)?;
+	let sc_service::PartialComponents {
+		client,
+		backend,
+		mut task_manager,
+		import_queue,
+		keystore_container,
+		select_chain,
+		transaction_pool,
+		other: mut telemetry,
+	} = new_partial(&config)?;
 
 	let net_config = sc_network::config::FullNetworkConfiguration::<
 		Block,
@@ -215,7 +206,8 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 
 	// setup gossipsub network if you are an authority
 	let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
-	let drand_receiver = DrandReceiver::new(rx, latest_round_rx);
+	// 30 pulses in storage at most
+	let drand_receiver = DrandReceiver::<30>::new(rx);
 
 	let topic_str: &str =
 		"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
@@ -251,7 +243,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 					let drand_receiver = drand_receiver.clone();
 
 					async move {
-						let pulses = drand_receiver.take().await;
+						let pulses = drand_receiver.read().await;
 
 						let serialized_pulses: Vec<Vec<u8>> =
 							pulses.iter().map(|pulse| pulse.encode()).collect();
@@ -303,7 +295,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 				create_inherent_data_providers: move |_, ()| {
 					let drand_receiver = drand_receiver.clone();
 					async move {
-						let pulses = drand_receiver.take().await;
+						let pulses = drand_receiver.read().await;
 
 						let serialized_pulses: Vec<Vec<u8>> =
 							pulses.iter().map(|pulse| pulse.encode()).collect();

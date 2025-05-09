@@ -1,4 +1,4 @@
-use crate as pallet_drand_bridge;
+use crate as pallet_randomness_beacon;
 use crate::*;
 use frame_support::{derive_impl, traits::ConstU8};
 use sp_consensus_randomness_beacon::types::RuntimePulse;
@@ -14,7 +14,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		Balances: pallet_balances,
-		Drand: pallet_drand_bridge,
+		Drand: pallet_randomness_beacon,
 	}
 );
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
@@ -48,7 +48,6 @@ impl pallet_drand_bridge::Config for Test {
 	type WeightInfo = ();
 	type SignatureVerifier = QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<10>;
-	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
 	type Pulse = RuntimePulse;
 	type Dispatcher = MockDispatcher;
 }

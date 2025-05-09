@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use alloc::{format, string::String, vec};
+use alloc::{format, string::String};
 use codec::{Decode, DecodeWithMemTracking, Encode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -104,8 +104,9 @@ impl sp_idn_traits::pulse::Pulse for RuntimePulse {
 	fn authenticate(&self, pubkey: Self::Pubkey) -> bool {
 		if let Ok(_) = QuicknetVerifier::verify(
 			pubkey.as_ref().to_vec(),
-			vec![self.sig().as_ref().to_vec()],
+			self.sig().as_ref().to_vec(),
 			self.round().into(),
+			1,
 			None,
 		) {
 			return true;

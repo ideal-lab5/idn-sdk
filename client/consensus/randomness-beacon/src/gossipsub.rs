@@ -65,6 +65,7 @@
 //! 	}
 //! });
 //! ```
+use alloc::collections::VecDeque;
 use futures::StreamExt;
 use libp2p::{
 	gossipsub,
@@ -103,56 +104,41 @@ pub enum Error {
 
 /// receive messages from drand
 #[derive(Clone)]
-pub struct DrandReceiver {
+pub struct DrandReceiver<const N: usize> {
 	/// A collection of received and unconsumed pulses
-	pub pulses: Arc<Mutex<Vec<RuntimePulse>>>,
-	/// The latest round number (for pruning)
-	pub latest: Arc<Mutex<u64>>,
+	pub pulses: Arc<Mutex<VecDeque<RuntimePulse>>>,
 }
 
-impl DrandReceiver {
+impl<const N: usize> DrandReceiver<N> {
 	/// Constructs a new DrandReceiver and starts receiving pulses
 	///
 	/// * `rx`: A [`TracingUnboundedReceiver`] to which
 	///   [`sp_consensus_randomness_beacon::types::RuntimePulse`] are written
 	///  
-	pub fn new(
-		mut rx: TracingUnboundedReceiver<RuntimePulse>,
-		mut prune_rx: TracingUnboundedReceiver<u64>,
-	) -> Self {
-		let latest = Arc::new(Mutex::new(0u64));
-		let latest_clone = latest.clone();
-
-		let pulses = Arc::new(Mutex::new(Vec::new()));
+	pub fn new(mut rx: TracingUnboundedReceiver<RuntimePulse>) -> Self {
+		let pulses = Arc::new(Mutex::new(VecDeque::new()));
 		let pulses_clone = pulses.clone();
 		// start a thread that writes new pulses to storage
 		tokio::spawn(async move {
 			while let Some(pulse) = rx.next().await {
 				let mut locked_pulses = pulses_clone.lock().await;
-				locked_pulses.push(pulse.clone());
-			}
-		});
-		// start a thread that updates the latest round
-		tokio::spawn(async move {
-			while let Some(rn) = prune_rx.next().await {
-				log::info!(
-					target: LOG_TARGET,
-					"📡 Received round number from digest {:?}", rn.clone());
-				let mut l = latest_clone.lock().await;
-				*l = rn;
+
+				// Enforce FIFO with max size N
+				if locked_pulses.len() == N {
+					locked_pulses.pop_front();
+				}
+				locked_pulses.push_back(pulse);
 			}
 		});
 
-		DrandReceiver { pulses, latest }
+		DrandReceiver { pulses }
 	}
 
-	/// Consume pulse data from storage
-	pub async fn take(&self) -> Vec<RuntimePulse> {
-		let mut pulses = self.pulses.lock().await;
-		let latest = self.latest.lock().await;
-		let mut t = std::mem::take(&mut *pulses);
-		t.retain(|pulse| pulse.round >= *latest);
-		t
+	/// Read the runtime pulses from storage
+	pub async fn read(&self) -> Vec<RuntimePulse> {
+		let pulses = self.pulses.lock().await;
+		let pulses = pulses.clone().into_iter().collect::<Vec<_>>();
+		pulses.clone()
 	}
 }
 
@@ -251,7 +237,8 @@ impl GossipsubNetwork {
 		// [SRLabs]: The error can never be encountered
 		// Q: Can we use an expect, or is this unsafe?
 		// Ref: https://docs.rs/libpp-gossipsub/0.48.0/src/libp2p_gossipsub/behaviour.rs.html#532
-		// The error can only occur if the subscription filter rejects it, but we specify no filter.
+		// The error can only occur if the sub`scription filter rejects it, but we specify no
+		// filter.
 		self.swarm
 			.behaviour_mut()
 			.subscribe(&topic)
@@ -452,9 +439,8 @@ mod tests {
 	#[tokio::test]
 	async fn test_can_build_new_drand_receiver() {
 		let (tx, rx) = tracing_unbounded("test", 10000);
-		let (_prune_tx, prune_rx) = tracing_unbounded("testprune", 10000);
 
-		let receiver = DrandReceiver::new(rx, prune_rx);
+		let receiver = DrandReceiver::new(rx);
 
 		let pulse = ProtoPulse {
 			round: 14475418,
@@ -479,9 +465,8 @@ mod tests {
 	#[tokio::test]
 	async fn test_can_prune_drand_receiver() {
 		let (tx, rx) = tracing_unbounded("test", 10000);
-		let (prune_tx, prune_rx) = tracing_unbounded("testprune", 10000);
 
-		let receiver = DrandReceiver::new(rx, prune_rx);
+		let receiver = DrandReceiver::<1>::new(rx);
 
 		let pulse = ProtoPulse {
 			round: 1000,
@@ -506,10 +491,8 @@ mod tests {
 		// write an opaque pulse
 		tx.unbounded_send(opaque.clone()).unwrap();
 		tx.unbounded_send(opaque2.clone()).unwrap();
-		// prune pulses with round number under 1001
-		prune_tx.unbounded_send(1001).unwrap();
-		sleep(Duration::from_secs(1)).await;
-		let actual = receiver.take().await;
+
+		let actual = receiver.read().await;
 		assert_eq!(actual.len(), 1, "There should be one opaque pulse in the vec");
 		assert_eq!(actual[0], opaque2);
 	}
