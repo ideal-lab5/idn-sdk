@@ -16,9 +16,10 @@
 
 use crate::{
 	self as pallet_idn_consumer,
-	traits::{PulseConsumer, QuoteConsumer},
-	Pulse, Quote, SubscriptionId,
+	traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer},
+	Pulse, Quote, SubInfoResponse, SubscriptionId,
 };
+use bp_idn::types::{Subscription, SubscriptionDetails, SubscriptionState};
 use cumulus_primitives_core::ParaId;
 use frame_support::{
 	construct_runtime, derive_impl, parameter_types, traits::OriginTrait, PalletId,
@@ -39,6 +40,23 @@ construct_runtime!(
 pub const IDN_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
 pub const IDN_PARA_ID: u32 = 88;
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+pub const MOCK_SUB: Subscription = Subscription {
+	id: [1u8; 32],
+	state: SubscriptionState::Active,
+	credits_left: 0,
+	details: SubscriptionDetails {
+		subscriber: AccountId32::new([0u8; 32]),
+		target: Location::here(),
+		call_index: [0, 0],
+	},
+	created_at: 0,
+	updated_at: 0,
+	credits: 0,
+	frequency: 0,
+	metadata: None,
+	last_delivered: None,
+	pulse_filter: None,
+};
 
 #[derive_impl(frame_system::config_preludes::ParaChainDefaultConfig)]
 impl frame_system::Config for Test {
@@ -68,6 +86,18 @@ impl QuoteConsumer<Quote, (), ()> for QuoteConsumerImpl {
 			return Err(());
 		}
 		log::info!("IDN Consumer: Consuming quote: {:?}", quote);
+		Ok(())
+	}
+}
+
+pub struct SubInfoConsumerImpl;
+impl SubInfoConsumer<SubInfoResponse, (), ()> for SubInfoConsumerImpl {
+	fn consume_sub_info(sub_info: SubInfoResponse) -> Result<(), ()> {
+		// Simulate a failure if subscription is [123; 32]
+		if sub_info.sub.id == [123; 32] {
+			return Err(());
+		}
+		log::info!("IDN Consumer: Consuming subscription info: {:?}", sub_info);
 		Ok(())
 	}
 }
@@ -121,6 +151,7 @@ impl pallet_idn_consumer::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type PulseConsumer = PulseConsumerImpl;
 	type QuoteConsumer = QuoteConsumerImpl;
+	type SubInfoConsumer = SubInfoConsumerImpl;
 	type SiblingIdnLocation = IdnLocation;
 	type IdnOrigin = MockEnsureXcmIdn;
 	type Xcm = MockXcm;

@@ -21,8 +21,8 @@ use crate::{
 	runtime_decl_for_idn_manager_api::IdnManagerApiV1,
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
-	Config, CreateSubParamsOf, Error, Event, HoldReason, PulseFilterOf, SubscriptionState,
-	Subscriptions, UpdateSubParamsOf,
+	Config, CreateSubParamsOf, Error, Event, HoldReason, PulseFilterOf, SubInfoRequestOf,
+	SubscriptionState, Subscriptions, UpdateSubParamsOf,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -1934,5 +1934,86 @@ fn test_quote_subscription_fails_for_invalid_origin() {
 
 		// Call the function and expect it to fail
 		assert_noop!(IdnManager::quote_subscription(invalid_origin, quote_sub_params), BadOrigin);
+	});
+}
+
+#[test]
+fn test_get_subscription_xcm_works() {
+	ExtBuilder::build().execute_with(|| {
+		let credits: u64 = 50;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 10;
+		let req_ref = [1; 32];
+		let call_index = [1, 1];
+
+		// Set balance for the sibling parachain account
+		<Test as Config>::Currency::set_balance(&SIBLING_PARA_ACCOUNT, 10_000_000);
+
+		// Create a subscription
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(SIBLING_PARA_ACCOUNT.clone()),
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				pulse_filter: None,
+				sub_id: None,
+			}
+		));
+
+		// Retrieve the subscription ID created
+		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
+
+		// Prepare the request
+		let req = SubInfoRequestOf::<Test> { sub_id, req_ref, call_index };
+
+		// Call the function
+		assert_ok!(IdnManager::get_subscription_info(
+			RuntimeOrigin::signed(SIBLING_PARA_ACCOUNT.clone()),
+			req
+		));
+
+		// Verify the XCM message was sent
+		System::assert_last_event(RuntimeEvent::IdnManager(
+			Event::<Test>::SubscriptionDistributed { sub_id },
+		));
+	});
+}
+
+#[test]
+fn test_get_subscription_xcm_fails_invalid_origin() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+		let req_ref = [1; 32];
+		let call_index = [1, 1];
+
+		// Prepare the request
+		let req = SubInfoRequestOf::<Test> { sub_id, req_ref, call_index };
+
+		// Call the function with an invalid origin
+		assert_noop!(
+			IdnManager::get_subscription_info(RuntimeOrigin::signed(ALICE), req),
+			BadOrigin
+		);
+	});
+}
+
+#[test]
+fn test_get_subscription_xcm_fails_subscription_not_found() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+		let req_ref = [1; 32];
+		let call_index = [1, 1];
+
+		// Prepare the request
+		let req = SubInfoRequestOf::<Test> { sub_id, req_ref, call_index };
+
+		// Call the function with a non-existent subscription ID
+		assert_noop!(
+			IdnManager::get_subscription_info(RuntimeOrigin::signed(SIBLING_PARA_ACCOUNT), req),
+			Error::<Test>::SubscriptionDoesNotExist
+		);
 	});
 }
