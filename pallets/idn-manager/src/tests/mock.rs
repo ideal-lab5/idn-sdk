@@ -22,13 +22,14 @@
 use crate::{
 	self as pallet_idn_manager,
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
-	BalanceOf, SubscriptionOf,
+	primitives, BalanceOf, SubscriptionOf,
 };
 use frame_support::{
 	construct_runtime, derive_impl,
-	pallet_prelude::{Decode, Encode, TypeInfo},
+	pallet_prelude::{Decode, Encode, PhantomData, TypeInfo},
 	parameter_types,
 	sp_runtime::BuildStorage,
+	traits::{Contains, OriginTrait},
 };
 use frame_system as system;
 use sp_runtime::{
@@ -36,6 +37,7 @@ use sp_runtime::{
 	AccountId32,
 };
 use sp_std::fmt::Debug;
+use xcm::v5::{Junction::Parachain, Location};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -47,6 +49,9 @@ construct_runtime!(
 		Balances: pallet_balances,
 	}
 );
+
+pub const SIBLING_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+pub const SIBLING_PARA_ID: u32 = 88;
 
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
 impl frame_system::Config for Test {
@@ -112,6 +117,27 @@ impl Default for Pulse {
 	}
 }
 
+// Mock implementation of EnsureXcm
+pub struct MockEnsureXcm<F>(PhantomData<F>);
+
+impl<F: Contains<Location>> frame_support::traits::EnsureOrigin<RuntimeOrigin>
+	for MockEnsureXcm<F>
+{
+	type Success = Location;
+
+	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+		if origin.clone().into_signer().unwrap() == SIBLING_PARA_ACCOUNT {
+			return Ok(Location::new(1, [Parachain(SIBLING_PARA_ID)]));
+		}
+		Err(origin)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+		Ok(RuntimeOrigin::root())
+	}
+}
+
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -128,6 +154,7 @@ impl pallet_idn_manager::Config for Test {
 	type MaxSubscriptions = MaxSubscriptions;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Test>>;
+	type SiblingOrigin = MockEnsureXcm<primitives::AllowSiblingsOnly>; // Use the custom EnsureOrigin
 }
 
 sp_api::impl_runtime_apis! {

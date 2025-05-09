@@ -18,10 +18,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod impls;
 pub mod types;
 
 use frame_support::pallet_prelude::{Decode, Encode, TypeInfo};
-use types::{CreateSubParams, SubscriptionId, UpdateSubParams};
+use types::{CreateSubParams, QuoteSubParams, SubscriptionId, UpdateSubParams};
 
 /// A minimized version of `pallet-idn-manager::Call` that can be used without a runtime.
 #[derive(Encode, Decode, Debug, PartialEq, Clone, TypeInfo)]
@@ -42,6 +43,9 @@ pub enum IdnManagerCall {
 	/// `pallet-idn-manager::Call::reactivate_subscription`
 	#[codec(index = 4)]
 	reactivate_subscription { sub_id: SubscriptionId },
+	/// `pallet-idn-manager::Call::quote_subscription`
+	#[codec(index = 5)]
+	quote_subscription { params: QuoteSubParams },
 }
 
 /// `Idn` Runtime `Call` enum.

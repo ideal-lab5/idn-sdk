@@ -18,13 +18,14 @@
 use frame_support::{parameter_types, PalletId};
 use pallet_idn_manager::{
 	primitives::{
-		CreateSubParams as MngCreateSubParams, PulseFilter as MngPulseFilter, SubscriptionMetadata,
+		CreateSubParams as MngCreateSubParams, PulseFilter as MngPulseFilter, Quote as MngQuote,
+		QuoteRequest as MngQuoteRequest, QuoteSubParams as MngQuoteSubParams, SubscriptionMetadata,
 	},
 	UpdateSubParams as MngUpdateSubParams,
 };
 use sp_runtime::AccountId32;
 
-pub use pallet_idn_manager::impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl};
+pub use pallet_idn_manager::primitives::{CallIndex, QuoteReqRef};
 pub use sp_consensus_randomness_beacon::types::RuntimePulse;
 
 // TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
@@ -51,6 +52,8 @@ pub type Credits = u64;
 pub type SubscriptionId = [u8; 32];
 /// An index to a block.
 pub type BlockNumber = u32;
+/// Balance of an account.
+pub type Balance = u128;
 
 // Derived types
 
@@ -74,3 +77,13 @@ pub type CreateSubParams =
 /// See [`pallet_idn_manager::UpdateSubParams`] for more details.
 pub type UpdateSubParams =
 	MngUpdateSubParams<SubscriptionId, Credits, BlockNumber, PulseFilter, Metadata>;
+/// The parameters for quoting a subscription.
+///
+/// See [`pallet_idn_manager::primitives::QuoteSubParams`] for more details.
+pub type QuoteSubParams = MngQuoteSubParams<CreateSubParams>;
+/// The request for a quote, containing the parameters for the describing the subscription.
+///
+/// See [`pallet_idn_manager::primitives::QuoteRequest`] for more details.
+pub type QuoteRequest = MngQuoteRequest<CreateSubParams>;
+
+pub type Quote = MngQuote<Balance>;

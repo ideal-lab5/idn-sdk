@@ -6012,6 +6012,8 @@ dependencies = [
  "scale-info",
  "serde_json",
  "sp-idn-crypto",
+ "staging-xcm",
+ "staging-xcm-builder",
 ]
 
 [[package]]

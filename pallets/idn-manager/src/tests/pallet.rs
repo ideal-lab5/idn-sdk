@@ -17,7 +17,7 @@
 //! # Tests for the IDN Manager pallet
 
 use crate::{
-	primitives::PulsePropertyOf,
+	primitives::{PulsePropertyOf, Quote, QuoteRequest, QuoteSubParams},
 	runtime_decl_for_idn_manager_api::IdnManagerApiV1,
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
@@ -34,11 +34,11 @@ use frame_support::{
 	BoundedVec,
 };
 use sp_idn_traits::pulse::Dispatcher;
-use sp_runtime::{AccountId32, TokenError};
+use sp_runtime::{AccountId32, DispatchError::BadOrigin, TokenError};
 use xcm::v5::{Junction, Location};
 
-const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-const BOB: AccountId32 = AccountId32::new([2u8; 32]);
+pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+pub const BOB: AccountId32 = AccountId32::new([2u8; 32]);
 
 fn event_not_emitted(event: Event<Test>) -> bool {
 	!System::events().iter().any(|record| {
@@ -1870,5 +1870,69 @@ fn test_pulse_filter_functionality_with_low_frequency() {
 					count_idle_rounds * <Test as Config>::FeesManager::get_idle_credits(&sub))
 					as u64
 		);
+	});
+}
+
+#[test]
+fn test_quote_subscription_works() {
+	ExtBuilder::build().execute_with(|| {
+		let credits: u64 = 50;
+		let pulse_callback_index = [1, 2];
+		let quote_callback_index = [1, 3];
+
+		let origin = RuntimeOrigin::signed(mock::SIBLING_PARA_ACCOUNT);
+
+		let create_sub_params = CreateSubParamsOf::<Test> {
+			credits,
+			target: Location::new(1, [Junction::PalletInstance(1)]),
+			call_index: pulse_callback_index,
+			frequency: 10,
+			metadata: None,
+			pulse_filter: None,
+			sub_id: None,
+		};
+
+		let req_ref = [1; 32];
+
+		let quote_request = QuoteRequest { req_ref, create_sub_params };
+		let quote_sub_params = QuoteSubParams { quote_request, call_index: quote_callback_index };
+		// Call the function
+		assert_ok!(IdnManager::quote_subscription(origin, quote_sub_params));
+
+		// Verify the XCM message was sent
+		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubQuoted {
+			requester: Location::new(1, [Junction::Parachain(mock::SIBLING_PARA_ID)]),
+			quote: Quote { req_ref, fees: 5000, deposit: 1140 },
+		}));
+	});
+}
+
+#[test]
+fn test_quote_subscription_fails_for_invalid_origin() {
+	ExtBuilder::build().execute_with(|| {
+		let credits: u64 = 50;
+		let pulse_callback_index = [1, 2];
+		let quote_callback_index = [1, 3];
+
+		// Use an invalid origin (not a sibling)
+		let invalid_origin = RuntimeOrigin::signed(ALICE);
+
+		let create_sub_params = CreateSubParamsOf::<Test> {
+			credits,
+			target: Location::new(1, [Junction::PalletInstance(1)]),
+			call_index: pulse_callback_index,
+			frequency: 10,
+			metadata: None,
+			pulse_filter: None,
+			sub_id: None,
+		};
+
+		let req_ref = [1; 32];
+
+		let quote_request = QuoteRequest { req_ref, create_sub_params };
+		let quote_sub_params = QuoteSubParams { quote_request, call_index: quote_callback_index };
+
+		// Call the function and expect it to fail
+		assert_noop!(IdnManager::quote_subscription(invalid_origin, quote_sub_params), BadOrigin);
 	});
 }

@@ -18,14 +18,16 @@
 
 use super::*;
 use crate::{
-	pallet::Pallet as IdnManager, primitives::PulsePropertyOf, CreateSubParamsOf, UpdateSubParamsOf,
+	pallet::Pallet as IdnManager,
+	primitives::{PulsePropertyOf, QuoteRequest},
+	CreateSubParamsOf, UpdateSubParamsOf,
 };
 use frame_benchmarking::v2::*;
 use frame_support::{
 	traits::{fungible::Mutate, OriginTrait},
 	BoundedVec,
 };
-use frame_system::RawOrigin;
+use frame_system::{Pallet as System, RawOrigin};
 use sp_core::H256;
 use xcm::v5::prelude::Junction;
 
@@ -34,6 +36,9 @@ use xcm::v5::prelude::Junction;
         T::Credits: From<u64>,
         <T::Pulse as Pulse>::Round: From<u64>,
 		T::Currency: Mutate<T::AccountId>,
+		<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance: From<u64>,
+		<T as frame_system::Config>::RuntimeEvent: From<Event<T>>,
+		<T as frame_system::Config>::AccountId: From<[u8; 32]>,
 )]
 mod benchmarks {
 	use super::*;
@@ -275,6 +280,57 @@ mod benchmarks {
 		// assert that the subscription state is correct
 		let sub = Subscriptions::<T>::get(sub_id).unwrap();
 		assert_eq!(sub.state, SubscriptionState::Active);
+	}
+
+	#[benchmark]
+	fn quote_subscription(l: Linear<0, { T::MaxPulseFilterLen::get() }>) {
+		let sibling_account: T::AccountId = [88u8; 32].into();
+		let sibling_para_id = 88;
+		let origin = RawOrigin::Signed(sibling_account.clone());
+		let credits = 100u64.into();
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let call_index = [1; 2];
+		let frequency: BlockNumberFor<T> = 1u32.into();
+		let metadata = None;
+		let sub_id = None;
+
+		let pulse_filter = if l == 0 {
+			None
+		} else {
+			let pulse_filter_vec = (0..l)
+				.map(|_| PulsePropertyOf::<<T as pallet::Config>::Pulse>::Round(1u64.into()))
+				.collect::<Vec<_>>();
+			Some(BoundedVec::try_from(pulse_filter_vec).unwrap())
+		};
+
+		let params = CreateSubParamsOf::<T> {
+			credits,
+			target: target.clone(),
+			call_index,
+			frequency,
+			metadata,
+			pulse_filter,
+			sub_id,
+		};
+		let req_ref = [1; 32];
+		let quote_request = QuoteRequest { req_ref, create_sub_params: params.clone() };
+		let quote_sub_params = QuoteSubParams { quote_request, call_index };
+
+		#[extrinsic_call]
+		_(origin, quote_sub_params);
+
+		let deposit = IdnManager::<T>::calculate_storage_deposit_from_create_params(
+			&sibling_account,
+			&params,
+		);
+
+		System::<T>::assert_last_event(
+			Event::<T>::SubQuoted {
+				requester: Location::new(1, [Junction::Parachain(sibling_para_id)]),
+				quote: Quote { req_ref, fees: 10_000u64.into(), deposit },
+			}
+			.into(),
+		);
 	}
 
 	/// Benchmark dispatching a single pulse to `p` subscriptions

@@ -17,13 +17,14 @@
 //! Types used in the IDN pallet manager
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
-use frame_support::BoundedVec;
+use frame_support::{traits::Contains, BoundedVec};
 use scale_info::TypeInfo;
 use sp_core::{blake2_256, H256};
 use sp_idn_traits::pulse::{Pulse, PulseProperty};
 use sp_std::vec::Vec;
-use xcm::v5::Location;
+use xcm::v5::{Junction::Parachain, Location};
 
+/// The type for the metadata of a subscription
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
 
 /// The pulse property type used in the pallet, representing various properties of a pulse.
@@ -104,4 +105,53 @@ impl<
 		// Hash the encoded bytes using blake2_256.
 		H256::from_slice(&blake2_256(&encoded)).into()
 	}
+}
+
+/// XCM filter for allowing only sibling parachains to call certain functions in the IDN Manager
+pub struct AllowSiblingsOnly;
+impl Contains<Location> for AllowSiblingsOnly {
+	fn contains(location: &Location) -> bool {
+		matches!(location.unpack(), (1, [Parachain(_)]))
+	}
+}
+
+/// An arbitrary reference for a quote request. There is no uniqueness guarantee as this could be
+/// anything specified by the requester.
+pub type QuoteReqRef = [u8; 32];
+
+/// A quote for a subscription.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct Quote<Balance> {
+	/// References the [`QuoteRequest`]` for this quote.
+	pub req_ref: QuoteReqRef,
+	/// The fees quoted.
+	pub fees: Balance,
+	/// The deposit quoted.
+	pub deposit: Balance,
+}
+
+/// A request for a quote. This is used to get a quote for a subscription before creating it.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct QuoteRequest<CreateSubParams> {
+	/// The arbitrary reference for this quote request.
+	pub req_ref: QuoteReqRef,
+	/// It specifies the parameters for the subscription.
+	pub create_sub_params: CreateSubParams,
+}
+
+/// The parameters for requesting a quote for a subscription.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct QuoteSubParams<CreateSubParams> {
+	/// The quote request details.
+	pub quote_request: QuoteRequest<CreateSubParams>,
+	/// The call index for the dispatchable that handles the generated quote.
+	/// This is the function in the parachain that originated the request that will be called by
+	/// the IDN parachain and receive the [`Quote`].
+	pub call_index: CallIndex,
 }
