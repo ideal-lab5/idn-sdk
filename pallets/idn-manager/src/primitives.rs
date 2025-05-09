@@ -160,7 +160,7 @@ pub struct QuoteSubParams<CreateSubParams> {
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct SubInfoParams<SubId> {
+pub struct SubInfoRequest<SubId> {
 	/// An arbitrary reference for this subscription info request.
 	pub req_ref: RequestReference,
 	/// The subscription Id to get the info for.
@@ -168,4 +168,14 @@ pub struct SubInfoParams<SubId> {
 	/// The call index for the dispatchable that handles the generated subscription info on the
 	/// target parachain.
 	pub call_index: CallIndex,
+}
+
+/// The subscription info returned by the IDN Manager to the target parachain.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct SubInfo<Sub> {
+	/// References the [`SubInfoRequest`]`
+	pub req_ref: RequestReference,
+	pub sub: Sub,
 }

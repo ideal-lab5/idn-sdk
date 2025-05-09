@@ -56,7 +56,7 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteSubParams, SubInfoParams,
+		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteSubParams, SubInfoRequest,
 		SubscriptionMetadata,
 	},
 	traits::{
@@ -117,7 +117,7 @@ pub type QuoteOf<T> = Quote<BalanceOf<T>>;
 /// quoted.
 pub type QuoteSubParamsOf<T> = QuoteSubParams<CreateSubParamsOf<T>>;
 
-pub type GetSubParamsOf<T> = SubInfoParams<SubscriptionIdOf<T>>;
+pub type SubInfoRequestOf<T> = SubInfoRequest<SubscriptionIdOf<T>>;
 
 /// The subscription ID type used in the pallet, derived from the configuration.
 pub type SubscriptionIdOf<T> = <T as pallet::Config>::SubscriptionId;
@@ -722,22 +722,22 @@ pub mod pallet {
 		/// specified function via XCM.
 		#[pallet::call_index(6)]
 		// TODO: benchmark this
-		#[pallet::weight(T::WeightInfo::quote_subscription(T::MaxPulseFilterLen::get()))]
+		#[pallet::weight(T::WeightInfo::get_subscription_xcm())]
 		#[allow(clippy::useless_conversion)]
 		pub fn get_subscription_xcm(
 			origin: OriginFor<T>,
-			params: GetSubParamsOf<T>,
-		) -> DispatchResultWithPostInfo {
+			req: SubInfoRequestOf<T>,
+		) -> DispatchResult {
 			// Ensure the origin is a sibling, and get the location
 			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
 
-			let sub = Self::get_subscription(&params.sub_id)
-				.ok_or(Error::<T>::SubscriptionDoesNotExist)?;
+			let sub =
+				Self::get_subscription(&req.sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 
-			Self::xcm_send(&requester, (params.call_index, sub).encode().into())?;
-			Self::deposit_event(Event::SubscriptionDistributed { sub_id: params.sub_id });
+			Self::xcm_send(&requester, (req.call_index, sub).encode().into())?;
+			Self::deposit_event(Event::SubscriptionDistributed { sub_id: req.sub_id });
 
-			Ok(Some(T::WeightInfo::quote_subscription(T::MaxPulseFilterLen::get())).into())
+			Ok(())
 		}
 	}
 }
