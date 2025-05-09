@@ -54,15 +54,9 @@ pub mod primitives;
 pub mod traits;
 pub mod weights;
 
-use crate::{
-	primitives::{
-		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteSubParams, SubInfoRequest,
-		SubscriptionMetadata,
-	},
-	traits::{
-		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
-		Subscription as SubscriptionTrait,
-	},
+use crate::primitives::{
+	CallIndex, CreateSubParams, PulseFilter, Quote, QuoteSubParams, SubInfoRequest,
+	Subscription as SubscriptionTrait, SubscriptionMetadata,
 };
 use codec::{Codec, Decode, DecodeWithMemTracking, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
