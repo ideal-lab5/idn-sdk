@@ -26,6 +26,8 @@ polkadot-sdk = { workspace = true, features = [
 serde_json = { workspace = true, default-features = false, features = [
 	"alloc",
 ] }
+xcm.workspace = true
+xcm-builder.workspace = true
 # IDN Deps
 bp-idn.workspace = true
 pallet-idn-manager.workspace = true
@@ -50,10 +52,14 @@ std = [
 	"sp-idn-crypto/std",
 	"pallet-idn-manager/std",
 	"pallet-randomness-beacon/std",
+	"xcm/std",
+	"xcm-builder/std",
 ]
 
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"pallet-idn-manager/runtime-benchmarks",
 	"pallet-randomness-beacon/runtime-benchmarks",
+	"xcm/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
 ]

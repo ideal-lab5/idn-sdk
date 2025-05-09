@@ -18,13 +18,23 @@
 use frame_support::{parameter_types, PalletId};
 use pallet_idn_manager::{
 	primitives::{
-		CreateSubParams as MngCreateSubParams, PulseFilter as MngPulseFilter, SubscriptionMetadata,
+		CreateSubParams as MngCreateSubParams, PulseFilter as MngPulseFilter, Quote as MngQuote,
+		QuoteRequest as MngQuoteRequest, QuoteSubParams as MngQuoteSubParams,
+		SubInfoRequest as MngSubInfoRequest, SubInfoResponse as MngSubInfoResponse,
+		SubscriptionMetadata,
 	},
+	Subscription as MngSubscription, SubscriptionDetails as MngSubscriptionDetails,
 	UpdateSubParams as MngUpdateSubParams,
 };
-use sp_runtime::AccountId32;
+use sp_runtime::{
+	traits::{IdentifyAccount, Verify},
+	AccountId32, MultiSignature,
+};
 
-pub use pallet_idn_manager::impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl};
+pub use pallet_idn_manager::{
+	primitives::{CallIndex, RequestReference},
+	SubscriptionState,
+};
 pub use sp_consensus_randomness_beacon::types::RuntimePulse;
 
 // TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
@@ -51,6 +61,13 @@ pub type Credits = u64;
 pub type SubscriptionId = [u8; 32];
 /// An index to a block.
 pub type BlockNumber = u32;
+/// Balance of an account.
+pub type Balance = u128;
+/// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
+pub type Signature = MultiSignature;
+/// Some way of identifying an account on the chain. We intentionally make it equivalent
+/// to the public key of our transaction signing scheme.
+pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 
 // Derived types
 
@@ -74,3 +91,32 @@ pub type CreateSubParams =
 /// See [`pallet_idn_manager::UpdateSubParams`] for more details.
 pub type UpdateSubParams =
 	MngUpdateSubParams<SubscriptionId, Credits, BlockNumber, PulseFilter, Metadata>;
+/// The parameters for quoting a subscription.
+///
+/// See [`pallet_idn_manager::primitives::QuoteSubParams`] for more details.
+pub type QuoteSubParams = MngQuoteSubParams<CreateSubParams>;
+/// The request for a quote, containing the parameters for the describing the subscription.
+///
+/// See [`pallet_idn_manager::primitives::QuoteRequest`] for more details.
+pub type QuoteRequest = MngQuoteRequest<CreateSubParams>;
+/// The quote for a subscription, containing the deposit and fees.
+///
+/// See [`pallet_idn_manager::primitives::Quote`] for more details.
+pub type Quote = MngQuote<Balance>;
+/// Represents a subscription in the system.
+///
+/// See [`pallet_idn_manager::Subscription`] for more details.
+pub type Subscription =
+	MngSubscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter, SubscriptionId>;
+/// The subscription info returned by the IDN Manager to the target parachain.
+///
+/// See [`pallet_idn_manager::primitives::SubInfoResponse`] for more details.
+pub type SubInfoResponse = MngSubInfoResponse<Subscription>;
+/// Contains the parameters for requesting a subscription info by its Id.
+///
+/// See [`pallet_idn_manager::primitives::SubInfoRequest`] for more details.
+pub type SubInfoRequest = MngSubInfoRequest<SubscriptionId>;
+/// Details specific to a subscription for pulse delivery.
+///
+/// See [`pallet_idn_manager::SubscriptionDetails`] for more details.
+pub type SubscriptionDetails = MngSubscriptionDetails<AccountId>;

@@ -16,8 +16,10 @@
 
 mod mock;
 
+use crate::{Pulse, Quote, SubInfoResponse};
 use frame_support::assert_ok;
 use mock::*;
+use sp_runtime::traits::BadOrigin;
 
 #[test]
 fn test_create_subscription_success() {
@@ -246,6 +248,243 @@ fn test_reactivate_subscription_fails() {
 
 		// Call the function and assert failure
 		let result = crate::Pallet::<Test>::reactivate_subscription(sub_id);
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+	});
+}
+
+#[test]
+fn test_quote_subscription() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let credits = 10;
+		let frequency = 5;
+		let metadata = None;
+		let pulse_filter = None;
+		let sub_id = None;
+		let req_ref = None;
+
+		// Call the function
+		let result = crate::Pallet::<Test>::quote_subscription(
+			credits,
+			frequency,
+			metadata,
+			pulse_filter,
+			sub_id,
+			req_ref,
+		);
+
+		// Assert the result is Ok and contains the expected request reference
+		assert_ok!(result);
+	});
+}
+
+#[test]
+fn test_quote_subscription_fails() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let credits = 10;
+		let frequency = 5;
+		let metadata = None;
+		let pulse_filter = None;
+		let sub_id = None;
+		let req_ref = None;
+
+		// Simulate failure by setting a block number that triggers an error
+		System::set_block_number(1_234_567);
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::quote_subscription(
+			credits,
+			frequency,
+			metadata,
+			pulse_filter,
+			sub_id,
+			req_ref,
+		);
+
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
+	});
+}
+
+#[test]
+fn test_consume_quote_success() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let quote = Quote { req_ref: [1; 32], deposit: 100, fees: 100 };
+
+		// Call the function and assert success
+		assert_ok!(crate::Pallet::<Test>::consume_quote(
+			RuntimeOrigin::signed(mock::IDN_PARA_ACCOUNT),
+			quote.clone()
+		));
+
+		// Verify the event was emitted
+		System::assert_last_event(crate::Event::QuoteConsumed { quote }.into());
+	});
+}
+
+#[test]
+fn test_consume_quote_fails_wrong_origin() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let quote = Quote { req_ref: [1; 32], deposit: 100, fees: 100 };
+
+		// Call the function and assert failure
+		let result =
+			crate::Pallet::<Test>::consume_quote(RuntimeOrigin::signed(mock::ALICE), quote.clone());
+		assert_eq!(result.unwrap_err(), BadOrigin.into());
+	});
+}
+
+#[test]
+fn test_consume_quote_bubbles_up_consumer_trait_failure() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let quote = Quote {
+			// This is a mock value that will trigger the failure in the consumer
+			req_ref: [123; 32],
+			deposit: 100,
+			fees: 100,
+		};
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::consume_quote(
+			RuntimeOrigin::signed(mock::IDN_PARA_ACCOUNT),
+			quote.clone(),
+		);
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::ConsumeQuoteError.into());
+	});
+}
+
+#[test]
+fn test_consume_pulse_success() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let pulse = Pulse { round: 1, signature: [1; 48] };
+		let sub_id = [1; 32];
+
+		// Call the function and assert success
+		assert_ok!(crate::Pallet::<Test>::consume_pulse(
+			RuntimeOrigin::signed(mock::IDN_PARA_ACCOUNT),
+			pulse.clone(),
+			sub_id
+		));
+
+		// Verify the event was emitted
+		System::assert_last_event(
+			crate::Event::RandomnessConsumed { round: pulse.round, sub_id }.into(),
+		);
+	});
+}
+
+#[test]
+fn test_consume_pulse_fails_wrong_origin() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let pulse = Pulse { round: 1, signature: [1; 48] };
+		let sub_id = [1; 32];
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::consume_pulse(
+			RuntimeOrigin::signed(mock::ALICE),
+			pulse.clone(),
+			sub_id,
+		);
+		assert_eq!(result.unwrap_err(), BadOrigin.into());
+	});
+}
+
+#[test]
+fn test_consume_pulse_bubbles_up_consumer_trait_failure() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let pulse = Pulse { round: 1, signature: [1; 48] };
+		let sub_id = [123; 32]; // This sub_id triggers a failure in the consumer
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::consume_pulse(
+			RuntimeOrigin::signed(mock::IDN_PARA_ACCOUNT),
+			pulse.clone(),
+			sub_id,
+		);
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::ConsumePulseError.into());
+	});
+}
+
+#[test]
+fn test_consume_sub_info_success() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let sub_info = SubInfoResponse { sub: MOCK_SUB, req_ref: [1; 32] };
+
+		// Call the function and assert success
+		assert_ok!(crate::Pallet::<Test>::consume_sub_info(
+			RuntimeOrigin::signed(mock::IDN_PARA_ACCOUNT),
+			sub_info.clone()
+		));
+
+		// Verify the event was emitted
+		System::assert_last_event(crate::Event::SubInfoConsumed { sub_id: sub_info.sub.id }.into());
+	});
+}
+
+#[test]
+fn test_consume_sub_info_fails_wrong_origin() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let sub_info = SubInfoResponse { sub: MOCK_SUB, req_ref: [1; 32] };
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::consume_sub_info(
+			RuntimeOrigin::signed(mock::ALICE),
+			sub_info.clone(),
+		);
+		assert_eq!(result.unwrap_err(), BadOrigin.into());
+	});
+}
+
+#[test]
+fn test_consume_sub_info_bubbles_up_consumer_trait_failure() {
+	ExtBuilder::build().execute_with(|| {
+		let mut sub = MOCK_SUB.clone();
+		sub.id = [123; 32]; // This sub_id triggers a failure in the consumer
+
+		// Mock inputs
+		let sub_info = SubInfoResponse { sub, req_ref: [1; 32] };
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::consume_sub_info(
+			RuntimeOrigin::signed(mock::IDN_PARA_ACCOUNT),
+			sub_info.clone(),
+		);
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::ConsumeSubInfoError.into());
+	});
+}
+
+#[test]
+fn test_get_subscription_success() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let sub_id = [1; 32];
+		let req_ref = None;
+
+		// Call the function and assert success
+		assert_ok!(crate::Pallet::<Test>::get_subscription(sub_id, req_ref));
+	});
+}
+
+#[test]
+fn test_get_subscription_fails() {
+	ExtBuilder::build().execute_with(|| {
+		// Mock inputs
+		let sub_id = [1; 32];
+		let req_ref = None;
+
+		// Simulate failure by setting a block number that triggers an error
+		System::set_block_number(1_234_567);
+
+		// Call the function and assert failure
+		let result = crate::Pallet::<Test>::get_subscription(sub_id, req_ref);
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
 	});
 }

@@ -31,8 +31,10 @@ mod weights;
 
 extern crate alloc;
 
-use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::Pays};
-use pallet_idn_consumer::{ConsumerTrait, Pulse, SubscriptionId};
+use pallet_idn_consumer::{
+	traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer},
+	Pulse, Quote, SubInfoResponse, SubscriptionId,
+};
 use smallvec::smallvec;
 use sp_runtime::{
 	generic, impl_opaque_keys,
@@ -150,13 +152,33 @@ impl WeightToFeePolynomial for WeightToFee {
 	}
 }
 
-pub struct Consumer;
-impl ConsumerTrait<Pulse, SubscriptionId, DispatchResultWithPostInfo> for Consumer {
-	fn consume(pulse: Pulse, sub_id: SubscriptionId) -> DispatchResultWithPostInfo {
+/// Dummy implementation of the ['PulseConsumer'] trait.
+pub struct PulseConsumerImpl;
+impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
+	fn consume_pulse(pulse: Pulse, sub_id: SubscriptionId) -> Result<(), ()> {
 		// Randomness consumption logic goes here.
-		log::info!("IDN Consumer: Consuming pulse: {:?}", pulse);
-		log::info!("IDN Consumer: Subscription ID: {:?}", sub_id);
-		Ok(Pays::No.into())
+		log::info!("IDN Consumer: Consuming pulse: {:?} with sub id: {:?}", pulse, sub_id);
+		Ok(())
+	}
+}
+
+/// Dummy implementation of the ['QuoteConsumer'] trait.
+pub struct QuoteConsumerImpl;
+impl QuoteConsumer<Quote, (), ()> for QuoteConsumerImpl {
+	fn consume_quote(quote: Quote) -> Result<(), ()> {
+		// Quote consumption logic goes here.
+		log::info!("IDN Consumer: Consuming quote: {:?}", quote);
+		Ok(())
+	}
+}
+
+/// Dummy implementation of the ['SubInfoConsumer'] trait.
+pub struct SubInfoConsumerImpl;
+impl SubInfoConsumer<SubInfoResponse, (), ()> for SubInfoConsumerImpl {
+	fn consume_sub_info(sub_info: SubInfoResponse) -> Result<(), ()> {
+		// Subscription info consumption logic goes here.
+		log::info!("IDN Consumer: Consuming subscription info: {:?}", sub_info);
+		Ok(())
 	}
 }
 

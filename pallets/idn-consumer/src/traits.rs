@@ -14,9 +14,21 @@
  * limitations under the License.
  */
 
-//! # Tests parent module
-//!
-//! Find tests in the submodules.
+//! Pallet IDN Consumer traits
 
-pub(crate) mod mock;
-mod pallet;
+use sp_idn_traits::pulse::Pulse;
+
+/// A trait for describing a pulse consumption behavior.
+pub trait PulseConsumer<P: Pulse, I, O, E> {
+	fn consume_pulse(pulse: P, sub_id: I) -> Result<O, E>;
+}
+
+/// A trait for describing a quote consumption behavior.
+pub trait QuoteConsumer<Q, O, E> {
+	fn consume_quote(quote: Q) -> Result<O, E>;
+}
+
+/// A trait for describing a subscription info consumption behavior.
+pub trait SubInfoConsumer<S, O, E> {
+	fn consume_sub_info(sub_info: S) -> Result<O, E>;
+}
