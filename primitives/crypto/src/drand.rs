@@ -140,7 +140,7 @@ where
 			DefaultFieldHasher<Sha256, 128>,
 			WBMap<P::G1Config>,
 		>::new(QUICKNET_CTX)
-		.unwrap()
+		.expect("The MapToCurveBasedHasher can be built from the specified types and input, qed.")
 	}
 }
 

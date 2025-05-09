@@ -44,8 +44,9 @@ pub trait SignatureVerifier {
 	///   verification
 	fn verify(
 		beacon_pk_bytes: Vec<u8>,
-		next_sig_bytes: Vec<Vec<u8>>,
+		next_sig_bytes: Vec<u8>,
 		start: u64,
+		height: u64,
 		accumulation: Option<OpaqueAccumulation>,
 	) -> Result<OpaqueAccumulation, CryptoError>;
 }
@@ -80,19 +81,17 @@ pub struct QuicknetVerifier;
 impl SignatureVerifier for QuicknetVerifier {
 	fn verify(
 		beacon_pk_bytes: Vec<u8>,
-		next_sig_bytes: Vec<Vec<u8>>,
+		next_sig_bytes: Vec<u8>,
 		start: u64,
+		height: u64,
 		accumulation: Option<OpaqueAccumulation>,
 	) -> Result<OpaqueAccumulation, CryptoError> {
-		let height: u64 = next_sig_bytes.len() as u64;
 		let beacon_pk = decode_g2(&beacon_pk_bytes)?;
 		// apk = 0, asig = new_sig
 		let mut apk = zero_on_g1();
 		// aggregate signatures
-		let mut asig = next_sig_bytes
-			.iter()
-			.filter_map(|rp| decode_g1(&mut &rp).ok())
-			.fold(zero_on_g1(), |acc, sig| (acc + sig).into());
+		let mut asig = decode_g1(&next_sig_bytes)?;
+
 		// if a previous signature and pubkey were provided
 		// then we start there
 		if let Some(acc) = accumulation {
@@ -152,11 +151,16 @@ pub mod tests {
 	#[test]
 	fn can_verify_single_pulse_with_quicknet_style_verifier_no_prev() {
 		let beacon_pk_bytes = get_beacon_pk();
-		let (asig, apk, pulses) = get(vec![PULSE1000]);
-		let sigs = pulses.into_iter().map(|s| s.1).collect::<Vec<_>>();
-		let aggr =
-			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), sigs, 1000u64, None)
-				.unwrap();
+		let (asig, apk, _pulses) = get(vec![PULSE1000]);
+
+		let aggr = QuicknetVerifier::verify(
+			beacon_pk_bytes.try_into().unwrap(),
+			asig.clone(),
+			1000u64,
+			1,
+			None,
+		)
+		.unwrap();
 
 		assert_eq!(asig, aggr.signature);
 		assert_eq!(apk, aggr.message_hash);
@@ -166,11 +170,16 @@ pub mod tests {
 	#[test]
 	fn can_verify_aggregated_sigs_no_prev() {
 		let beacon_pk_bytes = get_beacon_pk();
-		let (asig, apk, pulses) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
-		let sigs = pulses.into_iter().map(|s| s.1).collect::<Vec<_>>();
-		let aggr =
-			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), sigs, 1000u64, None)
-				.unwrap();
+		let (asig, apk, _pulses) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
+
+		let aggr = QuicknetVerifier::verify(
+			beacon_pk_bytes.try_into().unwrap(),
+			asig.clone(),
+			1000u64,
+			3,
+			None,
+		)
+		.unwrap();
 
 		assert_eq!(asig, aggr.signature);
 		assert_eq!(apk, aggr.message_hash);
@@ -181,15 +190,15 @@ pub mod tests {
 	fn can_verify_sigs_with_aggregation() {
 		let beacon_pk_bytes = get_beacon_pk();
 		let (prev_asig, prev_apk, _prev_sigs) = get(vec![PULSE1000]);
-		let (_next_sig, _next_pk, next_pulses) = get(vec![PULSE1001, PULSE1002]);
-		let next_sigs = next_pulses.into_iter().map(|s| s.1).collect::<Vec<_>>();
+		let (next_sig, _next_pk, _next_pulses) = get(vec![PULSE1001, PULSE1002]);
 
 		let (expected_asig, expected_apk, _sigs) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
 
 		let aggr = QuicknetVerifier::verify(
 			beacon_pk_bytes.try_into().unwrap(),
-			next_sigs,
+			next_sig,
 			1001u64,
+			2,
 			Some(OpaqueAccumulation { signature: prev_asig, message_hash: prev_apk }),
 		)
 		.unwrap();
@@ -201,11 +210,10 @@ pub mod tests {
 	#[test]
 	fn can_verify_invalid_with_mismatched_sig_and_round() {
 		let beacon_pk_bytes = get_beacon_pk();
-		let (_asig, _apk, pulses) = get(vec![PULSE1000]);
-		let sigs = pulses.into_iter().map(|s| s.1).collect::<Vec<_>>();
+		let (asig, _apk, _pulses) = get(vec![PULSE1000]);
 
 		let res =
-			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), sigs, 1002u64, None);
+			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), asig, 1002u64, 1, None);
 		assert!(res.is_err());
 		assert_eq!(Err(CryptoError::InvalidSignature), res);
 	}

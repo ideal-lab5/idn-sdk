@@ -25,12 +25,6 @@ use sp_idn_crypto::test_utils::{get, PULSE1000, PULSE1001, PULSE1002, PULSE1003}
 
 const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 
-fn as_pulses(raw: Vec<(u64, Vec<u8>)>) -> Vec<RuntimePulse> {
-	raw.iter()
-		.map(|s| RuntimePulse { round: s.0, signature: s.1.clone().try_into().unwrap() })
-		.collect::<Vec<_>>()
-}
-
 #[test]
 fn can_construct_pallet_and_set_genesis_params() {
 	new_test_ext().execute_with(|| {
@@ -41,13 +35,12 @@ fn can_construct_pallet_and_set_genesis_params() {
 
 #[test]
 fn can_fail_write_pulse_when_genesis_round_not_set() {
-	let (_asig, _apk, raw) = get(vec![PULSE1000, PULSE1001]);
-	let pulses = as_pulses(raw);
+	let (asig, _apk, _raw) = get(vec![PULSE1000, PULSE1001]);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), pulses),
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig.try_into().unwrap(), 2),
 			Error::<Test>::BeaconConfigNotSet,
 		);
 	});
@@ -72,15 +65,18 @@ fn can_set_genesis_round_once_as_root() {
 
 #[test]
 fn can_submit_valid_pulses_under_the_limit() {
-	let (asig, apk, raw) = get(vec![PULSE1000, PULSE1001]);
-	let pulses = as_pulses(raw);
+	let (asig, apk, _raw) = get(vec![PULSE1000, PULSE1001]);
 	let config = get_config(1000);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), pulses));
+		assert_ok!(Drand::try_submit_asig(
+			RuntimeOrigin::none(),
+			asig.clone().try_into().unwrap(),
+			2
+		));
 
 		let maybe_res = SparseAccumulation::<Test>::get();
 		assert!(maybe_res.is_some());
@@ -99,7 +95,7 @@ fn can_fail_when_sig_height_is_0() {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), vec![]),
+			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 0),
 			Error::<Test>::ZeroHeightProvided
 		);
 	});
@@ -113,12 +109,8 @@ fn can_fail_when_sig_height_is_exceeds_max() {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
-		let too_many_sigs = (1..10000)
-			.map(|i| RuntimePulse { round: i, signature: [i as u8; 48] })
-			.collect::<Vec<_>>();
-
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), too_many_sigs),
+			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 10000),
 			Error::<Test>::ExcessiveHeightProvided
 		);
 	});
@@ -130,12 +122,8 @@ fn can_submit_valid_sigs_in_sequence() {
 
 	let config = get_config(1000);
 
-	let (_asig1, _apk1, raw1) = get(vec![PULSE1000, PULSE1001]);
-
-	let sigs1 = as_pulses(raw1);
-
-	let (_asig2, _apk2, raw2) = get(vec![PULSE1002, PULSE1003]);
-	let sigs2 = as_pulses(raw2);
+	let (asig1, _apk1, _raw1) = get(vec![PULSE1000, PULSE1001]);
+	let (asig2, _apk2, _raw2) = get(vec![PULSE1002, PULSE1003]);
 
 	// the aggregated values
 	let (asig, apk, _all_sigs) = get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003]);
@@ -144,12 +132,12 @@ fn can_submit_valid_sigs_in_sequence() {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs1));
+		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig1.try_into().unwrap(), 2));
 
 		Drand::on_finalize(1);
 		System::set_block_number(2);
 
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs2));
+		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig2.try_into().unwrap(), 2));
 
 		let maybe_res = SparseAccumulation::<Test>::get();
 		assert!(maybe_res.is_some());
@@ -165,17 +153,21 @@ fn can_submit_valid_sigs_in_sequence() {
 
 #[test]
 fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
-	let (_asig1, _apk1, raw) = get(vec![PULSE1000, PULSE1001]);
-	let sigs = as_pulses(raw);
+	let (asig, _apk1, _raw) = get(vec![PULSE1000, PULSE1001]);
+	// let sigs = as_pulses(raw);
 	let config = get_config(1000);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs.clone()));
+		assert_ok!(Drand::try_submit_asig(
+			RuntimeOrigin::none(),
+			asig.clone().try_into().unwrap(),
+			2
+		));
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), sigs.clone()),
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone().try_into().unwrap(), 2),
 			Error::<Test>::SignatureAlreadyVerified,
 		);
 	});
@@ -183,8 +175,7 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 
 #[test]
 fn can_fail_to_submit_invalid_sigs_in_sequence() {
-	let (asig1, apk1, raw) = get(vec![PULSE1000, PULSE1001]);
-	let sigs = as_pulses(raw);
+	let (asig, apk1, _raw) = get(vec![PULSE1000, PULSE1001]);
 
 	let config = get_config(1000);
 
@@ -192,13 +183,17 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), sigs.clone()));
+		assert_ok!(Drand::try_submit_asig(
+			RuntimeOrigin::none(),
+			asig.clone().try_into().unwrap(),
+			2
+		));
 
 		Drand::on_finalize(1);
 		System::set_block_number(2);
 
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), sigs),
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone().try_into().unwrap(), 2),
 			Error::<Test>::VerificationFailed,
 		);
 
@@ -206,7 +201,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 		assert!(maybe_res.is_some());
 
 		let aggr = maybe_res.unwrap();
-		assert_eq!(asig1, aggr.signature);
+		assert_eq!(asig.clone(), aggr.signature);
 		assert_eq!(apk1, aggr.message_hash);
 
 		let actual_latest = LatestRound::<Test>::get();
@@ -248,18 +243,24 @@ fn can_create_inherent() {
 	let (asig3, _apk3, _sig3) = get(vec![PULSE1002]);
 	let pulse3 = RuntimePulse { round: 1002u64, signature: asig3.try_into().unwrap() };
 
-	let (_asig, _apk, raw) = get(vec![PULSE1001, PULSE1002]);
-	let expected_sigs = as_pulses(raw);
+	let (expected_asig, _apk, _raw) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
+	let expected_height = 3;
+	let expected_asig_array: [u8; 48] = expected_asig.try_into().unwrap();
 
 	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode(), pulse3.encode()];
 	let mut inherent_data = InherentData::new();
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
 	new_test_ext().execute_with(|| {
+		LatestRound::<Test>::set(Some(0));
 		BeaconConfig::<Test>::set(Some(config.clone()));
 		let result = Drand::create_inherent(&inherent_data);
-		if let Some(Call::try_submit_asig { pulses }) = result {
-			assert_eq!(pulses, expected_sigs, "The output should match the aggregated input.");
+		if let Some(Call::try_submit_asig { asig, height }) = result {
+			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
+			assert_eq!(
+				height, expected_height,
+				"The number of valid pulses should match the input."
+			);
 		} else {
 			panic!("Expected Some(Call::try_submit_asig), got None");
 		}
@@ -301,6 +302,7 @@ fn can_check_inherent() {
 	let config = get_config(1000);
 
 	new_test_ext().execute_with(|| {
+		LatestRound::<Test>::set(Some(0));
 		BeaconConfig::<Test>::set(Some(config.clone()));
 		let result = Drand::create_inherent(&inherent_data);
 		if let Some(call) = result {

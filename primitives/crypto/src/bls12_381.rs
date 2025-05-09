@@ -55,7 +55,7 @@ pub(crate) fn fast_pairing_opt(signature: G1Affine, q: G2Affine, r: G1Affine, s:
 }
 
 /// Computes the 0 point in the G1 group
-pub(crate) fn zero_on_g1() -> G1Affine {
+pub fn zero_on_g1() -> G1Affine {
 	G1Affine::zero()
 }
 

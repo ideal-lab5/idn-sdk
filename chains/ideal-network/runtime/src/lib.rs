@@ -222,7 +222,7 @@ const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 
 /// We allow for 2 seconds of compute with a 6-second average block.
 const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
-	WEIGHT_REF_TIME_PER_SECOND.saturating_mul(2),
+	WEIGHT_REF_TIME_PER_SECOND.saturating_mul(4),
 	cumulus_primitives_core::relay_chain::MAX_POV_SIZE as u64,
 );
 

@@ -109,12 +109,19 @@ mod benchmarking;
 
 const LOG_TARGET: &str = "pallet-randomness-beacon";
 
+const SERIALIZED_SIG_SIZE: usize = 48;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use ark_bls12_381::G1Affine;
+	use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
-	use sp_consensus_randomness_beacon::digest::ConsensusLog;
+	use sp_consensus_randomness_beacon::{
+		digest::ConsensusLog,
+		types::{OpaqueSignature, RoundNumber},
+	};
 	use sp_runtime::{generic::DigestItem, Saturating};
 
 	#[pallet::pallet]
@@ -196,19 +203,38 @@ pub mod pallet {
 			sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			if let Some(config) = BeaconConfig::<T>::get() {
+			if let Some(round) = LatestRound::<T>::get() {
 				if let Ok(Some(raw_pulses)) =
 					data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 				{
-					// ignores non-deserializable messages and pulses with invalid signature lengths
-					//  ignores rounds less than the genesis round
-					let pulses = raw_pulses
+					// extract + sanitize
+					let mut height = 0;
+					let asig = raw_pulses
 						.iter()
 						.filter_map(|rp| T::Pulse::decode(&mut rp.as_slice()).ok())
-						.filter(|op| op.round().into() >= config.genesis_round.clone().into())
-						.collect::<Vec<_>>();
+						.filter(|pulse| pulse.round().into() >= round.clone().into())
+						.filter_map(|pulse| {
+							let bytes = pulse.sig();
+							// if a signature can't be decoded from the message then we ignore it
+							// and continue
+							G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()
+						})
+						.inspect(|_| height += 1)
+						.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| {
+							(acc + sig).into()
+						});
 
-					return Some(Call::try_submit_asig { pulses });
+					let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
+					// [SRLABS]: This error is untestable since we know the signature is correct here.
+					//  Is it reasonable to use an expect?
+					asig.serialize_compressed(&mut asig_bytes)
+						.expect("The signature is well formatted. qed.");
+
+					return Some(Call::try_submit_asig {
+						asig: OpaqueSignature::try_from(asig_bytes)
+							.expect("The signature is well formatted. qed."),
+						height: height as RoundNumber,
+					});
 				}
 			}
 
@@ -262,13 +288,14 @@ pub mod pallet {
 		#[pallet::call_index(0)]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(
 			T::MaxSigsPerBlock::get().into())
-				.saturating_add(
-					T::Dispatcher::dispatch_weight(pulses.len()))
+				// .saturating_add(
+				// 	T::Dispatcher::dispatch_weight(pulses.len()))
 		)]
 		#[allow(clippy::useless_conversion)]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
-			pulses: Vec<T::Pulse>,
+			asig: OpaqueSignature,
+			height: RoundNumber,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
@@ -276,7 +303,6 @@ pub mod pallet {
 
 			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
 			// 0 < num_sigs <= MaxSigsPerBlock
-			let height: u64 = pulses.len() as u64;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
 			ensure!(
 				height <= T::MaxSigsPerBlock::get() as u64,
@@ -285,20 +311,15 @@ pub mod pallet {
 
 			let latest_round: RoundOf<T> =
 				LatestRound::<T>::get().expect("The latest round must be set; qed");
-			// aggregate old asig/apk with the new one and verify the aggregation
-			let mut sigs: Vec<Vec<u8>> = Vec::new();
-			for p in &pulses {
-				let s: Vec<u8> = p.sig().as_ref().to_vec();
-				sigs.push(s);
-			}
 
 			let prev_acc: Option<OpaqueAccumulation> =
 				SparseAccumulation::<T>::get().map(|a| a.into());
 
 			let acc = T::SignatureVerifier::verify(
 				config.public_key.as_ref().to_vec(),
-				sigs.clone(),
+				asig.clone().as_ref().to_vec(),
 				latest_round.clone().into(),
+				height,
 				prev_acc,
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
@@ -311,7 +332,7 @@ pub mod pallet {
 			DidUpdate::<T>::put(true);
 
 			// dispatch pulses to subscribers
-			T::Dispatcher::dispatch(pulses)?;
+			// T::Dispatcher::dispatch(pulses)?;
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 			// Insert the latest round into the header digest

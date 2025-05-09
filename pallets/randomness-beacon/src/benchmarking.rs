@@ -26,9 +26,7 @@ use ark_serialize::CanonicalSerialize;
 use ark_std::{ops::Mul, test_rng, UniformRand};
 use frame_benchmarking::v2::*;
 use frame_system::RawOrigin;
-use sp_consensus_randomness_beacon::types::{
-	OpaquePublicKey, OpaqueSignature, RoundNumber, RuntimePulse,
-};
+use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
 
@@ -60,7 +58,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn try_submit_asig(
-		r: Linear<2, { T::MaxSigsPerBlock::get().into() }>,
+		r: Linear<1, { T::MaxSigsPerBlock::get().into() }>,
 	) -> Result<(), BenchmarkError> {
 		let drand = MockDrand::new();
 
@@ -71,24 +69,13 @@ mod benchmarks {
 		let mut asig = G1Affine::zero();
 		let mut apk = G1Affine::zero();
 
-		let pulses = (1..r)
-			.map(|i| {
-				let mut bytes = Vec::new();
-				let id = compute_round_on_g1(i.into()).unwrap();
-				apk = (apk + id).into();
+		(0..r).for_each(|i| {
+			let id = compute_round_on_g1(i.into()).unwrap();
+			apk = (apk + id).into();
 
-				let sig = drand.sign(i.into());
-				asig = (asig + sig).into();
-
-				sig.serialize_compressed(&mut bytes).unwrap();
-				let signature: OpaqueSignature = bytes.try_into().unwrap();
-
-				let op = RuntimePulse { round: i as u64, signature };
-				let encoded = op.encode();
-				let out: T::Pulse = T::Pulse::decode(&mut encoded.as_slice()).unwrap();
-				out
-			})
-			.collect::<Vec<_>>();
+			let sig = drand.sign(i.into());
+			asig = (asig + sig).into();
+		});
 
 		let mut asig_bytes = Vec::new();
 		asig.serialize_compressed(&mut asig_bytes).unwrap();
@@ -97,12 +84,12 @@ mod benchmarks {
 		apk.serialize_compressed(&mut apk_bytes).unwrap();
 
 		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
-		let config = BeaconConfigurationOf::<T> { genesis_round: 1u64.into(), public_key: pubkey };
+		let config = BeaconConfigurationOf::<T> { genesis_round: 0u64.into(), public_key: pubkey };
 
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
 
 		#[extrinsic_call]
-		_(RawOrigin::None, pulses);
+		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), r.into());
 
 		assert_eq!(
 			SparseAccumulation::<T>::get(),
