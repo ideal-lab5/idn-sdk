@@ -253,7 +253,7 @@ impl<T: Config> Pallet<T> {
 			Some(sub_id) => sub_id,
 			None => {
 				let salt = frame_system::Pallet::<T>::block_number().encode();
-				let sub_id = params.hash(salt).into();
+				let sub_id = params.hash(&salt).into();
 				params.sub_id = Some(sub_id);
 				sub_id
 			},
@@ -335,7 +335,7 @@ impl<T: Config> Pallet<T> {
 			Some(req_ref) => req_ref,
 			None => {
 				let salt = frame_system::Pallet::<T>::block_number().encode();
-				create_sub_params.hash(salt).into()
+				create_sub_params.hash(&salt).into()
 			},
 		};
 
@@ -366,7 +366,7 @@ impl<T: Config> Pallet<T> {
 			Some(req_ref) => req_ref,
 			None => {
 				let salt = frame_system::Pallet::<T>::block_number().encode();
-				sub_id.hash(salt).into()
+				sub_id.hash(&salt).into()
 			},
 		};
 		let req = SubInfoRequest { sub_id, req_ref, call_index: Self::sub_info_callback_index()? };

@@ -41,13 +41,13 @@ use sp_io::hashing::blake2_256;
 
 /// Trait for hashing with a salt.
 pub trait Hashable {
-	fn hash(&self, salt: Vec<u8>) -> H256;
+	fn hash(&self, salt: &[u8]) -> H256;
 }
 impl<T> Hashable for T
 where
 	T: Encode,
 {
-	fn hash(&self, salt: Vec<u8>) -> H256 {
+	fn hash(&self, salt: &[u8]) -> H256 {
 		let id_tuple = (self, salt);
 		// Encode the tuple using SCALE codec.
 		let encoded = id_tuple.encode();

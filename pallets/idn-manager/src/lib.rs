@@ -54,9 +54,15 @@ pub mod primitives;
 pub mod traits;
 pub mod weights;
 
-use crate::primitives::{
-	CallIndex, CreateSubParams, PulseFilter, Quote, QuoteSubParams, SubInfoRequest,
-	Subscription as SubscriptionTrait, SubscriptionMetadata,
+use crate::{
+	primitives::{
+		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteSubParams, SubInfoRequest,
+		SubscriptionMetadata,
+	},
+	traits::{
+		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
+		Subscription as SubscriptionTrait,
+	},
 };
 use codec::{Codec, Decode, DecodeWithMemTracking, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::{
@@ -959,7 +965,7 @@ impl<T: Config> Pallet<T> {
 	) -> T::SubscriptionId {
 		let mut salt = current_block.encode();
 		salt.extend(subscriber.encode());
-		params.hash(salt).into()
+		params.hash(&salt).into()
 	}
 
 	/// Holds fees for a subscription.
