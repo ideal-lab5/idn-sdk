@@ -37,9 +37,7 @@ use bp_idn::{
 use cumulus_primitives_core::ParaId;
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
-	pallet_prelude::{
-		Decode, DecodeWithMemTracking, Encode, EnsureOrigin, Get, IsType, Pays, Weight,
-	},
+	pallet_prelude::{Decode, DecodeWithMemTracking, Encode, EnsureOrigin, Get, IsType, Pays},
 	sp_runtime::traits::AccountIdConversion,
 };
 use frame_system::{pallet_prelude::OriginFor, RawOrigin};
@@ -115,7 +113,7 @@ pub mod pallet {
 		/// execute XCM programs.
 		type Xcm: xcm_builder::SendController<OriginFor<Self>>;
 
-		/// The IDN Manager pallet id.
+		/// This pallet id.
 		#[pallet::constant]
 		type PalletId: Get<frame_support::PalletId>;
 
