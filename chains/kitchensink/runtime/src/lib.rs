@@ -317,7 +317,7 @@ impl pallet_idn_consumer::Config for Runtime {
 	type PalletId = ConsumerPalletId;
 	type ParaId = ConsumerParaId;
 	type AssetHubFee = AssetHubFee;
-	type WeightInfo = ();
+	type WeightInfo = pallet_idn_consumer::weights::SubstrateWeight<Runtime>;
 }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;

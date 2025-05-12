@@ -183,7 +183,7 @@ mod benchmarks {
 				sub_id,
 				req_ref,
 			)
-			.expect("quote_subscription should not fail");
+			.expect("request_quote should not fail");
 		}
 	}
 	impl_benchmark_test_suite!(
@@ -199,7 +199,7 @@ mod benchmarks {
 		#[block]
 		{
 			IdnConsumer::<T>::request_sub_info(sub_id, None)
-				.expect("consume_sub_info should not fail");
+				.expect("request_sub_info should not fail");
 		}
 	}
 }
