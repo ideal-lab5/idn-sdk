@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-mod mock;
+pub mod mock;
 
 use crate::{Pulse, Quote, SubInfoResponse};
 use frame_support::assert_ok;
@@ -264,7 +264,7 @@ fn test_quote_subscription() {
 		let req_ref = None;
 
 		// Call the function
-		let result = crate::Pallet::<Test>::quote_subscription(
+		let result = crate::Pallet::<Test>::request_quote(
 			credits,
 			frequency,
 			metadata,
@@ -293,7 +293,7 @@ fn test_quote_subscription_fails() {
 		System::set_block_number(1_234_567);
 
 		// Call the function and assert failure
-		let result = crate::Pallet::<Test>::quote_subscription(
+		let result = crate::Pallet::<Test>::request_quote(
 			credits,
 			frequency,
 			metadata,
@@ -469,7 +469,7 @@ fn test_get_subscription_success() {
 		let req_ref = None;
 
 		// Call the function and assert success
-		assert_ok!(crate::Pallet::<Test>::get_subscription(sub_id, req_ref));
+		assert_ok!(crate::Pallet::<Test>::request_sub_info(sub_id, req_ref));
 	});
 }
 
@@ -484,7 +484,7 @@ fn test_get_subscription_fails() {
 		System::set_block_number(1_234_567);
 
 		// Call the function and assert failure
-		let result = crate::Pallet::<Test>::get_subscription(sub_id, req_ref);
+		let result = crate::Pallet::<Test>::request_sub_info(sub_id, req_ref);
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
 	});
 }
