@@ -418,11 +418,8 @@ pub mod pallet {
 		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
 		/// execute. See [`on_finalize`](https://paritytech.github.io/polkadot-sdk/master/frame_support/traits/trait.Hooks.html#method.on_finalize).
 		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
-			// [SRLABS]: what about passing `Subscriptions::<T>::iter().count()` instead of
-			// `T::MaxSubscriptions::get()`?
-			// Problem would be if there are new created subscriptions that reach `credits_left`
-			// zero in this same block. This could be the case of a subcription that needs only one
-			// (or two) pulses
+			// We assume the worst case scenario, that is, all subscriptions are finishing in this
+			// block.
 			<T as pallet::Config>::WeightInfo::on_finalize(T::MaxSubscriptions::get())
 		}
 
