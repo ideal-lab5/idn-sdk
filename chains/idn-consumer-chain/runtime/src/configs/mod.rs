@@ -326,4 +326,6 @@ impl pallet_idn_consumer::Config for Runtime {
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
 	type AssetHubFee = AssetHubFee;
+	// TODO: run benchmarks against reference hw https://github.com/ideal-lab5/idn-sdk/issues/235
+	type WeightInfo = ();
 }

@@ -23,6 +23,8 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarks;
 
+mod impls;
+
 extern crate alloc;
 
 use crate::{
@@ -178,6 +180,10 @@ mod runtime {
 	/// Provides a way to ingest randomness.
 	#[runtime::pallet_index(6)]
 	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
+
+	/// Provides a way to consume randomness.
+	#[runtime::pallet_index(7)]
+	pub type IdnConsumer = pallet_idn_consumer::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -277,6 +283,41 @@ impl pallet_idn_manager::Config for Runtime {
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
 	type SiblingOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, AllowSiblingsOnly>;
+}
+
+pub const MOCK_IDN_PARA_ID: u32 = 88;
+parameter_types! {
+	pub MockSiblingIdnLocation: Location = Location::new(1, Parachain(MOCK_IDN_PARA_ID));
+	pub const ConsumerParaId: u32 = 2001;
+	pub const ConsumerPalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_cons");
+	pub const AssetHubFee: u128 = 1_000;
+}
+
+pub struct AllowIdnSiblingOnly;
+impl Contains<Location> for AllowIdnSiblingOnly {
+	fn contains(location: &Location) -> bool {
+		matches!(location.unpack(), (1, [Parachain(MOCK_IDN_PARA_ID)]))
+	}
+}
+
+impl TryConvert<RuntimeOrigin, Location> for AllowIdnSiblingOnly {
+	// There's no XCM in the Kitchensink runtime, so we can just return a hardcoded value.
+	fn try_convert(_origin: RuntimeOrigin) -> Result<Location, RuntimeOrigin> {
+		Ok(Location::new(1, [Parachain(MOCK_IDN_PARA_ID)]))
+	}
+}
+impl pallet_idn_consumer::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type PulseConsumer = impls::PulseConsumerImpl;
+	type QuoteConsumer = impls::QuoteConsumerImpl;
+	type SubInfoConsumer = impls::SubInfoConsumerImpl;
+	type SiblingIdnLocation = MockSiblingIdnLocation;
+	type IdnOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, AllowIdnSiblingOnly>;
+	type Xcm = ();
+	type PalletId = ConsumerPalletId;
+	type ParaId = ConsumerParaId;
+	type AssetHubFee = AssetHubFee;
+	type WeightInfo = pallet_idn_consumer::weights::SubstrateWeight<Runtime>;
 }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;
