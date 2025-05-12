@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-pub mod mock;
+pub(crate) mod mock;
 
 use crate::{Pulse, Quote, SubInfoResponse};
 use frame_support::assert_ok;

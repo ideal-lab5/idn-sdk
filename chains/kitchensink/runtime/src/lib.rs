@@ -312,7 +312,6 @@ impl pallet_idn_consumer::Config for Runtime {
 	type QuoteConsumer = impls::QuoteConsumerImpl;
 	type SubInfoConsumer = impls::SubInfoConsumerImpl;
 	type SiblingIdnLocation = MockSiblingIdnLocation;
-	// In a real runtime, this should be changed to allow only the IDN sibiling.
 	type IdnOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, AllowIdnSiblingOnly>;
 	type Xcm = ();
 	type PalletId = ConsumerPalletId;
