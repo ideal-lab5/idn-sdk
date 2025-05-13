@@ -23,7 +23,6 @@ use frame_benchmarking::v2::*;
 use frame_support::sp_runtime::AccountId32;
 use frame_system::{Pallet as System, RawOrigin};
 
-// pub const MOCK_PULSE: Pulse = Pulse::new([0u8;48], [1u8;48]);
 pub const MOCK_QUOTE: Quote = Quote { req_ref: [0u8; 32], deposit: 1_000_000_000, fees: 1_000_000 };
 pub const MOCK_SUB: Subscription = Subscription {
 	id: [1u8; 32],

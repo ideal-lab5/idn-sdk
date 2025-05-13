@@ -226,7 +226,7 @@ fn test_quote_subscription() {
 		let req_ref = None;
 
 		// Call the function
-		let result = crate::Pallet::<Test>::quote_subscription(
+		let result = crate::Pallet::<Test>::request_quote(
 			credits, frequency, metadata, sub_id, req_ref,
 		);
 
@@ -249,7 +249,7 @@ fn test_quote_subscription_fails() {
 		System::set_block_number(1_234_567);
 
 		// Call the function and assert failure
-		let result = crate::Pallet::<Test>::quote_subscription(
+		let result = crate::Pallet::<Test>::request_quote(
 			credits, frequency, metadata, sub_id, req_ref,
 		);
 

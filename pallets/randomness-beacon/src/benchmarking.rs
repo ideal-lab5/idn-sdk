@@ -80,7 +80,7 @@ mod benchmarks {
 		apk.serialize_compressed(&mut apk_bytes).unwrap();
 
 		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
-		let config = BeaconConfigurationOf::<T> { genesis_round: 0u64.into(), public_key: pubkey };
+		let config = BeaconConfigurationOf::<T> { genesis_round: 0u64, public_key: pubkey };
 
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
 
@@ -115,7 +115,7 @@ mod benchmarks {
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
 		let public_key = [1; 96];
 		let config = BeaconConfigurationOf::<T> {
-			genesis_round: 1u64.into(),
+			genesis_round: 1u64,
 			public_key: public_key.into(),
 		};
 
