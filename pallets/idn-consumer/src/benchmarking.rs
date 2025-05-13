@@ -23,7 +23,7 @@ use frame_benchmarking::v2::*;
 use frame_support::sp_runtime::AccountId32;
 use frame_system::{Pallet as System, RawOrigin};
 
-pub const MOCK_PULSE: Pulse = Pulse { round: 0, signature: [0u8; 48] };
+// pub const MOCK_PULSE: Pulse = Pulse::new([0u8;48], [1u8;48]);
 pub const MOCK_QUOTE: Quote = Quote { req_ref: [0u8; 32], deposit: 1_000_000_000, fees: 1_000_000 };
 pub const MOCK_SUB: Subscription = Subscription {
 	id: [1u8; 32],
@@ -40,7 +40,6 @@ pub const MOCK_SUB: Subscription = Subscription {
 	frequency: 0,
 	metadata: None,
 	last_delivered: None,
-	pulse_filter: None,
 };
 pub const MOCK_SUB_INFO: SubInfoResponse = SubInfoResponse { req_ref: [0u8; 32], sub: MOCK_SUB };
 
@@ -58,12 +57,11 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(sibling_account.clone());
 		let sub_id = [1u8; 32];
 
+		let pulse: Pulse = Pulse::new([0u8; 48], [1u8; 48]);
 		#[extrinsic_call]
-		_(origin, MOCK_PULSE, sub_id);
+		_(origin, pulse, sub_id);
 
-		System::<T>::assert_last_event(
-			Event::<T>::RandomnessConsumed { round: MOCK_PULSE.round(), sub_id }.into(),
-		);
+		System::<T>::assert_last_event(Event::<T>::RandomnessConsumed { sub_id }.into());
 	}
 
 	#[benchmark]
@@ -95,19 +93,12 @@ mod benchmarks {
 		let credits = 10;
 		let frequency = 5;
 		let metadata = None;
-		let pulse_filter = None;
 		let sub_id = None;
 
 		#[block]
 		{
-			IdnConsumer::<T>::create_subscription(
-				credits,
-				frequency,
-				metadata,
-				pulse_filter,
-				sub_id,
-			)
-			.expect("create_subscription should not fail");
+			IdnConsumer::<T>::create_subscription(credits, frequency, metadata, sub_id)
+				.expect("create_subscription should not fail");
 		}
 	}
 
@@ -138,18 +129,11 @@ mod benchmarks {
 		let credits = 10;
 		let frequency = 5;
 		let metadata = None;
-		let pulse_filter = None;
 
 		#[block]
 		{
-			IdnConsumer::<T>::update_subscription(
-				sub_id,
-				Some(credits),
-				Some(frequency),
-				metadata,
-				pulse_filter,
-			)
-			.expect("update_subscription should not fail");
+			IdnConsumer::<T>::update_subscription(sub_id, Some(credits), Some(frequency), metadata)
+				.expect("update_subscription should not fail");
 		}
 	}
 
@@ -171,19 +155,11 @@ mod benchmarks {
 		let credits = 10;
 		let frequency = 5;
 		let metadata = None;
-		let pulse_filter = None;
 
 		#[block]
 		{
-			IdnConsumer::<T>::request_quote(
-				credits,
-				frequency,
-				metadata,
-				pulse_filter,
-				sub_id,
-				req_ref,
-			)
-			.expect("request_quote should not fail");
+			IdnConsumer::<T>::request_quote(credits, frequency, metadata, sub_id, req_ref)
+				.expect("request_quote should not fail");
 		}
 	}
 	impl_benchmark_test_suite!(

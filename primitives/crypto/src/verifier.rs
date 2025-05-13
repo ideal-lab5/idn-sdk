@@ -197,12 +197,7 @@ pub mod tests {
 		let (asig, _ignore_amsg, _pulses) = get(vec![PULSE1000]);
 		let (_ignore_asig, amsg, _ignore_pulses) = get(vec![PULSE1001]);
 
-		let res = QuicknetVerifier::verify(
-			beacon_pk_bytes.try_into().unwrap(),
-			asig,
-			amsg,
-			None,
-		);
+		let res = QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), asig, amsg, None);
 		assert!(res.is_err());
 		assert_eq!(Err(CryptoError::InvalidSignature), res);
 	}

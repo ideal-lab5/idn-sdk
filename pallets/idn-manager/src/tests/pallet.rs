@@ -21,8 +21,8 @@ use crate::{
 	runtime_decl_for_idn_manager_api::IdnManagerApiV1,
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
-	Config, CreateSubParamsOf, Error, Event, HoldReason, SubInfoRequestOf,
-	SubscriptionState, Subscriptions, UpdateSubParamsOf,
+	Config, CreateSubParamsOf, Error, Event, HoldReason, SubInfoRequestOf, SubscriptionState,
+	Subscriptions, UpdateSubParamsOf,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -609,12 +609,7 @@ fn update_does_not_update_when_params_are_none() {
 
 		assert_ok!(IdnManager::update_subscription(
 			RuntimeOrigin::signed(ALICE),
-			UpdateSubParamsOf::<Test> {
-				sub_id,
-				credits: None,
-				frequency: None,
-				metadata: None,
-			}
+			UpdateSubParamsOf::<Test> { sub_id, credits: None, frequency: None, metadata: None }
 		));
 
 		let sub = Subscriptions::<Test>::get(sub_id).unwrap();
@@ -660,7 +655,7 @@ fn test_credits_consumption_and_cleanup() {
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000_000;
 		let mut treasury_balance = 0;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8;48], sig: [1u8;48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -780,7 +775,7 @@ fn test_credits_consumption_not_enough_balance() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8;48], sig: [1u8;48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -834,7 +829,7 @@ fn test_credits_consumption_frequency() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 3; // Every 3 blocks
 		let initial_balance = 10_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8;48], sig: [1u8;48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);

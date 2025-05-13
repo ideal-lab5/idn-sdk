@@ -29,8 +29,8 @@ pub mod weights;
 
 use bp_idn::{
 	types::{
-		BlockNumber as IdnBlockNumber, CallIndex, CreateSubParams, Credits, Metadata,
-		QuoteRequest, QuoteSubParams, RequestReference, SubInfoRequest, UpdateSubParams,
+		BlockNumber as IdnBlockNumber, CallIndex, CreateSubParams, Credits, Metadata, QuoteRequest,
+		QuoteSubParams, RequestReference, SubInfoRequest, UpdateSubParams,
 	},
 	Call as RuntimeCall, IdnManagerCall,
 };

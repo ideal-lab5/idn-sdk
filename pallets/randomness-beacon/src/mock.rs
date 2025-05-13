@@ -2,7 +2,7 @@ use crate as pallet_randomness_beacon;
 use crate::*;
 use bp_idn::types::*;
 use frame_support::{derive_impl, traits::ConstU8};
-use sp_idn_crypto::verifier::{SignatureVerifier, QuicknetVerifier};
+use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 

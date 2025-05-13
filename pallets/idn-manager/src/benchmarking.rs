@@ -18,9 +18,8 @@
 
 use super::*;
 use crate::{
-	pallet::Pallet as IdnManager,
-	primitives::QuoteRequest,
-	CreateSubParamsOf, SubInfoRequestOf, UpdateSubParamsOf,
+	pallet::Pallet as IdnManager, primitives::QuoteRequest, CreateSubParamsOf, SubInfoRequestOf,
+	UpdateSubParamsOf,
 };
 use frame_benchmarking::v2::*;
 use frame_support::{
@@ -150,9 +149,7 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn update_subscription(
-		m: Linear<0, { T::MaxMetadataLen::get() }>,
-	) {
+	fn update_subscription(m: Linear<0, { T::MaxMetadataLen::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
@@ -328,9 +325,7 @@ mod benchmarks {
 
 	/// Benchmark dispatching a single pulse to `p` subscriptions
 	#[benchmark]
-	fn dispatch_pulse(
-		s: Linear<1, { T::MaxSubscriptions::get() }>,
-	) {
+	fn dispatch_pulse(s: Linear<1, { T::MaxSubscriptions::get() }>) {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
@@ -377,7 +372,7 @@ mod benchmarks {
 	fn fill_up_subscriptions<T: Config>(s: u32)
 	where
 		T::Credits: From<u64>,
-		T::Currency: Mutate<T::AccountId>
+		T::Currency: Mutate<T::AccountId>,
 	{
 		let subscriber: T::AccountId = whitelisted_caller();
 		let credits: T::Credits = 100u64.into();

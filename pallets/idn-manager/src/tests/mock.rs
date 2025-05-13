@@ -76,8 +76,8 @@ parameter_types! {
 }
 
 type Rand = [u8; 32];
-type Sig = [u8;48];
-type Pubkey = [u8;96];
+type Sig = [u8; 48];
+type Pubkey = [u8; 96];
 
 #[derive(Encode, Clone, Copy, PartialEq, TypeInfo, Debug, Decode)]
 pub struct Pulse {
@@ -110,7 +110,7 @@ impl sp_idn_traits::pulse::Pulse for Pulse {
 
 impl Default for Pulse {
 	fn default() -> Self {
-		Pulse { rand: Rand::default(), message: [1u8;48], sig: [0u8;48] }
+		Pulse { rand: Rand::default(), message: [1u8; 48], sig: [0u8; 48] }
 	}
 }
 

@@ -223,7 +223,7 @@ pub mod pallet {
 					let asig = raw_pulses
 						.iter()
 						.filter_map(|rp| CanonicalPulse::decode(&mut rp.as_slice()).ok())
-						.filter(|pulse| pulse.round >= round.clone())
+						.filter(|pulse| pulse.round >= round)
 						.filter_map(|pulse| {
 							let bytes = pulse.signature;
 							// if a signature can't be decoded from the message then we ignore it
@@ -349,7 +349,7 @@ pub mod pallet {
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
 
-			LatestRound::<T>::set(Some(new_latest_round.clone()));
+			LatestRound::<T>::set(Some(new_latest_round));
 
 			let sacc = Accumulation::try_from(acc).map_err(|_| Error::<T>::VerificationFailed)?;
 			SparseAccumulation::<T>::set(Some(sacc.clone()));
@@ -386,7 +386,7 @@ pub mod pallet {
 			BeaconConfig::<T>::set(Some(config.clone()));
 
 			let genesis = config.genesis_round;
-			LatestRound::<T>::set(Some(genesis.clone()));
+			LatestRound::<T>::set(Some(genesis));
 			// set the genesis round as the default digest log for the initial valid round number
 			let digest_item: DigestItem =
 				ConsensusLog::<RoundNumber>::LatestRoundNumber(genesis).into();

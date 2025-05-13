@@ -54,7 +54,7 @@ pub struct RuntimePulse {
 
 impl Default for RuntimePulse {
 	fn default() -> Self {
-		Self { message: [0; 48].into(), signature: [0; 48].into() }
+		Self { message: [0; 48], signature: [0; 48] }
 	}
 }
 
@@ -78,8 +78,8 @@ impl sp_idn_traits::pulse::Pulse for RuntimePulse {
 
 	fn rand(&self) -> Self::Rand {
 		let mut hasher = Sha256::default();
-		hasher.update(self.signature.clone().to_vec());
-		hasher.finalize().try_into().unwrap_or([0; 32])
+		hasher.update(self.signature);
+		hasher.finalize().into()
 	}
 
 	fn message(&self) -> Self::Sig {
@@ -91,16 +91,13 @@ impl sp_idn_traits::pulse::Pulse for RuntimePulse {
 	}
 
 	fn authenticate(&self, pubkey: Self::Pubkey) -> bool {
-		if let Ok(_) = QuicknetVerifier::verify(
+		QuicknetVerifier::verify(
 			pubkey.as_ref().to_vec(),
 			self.sig().as_ref().to_vec(),
 			self.message().as_ref().to_vec(),
 			None,
-		) {
-			return true;
-		}
-
-		false
+		)
+		.is_ok()
 	}
 }
 
