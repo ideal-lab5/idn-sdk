@@ -154,7 +154,7 @@ fn can_submit_valid_sigs_in_sequence() {
 #[test]
 fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 	let (asig, _amsg1, _raw) = get(vec![PULSE1000, PULSE1001]);
-	// let sigs = as_pulses(raw);
+
 	let config = get_config(1000);
 
 	new_test_ext().execute_with(|| {

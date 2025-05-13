@@ -103,7 +103,7 @@ type FeesManagerPhantom<Treasury, BaseFee, Sub, Balances> =
 /// # Tests
 ///
 /// ## Calculate Subscription Fees Test
-// FIX #[doc = docify::embed!("./src/tests/pallet.rs", test_calculate_subscription_fees)]
+#[doc = docify::embed!("./src/tests/pallet.rs", test_calculate_subscription_fees)]
 impl<
 		T: Get<AccountId32>,
 		B: Get<Balances::Balance>,
@@ -265,10 +265,10 @@ where
 /// # Tests
 ///
 /// ## Hold Deposit Test
-// FIX #[doc = docify::embed!("./src/tests/pallet.rs", hold_deposit_works)]
+#[doc = docify::embed!("./src/tests/pallet.rs", hold_deposit_works)]
 ///
 /// ## Release Deposit Test
-// FIX #[doc = docify::embed!("./src/tests/pallet.rs", release_deposit_works)]
+#[doc = docify::embed!("./src/tests/pallet.rs", release_deposit_works)]
 pub struct DepositCalculatorImpl<SDMultiplier: Get<Deposit>, Deposit> {
 	pub _phantom: (PhantomData<SDMultiplier>, PhantomData<Deposit>),
 }
