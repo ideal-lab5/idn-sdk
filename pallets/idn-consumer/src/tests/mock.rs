@@ -157,6 +157,7 @@ impl pallet_idn_consumer::Config for Test {
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
 	type AssetHubFee = AssetHubFee;
+	type WeightInfo = ();
 }
 
 pub struct ExtBuilder;
