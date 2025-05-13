@@ -313,7 +313,7 @@ impl<T: Config> Pallet<T> {
 		sub_id: Option<SubscriptionId>,
 		// Optional quote request reference, if None, a new one will be generated
 		req_ref: Option<RequestReference>,
-	) -> Result<SubscriptionId, Error<T>> {
+	) -> Result<RequestReference, Error<T>> {
 		let create_sub_params = CreateSubParams {
 			credits,
 			target: Self::pallet_location()?,
@@ -354,7 +354,7 @@ impl<T: Config> Pallet<T> {
 		sub_id: SubscriptionId,
 		// Optional quote request reference, if None, a new one will be generated
 		req_ref: Option<RequestReference>,
-	) -> Result<(), Error<T>> {
+	) -> Result<RequestReference, Error<T>> {
 		// If `req_ref` is not provided, generate a new one and assign it to the params
 		let req_ref = match req_ref {
 			Some(req_ref) => req_ref,
@@ -368,7 +368,7 @@ impl<T: Config> Pallet<T> {
 
 		Self::xcm_send(call)?;
 
-		Ok(())
+		Ok(req_ref)
 	}
 
 	fn xcm_send(call: RuntimeCall) -> Result<(), Error<T>> {
