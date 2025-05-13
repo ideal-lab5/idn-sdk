@@ -30,11 +30,7 @@ use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
 
-#[benchmarks(
-	where
-		<T::Pulse as Pulse>::Round: From<u64>,
-		<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
-)]
+#[benchmarks(where <T::Pulse as Pulse>::Pubkey: From<[u8;96]>)]
 mod benchmarks {
 	use super::*;
 

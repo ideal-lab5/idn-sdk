@@ -26,8 +26,7 @@
 
 use codec::{DecodeWithMemTracking, EncodeLike};
 use frame_support::pallet_prelude::{Decode, Encode, MaxEncodedLen, TypeInfo, Weight};
-use sp_arithmetic::traits::Saturating;
-use sp_std::{fmt::Debug, vec::Vec};
+use sp_std::fmt::Debug;
 
 /// A trait for dispatching random data from pulses.
 ///
@@ -49,7 +48,7 @@ pub trait Dispatcher<P: Pulse, O> {
 	///
 	/// # Returns
 	/// The result of processing the random data, type depends on implementation
-	fn dispatch(pulses: Vec<P>) -> O;
+	fn dispatch(pulses: P) -> O;
 
 	/// Returns the weight of dispatching a given number of pulses
 	fn dispatch_weight(pulses: usize) -> Weight;
@@ -63,11 +62,11 @@ pub trait Dispatcher<P: Pulse, O> {
 #[derive(
 	Encode, Decode, DecodeWithMemTracking, TypeInfo, MaxEncodedLen, Debug, PartialEq, Clone,
 )]
-pub enum PulseProperty<RandType, RoundType, SigType> {
+pub enum PulseProperty<RandType, SigType> {
 	/// The random value for a pulse.
 	Rand(RandType),
 	/// The round number for a pulse.
-	Round(RoundType),
+	Message(SigType),
 	/// The signature for a pulse.
 	Sig(SigType),
 }
@@ -102,24 +101,22 @@ pub trait Pulse {
 		+ Clone
 		+ EncodeLike;
 
-	/// The type of the round number contained in this pulse
-	///
-	/// This is typically an unsigned integer that represents the sequential
-	/// identifier for this pulse from the randomness beacon.
-	type Round: Decode
-		+ TypeInfo
-		+ MaxEncodedLen
-		+ Debug
-		+ PartialEq
-		+ Clone
-		+ EncodeLike
-		+ Saturating
-		+ Into<u64>
-		+ From<u64>;
+	// /// The type of the message signed by the beacon
+	// ///
+	// /// This is typically a fixed-size byte array, e.g. `[u8;48]`, constructed from a serialized
+	// and compressed group element //  that represents the aggregation of messages signed by the
+	// randomness beacon. type Message: Decode
+	// 	+ TypeInfo
+	// 	+ MaxEncodedLen
+	// 	+ Debug
+	// 	+ PartialEq
+	// 	+ Clone
+	// 	+ EncodeLike
+	// 	+ AsRef<[u8]>;
 
 	/// The type of the signature contained in this pulse
 	///
-	/// This is typically a  byte array or a specific signature type
+	/// This is typically a fixed-size byte array, e.g. `[u8;48]` or a specific signature type
 	/// that represents the signature for this pulse.
 	type Sig: Decode
 		+ TypeInfo
@@ -132,7 +129,7 @@ pub trait Pulse {
 
 	/// The type of the public key required to verify this signature
 	///
-	/// This is typically a  byte array or a specific public key type
+	/// This is typically a fixed-size byte array, e.g. `[u8; 96]` or a specific public key type
 	type Pubkey: Decode
 		+ TypeInfo
 		+ MaxEncodedLen
@@ -147,18 +144,22 @@ pub trait Pulse {
 	/// Returns the random value contained in this pulse.
 	fn rand(&self) -> Self::Rand;
 
-	/// Get the round number from this pulse
+	/// Get the aggregated message
 	///
-	/// Returns the sequential identifier for this pulse in the randomness beacon sequence.
-	/// Round numbers typically increase monotonically.
-	fn round(&self) -> Self::Round;
+	/// Returns the aggregated messages used to construct consecutive sigs from randomness beacon
+	/// Messages are typically constructed by aggregating the hash of a monotonically increasing
+	/// sequence starting at the network's known 'genesis' round up until the latest. That is, the
+	/// message here looks like: H(r_0) + H(r_1) + ... + H(r_n) where r_1, ..., r_n are sequential
+	/// round numbers and H is a crypto hash function (ex. sha256).
+	fn message(&self) -> Self::Sig;
 
 	/// Get the signature from this pulse
 	///
 	/// Returns the signature contained in this pulse.
 	fn sig(&self) -> Self::Sig;
 
-	/// Checks if the pulse ([round, signature]-combination) is valid against a beacon public key
+	/// Checks if the pulse ([message, signature]-combination) is valid against a given beacon
+	/// public key
 	///
 	/// Returns `true` when valid, `false` otherwise.
 	fn authenticate(&self, pubkey: Self::Pubkey) -> bool;
@@ -191,7 +192,7 @@ pub trait Pulse {
 /// use sp_idn_traits::pulse::{Pulse, PulseMatch, PulseProperty};
 /// struct MyPulse {
 ///     rand: [u8; 3],
-///     round: u64,
+///     message: [u8; 8],
 ///     signature: [u8; 8],
 /// }
 /// impl Pulse for MyPulse {
@@ -199,8 +200,9 @@ pub trait Pulse {
 ///     type Round = u64;
 ///     type Sig = [u8; 8];
 ///     type Pubkey = [u8;8];
+///
 ///     fn rand(&self) -> Self::Rand { self.rand }
-///     fn round(&self) -> Self::Round { self.round }
+///     fn message(&self) -> Self::Sig { self.message }
 ///     fn sig(&self) -> Self::Sig { self.signature }
 ///     fn authenticate(&self, pubkey: Self::Pubkey) -> bool { true }
 /// }
@@ -232,10 +234,10 @@ pub trait PulseMatch: Pulse {
 	/// # Returns
 	/// * `true` - If the pulse matches the property value
 	/// * `false` - If the pulse does not match the property value
-	fn match_prop(&self, prop: PulseProperty<Self::Rand, Self::Round, Self::Sig>) -> bool {
+	fn match_prop(&self, prop: PulseProperty<Self::Rand, Self::Sig>) -> bool {
 		match prop {
 			PulseProperty::Rand(rand) => self.rand() == rand,
-			PulseProperty::Round(round) => self.round() == round,
+			PulseProperty::Message(message) => self.message() == message,
 			PulseProperty::Sig(sig) => self.sig() == sig,
 		}
 	}

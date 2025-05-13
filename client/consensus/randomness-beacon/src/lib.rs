@@ -17,6 +17,3 @@
 extern crate alloc;
 
 pub mod gossipsub;
-
-#[cfg(test)]
-mod tests;

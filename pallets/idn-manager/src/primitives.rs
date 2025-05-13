@@ -26,8 +26,7 @@ use xcm::v5::{Junction::Parachain, Location};
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
 
 /// The pulse property type used in the pallet, representing various properties of a pulse.
-pub type PulsePropertyOf<P> =
-	PulseProperty<<P as Pulse>::Rand, <P as Pulse>::Round, <P as Pulse>::Sig>;
+pub type PulsePropertyOf<P> = PulseProperty<<P as Pulse>::Rand, <P as Pulse>::Sig>;
 
 /// A filter that controls which pulses are delivered to a subscription
 ///

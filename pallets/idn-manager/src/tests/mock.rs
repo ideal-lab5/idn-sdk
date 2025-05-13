@@ -77,20 +77,18 @@ parameter_types! {
 }
 
 type Rand = [u8; 32];
-type Sig = [u8; 64];
-type Round = u64;
-type Pubkey = [u8; 64];
+type Sig = [u8;48];
+type Pubkey = [u8;96];
 
 #[derive(Encode, Clone, Copy, PartialEq, TypeInfo, Debug, Decode)]
 pub struct Pulse {
 	pub rand: Rand,
-	pub round: Round,
+	pub message: Sig,
 	pub sig: Sig,
 }
 
 impl sp_idn_traits::pulse::Pulse for Pulse {
 	type Rand = Rand;
-	type Round = Round;
 	type Sig = Sig;
 	type Pubkey = Pubkey;
 
@@ -102,8 +100,8 @@ impl sp_idn_traits::pulse::Pulse for Pulse {
 		self.rand
 	}
 
-	fn round(&self) -> Self::Round {
-		self.round
+	fn message(&self) -> Self::Sig {
+		self.message
 	}
 
 	fn authenticate(&self, _pk: Self::Pubkey) -> bool {
@@ -113,7 +111,7 @@ impl sp_idn_traits::pulse::Pulse for Pulse {
 
 impl Default for Pulse {
 	fn default() -> Self {
-		Pulse { rand: Rand::default(), round: Round::default(), sig: [0u8; 64] }
+		Pulse { rand: Rand::default(), message: [1u8;48], sig: [0u8;48] }
 	}
 }
 

@@ -15,6 +15,7 @@
  */
 
 //! Types of IDN runtime
+use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::{parameter_types, PalletId};
 use pallet_idn_manager::{
 	primitives::{
@@ -26,6 +27,10 @@ use pallet_idn_manager::{
 	Subscription as MngSubscription, SubscriptionDetails as MngSubscriptionDetails,
 	UpdateSubParams as MngUpdateSubParams,
 };
+use pallet_randomness_beacon::types::Accumulation;
+use scale_info::TypeInfo;
+use sha2::{Digest, Sha256};
+use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	AccountId32, MultiSignature,
@@ -35,7 +40,57 @@ pub use pallet_idn_manager::{
 	primitives::{CallIndex, RequestReference},
 	SubscriptionState,
 };
-pub use sp_consensus_randomness_beacon::types::RuntimePulse;
+pub use sp_consensus_randomness_beacon::types::*;
+
+/// The runtime pulse represents a verifiable pulse constructed from the aggregation
+/// of one or more valid drand pulses. That is, this struct represents the format
+/// in which subscribers recieve, consume, and verify on-chain randomness
+/// More specifically, it represents an aggregation of pulses and associated messages
+/// output from Drand's Quicknet
+#[derive(Encode, Decode, Debug, Clone, TypeInfo, PartialEq, DecodeWithMemTracking)]
+pub struct RuntimePulse {
+	message: OpaqueSignature,
+	signature: OpaqueSignature,
+}
+
+impl From<Accumulation> for RuntimePulse {
+	fn from(acc: Accumulation) -> Self {
+		RuntimePulse { signature: acc.signature, message: acc.message_hash }
+	}
+}
+
+impl sp_idn_traits::pulse::Pulse for RuntimePulse {
+	type Rand = Randomness;
+	type Sig = OpaqueSignature;
+	type Pubkey = OpaquePublicKey;
+
+	fn rand(&self) -> Self::Rand {
+		let mut hasher = Sha256::default();
+		hasher.update(self.signature.clone().to_vec());
+		hasher.finalize().try_into().unwrap_or([0; 32])
+	}
+
+	fn message(&self) -> Self::Sig {
+		self.message
+	}
+
+	fn sig(&self) -> Self::Sig {
+		self.signature
+	}
+
+	fn authenticate(&self, pubkey: Self::Pubkey) -> bool {
+		if let Ok(_) = QuicknetVerifier::verify(
+			pubkey.as_ref().to_vec(),
+			self.sig().as_ref().to_vec(),
+			self.message().as_ref().to_vec(),
+			None,
+		) {
+			return true;
+		}
+
+		false
+	}
+}
 
 // TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
 // Primitive types
@@ -55,6 +110,7 @@ parameter_types! {
 	/// The maximum length of the metadata vector
 	pub const MaxMetadataLen: u32 = 8;
 }
+
 /// A type that defines the amount of credits in a subscription
 pub type Credits = u64;
 /// The subscription ID

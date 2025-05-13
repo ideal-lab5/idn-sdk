@@ -423,8 +423,7 @@ mod benchmarks {
 	fn fill_up_subscriptions<T: Config>(s: u32, p: u32)
 	where
 		T::Credits: From<u64>,
-		T::Currency: Mutate<T::AccountId>,
-		<T::Pulse as Pulse>::Round: From<u64>,
+		T::Currency: Mutate<T::AccountId>
 	{
 		let subscriber: T::AccountId = whitelisted_caller();
 		let credits: T::Credits = 100u64.into();

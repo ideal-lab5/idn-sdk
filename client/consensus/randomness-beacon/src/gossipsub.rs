@@ -106,16 +106,16 @@ pub enum Error {
 #[derive(Clone)]
 pub struct DrandReceiver<const N: usize> {
 	/// A collection of received and unconsumed pulses
-	pub pulses: Arc<Mutex<VecDeque<RuntimePulse>>>,
+	pub pulses: Arc<Mutex<VecDeque<CanonicalPulse>>>,
 }
 
 impl<const N: usize> DrandReceiver<N> {
 	/// Constructs a new DrandReceiver and starts receiving pulses
 	///
-	/// * `rx`: A [`TracingUnboundedReceiver`] to which
-	///   [`sp_consensus_randomness_beacon::types::RuntimePulse`] are written
+	/// * `rx`: A [`TracingUnboundedReceiver`] to which [`sp_consensus_randomness_beacon::types::
+	///   CanonicalPulse`] are written
 	///  
-	pub fn new(mut rx: TracingUnboundedReceiver<RuntimePulse>) -> Self {
+	pub fn new(mut rx: TracingUnboundedReceiver<CanonicalPulse>) -> Self {
 		let pulses = Arc::new(Mutex::new(VecDeque::new()));
 		let pulses_clone = pulses.clone();
 		// start a thread that writes new pulses to storage
@@ -135,7 +135,7 @@ impl<const N: usize> DrandReceiver<N> {
 	}
 
 	/// Read the runtime pulses from storage
-	pub async fn read(&self) -> Vec<RuntimePulse> {
+	pub async fn read(&self) -> Vec<CanonicalPulse> {
 		let pulses = self.pulses.lock().await;
 		let pulses = pulses.clone().into_iter().collect::<Vec<_>>();
 		pulses.clone()
@@ -147,7 +147,7 @@ pub struct GossipsubNetwork {
 	/// The behaviour config for the swam
 	swarm: Swarm<GossipsubBehaviour>,
 	/// The mpsc channel sender
-	sender: TracingUnboundedSender<RuntimePulse>,
+	sender: TracingUnboundedSender<CanonicalPulse>,
 	/// The number of peers the node is connected to
 	pub(crate) connected_peers: u8,
 }
@@ -160,12 +160,12 @@ impl GossipsubNetwork {
 	///
 	/// * `key`: A libp2p keypair
 	/// * `gossipsub_config`: A gossipsub config
-	/// * `sender`: A `TracingUnboundedSender` that can send an `RuntimePulse`
+	/// * `sender`: A `TracingUnboundedSender` that can send an ` CanonicalPulse`
 	/// * `listen_addr`: An optional address to listen on. If None, a random local port is assigned.
 	pub fn new(
 		key: &Keypair,
 		gossipsub_config: GossipsubConfig,
-		sender: TracingUnboundedSender<RuntimePulse>,
+		sender: TracingUnboundedSender<CanonicalPulse>,
 		listen_addr: Option<&Multiaddr>,
 	) -> Result<Self, Error> {
 		let message_authenticity = MessageAuthenticity::Signed(key.clone());
@@ -269,9 +269,9 @@ impl GossipsubNetwork {
 	}
 }
 
-pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<RuntimePulse, Error> {
+pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<CanonicalPulse, Error> {
 	let pulse = ProtoPulse::decode(data).map_err(|_| Error::UnexpectedMessageFormat)?;
-	let pulse: RuntimePulse =
+	let pulse: CanonicalPulse =
 		pulse.try_into().map_err(|_| Error::SignatureBufferCapacityExceeded)?;
 
 	Ok(pulse)
@@ -294,7 +294,7 @@ mod tests {
 			]
 			.to_vec(),
 		};
-		let opaque: RuntimePulse = pulse.clone().try_into().unwrap();
+		let opaque: CanonicalPulse = pulse.clone().try_into().unwrap();
 		let mut data = Vec::new();
 		pulse.encode(&mut data).unwrap();
 
@@ -339,7 +339,7 @@ mod tests {
 		);
 	}
 
-	fn build_node() -> (GossipsubNetwork, TracingUnboundedReceiver<RuntimePulse>) {
+	fn build_node() -> (GossipsubNetwork, TracingUnboundedReceiver<CanonicalPulse>) {
 		let local_identity: Keypair = Keypair::generate_ed25519();
 		let gossipsub_config = GossipsubConfig::default();
 		let (tx, rx) = tracing_unbounded("drand-notification-channel", 100000);
@@ -451,7 +451,7 @@ mod tests {
 			]
 			.to_vec(),
 		};
-		let opaque: RuntimePulse = pulse.clone().try_into().unwrap();
+		let opaque: CanonicalPulse = pulse.clone().try_into().unwrap();
 		// write an opaque pulse
 		tx.unbounded_send(opaque.clone()).unwrap();
 
@@ -486,8 +486,8 @@ mod tests {
 			]
 			.to_vec(),
 		};
-		let opaque: RuntimePulse = pulse.clone().try_into().unwrap();
-		let opaque2: RuntimePulse = pulse2.clone().try_into().unwrap();
+		let opaque: CanonicalPulse = pulse.clone().try_into().unwrap();
+		let opaque2: CanonicalPulse = pulse2.clone().try_into().unwrap();
 		// write an opaque pulse
 		tx.unbounded_send(opaque.clone()).unwrap();
 		tx.unbounded_send(opaque2.clone()).unwrap();

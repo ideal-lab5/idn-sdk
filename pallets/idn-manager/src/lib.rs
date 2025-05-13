@@ -83,7 +83,7 @@ use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_idn_traits::{
-	pulse::{Dispatcher, Pulse, PulseMatch},
+	pulse::{Dispatcher, Pulse},
 	Hashable,
 };
 use sp_runtime::traits::Saturating;
@@ -290,7 +290,7 @@ pub mod pallet {
 		>;
 
 		/// The type for the randomness pulse
-		type Pulse: Pulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq + Default;
+		type Pulse: Pulse + Encode + Decode + Debug + Clone + TypeInfo + PartialEq;
 
 		// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
@@ -844,16 +844,12 @@ impl<T: Config> Pallet<T> {
 		Subscriptions::<T>::iter().try_for_each(
 			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| -> DispatchResult {
 				// Filter for active subscriptions that are eligible for delivery based on frequency
-				// and custom filter criteria
 				if
 				// Subscription must be active
 				sub.state ==  SubscriptionState::Active   &&
 					// And either never delivered before, or enough blocks have passed since last delivery
 					(sub.last_delivered.is_none() ||
-					current_block >= sub.last_delivered.unwrap() + sub.frequency) &&
- 					// The pulse passes the custom filter
-					// see the [Pulse Filtering Security](#pulse-filtering-security) section
-					Self::custom_filter(&sub.pulse_filter, &pulse)
+					current_block >= sub.last_delivered.unwrap() + sub.frequency)
 				{
 					// Make sure credits are consumed before sending the XCM message
 					let consume_credits = T::FeesManager::get_consume_credits(&sub);
@@ -933,25 +929,6 @@ impl<T: Config> Pallet<T> {
 		})?;
 		Self::deposit_event(Event::FeesCollected { sub_id: sub.id, fees });
 		Ok(())
-	}
-
-	/// Determines whether a pulse should pass through a filter
-	///
-	/// This function checks whether a given pulse meets the filter criteria specified
-	/// in a subscription. If no filter is present, all pulses pass through.
-	///
-	/// # How Filtering Works
-	/// 1. If `pulse_filter` is `None`, returns `true` (no filtering)
-	/// 2. Otherwise, checks if ANY of the properties in the filter match the pulse using the
-	///    PulseMatch trait's match_prop method
-	///
-	/// This enables subscriptions to receive randomness only when the pulse has specific
-	/// properties, such as coming from a particular round number.
-	fn custom_filter(pulse_filter: &Option<PulseFilterOf<T>>, pulse: &T::Pulse) -> bool {
-		match pulse_filter {
-			Some(filter) => filter.iter().any(|prop| pulse.match_prop(prop.clone())),
-			None => true,
-		}
 	}
 
 	/// Generates a unique subscription ID.
@@ -1053,12 +1030,9 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
 	// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
-	fn dispatch(pulses: Vec<T::Pulse>) -> DispatchResult {
-		for pulse in pulses {
-			let round = pulse.round().clone();
-			if let Err(e) = Pallet::<T>::distribute(pulse) {
-				log::warn!(target: LOG_TARGET, "Distribution of pulse # {:?} failed: {:?}", round, e);
-			}
+	fn dispatch(pulse: T::Pulse) -> DispatchResult {
+		if let Err(e) = Pallet::<T>::distribute(pulse) {
+			log::warn!(target: LOG_TARGET, "Distribution of pulse failed: {:?}", e);
 		}
 
 		Ok(())
