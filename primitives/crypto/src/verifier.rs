@@ -143,8 +143,7 @@ pub mod tests {
 		let aggr = QuicknetVerifier::verify(
 			beacon_pk_bytes.try_into().unwrap(),
 			asig.clone(),
-			1000u64,
-			1,
+			amsg.clone(),
 			None,
 		)
 		.unwrap();
@@ -159,9 +158,13 @@ pub mod tests {
 		let beacon_pk_bytes = get_beacon_pk();
 		let (asig, amsg, _pulses) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
 
-		let aggr =
-			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), asig.clone(), amsg, None)
-				.unwrap();
+		let aggr = QuicknetVerifier::verify(
+			beacon_pk_bytes.try_into().unwrap(),
+			asig.clone(),
+			amsg.clone(),
+			None,
+		)
+		.unwrap();
 
 		assert_eq!(asig, aggr.signature);
 		assert_eq!(amsg, aggr.message_hash);
@@ -191,12 +194,13 @@ pub mod tests {
 	#[test]
 	fn can_verify_invalid_with_bad_message() {
 		let beacon_pk_bytes = get_beacon_pk();
-		let (asig, _amsg, _pulses) = get(vec![PULSE1000]);
+		let (asig, _ignore_amsg, _pulses) = get(vec![PULSE1000]);
+		let (_ignore_asig, amsg, _ignore_pulses) = get(vec![PULSE1001]);
 
 		let res = QuicknetVerifier::verify(
 			beacon_pk_bytes.try_into().unwrap(),
 			asig,
-			vec![1, 2, 3],
+			amsg,
 			None,
 		);
 		assert!(res.is_err());

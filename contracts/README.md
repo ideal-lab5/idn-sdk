@@ -86,7 +86,6 @@ self.idn_client.create_subscription(
         call_index,
         frequency,
         metadata,
-        pulse_filter,
         sub_id: None, // Let the system generate an ID
     }
 )?;
@@ -96,14 +95,13 @@ self.idn_client.pause_subscription(subscription_id)?;
 self.idn_client.update_subscription(UpdateSubParams { 
     sub_id: subscription_id,
     credits,
-    frequency,
-    pulse_filter
+    frequency
 })?;
 ```
 
 ## Type Usage and Updates
 
-- **All types such as `Pulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, `PulseFilter`, and `SubscriptionState` are imported from the idn-client-contract-lib library. Do not redefine these types locally.**
+- **All types such as `Pulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, and `SubscriptionState` are imported from the idn-client-contract-lib library. Do not redefine these types locally.**
 
 - The `ContractPulse` struct is provided by the library for use in contracts. This implements the `Pulse` trait with the required ink! storage derives.
 

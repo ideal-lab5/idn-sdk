@@ -319,7 +319,6 @@ impl pallet_idn_manager::Config for Runtime {
 	type Xcm = ();
 	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
-	type MaxPulseFilterLen = types::MaxPulseFilterLen;
 	type MaxSubscriptions = types::MaxSubscriptions;
 	type SubscriptionId = types::SubscriptionId;
 	type DiffBalance = impls::DiffBalanceImpl<BalanceOf<Runtime>>;

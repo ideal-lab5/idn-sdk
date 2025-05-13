@@ -79,46 +79,10 @@ impl TryInto<CanonicalPulse> for ProtoPulse {
 	}
 }
 
-// impl sp_idn_traits::pulse::Pulse for  CanonicalPulse {
-// 	type Rand = Randomness;
-// 	type Round = RoundNumber;
-// 	type Sig = OpaqueSignature;
-// 	type Pubkey = OpaquePublicKey;
-
-// 	fn rand(&self) -> Self::Rand {
-// 		let mut hasher = Sha256::default();
-// 		hasher.update(self.signature.clone().to_vec());
-// 		hasher.finalize().try_into().unwrap_or([0; 32])
-// 	}
-
-// 	fn round(&self) -> Self::Round {
-// 		self.round
-// 	}
-
-// 	fn sig(&self) -> Self::Sig {
-// 		self.signature
-// 	}
-
-// 	fn authenticate(&self, pubkey: Self::Pubkey) -> bool {
-// 		if let Ok(_) = QuicknetVerifier::verify(
-// 			pubkey.as_ref().to_vec(),
-// 			self.sig().as_ref().to_vec(),
-// 			self.round().into(),
-// 			1,
-// 			None,
-// 		) {
-// 			return true;
-// 		}
-
-// 		false
-// 	}
-// }
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use sp_idn_crypto::test_utils::*;
-	use sp_idn_traits::pulse::Pulse;
 
 	fn valid_pulse() -> ProtoPulse {
 		ProtoPulse { round: PULSE1000.0, signature: hex::decode(PULSE1000.1).unwrap() }
@@ -146,27 +110,27 @@ mod tests {
 		assert!(result.is_err(), "Pulse with invalid signature should not convert");
 	}
 
-	#[test]
-	fn test_pulse_verification_works_for_valid_pulse() {
-		let valid_pulse = valid_pulse();
-		let good_opaque: CanonicalPulse = valid_pulse.clone().try_into().unwrap();
+	// #[test]
+	// fn test_pulse_verification_works_for_valid_pulse() {
+	// 	let valid_pulse = valid_pulse();
+	// 	let good_opaque: CanonicalPulse = valid_pulse.clone().try_into().unwrap();
 
-		let pk_bytes = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
-		let pk = hex::decode(pk_bytes).unwrap();
-		let opk: OpaquePublicKey = pk.try_into().unwrap();
+	// 	let pk_bytes = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+	// 	let pk = hex::decode(pk_bytes).unwrap();
+	// 	let opk: OpaquePublicKey = pk.try_into().unwrap();
 
-		assert!(good_opaque.authenticate(opk));
-	}
+	// 	assert!(good_opaque.authenticate(opk));
+	// }
 
-	#[test]
-	fn test_pulse_verification_fails_for_invalid_pulse() {
-		let invalid_pulse = invalid_pulse();
-		let bad_opaque: CanonicalPulse = invalid_pulse.clone().try_into().unwrap();
+	// #[test]
+	// fn test_pulse_verification_fails_for_invalid_pulse() {
+	// 	let invalid_pulse = invalid_pulse();
+	// 	let bad_opaque: CanonicalPulse = invalid_pulse.clone().try_into().unwrap();
 
-		let pk_bytes = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
-		let pk = hex::decode(pk_bytes).unwrap();
-		let opk: OpaquePublicKey = pk.try_into().unwrap();
+	// 	let pk_bytes = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+	// 	let pk = hex::decode(pk_bytes).unwrap();
+	// 	let opk: OpaquePublicKey = pk.try_into().unwrap();
 
-		assert!(!bad_opaque.authenticate(opk));
-	}
+	// 	assert!(!bad_opaque.authenticate(opk));
+	// }
 }

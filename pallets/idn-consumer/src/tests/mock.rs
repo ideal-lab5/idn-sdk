@@ -55,7 +55,6 @@ pub const MOCK_SUB: Subscription = Subscription {
 	frequency: 0,
 	metadata: None,
 	last_delivered: None,
-	pulse_filter: None,
 };
 
 #[derive_impl(frame_system::config_preludes::ParaChainDefaultConfig)]

@@ -134,9 +134,9 @@ pub trait DiffBalance<Balance> {
 ///
 /// These are some examples of how this trait can be implemented:
 /// - Linear fee calculator: where the fees are calculated based on a linear function.
-#[doc = docify::embed!("./src/traits/example.rs", linear_fee_calculator)]
+// FIX #[doc = docify::embed!("./src/traits/example.rs", linear_fee_calculator)]
 /// - Tiered fee calculator: where the fees are calculated based on a tiered function.
-#[doc = docify::embed!("./src/traits/example.rs", tiered_fee_calculator)]
+// FIX #[doc = docify::embed!("./src/traits/example.rs", tiered_fee_calculator)]
 pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S, Diff: DiffBalance<Fees>> {
 	/// Calculate the fees for a subscription based on the credits of pulses required.
 	fn calculate_subscription_fees(credits: &Credits) -> Fees;

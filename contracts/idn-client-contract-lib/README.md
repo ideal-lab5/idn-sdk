@@ -135,7 +135,6 @@ pub fn create_subscription(
     credits: u32, 
     frequency: u32, 
     metadata: Option<Vec<u8>>,
-    pulse_filter: Option<Vec<u8>>
 ) -> core::result::Result<(), Error> {
     // Create subscription parameters
     let params = CreateSubParams {
@@ -148,7 +147,6 @@ pub fn create_subscription(
         call_index: self.randomness_call_index,
         frequency,
         metadata,
-        pulse_filter,
         sub_id: None, // Let the system generate an ID
     };
 
@@ -179,7 +177,6 @@ pub fn update_subscription(
     &mut self,
     credits: u32,
     frequency: u32,
-    pulse_filter: Option<Vec<u8>>
 ) -> core::result::Result<(), Error> {
     let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
     
@@ -188,7 +185,6 @@ pub fn update_subscription(
         sub_id: subscription_id,
         credits,
         frequency,
-        pulse_filter
     };
     
     self.idn_client.update_subscription(params)
@@ -232,12 +228,12 @@ let idn_client = IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para
 
 ## Using Types from the Library
 
-All types such as `Pulse` (trait), `ContractPulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, `PulseFilter`, `SubscriptionState`, `CreateSubParams`, `UpdateSubParams`, and `Error` are defined within this library. Import them directly:
+All types such as `Pulse` (trait), `ContractPulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, `SubscriptionState`, `CreateSubParams`, `UpdateSubParams`, and `Error` are defined within this library. Import them directly:
 
 ```rust
 use idn_client_contract_lib::{
     Pulse, ContractPulse, SubscriptionId, BlockNumber, Metadata, 
-    PulseFilter, SubscriptionState, CreateSubParams, UpdateSubParams, Error
+    SubscriptionState, CreateSubParams, UpdateSubParams, Error
 };
 ```
 

@@ -19,10 +19,9 @@ use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::{parameter_types, PalletId};
 use pallet_idn_manager::{
 	primitives::{
-		CreateSubParams as MngCreateSubParams, PulseFilter as MngPulseFilter, Quote as MngQuote,
-		QuoteRequest as MngQuoteRequest, QuoteSubParams as MngQuoteSubParams,
-		SubInfoRequest as MngSubInfoRequest, SubInfoResponse as MngSubInfoResponse,
-		SubscriptionMetadata,
+		CreateSubParams as MngCreateSubParams, Quote as MngQuote, QuoteRequest as MngQuoteRequest,
+		QuoteSubParams as MngQuoteSubParams, SubInfoRequest as MngSubInfoRequest,
+		SubInfoResponse as MngSubInfoResponse, SubscriptionMetadata,
 	},
 	Subscription as MngSubscription, SubscriptionDetails as MngSubscriptionDetails,
 	UpdateSubParams as MngUpdateSubParams,
@@ -51,6 +50,19 @@ pub use sp_consensus_randomness_beacon::types::*;
 pub struct RuntimePulse {
 	message: OpaqueSignature,
 	signature: OpaqueSignature,
+}
+
+impl Default for RuntimePulse {
+	fn default() -> Self {
+		Self { message: [0; 48].into(), signature: [0; 48].into() }
+	}
+}
+
+impl RuntimePulse {
+	/// A contructor, usually reserved for testing
+	pub fn new(message: OpaqueSignature, signature: OpaqueSignature) -> Self {
+		Self { message, signature }
+	}
 }
 
 impl From<Accumulation> for RuntimePulse {
@@ -103,8 +115,6 @@ parameter_types! {
 	pub const BaseFee: u64 = 10;
 	/// The Subscription Deposit Multiplier, used for calculating the subscription fee
 	pub const SDMultiplier: u64 = 10;
-	/// The maximum length of the pulse vector filter
-	pub const MaxPulseFilterLen: u32 = 100;
 	/// The maximum number of subscriptions allowed
 	pub const MaxSubscriptions: u32 = 1_000_000;
 	/// The maximum length of the metadata vector
@@ -131,22 +141,16 @@ pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::Account
 ///
 /// See [`pallet_idn_manager::primitives::SubscriptionMetadata`] for more details.
 pub type Metadata = SubscriptionMetadata<MaxMetadataLen>;
-/// A filter that controls which pulses are delivered to a subscription.
-///
-/// See [`pallet_idn_manager::primitives::PulseFilter`] for more details.
-pub type PulseFilter = MngPulseFilter<RuntimePulse, MaxPulseFilterLen>;
 /// The parameters for creating a new subscription, containing various details about the
 /// subscription.
 ///
 /// See [`pallet_idn_manager::primitives::CreateSubParams`] for more details.
-pub type CreateSubParams =
-	MngCreateSubParams<Credits, BlockNumber, Metadata, PulseFilter, SubscriptionId>;
+pub type CreateSubParams = MngCreateSubParams<Credits, BlockNumber, Metadata, SubscriptionId>;
 /// The parameters for updating an existing subscription, containing various details about the
 /// subscription.
 ///
 /// See [`pallet_idn_manager::UpdateSubParams`] for more details.
-pub type UpdateSubParams =
-	MngUpdateSubParams<SubscriptionId, Credits, BlockNumber, PulseFilter, Metadata>;
+pub type UpdateSubParams = MngUpdateSubParams<SubscriptionId, Credits, BlockNumber, Metadata>;
 /// The parameters for quoting a subscription.
 ///
 /// See [`pallet_idn_manager::primitives::QuoteSubParams`] for more details.
@@ -162,8 +166,7 @@ pub type Quote = MngQuote<Balance>;
 /// Represents a subscription in the system.
 ///
 /// See [`pallet_idn_manager::Subscription`] for more details.
-pub type Subscription =
-	MngSubscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter, SubscriptionId>;
+pub type Subscription = MngSubscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId>;
 /// The subscription info returned by the IDN Manager to the target parachain.
 ///
 /// See [`pallet_idn_manager::primitives::SubInfoResponse`] for more details.

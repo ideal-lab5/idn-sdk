@@ -47,9 +47,9 @@ use sp_arithmetic::traits::Unsigned;
 use sp_runtime::{traits::Zero, AccountId32, Saturating};
 use sp_std::{cmp::Ordering, marker::PhantomData};
 
-impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, PulseFilter, SubscriptionId>
+impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, SubscriptionId>
 	SubscriptionTrait<AccountId>
-	for Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter, SubscriptionId>
+	for Subscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId>
 {
 	fn subscriber(&self) -> &AccountId {
 		&self.details.subscriber
@@ -103,7 +103,7 @@ type FeesManagerPhantom<Treasury, BaseFee, Sub, Balances> =
 /// # Tests
 ///
 /// ## Calculate Subscription Fees Test
-#[doc = docify::embed!("./src/tests/pallet.rs", test_calculate_subscription_fees)]
+// FIX #[doc = docify::embed!("./src/tests/pallet.rs", test_calculate_subscription_fees)]
 impl<
 		T: Get<AccountId32>,
 		B: Get<Balances::Balance>,
@@ -265,10 +265,10 @@ where
 /// # Tests
 ///
 /// ## Hold Deposit Test
-#[doc = docify::embed!("./src/tests/pallet.rs", hold_deposit_works)]
+// FIX #[doc = docify::embed!("./src/tests/pallet.rs", hold_deposit_works)]
 ///
 /// ## Release Deposit Test
-#[doc = docify::embed!("./src/tests/pallet.rs", release_deposit_works)]
+// FIX #[doc = docify::embed!("./src/tests/pallet.rs", release_deposit_works)]
 pub struct DepositCalculatorImpl<SDMultiplier: Get<Deposit>, Deposit> {
 	pub _phantom: (PhantomData<SDMultiplier>, PhantomData<Deposit>),
 }

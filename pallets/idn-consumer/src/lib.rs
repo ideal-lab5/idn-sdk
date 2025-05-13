@@ -25,7 +25,7 @@ pub mod traits;
 
 use bp_idn::{
 	types::{
-		BlockNumber as IdnBlockNumber, CallIndex, CreateSubParams, Credits, Metadata, PulseFilter,
+		BlockNumber as IdnBlockNumber, CallIndex, CreateSubParams, Credits, Metadata,
 		QuoteRequest, QuoteSubParams, RequestReference, SubInfoRequest, UpdateSubParams,
 	},
 	Call as RuntimeCall, IdnManagerCall,
@@ -230,8 +230,6 @@ impl<T: Config> Pallet<T> {
 		frequency: IdnBlockNumber,
 		// Bounded vector for additional data
 		metadata: Option<Metadata>,
-		// Optional Pulse Filter
-		pulse_filter: Option<PulseFilter>,
 		// Optional Subscription Id, if None, a new one will be generated
 		sub_id: Option<SubscriptionId>,
 	) -> Result<SubscriptionId, Error<T>> {
@@ -242,7 +240,6 @@ impl<T: Config> Pallet<T> {
 			call_index: Self::pulse_callback_index()?,
 			frequency,
 			metadata,
-			pulse_filter,
 			sub_id,
 		};
 
@@ -282,9 +279,8 @@ impl<T: Config> Pallet<T> {
 		credits: Option<Credits>,
 		frequency: Option<IdnBlockNumber>,
 		metadata: Option<Option<Metadata>>,
-		pulse_filter: Option<Option<PulseFilter>>,
 	) -> Result<(), Error<T>> {
-		let params = UpdateSubParams { sub_id, credits, frequency, metadata, pulse_filter };
+		let params = UpdateSubParams { sub_id, credits, frequency, metadata };
 
 		let call = RuntimeCall::IdnManager(IdnManagerCall::update_subscription { params });
 
@@ -310,8 +306,6 @@ impl<T: Config> Pallet<T> {
 		frequency: IdnBlockNumber,
 		// Bounded vector for additional data
 		metadata: Option<Metadata>,
-		// Optional Pulse Filter
-		pulse_filter: Option<PulseFilter>,
 		// Optional Subscription Id
 		sub_id: Option<SubscriptionId>,
 		// Optional quote request reference, if None, a new one will be generated
@@ -324,7 +318,6 @@ impl<T: Config> Pallet<T> {
 			call_index: Self::pulse_callback_index()?,
 			frequency,
 			metadata,
-			pulse_filter,
 			sub_id,
 		};
 

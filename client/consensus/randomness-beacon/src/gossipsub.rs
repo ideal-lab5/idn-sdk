@@ -440,7 +440,7 @@ mod tests {
 	async fn test_can_build_new_drand_receiver() {
 		let (tx, rx) = tracing_unbounded("test", 10000);
 
-		let receiver = DrandReceiver::new(rx);
+		let receiver = DrandReceiver::<10>::new(rx);
 
 		let pulse = ProtoPulse {
 			round: 14475418,
@@ -457,7 +457,7 @@ mod tests {
 
 		sleep(Duration::from_secs(1)).await;
 
-		let actual = receiver.take().await;
+		let actual = receiver.read().await;
 		assert_eq!(actual.len(), 1, "There should be one opaque pulse in the vec");
 		assert_eq!(actual[0], opaque);
 	}
@@ -469,7 +469,7 @@ mod tests {
 		let receiver = DrandReceiver::<1>::new(rx);
 
 		let pulse = ProtoPulse {
-			round: 1000,
+			round: 14475418,
 			signature: [
 				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
 				95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49,
@@ -477,8 +477,9 @@ mod tests {
 			]
 			.to_vec(),
 		};
+
 		let pulse2 = ProtoPulse {
-			round: 1001,
+			round: 14475419,
 			signature: [
 				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
 				95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49,
@@ -486,11 +487,14 @@ mod tests {
 			]
 			.to_vec(),
 		};
+
 		let opaque: CanonicalPulse = pulse.clone().try_into().unwrap();
 		let opaque2: CanonicalPulse = pulse2.clone().try_into().unwrap();
 		// write an opaque pulse
 		tx.unbounded_send(opaque.clone()).unwrap();
 		tx.unbounded_send(opaque2.clone()).unwrap();
+
+		sleep(Duration::from_secs(1)).await;
 
 		let actual = receiver.read().await;
 		assert_eq!(actual.len(), 1, "There should be one opaque pulse in the vec");
