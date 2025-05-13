@@ -114,10 +114,8 @@ mod benchmarks {
 	#[benchmark]
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
 		let public_key = [1; 96];
-		let config = BeaconConfigurationOf::<T> {
-			genesis_round: 1u64,
-			public_key: public_key.into(),
-		};
+		let config =
+			BeaconConfigurationOf::<T> { genesis_round: 1u64, public_key: public_key.into() };
 
 		#[extrinsic_call]
 		_(RawOrigin::Root, config.clone());

@@ -226,9 +226,8 @@ fn test_quote_subscription() {
 		let req_ref = None;
 
 		// Call the function
-		let result = crate::Pallet::<Test>::request_quote(
-			credits, frequency, metadata, sub_id, req_ref,
-		);
+		let result =
+			crate::Pallet::<Test>::request_quote(credits, frequency, metadata, sub_id, req_ref);
 
 		// Assert the result is Ok and contains the expected request reference
 		assert_ok!(result);
@@ -249,9 +248,8 @@ fn test_quote_subscription_fails() {
 		System::set_block_number(1_234_567);
 
 		// Call the function and assert failure
-		let result = crate::Pallet::<Test>::request_quote(
-			credits, frequency, metadata, sub_id, req_ref,
-		);
+		let result =
+			crate::Pallet::<Test>::request_quote(credits, frequency, metadata, sub_id, req_ref);
 
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
