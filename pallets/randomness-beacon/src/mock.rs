@@ -81,7 +81,7 @@ impl sp_idn_traits::pulse::Dispatcher<MockPulse, Result<(), sp_runtime::Dispatch
 		Ok(())
 	}
 
-	fn dispatch_weight(_pulses: usize) -> Weight {
+	fn dispatch_weight() -> Weight {
 		0.into()
 	}
 }
