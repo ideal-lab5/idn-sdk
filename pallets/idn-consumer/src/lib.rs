@@ -270,7 +270,6 @@ pub mod pallet {
 		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::consume_sub_info())]
 		#[allow(clippy::useless_conversion)]
-		#[allow(clippy::useless_conversion)]
 		pub fn consume_sub_info(
 			origin: OriginFor<T>,
 			sub_info: SubInfoResponse,

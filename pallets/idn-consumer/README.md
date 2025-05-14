@@ -48,7 +48,7 @@ let sub_id = IdnConsumer::<T>::create_subscription(
 
  <!-- TODO: update the following as part of https://github.com/ideal-lab5/idn-sdk/issues/236  -->
 
-- `credits`: The number of credits to purchase for this subscriptions. The more credits purchased, the more pulses will be received.
+- `credits`: The number of credits to purchase for this subscription. The more credits purchased, the more pulses will be received.
 - `frequency`: The distribution interval for pulses, specified in block numbers. [See note 1](#notes)
 - `metadata`: Optional metadata associated with the subscription, provided as a bounded vector.
 - `pulse_filter`: An optional filter to specify which pulses to include in the subscription.
@@ -136,7 +136,7 @@ Only the fields provided as `Some` will be updated. Fields set to `None` will re
 
  <!-- TODO: update the following as part of https://github.com/ideal-lab5/idn-sdk/issues/236  -->
 
-- `credits`: The number of credits to get for this subscriptions. The more credits purchased, the more pulses will be received.
+- `credits`: The number of credits to get for this subscription. The more credits purchased, the more pulses will be received.
 - `frequency`: The distribution interval for pulses, specified in IDN block numbers. [See note 1](#notes)
 - `metadata`: Optional metadata associated with the subscription, provided as a bounded vector.
 - `pulse_filter`: An optional filter to specify which pulses to include in the subscription.
