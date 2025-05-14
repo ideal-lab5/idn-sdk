@@ -48,8 +48,8 @@ pub trait Dispatcher<P: Pulse, O> {
 	/// The result of processing the pulse, type depends on implementation
 	fn dispatch(pulse: P) -> O;
 
-	/// Returns the weight of dispatching a given number of pulses
-	fn dispatch_weight(pulses: usize) -> Weight;
+	/// Returns the weight of dispatching a pulse.
+	fn dispatch_weight() -> Weight;
 }
 
 /// A trait defining the interface for randomness beacon pulses
