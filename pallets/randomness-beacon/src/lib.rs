@@ -301,7 +301,7 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(
 			T::MaxSigsPerBlock::get().into())
 				.saturating_add(
-					T::Dispatcher::dispatch_weight(1))
+					T::Dispatcher::dispatch_weight())
 		)]
 		#[allow(clippy::useless_conversion)]
 		pub fn try_submit_asig(

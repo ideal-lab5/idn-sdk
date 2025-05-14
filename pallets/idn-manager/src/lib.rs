@@ -993,8 +993,8 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 		Ok(())
 	}
 
-	fn dispatch_weight(pulses: usize) -> Weight {
-		T::WeightInfo::dispatch_pulse(T::MaxSubscriptions::get()).saturating_mul(pulses as u64)
+	fn dispatch_weight() -> Weight {
+		T::WeightInfo::dispatch_pulse(T::MaxSubscriptions::get())
 	}
 }
 
