@@ -20,7 +20,7 @@ use super::*;
 use crate::{
 	pallet::Pallet as IdnManager,
 	primitives::{PulsePropertyOf, QuoteRequest},
-	CreateSubParamsOf, SubInfoRequestOf, UpdateSubParamsOf,
+	CreateSubParamsOf, SubInfoRequestOf, SubscriptionOf, UpdateSubParamsOf,
 };
 use frame_benchmarking::v2::*;
 use frame_support::{
@@ -417,6 +417,32 @@ mod benchmarks {
 		// Verify the first subscription was updated
 		let sub = Subscriptions::<T>::get(sub_id).unwrap();
 		assert!(sub.last_delivered.is_some());
+	}
+
+	#[benchmark]
+	fn on_finalize(s: Linear<1, { T::MaxSubscriptions::get() }>) {
+		fill_up_subscriptions::<T>(s, 0);
+
+		assert_eq!(Subscriptions::<T>::iter().count(), s as usize);
+
+		// iterate over all subscriptions and update the credits_left parameter
+		Subscriptions::<T>::iter().for_each(
+			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| {
+				// update the credits_left parameter
+				sub.credits_left = 0u64.into();
+				// update the subscription
+				Subscriptions::<T>::insert(sub_id, sub);
+			},
+		);
+
+		let block_number = frame_system::Pallet::<T>::block_number();
+
+		#[block]
+		{
+			Pallet::<T>::on_finalize(block_number);
+		}
+
+		assert_eq!(Subscriptions::<T>::iter().count(), 0);
 	}
 
 	/// Fill up the subscriptions with the given number of subscriptions and pulse filter length

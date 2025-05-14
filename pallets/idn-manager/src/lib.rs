@@ -398,6 +398,8 @@ pub mod pallet {
 		XcmSendError,
 		/// Invalid subscriber
 		InvalidSubscriber,
+		/// Invalid parameters
+		InvalidParams,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -413,6 +415,17 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
+		/// execute. See [`on_finalize`](https://paritytech.github.io/polkadot-sdk/master/frame_support/traits/trait.Hooks.html#method.on_finalize).
+		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+			// We assume the worst case scenario, that is, all subscriptions are finishing in this
+			// block.
+			<T as pallet::Config>::WeightInfo::on_finalize(T::MaxSubscriptions::get())
+		}
+
+		/// It iterates over all subscriptions with zero credits and calls `finish_subscription` to
+		/// conclude the subscription. `finish_subscription` involves refunding deposits, removing
+		/// the subscription from storage and dispatching events, among other actions.
 		fn on_finalize(_n: BlockNumberFor<T>) {
 			// Look for subscriptions that should be finished
 			for (sub_id, sub) in
@@ -451,6 +464,8 @@ pub mod pallet {
 			params: CreateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
 			let subscriber = ensure_signed(origin)?;
+
+			ensure!(params.credits != Zero::zero(), Error::<T>::InvalidParams);
 
 			ensure!(
 				SubCounter::<T>::get() < T::MaxSubscriptions::get(),

@@ -35,6 +35,7 @@ pallet-idn-consumer.workspace = true
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
 sp-idn-crypto.workspace = true
+sp-consensus-randomness-beacon.workspace = true
 
 [build-dependencies]
 polkadot-sdk = { optional = true, workspace = true, features = [
@@ -52,6 +53,7 @@ std = [
 	"scale-info/std",
 	"serde_json/std",
 	"sp-idn-crypto/std",
+	"sp-consensus-randomness-beacon/std",
 	"pallet-idn-manager/std",
 	"pallet-randomness-beacon/std",
 	"xcm/std",
