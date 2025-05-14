@@ -65,39 +65,51 @@ impl frame_system::Config for Test {
 	type AccountData = pallet_balances::AccountData<u64>;
 }
 
-pub struct PulseConsumerImpl;
-impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
-	fn consume_pulse(pulse: Pulse, sub_id: SubscriptionId) -> Result<(), ()> {
-		// Simulate a failure if sub_id is [123; 32]
-		if sub_id == [123; 32] {
-			return Err(());
+#[docify::export_content]
+pub mod pulse_consumer_impl {
+	use super::*;
+	pub struct PulseConsumerImpl;
+	impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
+		fn consume_pulse(pulse: Pulse, sub_id: SubscriptionId) -> Result<(), ()> {
+			// Simulate a failure if sub_id is [123; 32]
+			if sub_id == [123; 32] {
+				return Err(());
+			}
+			log::info!("IDN Consumer: Consuming pulse: {:?}, from sub id: {:?}", pulse, sub_id);
+			Ok(())
 		}
-		log::info!("IDN Consumer: Consuming pulse: {:?}, from sub id: {:?}", pulse, sub_id);
-		Ok(())
 	}
 }
 
-pub struct QuoteConsumerImpl;
-impl QuoteConsumer<Quote, (), ()> for QuoteConsumerImpl {
-	fn consume_quote(quote: Quote) -> Result<(), ()> {
-		// Simulate a failure if req_ref is [123; 32]
-		if quote.req_ref == [123; 32] {
-			return Err(());
+#[docify::export_content]
+pub mod quote_consumer_impl {
+	use super::*;
+	pub struct QuoteConsumerImpl;
+	impl QuoteConsumer<Quote, (), ()> for QuoteConsumerImpl {
+		fn consume_quote(quote: Quote) -> Result<(), ()> {
+			// Simulate a failure if req_ref is [123; 32]
+			if quote.req_ref == [123; 32] {
+				return Err(());
+			}
+			log::info!("IDN Consumer: Consuming quote: {:?}", quote);
+			Ok(())
 		}
-		log::info!("IDN Consumer: Consuming quote: {:?}", quote);
-		Ok(())
 	}
 }
 
-pub struct SubInfoConsumerImpl;
-impl SubInfoConsumer<SubInfoResponse, (), ()> for SubInfoConsumerImpl {
-	fn consume_sub_info(sub_info: SubInfoResponse) -> Result<(), ()> {
-		// Simulate a failure if subscription is [123; 32]
-		if sub_info.sub.id == [123; 32] {
-			return Err(());
+#[docify::export_content]
+pub mod sub_info_consumer_impl {
+	use super::*;
+	pub struct SubInfoConsumerImpl;
+	impl SubInfoConsumer<SubInfoResponse, (), ()> for SubInfoConsumerImpl {
+		fn consume_sub_info(sub_info: SubInfoResponse) -> Result<(), ()> {
+			// Simulate a failure if subscription is [123; 32]
+			if sub_info.sub.id == [123; 32] {
+				return Err(());
+			}
+			log::info!("IDN Consumer: Consuming subscription info: {:?}", sub_info);
+			Ok(())
 		}
-		log::info!("IDN Consumer: Consuming subscription info: {:?}", sub_info);
-		Ok(())
 	}
 }
 
@@ -148,9 +160,9 @@ parameter_types! {
 
 impl pallet_idn_consumer::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type PulseConsumer = PulseConsumerImpl;
-	type QuoteConsumer = QuoteConsumerImpl;
-	type SubInfoConsumer = SubInfoConsumerImpl;
+	type PulseConsumer = pulse_consumer_impl::PulseConsumerImpl;
+	type QuoteConsumer = quote_consumer_impl::QuoteConsumerImpl;
+	type SubInfoConsumer = sub_info_consumer_impl::SubInfoConsumerImpl;
 	type SiblingIdnLocation = IdnLocation;
 	type IdnOrigin = MockEnsureXcmIdn;
 	type Xcm = MockXcm;
