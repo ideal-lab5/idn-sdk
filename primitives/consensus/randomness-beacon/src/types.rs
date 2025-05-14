@@ -109,30 +109,4 @@ mod tests {
 		let result: Result<CanonicalPulse, _> = bad_size_pulse.try_into();
 		assert!(result.is_err(), "Pulse with invalid signature should not convert");
 	}
-
-	// #[test]
-	// fn test_pulse_verification_works_for_valid_pulse() {
-	// 	let valid_pulse = valid_pulse();
-	// 	let good_opaque: CanonicalPulse = valid_pulse.clone().try_into().unwrap();
-
-	// 	let pk_bytes =
-	// b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a"
-	// ; 	let pk = hex::decode(pk_bytes).unwrap();
-	// 	let opk: OpaquePublicKey = pk.try_into().unwrap();
-
-	// 	assert!(good_opaque.authenticate(opk));
-	// }
-
-	// #[test]
-	// fn test_pulse_verification_fails_for_invalid_pulse() {
-	// 	let invalid_pulse = invalid_pulse();
-	// 	let bad_opaque: CanonicalPulse = invalid_pulse.clone().try_into().unwrap();
-
-	// 	let pk_bytes =
-	// b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a"
-	// ; 	let pk = hex::decode(pk_bytes).unwrap();
-	// 	let opk: OpaquePublicKey = pk.try_into().unwrap();
-
-	// 	assert!(!bad_opaque.authenticate(opk));
-	// }
 }
