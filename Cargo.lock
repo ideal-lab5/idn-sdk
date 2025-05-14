@@ -6017,6 +6017,7 @@ dependencies = [
  "polkadot-sdk 2503.0.1",
  "scale-info",
  "serde_json",
+ "sp-consensus-randomness-beacon",
  "sp-idn-crypto",
  "staging-xcm",
  "staging-xcm-builder",
