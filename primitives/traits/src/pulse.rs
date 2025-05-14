@@ -73,14 +73,13 @@ pub trait Dispatcher<P: Pulse, O> {
 /// ```rust
 /// use sp_idn_traits::pulse::{Pulse};
 /// struct MyPulse {
-///     rand: [u8; 3],
-///     message: [u8; 8],
-///     signature: [u8; 8],
+///     rand: [u8;3],
+///     message: [u8;8],
+///     signature: [u8;8],
 /// }
 /// impl Pulse for MyPulse {
-///     type Rand = [u8; 3];
-///     type Round = u64;
-///     type Sig = [u8; 8];
+///     type Rand = [u8;3];
+///     type Sig = [u8;8];
 ///     type Pubkey = [u8;8];
 ///
 ///     fn rand(&self) -> Self::Rand { self.rand }
@@ -89,7 +88,7 @@ pub trait Dispatcher<P: Pulse, O> {
 ///     fn authenticate(&self, pubkey: Self::Pubkey) -> bool { true }
 /// }
 ///
-/// let my_pulse = MyPulse { rand: [1, 2, 3], round: 42, signature: [1, 2, 3, 4, 5, 6, 7, 8] };
+/// let my_pulse = MyPulse { rand: [1, 2, 3], message: [5, 4, 3, 2, 1, 2, 3, 4], signature: [1, 2, 3, 4, 5, 6, 7, 8] };
 pub trait Pulse {
 	/// The type of the random value contained in this pulse
 	///
