@@ -131,8 +131,6 @@ pub mod pallet {
 
 	/// The public key type
 	type PubkeyOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Pubkey;
-	// /// The round number type
-	// type RoundOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Round;
 	/// The beacon configuration type
 	pub(crate) type BeaconConfigurationOf<T> = BeaconConfiguration<PubkeyOf<T>, RoundNumber>;
 
