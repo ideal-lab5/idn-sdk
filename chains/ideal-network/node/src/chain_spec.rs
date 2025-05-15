@@ -90,11 +90,11 @@ pub fn development_config() -> ChainSpec {
 		Extensions {
 			relay_chain: "paseo-local".into(),
 			// You MUST set this to the correct network!
-			para_id: 2000,
+			para_id: 1000,
 		},
 	)
-	.with_name("Development")
-	.with_id("dev")
+	.with_name("IDN Development")
+	.with_id("local_dev")
 	.with_chain_type(ChainType::Development)
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
@@ -123,7 +123,7 @@ pub fn development_config() -> ChainSpec {
 			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		2000.into(),
+		1000.into(),
 	))
 	.build()
 }
@@ -141,7 +141,7 @@ pub fn local_testnet_config() -> ChainSpec {
 		Extensions {
 			relay_chain: "paseo-local".into(),
 			// You MUST set this to the correct network!
-			para_id: 2000,
+			para_id: 1000,
 		},
 	)
 	.with_name("IDN Local Testnet")
@@ -174,9 +174,9 @@ pub fn local_testnet_config() -> ChainSpec {
 			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		2000.into(),
+		1000.into(),
 	))
-	.with_protocol_id("template-local")
+	.with_protocol_id("idn-local-protocol-id")
 	.with_properties(properties)
 	.build()
 }
