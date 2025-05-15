@@ -19,38 +19,10 @@
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use frame_support::{traits::Contains, BoundedVec};
 use scale_info::TypeInfo;
-use sp_idn_traits::pulse::{Pulse, PulseProperty};
 use xcm::v5::{Junction::Parachain, Location};
 
 /// The type for the metadata of a subscription
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
-
-/// The pulse property type used in the pallet, representing various properties of a pulse.
-pub type PulsePropertyOf<P> =
-	PulseProperty<<P as Pulse>::Rand, <P as Pulse>::Round, <P as Pulse>::Sig>;
-
-/// A filter that controls which pulses are delivered to a subscription
-///
-/// This type allows subscribers to define specific criteria for which pulses they want to receive.
-/// For example, a subscriber might want to receive only pulses from specific round numbers.
-///
-/// # Implementation
-/// - Uses a bounded vector to limit the maximum number of filter conditions
-/// - Each element is a [`PulseProperty`] that can match against `round` (but not `rand` values)
-/// - A pulse passes the filter if it matches ANY of the properties in the filter
-///
-/// # Usage
-/// ```rust
-/// use sp_idn_traits::pulse::PulseProperty as PulsePropertyTrait;
-/// type PulseProperty = PulsePropertyTrait<[u8; 32], u64, [u8; 48]>;
-/// // Create a filter for even-numbered rounds only
-/// let filter = vec![
-///     PulseProperty::Round(2),
-///     PulseProperty::Round(4),
-///     PulseProperty::Round(6),
-/// ];
-/// ```
-pub type PulseFilter<Pulse, Len> = BoundedVec<PulsePropertyOf<Pulse>, Len>;
 
 /// Two-byte identifier for dispatching XCM calls
 ///
@@ -71,7 +43,7 @@ pub type CallIndex = [u8; 2];
 #[derive(
 	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, Default,
 )]
-pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, SubscriptionId> {
+pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId> {
 	// Number of random values to receive
 	pub credits: Credits,
 	// XCM multilocation for pulse delivery
@@ -82,8 +54,6 @@ pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, Subscripti
 	pub frequency: Frequency,
 	// Bounded vector for additional data
 	pub metadata: Option<Metadata>,
-	// Optional Pulse Filter
-	pub pulse_filter: Option<PulseFilter>,
 	// Optional Subscription Id, if None, a new one will be generated
 	pub sub_id: Option<SubscriptionId>,
 }

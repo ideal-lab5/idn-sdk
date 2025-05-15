@@ -1677,9 +1677,13 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "pallet-idn-manager",
+ "pallet-randomness-beacon",
  "parity-scale-codec",
  "scale-info",
+ "sha2 0.10.8",
  "sp-consensus-randomness-beacon",
+ "sp-idn-crypto",
+ "sp-idn-traits",
  "sp-runtime",
 ]
 
@@ -6013,6 +6017,7 @@ dependencies = [
  "polkadot-sdk 2503.0.1",
  "scale-info",
  "serde_json",
+ "sp-consensus-randomness-beacon",
  "sp-idn-crypto",
  "staging-xcm",
  "staging-xcm-builder",
@@ -9363,6 +9368,7 @@ version = "0.0.1-dev"
 dependencies = [
  "bp-idn",
  "cumulus-primitives-core",
+ "docify",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -9817,6 +9823,7 @@ dependencies = [
  "ark-ec 0.4.2",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
+ "bp-idn",
  "frame-benchmarking",
  "frame-support",
  "frame-system",

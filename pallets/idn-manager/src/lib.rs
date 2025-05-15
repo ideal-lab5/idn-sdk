@@ -56,8 +56,7 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CallIndex, CreateSubParams, PulseFilter, Quote, QuoteSubParams, SubInfoRequest,
-		SubscriptionMetadata,
+		CallIndex, CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubscriptionMetadata,
 	},
 	traits::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
@@ -83,7 +82,7 @@ use scale_info::TypeInfo;
 use sp_arithmetic::traits::Unsigned;
 use sp_core::H256;
 use sp_idn_traits::{
-	pulse::{Dispatcher, Pulse, PulseMatch},
+	pulse::{Dispatcher, Pulse},
 	Hashable,
 };
 use sp_runtime::traits::Saturating;
@@ -131,21 +130,14 @@ pub type SubscriptionOf<T> = Subscription<
 	BlockNumberFor<T>,
 	<T as pallet::Config>::Credits,
 	MetadataOf<T>,
-	PulseFilterOf<T>,
 	SubscriptionIdOf<T>,
 >;
-
-/// A filter that controls which pulses are delivered to a subscription
-///
-/// See [`PulseFilter`] for more details.
-pub type PulseFilterOf<T> =
-	PulseFilter<<T as pallet::Config>::Pulse, <T as Config>::MaxPulseFilterLen>;
 
 /// Represents a subscription in the system.
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter, SubscriptionId> {
+pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId> {
 	// The subscription ID
 	pub id: SubscriptionId,
 	// The immutable params of the subscription
@@ -166,8 +158,6 @@ pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter, 
 	pub metadata: Option<Metadata>,
 	// Last block in which a pulse was received
 	pub last_delivered: Option<BlockNumber>,
-	// A custom filter for receiving pulses
-	pub pulse_filter: Option<PulseFilter>,
 }
 
 /// Details specific to a subscription for pulse delivery
@@ -196,7 +186,6 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 	<T as pallet::Config>::Credits,
 	BlockNumberFor<T>,
 	MetadataOf<T>,
-	PulseFilterOf<T>,
 	SubscriptionIdOf<T>,
 >;
 
@@ -206,7 +195,7 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 #[derive(
 	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq,
 )]
-pub struct UpdateSubParams<SubId, Credits, BlockNumber, PulseFilter, Metadata> {
+pub struct UpdateSubParams<SubId, Credits, BlockNumber, Metadata> {
 	// The Subscription Id
 	pub sub_id: SubId,
 	// New number of credits
@@ -215,8 +204,6 @@ pub struct UpdateSubParams<SubId, Credits, BlockNumber, PulseFilter, Metadata> {
 	pub frequency: Option<BlockNumber>,
 	// Bounded vector for additional data
 	pub metadata: Option<Option<Metadata>>,
-	// New Pulse Filter
-	pub pulse_filter: Option<Option<PulseFilter>>,
 }
 
 /// The parameters for updating an existing subscription, containing various details about the
@@ -225,7 +212,6 @@ pub type UpdateSubParamsOf<T> = UpdateSubParams<
 	<T as Config>::SubscriptionId,
 	<T as Config>::Credits,
 	BlockNumberFor<T>,
-	PulseFilterOf<T>,
 	MetadataOf<T>,
 >;
 
@@ -313,10 +299,6 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxMetadataLen: Get<u32>;
 
-		/// Maximum Pulse Filter size
-		#[pallet::constant]
-		type MaxPulseFilterLen: Get<u32>;
-
 		/// A type to define the amount of credits in a subscription
 		type Credits: Unsigned + Codec + TypeInfo + MaxEncodedLen + Debug + Saturating + Copy;
 
@@ -392,14 +374,14 @@ pub mod pallet {
 		SubscriptionAlreadyPaused,
 		/// The origin isn't the subscriber
 		NotSubscriber,
-		/// Can't filter out based on pulses
-		FilterRandNotPermitted,
 		/// Too many subscriptions in storage
 		TooManySubscriptions,
 		/// An error occurred while sending the XCM message
 		XcmSendError,
 		/// Invalid subscriber
 		InvalidSubscriber,
+		/// Invalid parameters
+		InvalidParams,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -415,6 +397,17 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
+		/// execute. See [`on_finalize`](https://paritytech.github.io/polkadot-sdk/master/frame_support/traits/trait.Hooks.html#method.on_finalize).
+		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+			// We assume the worst case scenario, that is, all subscriptions are finishing in this
+			// block.
+			<T as pallet::Config>::WeightInfo::on_finalize(T::MaxSubscriptions::get())
+		}
+
+		/// It iterates over all subscriptions with zero credits and calls `finish_subscription` to
+		/// conclude the subscription. `finish_subscription` involves refunding deposits, removing
+		/// the subscription from storage and dispatching events, among other actions.
 		fn on_finalize(_n: BlockNumberFor<T>) {
 			// Look for subscriptions that should be finished
 			for (sub_id, sub) in
@@ -432,13 +425,11 @@ pub mod pallet {
 		///
 		/// This function allows a user to create a new subscription for receiving pulses.
 		/// The subscription includes details such as the number of credits, target location, call
-		/// index, frequency, metadata, and an optional pulse filter.
+		/// index, frequency and metadata.
 		///
 		/// # Errors
 		/// * [`TooManySubscriptions`](Error::TooManySubscriptions) - If the maximum number of
 		///   subscriptions has been reached.
-		/// * [`FilterRandNotPermitted`](Error::FilterRandNotPermitted) - If the pulse filter
-		///   contains pulses.
 		/// * [`SubscriptionAlreadyExists`](Error::SubscriptionAlreadyExists) - If a subscription
 		///   with the specified ID already exists.
 		///
@@ -446,13 +437,15 @@ pub mod pallet {
 		/// * [`SubscriptionCreated`](Event::SubscriptionCreated) - A new subscription has been
 		///   created.
 		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::create_subscription(T::MaxPulseFilterLen::get()))]
+		#[pallet::weight(T::WeightInfo::create_subscription())]
 		#[allow(clippy::useless_conversion)]
 		pub fn create_subscription(
 			origin: OriginFor<T>,
 			params: CreateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
 			let subscriber = ensure_signed(origin)?;
+
+			ensure!(params.credits != Zero::zero(), Error::<T>::InvalidParams);
 
 			ensure!(
 				SubCounter::<T>::get() < T::MaxSubscriptions::get(),
@@ -489,7 +482,6 @@ pub mod pallet {
 				frequency: params.frequency,
 				metadata: params.metadata,
 				last_delivered: None,
-				pulse_filter: params.pulse_filter.clone(),
 			};
 
 			// Calculate and hold the subscription fees
@@ -509,12 +501,7 @@ pub mod pallet {
 
 			Self::deposit_event(Event::SubscriptionCreated { sub_id });
 
-			Ok(Some(T::WeightInfo::create_subscription(if let Some(pf) = params.pulse_filter {
-				pf.len().try_into().unwrap_or(T::MaxPulseFilterLen::get())
-			} else {
-				0
-			}))
-			.into())
+			Ok(Some(T::WeightInfo::create_subscription()).into())
 		}
 
 		/// Temporarily halts randomness distribution for a subscription.
@@ -586,23 +573,18 @@ pub mod pallet {
 		/// Updates a subscription.
 		///
 		/// This function allows the subscriber to modify their subscription parameters,
-		/// such as the number of credits, distribution interval, and pulse filter.
+		/// such as the number of credits and distribution interval.
 		///
 		/// # Errors
 		/// * [`SubscriptionDoesNotExist`](Error::SubscriptionDoesNotExist) - If a subscription with
 		///   the specified ID does not exist.
 		/// * [`NotSubscriber`](Error::NotSubscriber) - If the origin is not the subscriber of the
 		///   specified subscription.
-		/// * [`FilterRandNotPermitted`](Error::FilterRandNotPermitted) - If the pulse filter
-		///   contains random values.
 		///
 		/// # Events
 		/// * [`SubscriptionUpdated`](Event::SubscriptionUpdated) - A subscription has been updated.
 		#[pallet::call_index(3)]
-		#[pallet::weight(T::WeightInfo::update_subscription(
-			T::MaxPulseFilterLen::get(),
-			T::MaxMetadataLen::get()
-		))]
+		#[pallet::weight(T::WeightInfo::update_subscription(T::MaxMetadataLen::get()))]
 		#[allow(clippy::useless_conversion)]
 		pub fn update_subscription(
 			// Must match the subscription's original caller
@@ -610,8 +592,6 @@ pub mod pallet {
 			params: UpdateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
 			let subscriber = ensure_signed(origin)?;
-
-			let inner_pulse_filter = params.pulse_filter.clone().unwrap_or_default();
 
 			Subscriptions::<T>::try_mutate(params.sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -623,12 +603,11 @@ pub mod pallet {
 					fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits, &credits);
 					sub.credits = credits;
 				}
+
 				if let Some(frequency) = params.frequency {
 					sub.frequency = frequency;
 				}
-				if let Some(pulse_filter) = params.pulse_filter {
-					sub.pulse_filter = pulse_filter;
-				}
+
 				if let Some(metadata) = params.metadata.clone() {
 					sub.metadata = metadata;
 				}
@@ -647,18 +626,11 @@ pub mod pallet {
 				Ok::<(), DispatchError>(())
 			})?;
 
-			Ok(Some(T::WeightInfo::update_subscription(
-				if let Some(pf) = inner_pulse_filter {
-					pf.len().try_into().unwrap_or(T::MaxPulseFilterLen::get())
-				} else {
-					0
-				},
-				if let Some(Some(md)) = params.metadata {
-					md.len().try_into().unwrap_or(T::MaxMetadataLen::get())
-				} else {
-					0
-				},
-			))
+			Ok(Some(T::WeightInfo::update_subscription(if let Some(Some(md)) = params.metadata {
+				md.len().try_into().unwrap_or(T::MaxMetadataLen::get())
+			} else {
+				0
+			}))
 			.into())
 		}
 
@@ -694,7 +666,7 @@ pub mod pallet {
 		/// Calculates the subscription fees and deposit and sends the result back to the caller
 		/// specified function via XCM.
 		#[pallet::call_index(5)]
-		#[pallet::weight(T::WeightInfo::quote_subscription(T::MaxPulseFilterLen::get()))]
+		#[pallet::weight(T::WeightInfo::quote_subscription())]
 		#[allow(clippy::useless_conversion)]
 		pub fn quote_subscription(
 			origin: OriginFor<T>,
@@ -719,14 +691,7 @@ pub mod pallet {
 			Self::xcm_send(&requester, (params.call_index, fees).encode().into())?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
 
-			Ok(Some(T::WeightInfo::quote_subscription(
-				if let Some(pf) = params.quote_request.create_sub_params.pulse_filter {
-					pf.len().try_into().unwrap_or(T::MaxPulseFilterLen::get())
-				} else {
-					0
-				},
-			))
-			.into())
+			Ok(Some(T::WeightInfo::quote_subscription()).into())
 		}
 
 		/// Gets a subscription by its ID and sends the result back to the caller
@@ -805,7 +770,6 @@ impl<T: Config> Pallet<T> {
 			frequency: params.frequency,
 			metadata: params.metadata.clone(),
 			last_delivered: None,
-			pulse_filter: params.pulse_filter.clone(),
 		};
 		T::DepositCalculator::calculate_storage_deposit(&subscription)
 	}
@@ -846,16 +810,12 @@ impl<T: Config> Pallet<T> {
 		Subscriptions::<T>::iter().try_for_each(
 			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| -> DispatchResult {
 				// Filter for active subscriptions that are eligible for delivery based on frequency
-				// and custom filter criteria
 				if
 				// Subscription must be active
 				sub.state ==  SubscriptionState::Active   &&
 					// And either never delivered before, or enough blocks have passed since last delivery
 					(sub.last_delivered.is_none() ||
-					current_block >= sub.last_delivered.unwrap() + sub.frequency) &&
- 					// The pulse passes the custom filter
-					// see the [Pulse Filtering Security](#pulse-filtering-security) section
-					Self::custom_filter(&sub.pulse_filter, &pulse)
+					current_block >= sub.last_delivered.unwrap() + sub.frequency)
 				{
 					// Make sure credits are consumed before sending the XCM message
 					let consume_credits = T::FeesManager::get_consume_credits(&sub);
@@ -935,25 +895,6 @@ impl<T: Config> Pallet<T> {
 		})?;
 		Self::deposit_event(Event::FeesCollected { sub_id: sub.id, fees });
 		Ok(())
-	}
-
-	/// Determines whether a pulse should pass through a filter
-	///
-	/// This function checks whether a given pulse meets the filter criteria specified
-	/// in a subscription. If no filter is present, all pulses pass through.
-	///
-	/// # How Filtering Works
-	/// 1. If `pulse_filter` is `None`, returns `true` (no filtering)
-	/// 2. Otherwise, checks if ANY of the properties in the filter match the pulse using the
-	///    PulseMatch trait's match_prop method
-	///
-	/// This enables subscriptions to receive randomness only when the pulse has specific
-	/// properties, such as coming from a particular round number.
-	fn custom_filter(pulse_filter: &Option<PulseFilterOf<T>>, pulse: &T::Pulse) -> bool {
-		match pulse_filter {
-			Some(filter) => filter.iter().any(|prop| pulse.match_prop(prop.clone())),
-			None => true,
-		}
 	}
 
 	/// Generates a unique subscription ID.
@@ -1055,20 +996,16 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
 	// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
-	fn dispatch(pulses: Vec<T::Pulse>) -> DispatchResult {
-		for pulse in pulses {
-			let round = pulse.round().clone();
-			if let Err(e) = Pallet::<T>::distribute(pulse) {
-				log::warn!(target: LOG_TARGET, "Distribution of pulse # {:?} failed: {:?}", round, e);
-			}
+	fn dispatch(pulse: T::Pulse) -> DispatchResult {
+		if let Err(e) = Pallet::<T>::distribute(pulse) {
+			log::warn!(target: LOG_TARGET, "Distribution of pulse failed: {:?}", e);
 		}
 
 		Ok(())
 	}
 
-	fn dispatch_weight(pulses: usize) -> Weight {
-		T::WeightInfo::dispatch_pulse(T::MaxPulseFilterLen::get(), T::MaxSubscriptions::get())
-			.saturating_mul(pulses as u64)
+	fn dispatch_weight() -> Weight {
+		T::WeightInfo::dispatch_pulse(T::MaxSubscriptions::get())
 	}
 }
 
