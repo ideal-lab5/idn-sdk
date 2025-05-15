@@ -332,6 +332,24 @@ mod bench_ensure_origin {
 	}
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+mod bench_ensure_origin {
+	use crate::RuntimeOrigin;
+	use frame_support::pallet_prelude::EnsureOrigin;
+	use xcm::v5::{prelude::Junction, Location};
+
+	pub struct BenchEnsureOrigin;
+	impl EnsureOrigin<RuntimeOrigin> for BenchEnsureOrigin {
+		type Success = Location;
+		fn try_origin(_origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+			Ok(Location::new(1, Junction::Parachain(88)))
+		}
+		fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+			Ok(RuntimeOrigin::root())
+		}
+	}
+}
+
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
