@@ -30,9 +30,9 @@ pub const PULSE1001: RawPulse = (1001u64, *b"b33bf3667cbd5a82de3a24b4e0e9fe5513c
 pub const PULSE1002: RawPulse = (1002u64, *b"ab066f9c12dd6de1336fca0f925192fb0c72a771c3e4c82ede1fd362c1a770f9eb05843c6308ce2530b53a99c0281a6e");
 pub const PULSE1003: RawPulse = (1003u64, *b"b104c82771698f45fd8dcfead083d482694c31ab519bcef077f126f3736fe98c8392fd5d45d88aeb76b56ccfcb0296d7");
 
-// output the asig + apk
+// output the asig + amsg
 pub fn get(pulse_data: Vec<RawPulse>) -> (Vec<u8>, Vec<u8>, Vec<(u64, Vec<u8>)>) {
-	let mut apk = G1Affine::zero();
+	let mut amsg = G1Affine::zero();
 	let mut asig = G1Affine::zero();
 
 	let mut sigs: Vec<(u64, Vec<u8>)> = vec![];
@@ -43,15 +43,15 @@ pub fn get(pulse_data: Vec<RawPulse>) -> (Vec<u8>, Vec<u8>, Vec<(u64, Vec<u8>)>)
 		let sig = G1Affine::deserialize_compressed(&mut sig_bytes.as_slice()).unwrap();
 		asig = (asig + sig).into();
 
-		let pk = compute_round_on_g1(pulse.0).unwrap();
-		apk = (apk + pk).into();
+		let msg = compute_round_on_g1(pulse.0).unwrap();
+		amsg = (amsg + msg).into();
 	}
 
 	let mut asig_bytes = Vec::new();
 	asig.serialize_compressed(&mut asig_bytes).unwrap();
 
-	let mut apk_bytes = Vec::new();
-	apk.serialize_compressed(&mut apk_bytes).unwrap();
+	let mut amsg_bytes = Vec::new();
+	amsg.serialize_compressed(&mut amsg_bytes).unwrap();
 
-	(asig_bytes, apk_bytes, sigs)
+	(asig_bytes, amsg_bytes, sigs)
 }

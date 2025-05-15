@@ -42,6 +42,7 @@ ark-std.workspace = true
 sp-keystore.workspace = true
 sp-inherents.workspace = true
 pallet-balances.workspace = true
+bp-idn.workspace = true
 
 [features]
 default = ["std"]
@@ -49,6 +50,7 @@ std = [
 	"codec/std",
 	"log/std",
 	"sha2/std",
+	"bp-idn/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",

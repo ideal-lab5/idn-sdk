@@ -36,7 +36,6 @@ The subscription state lifecycle defines the different states a subscription can
 The IDN Manager pallet can be configured using the following runtime parameters:
 
 - `MaxMetadataLen`: The maximum length of the subscription metadata.
-- `MaxPulseFilterLen`: The maximum length of the pulse filter.
 - `Credits`: The type used to represent the number of credits in a subscription.
 - `MaxSubscriptions`: The maximum number of subscriptions allowed.
 - `Currency`: The currency used for fees and deposits.

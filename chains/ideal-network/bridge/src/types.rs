@@ -15,17 +15,21 @@
  */
 
 //! Types of IDN runtime
+use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::{parameter_types, PalletId};
 use pallet_idn_manager::{
 	primitives::{
-		CreateSubParams as MngCreateSubParams, PulseFilter as MngPulseFilter, Quote as MngQuote,
-		QuoteRequest as MngQuoteRequest, QuoteSubParams as MngQuoteSubParams,
-		SubInfoRequest as MngSubInfoRequest, SubInfoResponse as MngSubInfoResponse,
-		SubscriptionMetadata,
+		CreateSubParams as MngCreateSubParams, Quote as MngQuote, QuoteRequest as MngQuoteRequest,
+		QuoteSubParams as MngQuoteSubParams, SubInfoRequest as MngSubInfoRequest,
+		SubInfoResponse as MngSubInfoResponse, SubscriptionMetadata,
 	},
 	Subscription as MngSubscription, SubscriptionDetails as MngSubscriptionDetails,
 	UpdateSubParams as MngUpdateSubParams,
 };
+use pallet_randomness_beacon::types::Accumulation;
+use scale_info::TypeInfo;
+use sha2::{Digest, Sha256};
+use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	AccountId32, MultiSignature,
@@ -35,7 +39,67 @@ pub use pallet_idn_manager::{
 	primitives::{CallIndex, RequestReference},
 	SubscriptionState,
 };
-pub use sp_consensus_randomness_beacon::types::RuntimePulse;
+pub use sp_consensus_randomness_beacon::types::*;
+
+/// The runtime pulse represents a verifiable pulse constructed from the aggregation
+/// of one or more valid drand pulses. That is, this struct represents the format
+/// in which subscribers recieve, consume, and verify on-chain randomness
+/// More specifically, it represents an aggregation of pulses and associated messages
+/// output from Drand's Quicknet
+#[derive(Encode, Decode, Debug, Clone, TypeInfo, PartialEq, DecodeWithMemTracking)]
+pub struct RuntimePulse {
+	message: OpaqueSignature,
+	signature: OpaqueSignature,
+}
+
+impl Default for RuntimePulse {
+	fn default() -> Self {
+		Self { message: [0; 48], signature: [0; 48] }
+	}
+}
+
+impl RuntimePulse {
+	/// A contructor, usually reserved for testing
+	pub fn new(message: OpaqueSignature, signature: OpaqueSignature) -> Self {
+		Self { message, signature }
+	}
+}
+
+impl From<Accumulation> for RuntimePulse {
+	fn from(acc: Accumulation) -> Self {
+		RuntimePulse { signature: acc.signature, message: acc.message_hash }
+	}
+}
+
+impl sp_idn_traits::pulse::Pulse for RuntimePulse {
+	type Rand = Randomness;
+	type Sig = OpaqueSignature;
+	type Pubkey = OpaquePublicKey;
+
+	fn rand(&self) -> Self::Rand {
+		let mut hasher = Sha256::default();
+		hasher.update(self.signature);
+		hasher.finalize().into()
+	}
+
+	fn message(&self) -> Self::Sig {
+		self.message
+	}
+
+	fn sig(&self) -> Self::Sig {
+		self.signature
+	}
+
+	fn authenticate(&self, pubkey: Self::Pubkey) -> bool {
+		QuicknetVerifier::verify(
+			pubkey.as_ref().to_vec(),
+			self.sig().as_ref().to_vec(),
+			self.message().as_ref().to_vec(),
+			None,
+		)
+		.is_ok()
+	}
+}
 
 // TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
 // Primitive types
@@ -48,13 +112,12 @@ parameter_types! {
 	pub const BaseFee: u64 = 10;
 	/// The Subscription Deposit Multiplier, used for calculating the subscription fee
 	pub const SDMultiplier: u64 = 10;
-	/// The maximum length of the pulse vector filter
-	pub const MaxPulseFilterLen: u32 = 100;
 	/// The maximum number of subscriptions allowed
 	pub const MaxSubscriptions: u32 = 1_000_000;
 	/// The maximum length of the metadata vector
 	pub const MaxMetadataLen: u32 = 8;
 }
+
 /// A type that defines the amount of credits in a subscription
 pub type Credits = u64;
 /// The subscription ID
@@ -75,22 +138,16 @@ pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::Account
 ///
 /// See [`pallet_idn_manager::primitives::SubscriptionMetadata`] for more details.
 pub type Metadata = SubscriptionMetadata<MaxMetadataLen>;
-/// A filter that controls which pulses are delivered to a subscription.
-///
-/// See [`pallet_idn_manager::primitives::PulseFilter`] for more details.
-pub type PulseFilter = MngPulseFilter<RuntimePulse, MaxPulseFilterLen>;
 /// The parameters for creating a new subscription, containing various details about the
 /// subscription.
 ///
 /// See [`pallet_idn_manager::primitives::CreateSubParams`] for more details.
-pub type CreateSubParams =
-	MngCreateSubParams<Credits, BlockNumber, Metadata, PulseFilter, SubscriptionId>;
+pub type CreateSubParams = MngCreateSubParams<Credits, BlockNumber, Metadata, SubscriptionId>;
 /// The parameters for updating an existing subscription, containing various details about the
 /// subscription.
 ///
 /// See [`pallet_idn_manager::UpdateSubParams`] for more details.
-pub type UpdateSubParams =
-	MngUpdateSubParams<SubscriptionId, Credits, BlockNumber, PulseFilter, Metadata>;
+pub type UpdateSubParams = MngUpdateSubParams<SubscriptionId, Credits, BlockNumber, Metadata>;
 /// The parameters for quoting a subscription.
 ///
 /// See [`pallet_idn_manager::primitives::QuoteSubParams`] for more details.
@@ -106,8 +163,7 @@ pub type Quote = MngQuote<Balance>;
 /// Represents a subscription in the system.
 ///
 /// See [`pallet_idn_manager::Subscription`] for more details.
-pub type Subscription =
-	MngSubscription<AccountId, BlockNumber, Credits, Metadata, PulseFilter, SubscriptionId>;
+pub type Subscription = MngSubscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId>;
 /// The subscription info returned by the IDN Manager to the target parachain.
 ///
 /// See [`pallet_idn_manager::primitives::SubInfoResponse`] for more details.

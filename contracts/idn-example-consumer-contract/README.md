@@ -64,21 +64,20 @@ Once deployed, you can interact with the contract through the following methods:
 #### Creating a Subscription
 
 ```
-create_subscription(credits: u32, frequency: u32, metadata: Option<Vec<u8>>, pulse_filter: Option<Vec<u8>>)
+create_subscription(credits: u32, frequency: u32, metadata: Option<Vec<u8>>)
 ```
 
 Parameters:
 - `credits`: Number of random values to receive
 - `frequency`: Distribution interval for random values (in blocks)
 - `metadata`: Optional metadata for the subscription
-- `pulse_filter`: Optional filter for pulses
 
 #### Managing Subscriptions
 
 ```
 pause_subscription()
 reactivate_subscription()
-update_subscription(credits: u32, frequency: u32, pulse_filter: Option<Vec<u8>>)
+update_subscription(credits: u32, frequency: u32)
 kill_subscription()
 ```
 

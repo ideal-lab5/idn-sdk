@@ -29,8 +29,8 @@ pub mod weights;
 
 use bp_idn::{
 	types::{
-		BlockNumber as IdnBlockNumber, CallIndex, CreateSubParams, Credits, Metadata, PulseFilter,
-		QuoteRequest, QuoteSubParams, RequestReference, SubInfoRequest, UpdateSubParams,
+		BlockNumber as IdnBlockNumber, CallIndex, CreateSubParams, Credits, Metadata, QuoteRequest,
+		QuoteSubParams, RequestReference, SubInfoRequest, UpdateSubParams,
 	},
 	Call as RuntimeCall, IdnManagerCall,
 };
@@ -45,7 +45,7 @@ use scale_info::{
 	prelude::{boxed::Box, sync::Arc, vec},
 	TypeInfo,
 };
-use sp_idn_traits::{pulse::Pulse as PulseTrait, Hashable};
+use sp_idn_traits::Hashable;
 use traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer};
 use xcm::{
 	v5::{
@@ -158,7 +158,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A random value was successfully consumed.
-		RandomnessConsumed { round: <Pulse as PulseTrait>::Round, sub_id: SubscriptionId },
+		RandomnessConsumed { sub_id: SubscriptionId },
 		/// A subscription quote was successfully consumed.
 		QuoteConsumed { quote: Quote },
 		/// A subscription info was successfully consumed.
@@ -179,12 +179,10 @@ pub mod pallet {
 			// ensure origin is coming from IDN
 			let _ = T::IdnOrigin::ensure_origin(origin)?;
 
-			let round = pulse.round();
-
 			T::PulseConsumer::consume_pulse(pulse, sub_id)
 				.map_err(|_| Error::<T>::ConsumePulseError)?;
 
-			Self::deposit_event(Event::RandomnessConsumed { round, sub_id });
+			Self::deposit_event(Event::RandomnessConsumed { sub_id });
 
 			Ok(Pays::No.into())
 		}
@@ -235,8 +233,6 @@ impl<T: Config> Pallet<T> {
 		frequency: IdnBlockNumber,
 		// Bounded vector for additional data
 		metadata: Option<Metadata>,
-		// Optional Pulse Filter
-		pulse_filter: Option<PulseFilter>,
 		// Optional Subscription Id, if None, a new one will be generated
 		sub_id: Option<SubscriptionId>,
 	) -> Result<SubscriptionId, Error<T>> {
@@ -247,7 +243,6 @@ impl<T: Config> Pallet<T> {
 			call_index: Self::pulse_callback_index()?,
 			frequency,
 			metadata,
-			pulse_filter,
 			sub_id,
 		};
 
@@ -287,9 +282,8 @@ impl<T: Config> Pallet<T> {
 		credits: Option<Credits>,
 		frequency: Option<IdnBlockNumber>,
 		metadata: Option<Option<Metadata>>,
-		pulse_filter: Option<Option<PulseFilter>>,
 	) -> Result<(), Error<T>> {
-		let params = UpdateSubParams { sub_id, credits, frequency, metadata, pulse_filter };
+		let params = UpdateSubParams { sub_id, credits, frequency, metadata };
 
 		let call = RuntimeCall::IdnManager(IdnManagerCall::update_subscription { params });
 
@@ -315,8 +309,6 @@ impl<T: Config> Pallet<T> {
 		frequency: IdnBlockNumber,
 		// Bounded vector for additional data
 		metadata: Option<Metadata>,
-		// Optional Pulse Filter
-		pulse_filter: Option<PulseFilter>,
 		// Optional Subscription Id
 		sub_id: Option<SubscriptionId>,
 		// Optional quote request reference, if None, a new one will be generated
@@ -329,7 +321,6 @@ impl<T: Config> Pallet<T> {
 			call_index: Self::pulse_callback_index()?,
 			frequency,
 			metadata,
-			pulse_filter,
 			sub_id,
 		};
 

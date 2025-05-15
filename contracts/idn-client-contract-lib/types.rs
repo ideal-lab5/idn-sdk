@@ -12,13 +12,12 @@ pub struct ContractPulse {
 }
 
 impl Pulse for ContractPulse {
-	type Round = u64;
 	type Rand = [u8; 32];
 	type Sig = [u8; 48];
 	type Pubkey = [u8; 32]; // Placeholder, adjust as needed
 
-	fn round(&self) -> Self::Round {
-		self.round
+	fn message(&self) -> Self::Sig {
+		self.message
 	}
 	fn rand(&self) -> Self::Rand {
 		self.rand

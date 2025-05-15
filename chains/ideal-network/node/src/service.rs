@@ -53,7 +53,7 @@ use sc_network::NetworkBlock;
 use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
-use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
+use sc_utils::mpsc::tracing_unbounded;
 use sp_keystore::KeystorePtr;
 
 use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair, Multiaddr};
@@ -67,6 +67,9 @@ type ParachainClient = TFullClient<Block, RuntimeApi, ParachainExecutor>;
 type ParachainBackend = TFullBackend<Block>;
 
 type ParachainBlockImport = TParachainBlockImport<Block, Arc<ParachainClient>, ParachainBackend>;
+
+/// The maximum number of historic pulses the node will retain
+const M: usize = 20;
 
 /// Assembly of PartialComponents (enough to run chain ops subcommands)
 pub type Service = PartialComponents<
@@ -83,9 +86,7 @@ pub type Service = PartialComponents<
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
 #[docify::export(component_instantiation)]
-pub fn new_partial(
-	config: &Configuration,
-) -> Result<(Service, TracingUnboundedReceiver<u64>), sc_service::Error> {
+pub fn new_partial(config: &Configuration) -> Result<Service, sc_service::Error> {
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -139,7 +140,7 @@ pub fn new_partial(
 
 	let block_import = ParachainBlockImport::new(client.clone(), backend.clone());
 
-	let (import_queue, rx) = build_import_queue(
+	let import_queue = build_import_queue(
 		client.clone(),
 		block_import.clone(),
 		config,
@@ -147,19 +148,16 @@ pub fn new_partial(
 		&task_manager,
 	);
 
-	Ok((
-		PartialComponents {
-			backend,
-			client,
-			import_queue,
-			keystore_container,
-			task_manager,
-			transaction_pool,
-			select_chain: (),
-			other: (block_import, telemetry, telemetry_worker_handle),
-		},
-		rx,
-	))
+	Ok(PartialComponents {
+		backend,
+		client,
+		import_queue,
+		keystore_container,
+		task_manager,
+		transaction_pool,
+		select_chain: (),
+		other: (block_import, telemetry, telemetry_worker_handle),
+	})
 }
 
 /// Build the import queue for the parachain runtime.
@@ -169,8 +167,8 @@ fn build_import_queue(
 	config: &Configuration,
 	telemetry: Option<TelemetryHandle>,
 	task_manager: &TaskManager,
-) -> (sc_consensus::DefaultImportQueue<Block>, TracingUnboundedReceiver<u64>) {
-	sc_consensus_randomness_beacon::consensus::aura::fully_verifying_import_queue::<
+) -> sc_consensus::DefaultImportQueue<Block> {
+	cumulus_client_consensus_aura::equivocation_import_queue::fully_verifying_import_queue::<
 		sp_consensus_aura::sr25519::AuthorityPair,
 		_,
 		_,
@@ -205,7 +203,7 @@ fn start_consensus(
 	collator_key: CollatorPair,
 	overseer_handle: OverseerHandle,
 	announce_block: Arc<dyn Fn(Hash, Option<Vec<u8>>) + Send + Sync>,
-	pulse_receiver: DrandReceiver,
+	pulse_receiver: DrandReceiver<M>,
 ) -> Result<(), sc_service::Error> {
 	let proposer_factory = sc_basic_authorship::ProposerFactory::with_proof_recording(
 		task_manager.spawn_handle(),
@@ -227,8 +225,9 @@ fn start_consensus(
 	let params = AuraParams {
 		create_inherent_data_providers: move |_, ()| {
 			let pulse_receiver = pulse_receiver.clone();
+
 			async move {
-				let pulses = pulse_receiver.take().await;
+				let pulses = pulse_receiver.read().await;
 
 				let serialized_pulses: Vec<Vec<u8>> =
 					pulses.iter().map(|pulse| pulse.encode()).collect();
@@ -279,7 +278,7 @@ pub async fn start_parachain_node(
 ) -> sc_service::error::Result<(TaskManager, Arc<ParachainClient>)> {
 	let parachain_config = prepare_node_config(parachain_config);
 
-	let (params, latest_round_rx) = new_partial(&parachain_config)?;
+	let params = new_partial(&parachain_config)?;
 	let (block_import, mut telemetry, telemetry_worker_handle) = params.other;
 	let prometheus_registry = parachain_config.prometheus_registry().cloned();
 	let net_config = sc_network::config::FullNetworkConfiguration::<
@@ -381,7 +380,7 @@ pub async fn start_parachain_node(
 		match SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench, false) {
 			Err(err) if validator => {
 				log::warn!(
-				"⚠️  The hardware does not meet the minimal requirements {} for role 'Authority'.",
+				"⚠️ The hardware does not meet the minimal requirements {} for role 'Authority'.",
 				err
 			);
 			},
@@ -429,7 +428,7 @@ pub async fn start_parachain_node(
 	if validator {
 		// setup a libp2p node for gossipsub
 		let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
-		let pulse_receiver = DrandReceiver::new(rx, latest_round_rx);
+		let pulse_receiver = DrandReceiver::new(rx);
 
 		let local_identity: Keypair = Keypair::generate_ed25519();
 		let cfg = GossipsubConfig::default();
