@@ -108,7 +108,7 @@ impl<
 		T: Get<AccountId32>,
 		B: Get<Balances::Balance>,
 		S: SubscriptionTrait<AccountId32>,
-		Balances: Mutate<AccountId32>,
+		Balances: Mutate<AccountId32>
 	>
 	FeesManager<
 		Balances::Balance,
@@ -117,6 +117,8 @@ impl<
 		DispatchError,
 		AccountId32,
 		DiffBalanceImpl<Balances::Balance>,
+		u64,
+		u64
 	> for FeesManagerImpl<T, B, S, Balances>
 where
 	Balances::Reason: From<HoldReason>,
@@ -253,6 +255,27 @@ where
 	/// Get the number of credits consumed by a subscription when this one is idle in a block.
 	fn get_idle_credits(_sub: &S) -> u64 {
 		10
+	}
+
+	/// Estimate the cost in credits for a certain number of pulses with a certain frequency of use.
+	/// Here, frequency is specified in number of blocks per pulse where 1 means "every block", 2 is "every other block",...
+	/// frequency: blocks per pulse, pulses: how many pulses they wish to consume
+	/// This function also includes the cost to create a subscription so that users aren't quoted
+	/// only what fees they incur.
+	fn calculate_credits(pulses: &u64, frequency: &u64) -> u64 {
+
+		let subscription_cost: u64 = 30;
+		let subscription_management_fee: u64 = 10;
+		let pulse_cost: u64 = 1;
+
+		let total_fees:u64 = pulses * (subscription_management_fee*(frequency - 1) + pulse_cost);
+
+		if subscription_cost < total_fees {
+			let multiplier:u64 = total_fees.div_ceil(subscription_cost);
+			total_fees + multiplier * subscription_cost
+		} else {
+			total_fees + subscription_cost
+		}
 	}
 }
 

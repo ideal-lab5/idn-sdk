@@ -90,6 +90,8 @@
 //!   - [`direction`](DiffBalance::direction): The direction of the balance movement (using the
 //!     `BalanceDirection` enum).
 
+use sp_runtime::traits::BlockNumber;
+
 mod example;
 
 /// Error type for fees management
@@ -137,7 +139,7 @@ pub trait DiffBalance<Balance> {
 #[doc = docify::embed!("./src/traits/example.rs", linear_fee_calculator)]
 /// - Tiered fee calculator: where the fees are calculated based on a tiered function.
 #[doc = docify::embed!("./src/traits/example.rs", tiered_fee_calculator)]
-pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S, Diff: DiffBalance<Fees>> {
+pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S, Diff: DiffBalance<Fees>, NumberOfPulses, Frequency: BlockNumber> {
 	/// Calculate the fees for a subscription based on the credits of pulses required.
 	fn calculate_subscription_fees(credits: &Credits) -> Fees;
 	/// Calculate how much fees should be held or release when a subscription changes.
@@ -153,6 +155,7 @@ pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S, Diff: DiffBal
 	fn get_consume_credits(sub: &Sub) -> Credits;
 	/// Returns how many credits this subscription pays for skipping to receive a pulse
 	fn get_idle_credits(sub: &Sub) -> Credits;
+	fn calculate_credits(pulses: &NumberOfPulses, frequency: &Frequency) -> Credits;
 }
 
 /// Trait for accessing subscription information.

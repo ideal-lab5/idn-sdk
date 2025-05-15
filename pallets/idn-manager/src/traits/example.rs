@@ -49,7 +49,7 @@ const BASE_FEE: u32 = 100;
 #[docify::export_content]
 mod linear_fee_calculator {
 	use super::*;
-	impl FeesManager<u32, u32, (), (), (), DiffBalanceImpl<u32>> for LinearFeeCalculator {
+	impl FeesManager<u32, u32, (), (), (), DiffBalanceImpl<u32>, u32, u32> for LinearFeeCalculator {
 		fn calculate_subscription_fees(credits: &u32) -> u32 {
 			BASE_FEE.saturating_mul(*credits)
 		}
@@ -80,6 +80,26 @@ mod linear_fee_calculator {
 			// Skipping a pulse costs 10 credits
 			10
 		}
+		/// Estimate the cost in credits for a certain number of pulses with a certain frequency of use.
+		/// Here, frequency is specified in number of blocks per pulse where 1 means "every block", 2 is "every other block",...
+		/// frequency: blocks per pulse, pulses: how many pulses they wish to consume
+		/// This function also includes the cost to create a subscription so that users aren't quoted
+		/// only what fees they incur.
+		fn calculate_credits(pulses: &u32, frequency: &u32) -> u32 {
+
+			let subscription_cost: u32 = 30;
+			let subscription_management_fee: u32 = 10;
+			let pulse_cost: u32 = 1;
+
+			let total_fees:u32 = pulses * (subscription_management_fee*(frequency - 1) + pulse_cost);
+
+			if subscription_cost < total_fees {
+				let multiplier:u32 = total_fees.div_ceil(subscription_cost);
+				total_fees + multiplier * subscription_cost
+			} else {
+				total_fees + subscription_cost
+			}
+		}
 	}
 }
 
@@ -89,7 +109,7 @@ pub struct SteppedTieredFeeCalculator;
 #[docify::export_content]
 mod tiered_fee_calculator {
 	use super::*;
-	impl FeesManager<u32, u32, (), (), (), DiffBalanceImpl<u32>> for SteppedTieredFeeCalculator {
+	impl FeesManager<u32, u32, (), (), (), DiffBalanceImpl<u32>, u32, u32> for SteppedTieredFeeCalculator {
 		fn calculate_subscription_fees(credits: &u32) -> u32 {
 			// Define tier boundaries and their respective discount rates (in basis points)
 			const TIERS: [(u32, u32); 5] = [
@@ -154,6 +174,27 @@ mod tiered_fee_calculator {
 		fn get_idle_credits(_sub: &()) -> u32 {
 			// Skipping a pulse costs 10 credits
 			10
+		}
+		/// Estimate the cost in credits for a certain number of pulses with a certain frequency of use.
+		/// Here, frequency is specified in number of blocks per pulse where 1 means "every block", 2 is "every other block",...
+		/// frequency: blocks per pulse, pulses: how many pulses they wish to consume
+		/// This function also includes the cost to create a subscription so that users aren't quoted
+		/// only what fees they incur.
+		fn calculate_credits(pulses: &u32, frequency: &u32) -> u32 {
+
+			let subscription_cost: u32 = 30;
+			let subscription_management_fee: u32 = 10;
+			let pulse_cost: u32 = 1;
+
+			let total_fees:u32 = pulses * (subscription_management_fee*(frequency - 1) + pulse_cost);
+			
+
+			if subscription_cost < total_fees {
+				let multiplier:u32 = total_fees.div_ceil(subscription_cost);
+				total_fees + multiplier * subscription_cost
+			} else {
+				total_fees + subscription_cost
+			}
 		}
 	}
 }

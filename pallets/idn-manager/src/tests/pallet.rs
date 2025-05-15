@@ -2017,3 +2017,27 @@ fn test_get_subscription_xcm_fails_subscription_not_found() {
 		);
 	});
 }
+
+#[test]
+fn test_calculate_credits_does_not_exceed_subscription_cost() {
+	ExtBuilder::build().execute_with( || {
+		let pulses: u64 = 1;
+		let frequency: u64 = 1;
+
+		let credits = <Test as Config>::FeesManager::calculate_credits(&pulses, &frequency);
+
+		assert_eq!(credits, 31)
+	})
+}
+
+#[test]
+fn test_calculate_credits_cost_exceeds_subscription_cost() {
+		ExtBuilder::build().execute_with( || {
+		let pulses: u64 = 1000;
+		let frequency: u64 = 100;
+
+		let credits = <Test as Config>::FeesManager::calculate_credits(&pulses, &frequency);
+
+		assert_eq!(credits, 198220)
+	})
+}

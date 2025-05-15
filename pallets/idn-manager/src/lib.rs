@@ -280,6 +280,8 @@ pub mod pallet {
 			DispatchError,
 			<Self as frame_system::pallet::Config>::AccountId,
 			Self::DiffBalance,
+			u64,
+			u64
 		>;
 
 		/// Storage deposit calculator implementation
