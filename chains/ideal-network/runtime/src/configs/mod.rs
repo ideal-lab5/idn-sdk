@@ -35,7 +35,9 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
-use pallet_idn_manager::{primitives::AllowSiblingsOnly, BalanceOf, SubscriptionOf};
+#[cfg(not(feature = "runtime-benchmarks"))]
+use pallet_idn_manager::primitives::AllowSiblingsOnly;
+use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
 use polkadot_runtime_common::{
@@ -302,6 +304,24 @@ impl pallet_collator_selection::Config for Runtime {
 	type WeightInfo = (); // Configure based on benchmarking results.
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+mod bench_ensure_origin {
+	use crate::RuntimeOrigin;
+	use frame_support::pallet_prelude::EnsureOrigin;
+	use xcm::v5::{prelude::Junction, Location};
+
+	pub struct BenchEnsureOrigin;
+	impl EnsureOrigin<RuntimeOrigin> for BenchEnsureOrigin {
+		type Success = Location;
+		fn try_origin(_origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+			Ok(Location::new(1, Junction::Parachain(88)))
+		}
+		fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+			Ok(RuntimeOrigin::root())
+		}
+	}
+}
+
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -322,7 +342,10 @@ impl pallet_idn_manager::Config for Runtime {
 	type MaxSubscriptions = types::MaxSubscriptions;
 	type SubscriptionId = types::SubscriptionId;
 	type DiffBalance = impls::DiffBalanceImpl<BalanceOf<Runtime>>;
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	type SiblingOrigin = EnsureXcm<AllowSiblingsOnly>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type SiblingOrigin = bench_ensure_origin::BenchEnsureOrigin;
 }
 
 impl pallet_randomness_beacon::Config for Runtime {

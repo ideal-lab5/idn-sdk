@@ -988,7 +988,7 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
-	/// Dispatches a collection of pulses by distributing it to eligible subscriptions.
+	/// Dispatches a pulse by distributing it to eligible subscriptions.
 	///
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the

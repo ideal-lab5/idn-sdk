@@ -52,7 +52,7 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
 
 		let params = CreateSubParamsOf::<T> {
 			credits,
@@ -86,7 +86,7 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
@@ -123,7 +123,7 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
@@ -159,7 +159,7 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
@@ -214,7 +214,7 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
@@ -300,7 +300,7 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id: T::SubscriptionId = H256::default().into();
 
-		T::Currency::set_balance(&sibling_account, 1_000_000u32.into());
+		T::Currency::set_balance(&sibling_account, 1_000_000_000_000u64.into());
 
 		// Create first subscription
 		let _ = IdnManager::<T>::create_subscription(
@@ -334,7 +334,7 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id: T::SubscriptionId = H256::default().into();
 
-		T::Currency::set_balance(&subscriber, 1_000_000u32.into());
+		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
 
 		// Create first subscription
 		let _ = IdnManager::<T>::create_subscription(
