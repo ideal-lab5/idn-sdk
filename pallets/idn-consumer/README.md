@@ -39,7 +39,6 @@ let sub_id = IdnConsumer::<T>::create_subscription(
     credits,
     frequency,
     metadata,
-    pulse_filter,
     sub_id,
 )?;
 ```
@@ -51,7 +50,6 @@ let sub_id = IdnConsumer::<T>::create_subscription(
 - `credits`: The number of credits to purchase for this subscription. The more credits purchased, the more pulses will be received.
 - `frequency`: The distribution interval for pulses, specified in block numbers. [See note 1](#notes)
 - `metadata`: Optional metadata associated with the subscription, provided as a bounded vector.
-- `pulse_filter`: An optional filter to specify which pulses to include in the subscription.
 - `sub_id`: An optional subscription ID. If `None`, a new ID will be generated automatically.
 
 **Notes**
@@ -89,7 +87,6 @@ let sub_id = IdnConsumer::<T>::create_subscription(
       credits,
       frequency,
       metadata,
-      pulse_filter,
   )?;
   ```
 
@@ -103,7 +100,6 @@ let sub_id = IdnConsumer::<T>::create_subscription(
 - `credits`: Optional. The new number of credits for the subscription. Increasing the credits may result in additional balance being held, while decreasing them may release some balance.
 - `frequency`: Optional. The new distribution interval for pulses, specified in block numbers. [See note 1](#notes)
 - `metadata`: Optional. New metadata associated with the subscription, provided as a bounded vector.
-- `pulse_filter`: Optional. A new filter to specify which pulses to include in the subscription.
 
 Only the fields provided as `Some` will be updated. Fields set to `None` will remain unchanged.
 
@@ -126,7 +122,6 @@ Only the fields provided as `Some` will be updated. Fields set to `None` will re
       credits,
       frequency,
       metadata,
-      pulse_filter,
       sub_id,
       req_ref,
   )?;
@@ -139,7 +134,6 @@ Only the fields provided as `Some` will be updated. Fields set to `None` will re
 - `credits`: The number of credits to get for this subscription. The more credits purchased, the more pulses will be received.
 - `frequency`: The distribution interval for pulses, specified in IDN block numbers. [See note 1](#notes)
 - `metadata`: Optional metadata associated with the subscription, provided as a bounded vector.
-- `pulse_filter`: An optional filter to specify which pulses to include in the subscription.
 - `sub_id`: An optional subscription ID. If `None`, a new ID will be generated automatically.
 - `req_ref`: An optional request reference. If `None`, a new reference will be generated automatically to track the request.
 
