@@ -235,7 +235,7 @@ cargo build -p pallet-idn-consumer --release --features runtime-benchmarks
 
  <!-- TODO: update the following as part of https://github.com/ideal-lab5/idn-sdk/issues/236 and mention that this is taken into account in the quoting system already, if they are using it they shouldn't care  -->
 
-1. Skipping pulses still consume some credits though not as many as the ones delivered. When defining a `frequency` different to `1` or a subscription is paused, pulses will be skipped.
+1. Skipping pulses still consumes some credits though not as many as the ones delivered. When defining a `frequency` different to `1` or a subscription is paused, pulses will be skipped.
 
 2. Dispatching any of the XCM-based calls (e.g., `create_subscription`, `pause_subscription`, `kill_subscription`, etc.) could fail after being fired from the parachain implementing this pallet, even if the function returns `Ok`. The best way to verify if the request was successfully processed by the IDN is to query the `request_sub_info` function with the corresponding `sub_id` and compare the results. 
 
