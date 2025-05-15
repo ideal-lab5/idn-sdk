@@ -15,6 +15,20 @@
  */
 
 //! Pallet IDN Consumer
+//!
+//! ## Overview
+//!
+//! The `pallet-idn-consumer` provides functionality for interacting with the Ideal Network (IDN) as
+//! a consumer. It allows parachains to subscribe to randomness pulses, request subscription quotes,
+//! and manage subscription states via XCM.
+//!
+//! ## Key Features
+//!
+//! - **Subscription Management:** Create, update, pause, reactivate, and terminate subscriptions.
+//! - **Randomness Consumption:** Consume randomness pulses delivered by the IDN.
+//! - **Quote Requests:** Request and consume subscription fee quotes.
+//! - **Subscription Info:** Retrieve and consume subscription details.
+//! - **XCM Integration:** Seamlessly interact with the IDN Manager pallet on the Ideal Network.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -72,24 +86,26 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::config]
+	/// Configuration trait for the pallet.
+	///
+	/// This trait defines the types and constants required to configure the pallet.
 	pub trait Config: frame_system::Config {
-		/// The overarching event type
+		/// The overarching event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-		/// An implementation of the [`PulseConsumer`] trait, which defines how to consume a pulse
+		/// An implementation of the [`PulseConsumer`] trait, which defines how to consume a pulse.
 		type PulseConsumer: PulseConsumer<Pulse, SubscriptionId, (), ()>;
 
-		/// An implementation of the [`QuoteConsumer`] trait, which defines how to consume a
-		/// quote
+		/// An implementation of the [`QuoteConsumer`] trait, which defines how to consume a quote.
 		type QuoteConsumer: QuoteConsumer<Quote, (), ()>;
 
-		/// An implementation of the [`SubInfoConsumer`] trait, which defines how to consume a
-		/// subscription
+		/// An implementation of the [`SubInfoConsumer`] trait, which defines how to consume
+		/// subscription info.
 		type SubInfoConsumer: SubInfoConsumer<SubInfoResponse, (), ()>;
 
-		/// The location of the sibling IDN chain
+		/// The location of the sibling IDN chain.
 		///
-		/// **Example definition**
+		/// Example definition:
 		/// ```nocompile
 		/// parameter_types! {
 		/// 	pub SiblingIdnLocation: Location = Location::new(1, Parachain(IDN_PARACHAIN_ID));
@@ -101,73 +117,96 @@ pub mod pallet {
 		#[pallet::constant]
 		type SiblingIdnLocation: Get<Location>;
 
-		/// The origin of the IDN chain
+		/// The origin of the IDN chain.
 		///
-		/// **Example definition**
+		/// Example definition:
 		/// ```nocompile
 		/// type IdnOrigin = EnsureXcm<Equals<Self::SiblingIdnLocation>>
 		/// ```
 		type IdnOrigin: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
 
-		/// A type that exposes XCM APIs, allowing contracts to interact with other parachains, and
+		/// A type that exposes XCM APIs, allowing contracts to interact with other parachains and
 		/// execute XCM programs.
 		type Xcm: xcm_builder::SendController<OriginFor<Self>>;
 
-		/// This pallet id.
+		/// This pallet's unique identifier.
 		#[pallet::constant]
 		type PalletId: Get<frame_support::PalletId>;
 
-		/// The parachain ID of this chain
+		/// The parachain ID of this chain.
 		///
-		/// **Example definition**
+		/// Example definition:
 		/// ```nocompile
 		/// pub ParaId: ParaId = ParachainInfo::parachain_id();
 		/// ```
 		#[pallet::constant]
 		type ParaId: Get<ParaId>;
 
-		/// The asset hub asset ID for paying the IDN fees.
-		///
-		/// E.g. DOT, USDC, etc.
+		/// The asset hub asset ID for paying the IDN fees (e.g., DOT, USDC, etc.).
 		#[pallet::constant]
 		type AssetHubFee: Get<u128>;
 
-		// The weight information for this pallet.
+		/// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
-	#[pallet::error]
-	#[derive(PartialEq)]
-	pub enum Error<T> {
-		/// An error occurred while consuming the pulse
-		ConsumePulseError,
-		/// An error occurred while consuming the quote
-		ConsumeQuoteError,
-		/// An error occurred while consuming the subscription info
-		ConsumeSubInfoError,
-		/// An error occurred while converting the pallet index to a u8
-		PalletIndexConversionError,
-		/// An error occurred while sending the XCM message
-		XcmSendError,
-	}
-
 	#[pallet::event]
+	/// Events emitted by this pallet.
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A random value was successfully consumed.
+		/// A randomness pulse was successfully consumed.
+		///
+		/// - `sub_id`: The subscription ID associated with the pulse.
 		RandomnessConsumed { sub_id: SubscriptionId },
 		/// A subscription quote was successfully consumed.
+		///
+		/// - `quote`: The subscription quote that was consumed.
 		QuoteConsumed { quote: Quote },
-		/// A subscription info was successfully consumed.
+
+		/// Subscription info was successfully consumed.
+		///
+		/// - `sub_id`: The subscription ID associated with the consumed info.
 		SubInfoConsumed { sub_id: SubscriptionId },
+	}
+
+	#[pallet::error]
+	/// Errors that may occur in this pallet.
+	#[derive(PartialEq)]
+	pub enum Error<T> {
+		/// An error occurred while consuming the pulse.
+		ConsumePulseError,
+
+		/// An error occurred while consuming the quote.
+		ConsumeQuoteError,
+
+		/// An error occurred while consuming the subscription info.
+		ConsumeSubInfoError,
+
+		/// An error occurred while converting the pallet index to a `u8`.
+		PalletIndexConversionError,
+
+		/// An error occurred while sending the XCM message.
+		XcmSendError,
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Consumes a pulse from the IDN chain.
+		/// Consumes a randomness pulse from the IDN chain.
+		///
+		/// This function processes randomness pulses delivered by the IDN chain. The logic for
+		/// handling the pulse is defined in the [`PulseConsumer`] trait implementation.
+		///
+		/// # Parameters
+		/// - `origin`: The origin of the call. Must be from the IDN chain, verified using the
+		///   [`Config::IdnOrigin`] type.
+		/// - `pulse`: The randomness pulse to be consumed.
+		/// - `sub_id`: The subscription ID associated with the pulse.
+		///
+		/// # Errors
+		/// - [`Error::ConsumePulseError`]: If the pulse cannot be consumed.
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::consume_pulse())]
 		#[allow(clippy::useless_conversion)]
@@ -188,6 +227,18 @@ pub mod pallet {
 		}
 
 		/// Consumes a subscription quote from the IDN chain.
+		///
+		/// This function processes subscription fee quotes received from the IDN chain. The
+		/// behavior for handling the quote is defined in the [`QuoteConsumer`] trait
+		/// implementation.
+		///
+		/// # Parameters
+		/// - `origin`: The origin of the call. Must be from the IDN chain, verified using the
+		///   [`Config::IdnOrigin`] type.
+		/// - `quote`: The subscription quote to be consumed.
+		///
+		/// # Errors
+		/// - [`Error::ConsumeQuoteError`]: If the quote cannot be consumed.
 		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::consume_quote())]
 		#[allow(clippy::useless_conversion)]
@@ -203,7 +254,19 @@ pub mod pallet {
 			Ok(Pays::No.into())
 		}
 
-		/// Consumes a subscription info response from the IDN chain.
+		/// Consumes subscription info from the IDN chain.
+		///
+		/// This function processes subscription information received from the IDN chain. The
+		/// behavior for handling the subscription info is defined in the [`SubInfoConsumer`] trait
+		/// implementation.
+		///
+		/// # Parameters
+		/// - `origin`: The origin of the call. Must be from the IDN chain, verified using the
+		///   [`Config::IdnOrigin`] type.
+		/// - `sub_info`: The subscription information to be consumed.
+		///
+		/// # Errors
+		/// - [`Error::ConsumeSubInfoError`]: If the subscription info cannot be consumed.
 		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::consume_sub_info())]
 		#[allow(clippy::useless_conversion)]
@@ -313,7 +376,7 @@ impl<T: Config> Pallet<T> {
 		sub_id: Option<SubscriptionId>,
 		// Optional quote request reference, if None, a new one will be generated
 		req_ref: Option<RequestReference>,
-	) -> Result<SubscriptionId, Error<T>> {
+	) -> Result<RequestReference, Error<T>> {
 		let create_sub_params = CreateSubParams {
 			credits,
 			target: Self::pallet_location()?,
@@ -354,7 +417,7 @@ impl<T: Config> Pallet<T> {
 		sub_id: SubscriptionId,
 		// Optional quote request reference, if None, a new one will be generated
 		req_ref: Option<RequestReference>,
-	) -> Result<(), Error<T>> {
+	) -> Result<RequestReference, Error<T>> {
 		// If `req_ref` is not provided, generate a new one and assign it to the params
 		let req_ref = match req_ref {
 			Some(req_ref) => req_ref,
@@ -368,7 +431,7 @@ impl<T: Config> Pallet<T> {
 
 		Self::xcm_send(call)?;
 
-		Ok(())
+		Ok(req_ref)
 	}
 
 	fn xcm_send(call: RuntimeCall) -> Result<(), Error<T>> {

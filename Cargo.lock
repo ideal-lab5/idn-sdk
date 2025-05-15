@@ -9368,6 +9368,7 @@ version = "0.0.1-dev"
 dependencies = [
  "bp-idn",
  "cumulus-primitives-core",
+ "docify",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
