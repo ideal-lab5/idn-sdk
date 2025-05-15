@@ -372,8 +372,6 @@ pub mod pallet {
 		SubscriptionAlreadyPaused,
 		/// The origin isn't the subscriber
 		NotSubscriber,
-		/// Can't filter out based on pulses
-		FilterRandNotPermitted,
 		/// Too many subscriptions in storage
 		TooManySubscriptions,
 		/// An error occurred while sending the XCM message
@@ -425,13 +423,11 @@ pub mod pallet {
 		///
 		/// This function allows a user to create a new subscription for receiving pulses.
 		/// The subscription includes details such as the number of credits, target location, call
-		/// index, frequency, metadata, and an optional pulse filter.
+		/// index, frequency and metadata.
 		///
 		/// # Errors
 		/// * [`TooManySubscriptions`](Error::TooManySubscriptions) - If the maximum number of
 		///   subscriptions has been reached.
-		/// * [`FilterRandNotPermitted`](Error::FilterRandNotPermitted) - If the pulse filter
-		///   contains pulses.
 		/// * [`SubscriptionAlreadyExists`](Error::SubscriptionAlreadyExists) - If a subscription
 		///   with the specified ID already exists.
 		///
@@ -575,15 +571,13 @@ pub mod pallet {
 		/// Updates a subscription.
 		///
 		/// This function allows the subscriber to modify their subscription parameters,
-		/// such as the number of credits, distribution interval, and pulse filter.
+		/// such as the number of credits and distribution interval.
 		///
 		/// # Errors
 		/// * [`SubscriptionDoesNotExist`](Error::SubscriptionDoesNotExist) - If a subscription with
 		///   the specified ID does not exist.
 		/// * [`NotSubscriber`](Error::NotSubscriber) - If the origin is not the subscriber of the
 		///   specified subscription.
-		/// * [`FilterRandNotPermitted`](Error::FilterRandNotPermitted) - If the pulse filter
-		///   contains random values.
 		///
 		/// # Events
 		/// * [`SubscriptionUpdated`](Event::SubscriptionUpdated) - A subscription has been updated.

@@ -66,8 +66,7 @@ pub trait Dispatcher<P: Pulse, O> {
 /// ## Usage
 /// This trait is used throughout the IDN ecosystem to:
 /// 1. Provide a consistent interface for different randomness sources
-/// 2. Enable subscriptions to filter pulses based on specific properties
-/// 3. Allow the secure distribution of randomness through XCM
+/// 2. Allow the secure distribution of randomness through XCM
 ///
 /// ## Example
 /// ```rust

@@ -19,16 +19,25 @@
 use sp_idn_traits::pulse::Pulse;
 
 /// A trait for describing a pulse consumption behavior.
+///
+/// # Example implementation
+#[doc = docify::embed!("./src/tests/mock.rs", pulse_consumer_impl)]
 pub trait PulseConsumer<P: Pulse, I, O, E> {
 	fn consume_pulse(pulse: P, sub_id: I) -> Result<O, E>;
 }
 
 /// A trait for describing a quote consumption behavior.
+///
+/// # Example implementation
+#[doc = docify::embed!("./src/tests/mock.rs", quote_consumer_impl)]
 pub trait QuoteConsumer<Q, O, E> {
 	fn consume_quote(quote: Q) -> Result<O, E>;
 }
 
 /// A trait for describing a subscription info consumption behavior.
+///
+/// # Example implementation
+#[doc = docify::embed!("./src/tests/mock.rs", sub_info_consumer_impl)]
 pub trait SubInfoConsumer<S, O, E> {
 	fn consume_sub_info(sub_info: S) -> Result<O, E>;
 }
