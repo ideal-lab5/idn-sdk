@@ -237,7 +237,7 @@ impl GossipsubNetwork {
 		// [SRLabs]: The error can never be encountered
 		// Q: Can we use an expect, or is this unsafe?
 		// Ref: https://docs.rs/libpp-gossipsub/0.48.0/src/libp2p_gossipsub/behaviour.rs.html#532
-		// The error can only occur if the sub`scription filter rejects it, but we specify no
+		// The error can only occur if the subscription filter rejects it, but we specify no
 		// filter.
 		self.swarm
 			.behaviour_mut()
