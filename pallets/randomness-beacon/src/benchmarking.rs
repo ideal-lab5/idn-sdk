@@ -25,18 +25,12 @@ use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
 use ark_std::{ops::Mul, test_rng, UniformRand};
 use frame_benchmarking::v2::*;
-use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
-use sp_consensus_randomness_beacon::types::{
-	OpaquePublicKey, OpaqueSignature, RoundNumber, RuntimePulse,
-};
+use frame_system::RawOrigin;
+use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
 
-#[benchmarks(
-	where
-		<T::Pulse as Pulse>::Round: From<u64>,
-		<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
-)]
+#[benchmarks(where <T::Pulse as Pulse>::Pubkey: From<[u8;96]>)]
 mod benchmarks {
 	use super::*;
 
@@ -60,7 +54,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn try_submit_asig(
-		r: Linear<2, { T::MaxSigsPerBlock::get().into() }>,
+		r: Linear<1, { T::MaxSigsPerBlock::get().into() }>,
 	) -> Result<(), BenchmarkError> {
 		let drand = MockDrand::new();
 
@@ -71,24 +65,13 @@ mod benchmarks {
 		let mut asig = G1Affine::zero();
 		let mut apk = G1Affine::zero();
 
-		let pulses = (1..r)
-			.map(|i| {
-				let mut bytes = Vec::new();
-				let id = compute_round_on_g1(i.into()).unwrap();
-				apk = (apk + id).into();
+		(0..r).for_each(|i| {
+			let id = compute_round_on_g1(i.into()).unwrap();
+			apk = (apk + id).into();
 
-				let sig = drand.sign(i.into());
-				asig = (asig + sig).into();
-
-				sig.serialize_compressed(&mut bytes).unwrap();
-				let signature: OpaqueSignature = bytes.try_into().unwrap();
-
-				let op = RuntimePulse { round: i as u64, signature };
-				let encoded = op.encode();
-				let out: T::Pulse = T::Pulse::decode(&mut encoded.as_slice()).unwrap();
-				out
-			})
-			.collect::<Vec<_>>();
+			let sig = drand.sign(i.into());
+			asig = (asig + sig).into();
+		});
 
 		let mut asig_bytes = Vec::new();
 		asig.serialize_compressed(&mut asig_bytes).unwrap();
@@ -97,12 +80,12 @@ mod benchmarks {
 		apk.serialize_compressed(&mut apk_bytes).unwrap();
 
 		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
-		let config = BeaconConfigurationOf::<T> { genesis_round: 1u64.into(), public_key: pubkey };
+		let config = BeaconConfigurationOf::<T> { genesis_round: 0u64, public_key: pubkey };
 
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
 
 		#[extrinsic_call]
-		_(RawOrigin::None, pulses);
+		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), r.into());
 
 		assert_eq!(
 			SparseAccumulation::<T>::get(),
@@ -117,18 +100,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn on_finalize() -> Result<(), BenchmarkError> {
-		let history_depth = T::MissedBlocksHistoryDepth::get();
-		let block_number: u32 = history_depth;
-
-		let mut history: Vec<BlockNumberFor<T>> = Vec::new();
-		(0..history_depth).for_each(|i| history.push(i.into()));
-		// we add one more value and 'push out' the oldest one
-		let mut expected_final_history: Vec<BlockNumberFor<T>> = Vec::new();
-		(0..history_depth).for_each(|i| expected_final_history.push(i.into()));
-		// pretend that we have missed the maximum number of blocks
-		// and the next will cause the bounded vec to overflow, pushing out the oldest missed block
-		MissedBlocks::<T>::set(BoundedVec::truncate_from(history));
-		// ensure that DidUpdate is false
+		let block_number: u32 = 1u32;
 		DidUpdate::<T>::set(false);
 
 		#[block]
@@ -136,18 +108,14 @@ mod benchmarks {
 			Pallet::<T>::on_finalize(block_number.into());
 		}
 
-		assert_eq!(MissedBlocks::<T>::get().into_inner(), expected_final_history);
-
 		Ok(())
 	}
 
 	#[benchmark]
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
 		let public_key = [1; 96];
-		let config = BeaconConfigurationOf::<T> {
-			genesis_round: 1u64.into(),
-			public_key: public_key.into(),
-		};
+		let config =
+			BeaconConfigurationOf::<T> { genesis_round: 1u64, public_key: public_key.into() };
 
 		#[extrinsic_call]
 		_(RawOrigin::Root, config.clone());

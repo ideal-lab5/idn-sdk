@@ -9,9 +9,7 @@ This crate provides core traits for the Ideal Network (IDN) ecosystem, focusing 
 The IDN traits facilitate the seamless operation of randomness sources, dispatchers, and consumers within the IDN ecosystem. Key traits include:
 
 - `Pulse` - Core trait for randomness beacon pulses
-- `PulseMatch` - Extension trait for filtering pulses by properties
 - `Dispatcher` - Trait for handling and distributing randomness
-- `PulseProperty` - Enum for referencing pulse properties in a type-safe way
 
 ## Building Documentation
 

@@ -319,7 +319,6 @@ impl pallet_idn_manager::Config for Runtime {
 	type Xcm = ();
 	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
-	type MaxPulseFilterLen = types::MaxPulseFilterLen;
 	type MaxSubscriptions = types::MaxSubscriptions;
 	type SubscriptionId = types::SubscriptionId;
 	type DiffBalance = impls::DiffBalanceImpl<BalanceOf<Runtime>>;
@@ -331,7 +330,6 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type WeightInfo = ();
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<30>;
-	type MissedBlocksHistoryDepth = ConstU32<{ u8::MAX as u32 }>;
 	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;
 }

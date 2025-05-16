@@ -118,7 +118,6 @@ mod example_consumer {
 		/// * `credits` - Number of random values to receive
 		/// * `frequency` - Distribution interval for random values (in blocks)
 		/// * `metadata` - Optional metadata for the subscription
-		/// * `pulse_filter` - Optional filter for pulses (advanced usage)
 		///
 		/// The caller must provide sufficient funds to cover the XCM execution costs.
 		///
@@ -131,7 +130,6 @@ mod example_consumer {
 			credits: u32,
 			frequency: u32,
 			metadata: Option<Vec<u8>>,
-			pulse_filter: Option<Vec<u8>>,
 		) -> core::result::Result<(), ContractError> {
 			// Only allow creating a subscription if we don't already have one
 			if self.subscription_id.is_some() {
@@ -149,7 +147,6 @@ mod example_consumer {
 				call_index: self.randomness_call_index,
 				frequency,
 				metadata,
-				pulse_filter,
 				sub_id: None, // Let the IDN client generate an ID
 			};
 
@@ -219,7 +216,6 @@ mod example_consumer {
 		///
 		/// * `credits` - New number of random values to receive
 		/// * `frequency` - New distribution interval for random values
-		/// * `pulse_filter` - Optional filter for pulses (advanced usage)
 		///
 		/// The caller must provide sufficient funds to cover the XCM execution costs.
 		///
@@ -231,7 +227,6 @@ mod example_consumer {
 			&mut self,
 			credits: u32,
 			frequency: u32,
-			pulse_filter: Option<Vec<u8>>,
 		) -> core::result::Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
@@ -242,7 +237,7 @@ mod example_consumer {
 
 			// Create update parameters
 			let params =
-				UpdateSubParams { sub_id: subscription_id, credits, frequency, pulse_filter };
+				UpdateSubParams { sub_id: subscription_id, credits, frequency };
 
 			// Update subscription through IDN client
 			self.idn_client

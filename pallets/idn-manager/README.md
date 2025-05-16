@@ -9,7 +9,6 @@ The IDN Manager pallet provides functionality for managing subscriptions to rand
 - **Subscription Management:** Create, update, pause, and terminate subscriptions.
 - **Fees Management:** Configurable fees for subscriptions, with tiered pricing and volume discounts.
 - **Storage Deposits:** Ensures that sufficient funds are reserved to cover the cost of storing subscription data.
-- **Pulse Filtering:** Allows subscribers to filter the randomness pulses they receive based on specific criteria.
 - **XCM Integration:** Enables the delivery of randomness to other chains via Cross-Consensus Messaging (XCM).
 - **Benchmarking:** Includes comprehensive benchmarking to measure and optimize performance.
 
@@ -17,7 +16,7 @@ The IDN Manager pallet provides functionality for managing subscriptions to rand
 
 The IDN Manager pallet is designed with a modular architecture, allowing for different implementations of key components. The main components include:
 
-- **Subscriptions:** Stores information about active subscriptions, including the subscriber, target location, credits, and pulse filter.
+- **Subscriptions:** Stores information about active subscriptions, including the subscriber, target location and credits.
 - **Fees Manager:** Calculates and collects fees for subscriptions. Different implementations can be used to support various pricing models.
 - **Deposit Calculator:** Calculates the storage deposits required for subscriptions.
 - **Pulse Dispatcher:** Distributes randomness pulses to eligible subscriptions.
@@ -36,7 +35,6 @@ The subscription state lifecycle defines the different states a subscription can
 The IDN Manager pallet can be configured using the following runtime parameters:
 
 - `MaxMetadataLen`: The maximum length of the subscription metadata.
-- `MaxPulseFilterLen`: The maximum length of the pulse filter.
 - `Credits`: The type used to represent the number of credits in a subscription.
 - `MaxSubscriptions`: The maximum number of subscriptions allowed.
 - `Currency`: The currency used for fees and deposits.
@@ -89,7 +87,6 @@ The IDN Manager pallet includes comprehensive benchmarking to measure and optimi
 
 ## Security Considerations
 
-- **Pulse Filtering:** Filtering on `rand` values is explicitly prohibited to prevent malicious actors from manipulating the randomness distribution.
 - **Fees and Deposits:** Proper configuration of fees and deposits is essential to ensure the economic sustainability of the randomness service.
 
 ## License
