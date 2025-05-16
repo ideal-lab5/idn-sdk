@@ -654,7 +654,8 @@ fn test_credits_consumption_and_cleanup() {
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000_000;
-		let mut treasury_balance = 0;
+		let initial_treasury_balance = IdnManager::min_balance();
+		let mut treasury_balance = initial_treasury_balance;
 		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
 
 		// Set up account
@@ -738,7 +739,7 @@ fn test_credits_consumption_and_cleanup() {
 			// assert balance has been collected from the hold
 			assert_eq!(
 				Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE),
-				initial_fees - treasury_balance
+				initial_fees - (treasury_balance - initial_treasury_balance)
 			);
 
 			// assert free balance is still correct
@@ -758,7 +759,10 @@ fn test_credits_consumption_and_cleanup() {
 		assert_eq!(Balances::free_balance(&ALICE), initial_balance - initial_fees);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0);
-		assert_eq!(Balances::free_balance(&TreasuryAccount::get()), initial_fees);
+		assert_eq!(
+			Balances::free_balance(&TreasuryAccount::get()) - initial_treasury_balance,
+			initial_fees
+		);
 
 		// Verify events
 		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {

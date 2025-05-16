@@ -27,4 +27,5 @@ frame_benchmarking::define_benchmarks!(
 	[pallet_message_queue, MessageQueue]
 	[pallet_randomness_beacon, RandBeacon]
 	[pallet_idn_manager, IdnManager]
+	[pallet_transaction_payment, TransactionPayment]
 );

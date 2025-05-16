@@ -43,29 +43,9 @@ docker run [image] [options]
 cargo test
 ```
 
-**Benchmarks**
+## Benchmarking
 
-Build with benchmarks using:
-
-```sh
-cargo build -p idn-node --release --features runtime-benchmarks
-```
-
-and run them with:
-
-```sh
-# list all benchmarks
-./target/release/idn-node benchmark pallet --chain dev --pallet "*" --extrinsic "*" --repeat 0
-# benchmark all the pallets
-./target/release/idn-node benchmark pallet \
-    --chain dev \
-    --wasm-execution=compiled \
-    --pallet "*" \
-    --extrinsic "*" \
-    --steps 50 \
-    --repeat 20 \
-    --output <output_file.rs>
-```
+See the [Benchmarking Guide](../../BENCHMARKING.md) for instructions on how to run benchmarks for this parachain.
 
 ## Local Development Chain
 
@@ -96,4 +76,4 @@ It should output something like this:
 ```
 
 3. Done, you can now interact with the parachain using this link https://polkadot.js.org/apps/?rpc=ws://127.0.0.1:1234#/explorer.
-Bear in mind that you may need to wait a few seconds for the block production to start.
+   Bear in mind that you may need to wait a few seconds for the block production to start.

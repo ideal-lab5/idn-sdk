@@ -38,7 +38,10 @@ use codec::Encode;
 use frame_support::{
 	pallet_prelude::DispatchError,
 	traits::{
-		tokens::{fungible::hold::Mutate, Fortitude, Precision, Restriction},
+		tokens::{
+			fungible::{hold::Mutate as HoldMutate, Inspect, Mutate},
+			Fortitude, Precision, Restriction,
+		},
 		Get,
 	},
 };
@@ -64,13 +67,12 @@ impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, SubscriptionId>
 ///
 /// # Type Parameters:
 /// * `Treasury`: A `Get<AccountId32>` implementation that provides the treasury account ID.
-/// * `BaseFee`: A `Get<Balances::Balance>` implementation that provides the base fee.
 /// * `Sub`: A `SubscriptionTrait<AccountId32>` implementation that provides access to subscription
 ///   details.
 /// * `Balances`: A `Mutate<AccountId32>` implementation that provides the ability to hold and
 ///   release balances.
-pub struct FeesManagerImpl<Treasury, BaseFee, Sub, Balances> {
-	pub _phantom: FeesManagerPhantom<Treasury, BaseFee, Sub, Balances>,
+pub struct FeesManagerImpl<Treasury, Sub, Balances> {
+	_phantom: PhantomData<(Treasury, Sub, Balances)>,
 }
 
 /// This struct represent movement of balance.
@@ -95,30 +97,25 @@ impl<Balance: Copy> DiffBalance<Balance> for DiffBalanceImpl<Balance> {
 	}
 }
 
-type FeesManagerPhantom<Treasury, BaseFee, Sub, Balances> =
-	(PhantomData<Treasury>, PhantomData<BaseFee>, PhantomData<Sub>, PhantomData<Balances>);
-
 /// Implementation of the FeesManager trait for the FeesManagerImpl struct.
 ///
 /// # Tests
 ///
 /// ## Calculate Subscription Fees Test
 #[doc = docify::embed!("./src/tests/pallet.rs", test_calculate_subscription_fees)]
-impl<
-		T: Get<AccountId32>,
-		B: Get<Balances::Balance>,
-		S: SubscriptionTrait<AccountId32>,
-		Balances: Mutate<AccountId32>,
-	>
+impl<Treasury, Sub, Balances>
 	FeesManager<
 		Balances::Balance,
 		u64,
-		S,
+		Sub,
 		DispatchError,
 		AccountId32,
 		DiffBalanceImpl<Balances::Balance>,
-	> for FeesManagerImpl<T, B, S, Balances>
+	> for FeesManagerImpl<Treasury, Sub, Balances>
 where
+	Treasury: Get<AccountId32>,
+	Sub: SubscriptionTrait<AccountId32>,
+	Balances: HoldMutate<AccountId32> + Mutate<AccountId32> + Inspect<AccountId32>,
 	Balances::Reason: From<HoldReason>,
 	Balances::Balance: From<u64>,
 {
@@ -223,13 +220,22 @@ where
 	///   amount is collected
 	fn collect_fees(
 		fees: &Balances::Balance,
-		sub: &S,
+		sub: &Sub,
 	) -> Result<Balances::Balance, FeesError<Balances::Balance, DispatchError>> {
+		// Ensure the treasury account is set for benchmarking purposes
+		#[cfg(feature = "runtime-benchmarks")]
+		if Balances::balance(&Treasury::get()) < Balances::minimum_balance() {
+			Balances::set_balance(
+				&Treasury::get(),
+				Balances::minimum_balance() - Balances::balance(&Treasury::get()),
+			);
+		}
+
 		// Collect the held fees from the subscriber
 		let collected = Balances::transfer_on_hold(
 			&HoldReason::Fees.into(),
 			sub.subscriber(),
-			&T::get(),
+			&Treasury::get(),
 			*fees,
 			Precision::BestEffort,
 			Restriction::Free,
@@ -246,12 +252,12 @@ where
 	}
 
 	/// Get the number of credits consumed by a subscription when this one gets a pulse in a block.
-	fn get_consume_credits(_sub: &S) -> u64 {
+	fn get_consume_credits(_sub: &Sub) -> u64 {
 		1000
 	}
 
 	/// Get the number of credits consumed by a subscription when this one is idle in a block.
-	fn get_idle_credits(_sub: &S) -> u64 {
+	fn get_idle_credits(_sub: &Sub) -> u64 {
 		10
 	}
 }
@@ -270,14 +276,14 @@ where
 /// ## Release Deposit Test
 #[doc = docify::embed!("./src/tests/pallet.rs", release_deposit_works)]
 pub struct DepositCalculatorImpl<SDMultiplier: Get<Deposit>, Deposit> {
-	pub _phantom: (PhantomData<SDMultiplier>, PhantomData<Deposit>),
+	_phantom: PhantomData<(SDMultiplier, Deposit)>,
 }
 
 impl<
-		S: SubscriptionTrait<AccountId32> + Encode,
+		Sub: SubscriptionTrait<AccountId32> + Encode,
 		SDMultiplier: Get<Deposit>,
 		Deposit: Saturating + From<u64> + Ord + Copy,
-	> DepositCalculator<Deposit, S, DiffBalanceImpl<Deposit>>
+	> DepositCalculator<Deposit, Sub, DiffBalanceImpl<Deposit>>
 	for DepositCalculatorImpl<SDMultiplier, Deposit>
 {
 	/// Calculate the storage deposit required for a subscription.
@@ -290,7 +296,7 @@ impl<
 	/// 1. Converting the encoded size from `usize` to `u64` with fallback to `u64::MAX` if the
 	///    conversion fails
 	/// 2. Using saturating multiplication to prevent arithmetic overflow
-	fn calculate_storage_deposit(sub: &S) -> Deposit {
+	fn calculate_storage_deposit(sub: &Sub) -> Deposit {
 		// [SRLabs] Note: There is a theoretical edge case where if the `Deposit` type (e.g., u64)
 		// is larger than the machine architecture size (e.g., 32-bit platforms), an attacker
 		// could create a subscription object larger than u32::MAX bits and only pay a deposit for
@@ -311,7 +317,7 @@ impl<
 	/// 2. Compares the two deposits to determine if more deposit is needed, some can be released,
 	///    or no change is required
 	/// 3. Returns both the amount and direction of the required deposit adjustment
-	fn calculate_diff_deposit(old_sub: &S, new_sub: &S) -> DiffBalanceImpl<Deposit> {
+	fn calculate_diff_deposit(old_sub: &Sub, new_sub: &Sub) -> DiffBalanceImpl<Deposit> {
 		let old_deposit = Self::calculate_storage_deposit(old_sub);
 		let new_deposit = Self::calculate_storage_deposit(new_sub);
 		let direction = match new_deposit.cmp(&old_deposit) {

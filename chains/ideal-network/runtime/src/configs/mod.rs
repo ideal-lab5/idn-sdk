@@ -18,7 +18,10 @@
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
-use bp_idn::{impls, types};
+use bp_idn::{
+	impls,
+	types::{self},
+};
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -50,7 +53,13 @@ use xcm::latest::prelude::BodyId;
 
 // Local module imports
 use super::{
-	weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight},
+	weights::{
+		BalancesWeightInfo, BlockExecutionWeight, CollatorSelectionWeightInfo,
+		CumulusParachainSystemWeightInfo, CumulusXcmpQueueWeightInfo, ExtrinsicBaseWeight,
+		IdnManagerWeightInfo, MessageQueueWeightInfo, RandomnessBeaconWeightInfo, RocksDbWeight,
+		SessionWeightInfo, SudoWeightInfo, SystemWeightInfo, TimestampWeightInfo,
+		TransactionPaymentWeightInfo,
+	},
 	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook, Hash,
 	MessageQueue, Nonce, PalletInfo, ParachainSystem, Runtime, RuntimeCall, RuntimeEvent,
 	RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
@@ -119,6 +128,7 @@ impl frame_system::Config for Runtime {
 	/// The action to take on a Runtime Upgrade
 	type OnSetCode = cumulus_pallet_parachain_system::ParachainSetCode<Self>;
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type SystemWeightInfo = SystemWeightInfo<Runtime>;
 }
 
 impl pallet_timestamp::Config for Runtime {
@@ -126,7 +136,7 @@ impl pallet_timestamp::Config for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Aura;
 	type MinimumPeriod = ConstU64<0>;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = TimestampWeightInfo<Runtime>;
 }
 
 impl pallet_authorship::Config for Runtime {
@@ -147,7 +157,7 @@ impl pallet_balances::Config for Runtime {
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = BalancesWeightInfo<Runtime>;
 	type MaxReserves = ConstU32<50>;
 	type ReserveIdentifier = [u8; 8];
 	type RuntimeHoldReason = RuntimeHoldReason;
@@ -169,13 +179,13 @@ impl pallet_transaction_payment::Config for Runtime {
 	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 	type OperationalFeeMultiplier = ConstU8<5>;
-	type WeightInfo = ();
+	type WeightInfo = TransactionPaymentWeightInfo<Runtime>;
 }
 
 impl pallet_sudo::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeCall = RuntimeCall;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = SudoWeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -185,7 +195,7 @@ parameter_types! {
 }
 
 impl cumulus_pallet_parachain_system::Config for Runtime {
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = CumulusParachainSystemWeightInfo<Runtime>;
 	type RuntimeEvent = RuntimeEvent;
 	type OnSystemEvent = ();
 	type SelfParaId = parachain_info::Pallet<Runtime>;
@@ -207,7 +217,7 @@ parameter_types! {
 
 impl pallet_message_queue::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = MessageQueueWeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type MessageProcessor = pallet_message_queue::mock_helpers::NoopMessageProcessor<
 		cumulus_primitives_core::AggregateMessageOrigin,
@@ -239,7 +249,7 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type MaxInboundSuspended = sp_core::ConstU32<1_000>;
 	type ControllerOrigin = EnsureRoot<AccountId>;
 	type ControllerOriginConverter = XcmOriginToTransactDispatchOrigin;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = CumulusXcmpQueueWeightInfo<Runtime>;
 	type PriceForSiblingDelivery = NoPriceForMessageDelivery<ParaId>;
 	// Limit the number of messages and signals a HRML channel can have at most
 	type MaxActiveOutboundChannels = ConstU32<128>;
@@ -263,7 +273,7 @@ impl pallet_session::Config for Runtime {
 	// Essentially just Aura, but let's be pedantic.
 	type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = SessionWeightInfo<Runtime>;
 	type DisablingStrategy = ();
 }
 
@@ -301,7 +311,7 @@ impl pallet_collator_selection::Config for Runtime {
 	type ValidatorId = <Self as frame_system::Config>::AccountId;
 	type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
 	type ValidatorRegistration = Session;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = CollatorSelectionWeightInfo<Runtime>;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -325,17 +335,13 @@ mod bench_ensure_origin {
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager = impls::FeesManagerImpl<
-		types::TreasuryAccount,
-		types::BaseFee,
-		SubscriptionOf<Runtime>,
-		Balances,
-	>;
+	type FeesManager =
+		impls::FeesManagerImpl<types::TreasuryAccount, SubscriptionOf<Runtime>, Balances>;
 	type DepositCalculator = impls::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
 	type PalletId = types::IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = types::RuntimePulse;
-	type WeightInfo = ();
+	type WeightInfo = IdnManagerWeightInfo<Runtime>;
 	type Xcm = ();
 	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
@@ -350,7 +356,7 @@ impl pallet_idn_manager::Config for Runtime {
 
 impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = ();
+	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<30>;
 	type Pulse = types::RuntimePulse;
