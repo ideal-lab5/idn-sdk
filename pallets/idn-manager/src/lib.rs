@@ -410,9 +410,8 @@ pub mod pallet {
 		/// the subscription from storage and dispatching events, among other actions.
 		fn on_finalize(_n: BlockNumberFor<T>) {
 			// Look for subscriptions that should be finished
-			for (sub_id, sub) in Subscriptions::<T>::iter()
-				.filter(|(_, sub)| sub.credits_left == Zero::zero())
-				.take(100)
+			for (sub_id, sub) in
+				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left == Zero::zero())
 			{
 				// finish the subscription
 				let _ = Self::finish_subscription(&sub, sub_id);
