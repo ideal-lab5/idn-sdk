@@ -131,8 +131,9 @@ pub fn run() -> sc_cli::Result<()> {
 						)
 						.map_err(sc_cli::Error::Service),
 					None => {
-						// no backend configured
-						panic!("Invalid backend.");
+						// no backend configured (default use it instead)
+						service::new_full::<sc_network::NetworkWorker<_, _>>(config, cli.consensus)
+							.map_err(sc_cli::Error::Service)
 					},
 				}
 			})

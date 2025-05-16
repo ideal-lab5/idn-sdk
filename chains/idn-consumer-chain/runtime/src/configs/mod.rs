@@ -16,6 +16,9 @@
 
 #[path = "xcm.rs"]
 mod xcm_config;
+mod assets;
+mod contracts;
+mod revive;
 
 // Substrate and Polkadot dependencies
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
@@ -56,7 +59,7 @@ use super::{
 	QuoteConsumerImpl, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason, RuntimeHoldReason,
 	RuntimeOrigin, RuntimeTask, Session, SessionKeys, SubInfoConsumerImpl, System, WeightToFee,
 	XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT,
-	MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
+	MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION, OriginCaller
 };
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
@@ -328,4 +331,12 @@ impl pallet_idn_consumer::Config for Runtime {
 	type AssetHubFee = AssetHubFee;
 	// TODO: run benchmarks against reference hw https://github.com/ideal-lab5/idn-sdk/issues/235
 	type WeightInfo = ();
+}
+
+impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
+impl pallet_utility::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
+	type PalletsOrigin = OriginCaller;
+	type WeightInfo = pallet_utility::weights::SubstrateWeight<Runtime>;
 }

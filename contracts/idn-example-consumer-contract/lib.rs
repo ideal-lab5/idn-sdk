@@ -571,19 +571,19 @@ mod example_consumer {
 	#[cfg(all(test, feature = "e2e-tests"))]
     mod e2e_tests {
         use super::*;
-        use ink_e2e::{ChainBackend, ContractsBackend};
+        use ink_e2e::ContractsBackend;
 
         type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
         #[ink_e2e::test]
-        async fn basic_contract_works<Client: E2EBackend>(mut client: Client) -> E2EResult<()> {
-            // given: contract parameters
-            let ideal_network_para_id = 2000; // The parachain ID of the Ideal Network
-            let idn_manager_pallet_index = 10; // The pallet index for the IDN Manager pallet
-            let destination_para_id = 1000;    // The parachain ID where this contract is deployed
-            let contracts_pallet_index = 50;   // The contracts pallet index on the destination chain
+        async fn basic_contract_works<Client: ContractsBackend>(mut client: Client) -> E2EResult<()> {
+            // Contract parameters
+            let ideal_network_para_id = 2000; 
+            let idn_manager_pallet_index = 10;
+            let destination_para_id = 1000;
+            let contracts_pallet_index = 50;
 
-            // when: we instantiate the contract
+            // Deploy the contract
             let mut constructor = ExampleConsumerRef::new(
                 ideal_network_para_id,
                 idn_manager_pallet_index,
@@ -591,24 +591,24 @@ mod example_consumer {
                 contracts_pallet_index
             );
             
+            // Verify that the contract can be deployed
             let contract = client
                 .instantiate("idn-example-consumer-contract", &ink_e2e::alice(), &mut constructor)
                 .submit()
                 .await
                 .expect("deployment failed");
                 
+            // Use call_builder to create message (ink! v5.1.1 syntax)
             let call_builder = contract.call_builder::<ExampleConsumer>();
-
-            // then: we can call a method and get the expected result
-            let get_last_randomness = call_builder.get_last_randomness();
-            let last_randomness_result = client
-                .call(&ink_e2e::alice(), &get_last_randomness)
+            let get_para_id = call_builder.get_ideal_network_para_id();
+            
+            let result = client
+                .call(&ink_e2e::alice(), &get_para_id)
                 .dry_run()
                 .await?;
+                
+            assert_eq!(result.return_value(), ideal_network_para_id);
             
-            // initially, last_randomness should be None
-            assert_eq!(last_randomness_result.return_value(), None);
-
             Ok(())
         }
     }
