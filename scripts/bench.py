@@ -145,7 +145,7 @@ if args.command == 'bench':
                                f"--runtime=target/{profile}/wbuild/{config['package']}/{config['package'].replace('-', '_')}.wasm "
                                f"--pallet={pallet} "
                                f"--header={header_path} "
-                               f"--output={output_path} "
+                               f"--output={output_path}/{pallet}_weights.rs "
                                f"--wasm-execution=compiled  "
                                f"--steps=50 "
                                f"--repeat=20 "

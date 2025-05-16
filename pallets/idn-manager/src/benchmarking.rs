@@ -18,8 +18,8 @@
 
 use super::*;
 use crate::{
-	pallet::Pallet as IdnManager, primitives::QuoteRequest, CreateSubParamsOf, SubInfoRequestOf,
-	UpdateSubParamsOf,
+	pallet::Pallet as IdnManager, primitives::QuoteRequest, BalanceOf, CreateSubParamsOf,
+	SubInfoRequestOf, UpdateSubParamsOf,
 };
 use frame_benchmarking::v2::*;
 use frame_support::{
@@ -52,7 +52,10 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
+		T::Currency::set_balance(
+			&subscriber,
+			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
+		);
 
 		let params = CreateSubParamsOf::<T> {
 			credits,
@@ -86,7 +89,10 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
+		T::Currency::set_balance(
+			&subscriber,
+			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
+		);
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
@@ -123,7 +129,10 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
+		T::Currency::set_balance(
+			&subscriber,
+			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
+		);
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
@@ -159,7 +168,10 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
+		T::Currency::set_balance(
+			&subscriber,
+			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
+		);
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
@@ -214,7 +226,10 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 
-		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
+		T::Currency::set_balance(
+			&subscriber,
+			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
+		);
 
 		let _ = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
@@ -300,7 +315,10 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id: T::SubscriptionId = H256::default().into();
 
-		T::Currency::set_balance(&sibling_account, 1_000_000_000_000u64.into());
+		T::Currency::set_balance(
+			&sibling_account,
+			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
+		);
 
 		// Create first subscription
 		let _ = IdnManager::<T>::create_subscription(
@@ -334,7 +352,10 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id: T::SubscriptionId = H256::default().into();
 
-		T::Currency::set_balance(&subscriber, 1_000_000_000_000u64.into());
+		T::Currency::set_balance(
+			&subscriber,
+			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
+		);
 
 		// Create first subscription
 		let _ = IdnManager::<T>::create_subscription(
@@ -368,11 +389,38 @@ mod benchmarks {
 		assert!(sub.last_delivered.is_some());
 	}
 
+	#[benchmark]
+	fn on_finalize(s: Linear<1, { T::MaxSubscriptions::get() }>) {
+		fill_up_subscriptions::<T>(s);
+
+		assert_eq!(Subscriptions::<T>::iter().count(), s as usize);
+
+		// iterate over all subscriptions and update the credits_left parameter
+		Subscriptions::<T>::iter().for_each(
+			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| {
+				// update the credits_left parameter
+				sub.credits_left = 0u64.into();
+				// update the subscription
+				Subscriptions::<T>::insert(sub_id, sub);
+			},
+		);
+
+		let block_number = frame_system::Pallet::<T>::block_number();
+
+		#[block]
+		{
+			Pallet::<T>::on_finalize(block_number);
+		}
+
+		assert_eq!(Subscriptions::<T>::iter().count(), 0);
+	}
+
 	/// Fill up the subscriptions with the given number of subscriptions
 	fn fill_up_subscriptions<T: Config>(s: u32)
 	where
 		T::Credits: From<u64>,
 		T::Currency: Mutate<T::AccountId>,
+		BalanceOf<T>: From<u64>,
 	{
 		let subscriber: T::AccountId = whitelisted_caller();
 		let credits: T::Credits = 100u64.into();
@@ -380,7 +428,10 @@ mod benchmarks {
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 
-		T::Currency::set_balance(&subscriber, u32::MAX.into());
+		T::Currency::set_balance(
+			&subscriber,
+			IdnManager::<T>::min_balance().saturating_mul(10_000_000u64.into()),
+		);
 
 		// Create s subscriptions
 		for _ in 0..s {
