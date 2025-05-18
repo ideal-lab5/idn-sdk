@@ -33,11 +33,11 @@ use sp_version::RuntimeVersion;
 
 // Local module imports
 use super::{
-	AccountId, Balance, Block, ConsensusHook, Executive, InherentDataExt, Nonce, ParachainSystem,
-	Runtime, RuntimeCall, RuntimeGenesisConfig, SessionKeys, System, TransactionPayment,
-	SLOT_DURATION, VERSION, BlockNumber, EventRecord, Hash, Revive, Contracts, RuntimeOrigin,
-	REVIVE_DEBUG_OUTPUT, REVIVE_EVENTS, CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS,
-	configs::{RuntimeBlockWeights}	
+	configs::RuntimeBlockWeights, AccountId, Balance, Block, BlockNumber, ConsensusHook, Contracts,
+	EventRecord, Executive, Hash, InherentDataExt, Nonce, ParachainSystem, Revive, Runtime,
+	RuntimeCall, RuntimeGenesisConfig, RuntimeOrigin, SessionKeys, System, TransactionPayment,
+	CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS, REVIVE_DEBUG_OUTPUT, REVIVE_EVENTS, SLOT_DURATION,
+	VERSION,
 };
 
 impl_runtime_apis! {
