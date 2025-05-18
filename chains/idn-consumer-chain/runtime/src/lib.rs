@@ -379,8 +379,6 @@ const CONTRACTS_DEBUG_OUTPUT: pallet_contracts::DebugInfo =
 	pallet_contracts::DebugInfo::UnsafeDebug;
 const CONTRACTS_EVENTS: pallet_contracts::CollectEvents =
 	pallet_contracts::CollectEvents::UnsafeCollect;
-const REVIVE_DEBUG_OUTPUT: pallet_revive::DebugInfo = pallet_revive::DebugInfo::UnsafeDebug;
-const REVIVE_EVENTS: pallet_revive::CollectEvents = pallet_revive::CollectEvents::UnsafeCollect;
 
 cumulus_pallet_parachain_system::register_validate_block! {
 	Runtime = Runtime,
