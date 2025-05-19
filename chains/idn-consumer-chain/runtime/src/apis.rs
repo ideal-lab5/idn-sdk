@@ -228,7 +228,7 @@ impl_runtime_apis! {
 					frame_system::WeightReclaim::<Runtime>::new(),
 				);
 				dispatch_info.extension_weight = extension.weight(&call);
-				let uxt: UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic::new_bare(call).into();
+				let uxt: UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic::new_bare(call);
 
 				pallet_transaction_payment::Pallet::<Runtime>::compute_fee(
 					uxt.encoded_size() as u32,
