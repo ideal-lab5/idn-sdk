@@ -60,10 +60,14 @@ impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
 	/// The range of component `b` is `[0, 3932160]`.
 	fn remark_with_event(b: u32, ) -> Weight {
 		// Minimum execution time: 5_000_000 picoseconds.
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 6_000_000 picoseconds.
 		Weight::from_parts(6_000_000, 0)
 			.saturating_add(Weight::from_parts(0, 0))
-			// Standard Error: 86
-			.saturating_add(Weight::from_parts(8_368, 0).saturating_mul(b.into()))
+			// Standard Error: 78
+			.saturating_add(Weight::from_parts(8_517, 0).saturating_mul(b.into()))
 	}
 	/// Storage: UNKNOWN KEY `0x3a686561707061676573` (r:0 w:1)
 	/// Proof: UNKNOWN KEY `0x3a686561707061676573` (r:0 w:1)
