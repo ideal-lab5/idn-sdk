@@ -111,6 +111,22 @@ The contract includes comprehensive unit tests for all functionality:
 cargo test
 ```
 
+#### End-to-End Testing
+
+To run the end-to-end tests with the idn-consumer-node instead of the default substrate-contracts-node:
+
+1. Build the idn-consumer-node:
+   ```bash
+   cargo build --release -p idn-consumer-node
+   ```
+
+2. Run the tests with the CONTRACTS_NODE environment variable:
+   ```bash
+   CONTRACTS_NODE={absolute path}/idn-sdk/target/release/idn-consumer-node cargo test --features e2e-tests
+   ```
+
+Note: The idn-consumer-node must have the contracts pallet enabled for these tests to work.
+
 ## Implementation Details
 
 ### RandomnessReceiver Implementation

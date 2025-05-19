@@ -93,6 +93,9 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
 
+// Export pallet_balances::Call for use in contracts and revive pallets
+pub use pallet_balances::Call as BalancesCall;
+
 /// The SignedExtension to the basic transaction logic.
 #[docify::export(template_signed_extra)]
 pub type TxExtension = (
@@ -315,6 +318,8 @@ mod runtime {
 	pub type Timestamp = pallet_timestamp::Pallet<Runtime>;
 	#[runtime::pallet_index(3)]
 	pub type ParachainInfo = parachain_info::Pallet<Runtime>;
+	#[runtime::pallet_index(4)]
+	pub type RandomnessCollectiveFlip = pallet_insecure_randomness_collective_flip;
 
 	// Monetary stuff.
 	#[runtime::pallet_index(10)]
@@ -325,6 +330,12 @@ mod runtime {
 	// Governance
 	#[runtime::pallet_index(15)]
 	pub type Sudo = pallet_sudo;
+
+	// Contracts
+	#[runtime::pallet_index(16)]
+	pub type Contracts = pallet_contracts;
+	#[runtime::pallet_index(17)]
+	pub type Revive = pallet_revive;
 
 	// Collator support. The order of these 4 are important and shall not change.
 	#[runtime::pallet_index(20)]
@@ -352,6 +363,18 @@ mod runtime {
 	#[runtime::pallet_index(40)]
 	pub type IdnConsumer = pallet_idn_consumer::Pallet<Runtime>;
 }
+
+type EventRecord = frame_system::EventRecord<
+	<Runtime as frame_system::Config>::RuntimeEvent,
+	<Runtime as frame_system::Config>::Hash,
+>;
+
+// Prints debug output of the `revive` pallet to stdout if the node is
+// started with `-lruntime::revive=trace` or `-lruntime::contracts=debug`.
+const CONTRACTS_DEBUG_OUTPUT: pallet_contracts::DebugInfo =
+	pallet_contracts::DebugInfo::UnsafeDebug;
+const CONTRACTS_EVENTS: pallet_contracts::CollectEvents =
+	pallet_contracts::CollectEvents::UnsafeCollect;
 
 cumulus_pallet_parachain_system::register_validate_block! {
 	Runtime = Runtime,
