@@ -16,7 +16,7 @@
 
 use crate::{
 	Balance, Balances, BalancesCall, Perbill, RandomnessCollectiveFlip, Runtime, RuntimeCall,
-	RuntimeEvent, RuntimeHoldReason, Timestamp,
+	RuntimeEvent, RuntimeHoldReason, Timestamp, MILLIUNIT, UNIT,
 };
 use frame_support::{
 	parameter_types,
@@ -31,10 +31,6 @@ impl frame_support::traits::Contains<RuntimeCall> for AllowBalancesCall {
 		matches!(call, RuntimeCall::Balances(BalancesCall::transfer_allow_death { .. }))
 	}
 }
-
-// Unit = the base number of indivisible units for balances
-const UNIT: Balance = 1_000_000_000_000;
-const MILLIUNIT: Balance = 1_000_000_000;
 
 const fn deposit(items: u32, bytes: u32) -> Balance {
 	(items as Balance * UNIT + (bytes as Balance) * (5 * MILLIUNIT / 100)) / 10

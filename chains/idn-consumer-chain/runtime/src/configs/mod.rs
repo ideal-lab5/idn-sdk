@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-mod assets;
 mod contracts;
 mod revive;
 #[path = "xcm.rs"]
@@ -55,11 +54,11 @@ use xcm::{
 use super::{
 	weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight},
 	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook, Hash,
-	MessageQueue, Nonce, OriginCaller, PalletInfo, ParachainInfo, ParachainSystem,
-	PulseConsumerImpl, QuoteConsumerImpl, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason,
-	RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys, SubInfoConsumerImpl,
-	System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS,
-	MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
+	MessageQueue, Nonce, PalletInfo, ParachainInfo, ParachainSystem, PulseConsumerImpl,
+	QuoteConsumerImpl, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason, RuntimeHoldReason,
+	RuntimeOrigin, RuntimeTask, Session, SessionKeys, SubInfoConsumerImpl, System, WeightToFee,
+	XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT,
+	MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
 };
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
@@ -334,9 +333,3 @@ impl pallet_idn_consumer::Config for Runtime {
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
-impl pallet_utility::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type RuntimeCall = RuntimeCall;
-	type PalletsOrigin = OriginCaller;
-	type WeightInfo = pallet_utility::weights::SubstrateWeight<Runtime>;
-}

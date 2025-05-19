@@ -569,12 +569,7 @@ mod example_consumer {
 		}
 	}
 
-	// To run these tests with the idn-consumer-node instead of substrate-contracts-node:
-	// 1. Build the idn-consumer-node: cargo build --release -p idn-consumer-node
-	// 2. Run the tests with the CONTRACTS_NODE environment variable set to the path of the
-	//    idn-consumer-node: CONTRACTS_NODE={absolute path}/idn-sdk/target/release/idn-consumer-node
-	//    cargo test --features e2e-tests
-	// The idn-consumer-node must have the contracts pallet enabled for these tests to work.
+	
 	#[cfg(all(test, feature = "e2e-tests"))]
 	mod e2e_tests {
 		use super::*;

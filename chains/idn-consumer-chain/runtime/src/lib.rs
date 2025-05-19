@@ -320,16 +320,12 @@ mod runtime {
 	pub type ParachainInfo = parachain_info::Pallet<Runtime>;
 	#[runtime::pallet_index(4)]
 	pub type RandomnessCollectiveFlip = pallet_insecure_randomness_collective_flip;
-	#[runtime::pallet_index(5)]
-	pub type Utility = pallet_utility;
 
 	// Monetary stuff.
 	#[runtime::pallet_index(10)]
 	pub type Balances = pallet_balances::Pallet<Runtime>;
 	#[runtime::pallet_index(11)]
 	pub type TransactionPayment = pallet_transaction_payment::Pallet<Runtime>;
-	#[runtime::pallet_index(12)]
-	pub type Assets = pallet_assets;
 
 	// Governance
 	#[runtime::pallet_index(15)]

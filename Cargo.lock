@@ -170,9 +170,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rlp"
-version = "0.3.11"
+version = "0.3.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d6c1d995bff8d011f7cd6c81820d51825e6e06d6db73914c1630ecf544d83d6"
+checksum = "5f70d83b765fdc080dbcd4f4db70d8d23fe4761f2f02ebfa9146b833900634b4"
 dependencies = [
  "arrayvec 0.7.6",
  "bytes",
@@ -5759,7 +5759,6 @@ dependencies = [
  "frame-try-runtime",
  "hex-literal",
  "log",
- "pallet-assets",
  "pallet-aura",
  "pallet-authorship",
  "pallet-balances",
@@ -5774,7 +5773,6 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
- "pallet-utility",
  "pallet-xcm",
  "parachains-common",
  "parity-scale-codec",
