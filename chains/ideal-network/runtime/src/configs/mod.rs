@@ -342,6 +342,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = types::RuntimePulse;
 	type WeightInfo = IdnManagerWeightInfo<Runtime>;
+	// TODO: correctly set the Xcm type https://github.com/ideal-lab5/idn-sdk/issues/186
 	type Xcm = ();
 	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
