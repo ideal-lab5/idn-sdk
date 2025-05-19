@@ -236,8 +236,7 @@ mod example_consumer {
 				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
 
 			// Create update parameters
-			let params =
-				UpdateSubParams { sub_id: subscription_id, credits, frequency };
+			let params = UpdateSubParams { sub_id: subscription_id, credits, frequency };
 
 			// Update subscription through IDN client
 			self.idn_client
@@ -345,7 +344,7 @@ mod example_consumer {
 			self.ensure_authorized()?;
 
 			// Create a basic pulse from the randomness
-			let pulse = ContractPulse { rand: randomness, round: 0, sig: [0u8; 48] };
+			let pulse = ContractPulse { rand: randomness, message: [0u8; 48], sig: [0u8; 48] };
 
 			self.simulate_pulse_received(pulse)
 		}
@@ -407,7 +406,7 @@ mod example_consumer {
 
 			// Store the complete pulse (with normalized rand field)
 			let normalized_pulse =
-				ContractPulse { rand: randomness, round: pulse.round(), sig: pulse.sig() };
+				ContractPulse { rand: randomness, message: pulse.message(), sig: pulse.sig() };
 			self.last_pulse = Some(normalized_pulse);
 			self.pulse_history.push(normalized_pulse);
 
@@ -426,7 +425,8 @@ mod example_consumer {
 			// Create a test pulse
 			let test_randomness = [42u8; 32];
 			let test_sig = [1u8; 48];
-			let test_pulse = ContractPulse { rand: test_randomness, round: 1, sig: test_sig };
+			let test_pulse =
+				ContractPulse { rand: test_randomness, message: [0u8; 48], sig: test_sig };
 
 			// Setup contract
 			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
@@ -440,8 +440,11 @@ mod example_consumer {
 			let mut hasher = Sha256::default();
 			hasher.update(test_sig);
 			let expected_rand: [u8; 32] = hasher.finalize().into();
-			let expected_pulse =
-				ContractPulse { rand: expected_rand, round: test_pulse.round, sig: test_pulse.sig };
+			let expected_pulse = ContractPulse {
+				rand: expected_rand,
+				message: test_pulse.message,
+				sig: test_pulse.sig,
+			};
 
 			// Check stored values
 			assert_eq!(contract.get_last_randomness(), Some(expected_rand));
@@ -463,8 +466,8 @@ mod example_consumer {
 			assert_eq!(contract.get_pulse_history().len(), 0);
 
 			// Add some randomness
-			let test_pulse1 = ContractPulse { rand: [1u8; 32], round: 1, sig: [1u8; 48] };
-			let test_pulse2 = ContractPulse { rand: [2u8; 32], round: 2, sig: [2u8; 48] };
+			let test_pulse1 = ContractPulse { rand: [1u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+			let test_pulse2 = ContractPulse { rand: [2u8; 32], message: [0u8; 48], sig: [2u8; 48] };
 
 			// Simulate receiving randomness
 			contract.simulate_pulse_received(test_pulse1.clone()).unwrap();
@@ -476,7 +479,7 @@ mod example_consumer {
 			let expected_rand1: [u8; 32] = hasher1.finalize().into();
 			let expected_pulse1 = ContractPulse {
 				rand: expected_rand1,
-				round: test_pulse1.round,
+				message: test_pulse1.message,
 				sig: test_pulse1.sig,
 			};
 			// Compute expected randomness for test_pulse2
@@ -485,7 +488,7 @@ mod example_consumer {
 			let expected_rand2: [u8; 32] = hasher2.finalize().into();
 			let expected_pulse2 = ContractPulse {
 				rand: expected_rand2,
-				round: test_pulse2.round,
+				message: test_pulse2.message,
 				sig: test_pulse2.sig,
 			};
 
@@ -502,7 +505,7 @@ mod example_consumer {
 			contract.subscription_id = Some(5);
 
 			// Create a test pulse
-			let test_pulse = ContractPulse { rand: [9u8; 32], round: 42, sig: [5u8; 48] };
+			let test_pulse = ContractPulse { rand: [9u8; 32], message: [0u8; 48], sig: [5u8; 48] };
 
 			// Call the trait method directly
 			let result =
@@ -513,8 +516,11 @@ mod example_consumer {
 			let mut hasher = Sha256::default();
 			hasher.update(test_pulse.sig());
 			let expected_rand: [u8; 32] = hasher.finalize().into();
-			let expected_pulse =
-				ContractPulse { rand: expected_rand, round: test_pulse.round, sig: test_pulse.sig };
+			let expected_pulse = ContractPulse {
+				rand: expected_rand,
+				message: test_pulse.message,
+				sig: test_pulse.sig,
+			};
 
 			// Check stored values
 			assert_eq!(contract.get_last_randomness(), Some(expected_rand));
@@ -528,7 +534,7 @@ mod example_consumer {
 			contract.subscription_id = Some(5);
 
 			// Create a test pulse
-			let test_pulse = ContractPulse { rand: [9u8; 32], round: 42, sig: [5u8; 48] };
+			let test_pulse = ContractPulse { rand: [9u8; 32], message: [0u8; 48], sig: [5u8; 48] };
 
 			// Call with wrong subscription ID
 			let result =
@@ -558,53 +564,57 @@ mod example_consumer {
 		#[ink::test]
 		fn test_update_subscription_edge_cases() {
 			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
-			let result = contract.update_subscription(100, 10, None);
+			let result = contract.update_subscription(100, 10);
 			assert_eq!(result, Err(ContractError::NoActiveSubscription));
 		}
 	}
 
+	// To run these tests with the idn-consumer-node instead of substrate-contracts-node:
+	// 1. Build the idn-consumer-node: cargo build --release -p idn-consumer-node
+	// 2. Run the tests with the CONTRACTS_NODE environment variable set to the path of the
+	//    idn-consumer-node: CONTRACTS_NODE={absolute path}/idn-sdk/target/release/idn-consumer-node
+	//    cargo test --features e2e-tests
+	// The idn-consumer-node must have the contracts pallet enabled for these tests to work.
 	#[cfg(all(test, feature = "e2e-tests"))]
-    mod e2e_tests {
-        use super::*;
-        use ink_e2e::ContractsBackend;
+	mod e2e_tests {
+		use super::*;
+		use ink_e2e::ContractsBackend;
+		type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-        type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+		#[ink_e2e::test]
+		async fn basic_contract_works<Client: ContractsBackend>(
+			mut client: Client,
+		) -> E2EResult<()> {
+			// Contract parameters
+			let ideal_network_para_id = 2000;
+			let idn_manager_pallet_index = 10;
+			let destination_para_id = 1000;
+			let contracts_pallet_index = 50;
 
-        #[ink_e2e::test]
-        async fn basic_contract_works<Client: ContractsBackend>(mut client: Client) -> E2EResult<()> {
-            // Contract parameters
-            let ideal_network_para_id = 2000; 
-            let idn_manager_pallet_index = 10;
-            let destination_para_id = 1000;
-            let contracts_pallet_index = 50;
+			// Deploy the contract
+			let mut constructor = ExampleConsumerRef::new(
+				ideal_network_para_id,
+				idn_manager_pallet_index,
+				destination_para_id,
+				contracts_pallet_index,
+			);
 
-            // Deploy the contract
-            let mut constructor = ExampleConsumerRef::new(
-                ideal_network_para_id,
-                idn_manager_pallet_index,
-                destination_para_id, 
-                contracts_pallet_index
-            );
-            
-            // Verify that the contract can be deployed
-            let contract = client
-                .instantiate("idn-example-consumer-contract", &ink_e2e::alice(), &mut constructor)
-                .submit()
-                .await
-                .expect("deployment failed");
-                
-            // Use call_builder to create message (ink! v5.1.1 syntax)
-            let call_builder = contract.call_builder::<ExampleConsumer>();
-            let get_para_id = call_builder.get_ideal_network_para_id();
-            
-            let result = client
-                .call(&ink_e2e::alice(), &get_para_id)
-                .dry_run()
-                .await?;
-                
-            assert_eq!(result.return_value(), ideal_network_para_id);
-            
-            Ok(())
-        }
-    }
+			// Verify that the contract can be deployed
+			let contract = client
+				.instantiate("idn-example-consumer-contract", &ink_e2e::alice(), &mut constructor)
+				.submit()
+				.await
+				.expect("deployment failed");
+
+			// Use call_builder to create message (ink! v5.1.1 syntax)
+			let call_builder = contract.call_builder::<ExampleConsumer>();
+			let get_para_id = call_builder.get_ideal_network_para_id();
+
+			let result = client.call(&ink_e2e::alice(), &get_para_id).dry_run().await?;
+
+			assert_eq!(result.return_value(), ideal_network_para_id);
+
+			Ok(())
+		}
+	}
 }

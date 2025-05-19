@@ -22,8 +22,8 @@ impl pallet_assets::Config for Runtime {
 	type Balance = u128;
 	type AssetId = u32;
 	type AssetIdParameter = codec::Compact<u32>;
-	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
 	type Currency = Balances;
+	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
 	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
 	type AssetDeposit = AssetDeposit;
 	type AssetAccountDeposit = ConstU128<DOLLARS>;
@@ -31,11 +31,12 @@ impl pallet_assets::Config for Runtime {
 	type MetadataDepositPerByte = MetadataDepositPerByte;
 	type ApprovalDeposit = ApprovalDeposit;
 	type StringLimit = StringLimit;
+	type Holder = ();
 	type Freezer = ();
 	type Extra = ();
+	type CallbackHandle = ();
 	type WeightInfo = pallet_assets::weights::SubstrateWeight<Runtime>;
 	type RemoveItemsLimit = ConstU32<1000>;
-	type CallbackHandle = ();
 	#[cfg(feature = "runtime-benchmarks")]
 	type BenchmarkHelper = ();
 }

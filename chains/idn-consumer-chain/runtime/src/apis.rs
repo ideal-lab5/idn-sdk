@@ -15,16 +15,21 @@
  */
 
 // External crates imports
+use alloc::vec;
+use codec::Encode;
 use frame_support::{
+	dispatch::DispatchInfo,
 	genesis_builder_helper::{build_state, get_preset},
 	weights::Weight,
 };
+use frame_system::limits::BlockWeights;
 use pallet_aura::Authorities;
+use pallet_revive::AddressMapper;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H160, U256};
 use sp_runtime::{
-	traits::Block as BlockT,
+	traits::{Block as BlockT, TransactionExtension},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult,
 };
@@ -36,8 +41,7 @@ use super::{
 	configs::RuntimeBlockWeights, AccountId, Balance, Block, BlockNumber, ConsensusHook, Contracts,
 	EventRecord, Executive, Hash, InherentDataExt, Nonce, ParachainSystem, Revive, Runtime,
 	RuntimeCall, RuntimeGenesisConfig, RuntimeOrigin, SessionKeys, System, TransactionPayment,
-	CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS, REVIVE_DEBUG_OUTPUT, REVIVE_EVENTS, SLOT_DURATION,
-	VERSION,
+	UncheckedExtrinsic, CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS, SLOT_DURATION, VERSION,
 };
 
 impl_runtime_apis! {
@@ -187,25 +191,70 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_revive::ReviveApi<Block, AccountId, Balance, BlockNumber, Hash, EventRecord> for Runtime
+	impl pallet_revive::ReviveApi<Block, AccountId, Balance, Nonce, BlockNumber> for Runtime
 	{
+		fn balance(address: H160) -> U256 {
+			Revive::evm_balance(&address)
+		}
+
+		fn block_gas_limit() -> U256 {
+			Revive::evm_block_gas_limit()
+		}
+
+		fn gas_price() -> U256 {
+			Revive::evm_gas_price()
+		}
+
+		fn nonce(address: H160) -> Nonce {
+			let account = <Runtime as pallet_revive::Config>::AddressMapper::to_account_id(&address);
+			System::account_nonce(account)
+		}
+
+		fn eth_transact(tx: pallet_revive::evm::GenericTransaction) -> Result<pallet_revive::EthTransactInfo<Balance>, pallet_revive::EthTransactError>
+		{
+			let blockweights: BlockWeights = <Runtime as frame_system::Config>::BlockWeights::get();
+			let tx_fee = |pallet_call, mut dispatch_info: DispatchInfo| {
+				let call = RuntimeCall::Revive(pallet_call);
+				let extension = (
+					frame_system::CheckNonZeroSender::<Runtime>::new(),
+					frame_system::CheckSpecVersion::<Runtime>::new(),
+					frame_system::CheckTxVersion::<Runtime>::new(),
+					frame_system::CheckGenesis::<Runtime>::new(),
+					frame_system::CheckEra::<Runtime>::from(crate::generic::Era::Immortal),
+					frame_system::CheckNonce::<Runtime>::from(0), // Using 0 since nonce is not defined in this scope
+					frame_system::CheckWeight::<Runtime>::new(),
+					pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0u32.into()),
+					frame_metadata_hash_extension::CheckMetadataHash::<Runtime>::new(false),
+					frame_system::WeightReclaim::<Runtime>::new(),
+				);
+				dispatch_info.extension_weight = extension.weight(&call);
+				let uxt: UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic::new_bare(call).into();
+
+				pallet_transaction_payment::Pallet::<Runtime>::compute_fee(
+					uxt.encoded_size() as u32,
+					&dispatch_info,
+					0u32.into(),
+				)
+			};
+
+			Revive::bare_eth_transact(tx, blockweights.max_block, tx_fee)
+		}
+
 		fn call(
 			origin: AccountId,
-			dest: AccountId,
+			dest: H160,
 			value: Balance,
 			gas_limit: Option<Weight>,
 			storage_deposit_limit: Option<Balance>,
 			input_data: Vec<u8>,
-		) -> pallet_revive::ContractExecResult<Balance, EventRecord> {
+		) -> pallet_revive::ContractResult<pallet_revive::ExecReturnValue, Balance> {
 			Revive::bare_call(
 				RuntimeOrigin::signed(origin),
 				dest,
 				value,
 				gas_limit.unwrap_or(RuntimeBlockWeights::get().max_block),
-				storage_deposit_limit.unwrap_or(u128::MAX),
+				pallet_revive::DepositLimit::Balance(storage_deposit_limit.unwrap_or(u128::MAX)),
 				input_data,
-				REVIVE_DEBUG_OUTPUT,
-				REVIVE_EVENTS,
 			)
 		}
 
@@ -214,21 +263,19 @@ impl_runtime_apis! {
 			value: Balance,
 			gas_limit: Option<Weight>,
 			storage_deposit_limit: Option<Balance>,
-			code: pallet_revive::Code<Hash>,
+			code: pallet_revive::Code,
 			data: Vec<u8>,
-			salt: Vec<u8>,
-		) -> pallet_revive::ContractInstantiateResult<AccountId, Balance, EventRecord>
+			salt: Option<[u8; 32]>,
+		) -> pallet_revive::ContractResult<pallet_revive::InstantiateReturnValue, Balance>
 		{
 			Revive::bare_instantiate(
 				RuntimeOrigin::signed(origin),
 				value,
 				gas_limit.unwrap_or(RuntimeBlockWeights::get().max_block),
-				storage_deposit_limit.unwrap_or(u128::MAX),
+				pallet_revive::DepositLimit::Balance(storage_deposit_limit.unwrap_or(u128::MAX)),
 				code,
 				data,
 				salt,
-				REVIVE_DEBUG_OUTPUT,
-				REVIVE_EVENTS,
 			)
 		}
 
@@ -236,7 +283,7 @@ impl_runtime_apis! {
 			origin: AccountId,
 			code: Vec<u8>,
 			storage_deposit_limit: Option<Balance>,
-		) -> pallet_revive::CodeUploadResult<Hash, Balance>
+		) -> pallet_revive::CodeUploadResult<Balance>
 		{
 			Revive::bare_upload_code(
 				RuntimeOrigin::signed(origin),
@@ -246,13 +293,78 @@ impl_runtime_apis! {
 		}
 
 		fn get_storage(
-			address: AccountId,
-			key: Vec<u8>,
+			address: H160,
+			key: [u8; 32],
 		) -> pallet_revive::GetStorageResult {
 			Revive::get_storage(
 				address,
 				key
 			)
+		}
+
+		fn trace_block(
+			block: Block,
+			tracer_type: pallet_revive::evm::TracerType,
+		) -> Vec<(u32, pallet_revive::evm::Trace)> {
+			use pallet_revive::tracing::trace;
+			let mut tracer = Revive::evm_tracer(tracer_type);
+			let mut traces = vec![];
+			let (header, extrinsics) = block.deconstruct();
+			Executive::initialize_block(&header);
+			for (index, ext) in extrinsics.into_iter().enumerate() {
+				trace(tracer.as_tracing(), || {
+					let _ = Executive::apply_extrinsic(ext);
+				});
+
+				if let Some(tx_trace) = tracer.collect_trace() {
+					traces.push((index as u32, tx_trace));
+				}
+			}
+
+			traces
+		}
+
+		fn trace_tx(
+			block: Block,
+			tx_index: u32,
+			tracer_type: pallet_revive::evm::TracerType,
+		) -> Option<pallet_revive::evm::Trace> {
+			use pallet_revive::tracing::trace;
+			let mut tracer = Revive::evm_tracer(tracer_type);
+			let (header, extrinsics) = block.deconstruct();
+
+			Executive::initialize_block(&header);
+			for (index, ext) in extrinsics.into_iter().enumerate() {
+				if index as u32 == tx_index {
+				trace(tracer.as_tracing(), || {
+						let _ = Executive::apply_extrinsic(ext);
+					});
+					break;
+				} else {
+					let _ = Executive::apply_extrinsic(ext);
+				}
+			}
+
+			tracer.collect_trace()
+		}
+
+		fn trace_call(
+			tx: pallet_revive::evm::GenericTransaction,
+			tracer_type: pallet_revive::evm::TracerType,
+			)
+			-> Result<pallet_revive::evm::Trace, pallet_revive::EthTransactError>
+		{
+			use pallet_revive::tracing::trace;
+			let mut tracer = Revive::evm_tracer(tracer_type);
+			let result = trace(tracer.as_tracing(), || Self::eth_transact(tx));
+
+			if let Some(trace) = tracer.collect_trace() {
+				Ok(trace)
+			} else if let Err(err) = result {
+				Err(err)
+			} else {
+				Ok(tracer.empty_trace())
+			}
 		}
 	}
 
