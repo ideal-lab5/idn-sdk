@@ -15,6 +15,14 @@
  */
 
 // External crates imports
+#[cfg(feature = "runtime-benchmarks")]
+use crate::{
+	configs::xcm_config::{
+		FeeAssetId, RelayLocation, ToParentBaseDeliveryFee, ToSiblingBaseDeliveryFee,
+		TransactionByteFee,
+	},
+	XcmpQueue, EXISTENTIAL_DEPOSIT,
+};
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	weights::Weight,
@@ -36,18 +44,34 @@ use sp_version::RuntimeVersion;
 use super::{
 	AccountId, Balance, Block, ConsensusHook, Executive, InherentDataExt, Nonce, ParachainSystem,
 	Runtime, RuntimeCall, RuntimeGenesisConfig, SessionKeys, System, TransactionPayment,
-	EXISTENTIAL_DEPOSIT, SLOT_DURATION, VERSION,
+	SLOT_DURATION, VERSION,
 };
 
 #[cfg(feature = "runtime-benchmarks")]
 frame_support::parameter_types! {
 	pub ExistentialDepositAsset: Option<xcm::v5::Asset> = Some((
-		crate::configs::xcm_config::RelayLocation::get(),
+		RelayLocation::get(),
 		EXISTENTIAL_DEPOSIT
 	).into());
 	pub const RandomParaId: cumulus_primitives_core::ParaId =
 		cumulus_primitives_core::ParaId::new(43211234);
 }
+
+#[cfg(feature = "runtime-benchmarks")]
+type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
+	FeeAssetId,
+	ToSiblingBaseDeliveryFee,
+	TransactionByteFee,
+	XcmpQueue,
+>;
+
+#[cfg(feature = "runtime-benchmarks")]
+type PriceForParentDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
+	FeeAssetId,
+	ToParentBaseDeliveryFee,
+	TransactionByteFee,
+	ParachainSystem,
+>;
 
 impl_runtime_apis! {
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
@@ -251,8 +275,6 @@ impl_runtime_apis! {
 			use configs::xcm_config::{
 				RelayLocation,
 				XcmConfig,
-				PriceForParentDelivery,
-				PriceForSiblingParachainDelivery,
 			};
 			use xcm::v5::{Location, Parent, Asset, Fungibility::Fungible, AssetId};
 			use super::*;
