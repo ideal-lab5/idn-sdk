@@ -58,19 +58,6 @@ parameter_types! {
 	pub const TransactionByteFee: Balance = crate::constants::relay::fee::TRANSACTION_BYTE_FEE;
 }
 
-pub type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
-	FeeAssetId,
-	ToSiblingBaseDeliveryFee,
-	TransactionByteFee,
-	XcmpQueue,
->;
-pub type PriceForParentDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
-	FeeAssetId,
-	ToParentBaseDeliveryFee,
-	TransactionByteFee,
-	ParachainSystem,
->;
-
 /// Type for specifying how a `Location` can be converted into an `AccountId`. This is used
 /// when determining ownership of accounts for asset transacting and when attempting to use XCM
 /// `Transact` in order to determine the dispatch Origin.
