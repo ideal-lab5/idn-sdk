@@ -44,7 +44,7 @@ use sp_version::RuntimeVersion;
 use super::{
 	AccountId, Balance, Block, ConsensusHook, Executive, InherentDataExt, Nonce, ParachainSystem,
 	Runtime, RuntimeCall, RuntimeGenesisConfig, SessionKeys, System, TransactionPayment,
-	EXISTENTIAL_DEPOSIT, SLOT_DURATION, VERSION,
+	SLOT_DURATION, VERSION,
 };
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -275,8 +275,6 @@ impl_runtime_apis! {
 			use configs::xcm_config::{
 				RelayLocation,
 				XcmConfig,
-				PriceForParentDelivery,
-				PriceForSiblingParachainDelivery,
 			};
 			use xcm::v5::{Location, Parent, Asset, Fungibility::Fungible, AssetId};
 			use super::*;
