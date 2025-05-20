@@ -18,25 +18,10 @@ If Python is not installed, download and install it from [python.org](https://ww
 
 ## FRAME Omni Benchmarker
 
-Install the `frame-omni-benchmarker` tool: 
-```bash 
+Install the `frame-omni-benchmarker` tool:
+
+```bash
 cargo install frame-omni-bencher
-```
-
----
-
-## Building the Runtime WASM
-
-Before running benchmarks, you need to build the runtime WASM for the desired runtime with benchmarking enabled. Replace `<runtime-package>` with the runtime package name (e.g., `idn-runtime` or `idn-consumer-runtime`):
-
-```bash
-cargo build -p <runtime-package> --release --features runtime-benchmarks
-```
-
-For example:
-
-```bash
-cargo build -p idn-runtime --release --features runtime-benchmarks
 ```
 
 ---
@@ -64,6 +49,8 @@ For example:
 ```bash
 ./scripts/bench.py bench --runtime ideal-network --pallet pallet_idn_manager
 ```
+
+_Note: this script already builds the runtime and the pallets, so you don't need to build them prior to running the benchmarks._
 
 ### 3. Benchmark All Pallets in a Runtime
 
