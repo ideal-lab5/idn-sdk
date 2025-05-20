@@ -27,7 +27,6 @@ frame_benchmarking::define_benchmarks!(
 	[pallet_message_queue, MessageQueue]
 	[pallet_transaction_payment, TransactionPayment]
 	[pallet_idn_consumer, IdnConsumer]
-	// [pallet_contracts, Contracts]
+	[pallet_contracts, Contracts]
 	[pallet_revive, Revive]
-	// [pallet_xcm, PolkadotXcm]
 );
