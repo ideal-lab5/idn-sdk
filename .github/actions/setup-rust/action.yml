@@ -19,7 +19,7 @@ runs:
       run: |
         rustup component add rust-src --toolchain stable-x86_64-unknown-linux-gnu
         rustup target add wasm32v1-none --toolchain stable-x86_64-unknown-linux-gnu
-        ustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+        rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
         rustup target add wasm32v1-none --toolchain nightly-x86_64-unknown-linux-gnu
       shell: bash
 
