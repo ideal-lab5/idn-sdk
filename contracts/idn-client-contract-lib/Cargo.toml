@@ -31,4 +31,3 @@ std = [
     "sha2/std",
     "sp-idn-traits/std",
 ]
-ink-as-dependency = []

@@ -6,7 +6,7 @@ use sp_idn_traits::pulse::Pulse;
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
 pub struct ContractPulse {
-	pub round: u64,
+	pub message: [u8; 48],
 	pub rand: [u8; 32],
 	pub sig: [u8; 48],
 }

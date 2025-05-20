@@ -57,6 +57,11 @@ sp-std.workspace = true
 sp-transaction-pool.workspace = true
 sp-version.workspace = true
 
+# deps for setting up pallet-contracts and pallet-revive
+pallet-revive = { workspace = true }
+pallet-contracts = { workspace = true }
+pallet-insecure-randomness-collective-flip = { workspace = true }
+
 # Polkadot
 pallet-xcm.workspace = true
 polkadot-parachain-primitives.workspace = true
@@ -138,6 +143,9 @@ std = [
   "xcm-builder/std",
   "xcm-executor/std",
   "xcm/std",
+  "pallet-contracts/std",
+  "pallet-insecure-randomness-collective-flip/std",
+  "pallet-revive/std",
 ]
 
 runtime-benchmarks = [
@@ -183,6 +191,8 @@ try-runtime = [
   "pallet-timestamp/try-runtime",
   "pallet-transaction-payment/try-runtime",
   "pallet-xcm/try-runtime",
+  "pallet-contracts/try-runtime",
+  "pallet-revive/try-runtime",
   "parachain-info/try-runtime",
   "polkadot-runtime-common/try-runtime",
   "sp-runtime/try-runtime",

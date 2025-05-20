@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+mod contracts;
+mod revive;
 #[path = "xcm.rs"]
 mod xcm_config;
 
@@ -329,3 +331,5 @@ impl pallet_idn_consumer::Config for Runtime {
 	// TODO: run benchmarks against reference hw https://github.com/ideal-lab5/idn-sdk/issues/235
 	type WeightInfo = ();
 }
+
+impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
