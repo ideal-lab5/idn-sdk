@@ -86,7 +86,7 @@ pub use pallet::*;
 use frame_support::pallet_prelude::*;
 
 use sp_consensus_randomness_beacon::types::CanonicalPulse;
-use sp_idn_crypto::verifier::{OpaqueAccumulation, SignatureVerifier};
+use sp_idn_crypto::verifier::SignatureVerifier;
 use sp_idn_traits::pulse::{Dispatcher, Pulse as TPulse};
 use sp_std::fmt::Debug;
 
@@ -201,6 +201,8 @@ pub mod pallet {
 		SignatureAlreadyVerified,
 		/// A critical error occurred where serialization failed
 		SerializationFailed,
+		/// The round of this pulse has already happened
+		StartExpired,
 	}
 
 	#[pallet::inherent]
@@ -217,33 +219,43 @@ pub mod pallet {
 					data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 				{
 					// extract + sanitize
-					let mut height = 0;
-					let asig = raw_pulses
+					let mut pulses: Vec<CanonicalPulse> = raw_pulses
 						.iter()
 						.filter_map(|rp| CanonicalPulse::decode(&mut rp.as_slice()).ok())
-						.filter(|pulse| pulse.round >= round)
-						.filter_map(|pulse| {
-							let bytes = pulse.signature;
-							// if a signature can't be decoded from the message then we ignore it
-							// and continue
-							G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()
-						})
-						.inspect(|_| height += 1)
-						.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| {
-							(acc + sig).into()
+						.filter(|rp| rp.round >= round)
+						.collect();
+					// sort by ascending round
+					pulses.sort_by_key(|pulse| pulse.round);
+					// first and last rounds
+					let start = pulses.first().map(|p| p.round);
+					let end = pulses.last().map(|p| p.round);
+
+					if let (Some(start), Some(end)) = (start, end) {
+						let asig = pulses
+							.into_iter()
+							.filter_map(|pulse| {
+								let bytes = pulse.signature;
+								G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()
+							})
+							.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| {
+								(acc + sig).into()
+							});
+
+						let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
+						// [SRLABS]: This error is untestable since we know the signature is correct here.
+						//  Is it reasonable to use an expect?
+						asig.serialize_compressed(&mut asig_bytes)
+							.expect("The signature is well formatted. qed.");
+
+						return Some(Call::try_submit_asig {
+							asig: OpaqueSignature::try_from(asig_bytes)
+								.expect("The signature is well formatted. qed."),
+							start,
+							end,
 						});
-
-					let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-					// [SRLABS]: This error is untestable since we know the signature is correct here.
-					//  Is it reasonable to use an expect?
-					asig.serialize_compressed(&mut asig_bytes)
-						.expect("The signature is well formatted. qed.");
-
-					return Some(Call::try_submit_asig {
-						asig: OpaqueSignature::try_from(asig_bytes)
-							.expect("The signature is well formatted. qed."),
-						height: height as RoundNumber,
-					});
+					} else {
+						return None;
+					}
 				}
 			}
 
@@ -296,16 +308,17 @@ pub mod pallet {
 		/// * `asig`: An aggregated signature as bytes
 		/// * `height`: The number of signatures aggregated in asig
 		#[pallet::call_index(0)]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(
-			T::MaxSigsPerBlock::get().into())
-				.saturating_add(
-					T::Dispatcher::dispatch_weight())
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(0)
+			// T::MaxSigsPerBlock::get().into())
+				// .saturating_add(
+				// 	T::Dispatcher::dispatch_weight())
 		)]
 		#[allow(clippy::useless_conversion)]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
 			asig: OpaqueSignature,
-			height: RoundNumber,
+			start: RoundNumber,
+			end: RoundNumber,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
@@ -313,6 +326,7 @@ pub mod pallet {
 
 			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
 			// 0 < num_sigs <= MaxSigsPerBlock
+			let height = end - start;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
 			ensure!(
 				height <= T::MaxSigsPerBlock::get() as u64,
@@ -321,16 +335,12 @@ pub mod pallet {
 
 			let latest_round: RoundNumber =
 				LatestRound::<T>::get().expect("The latest round must be set; qed");
-			let prev_acc: Option<OpaqueAccumulation> =
-				SparseAccumulation::<T>::get().map(|a| a.into());
-			// construct new message here
-			let new_latest_round = latest_round.saturating_add(height.into());
-			// if we have observed pulses for rounds {r1, .., rk},
-			// then this computes H(r1) + ... + H(rk)
-			// TODO: Investigate lookup table for round numbers
-			// https://github.com/ideal-lab5/idn-sdk/issues/119
+
+			// start must be greater than last known latest round
+			ensure!(start >= latest_round, Error::<T>::StartExpired);
+
 			let mut amsg = zero_on_g1();
-			for r in (latest_round..new_latest_round).collect::<Vec<_>>() {
+			for r in start..end + 1 {
 				let msg = compute_round_on_g1(r).map_err(|_| Error::<T>::SerializationFailed)?;
 				amsg = (amsg + msg).into();
 			}
@@ -343,11 +353,10 @@ pub mod pallet {
 				config.public_key.as_ref().to_vec(),
 				asig.clone().as_ref().to_vec(),
 				amsg_bytes,
-				prev_acc,
+				None,
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
-
-			LatestRound::<T>::set(Some(new_latest_round));
+			LatestRound::<T>::set(Some(end + 1));
 
 			let sacc = Accumulation::try_from(acc).map_err(|_| Error::<T>::VerificationFailed)?;
 			SparseAccumulation::<T>::set(Some(sacc.clone()));
@@ -359,7 +368,7 @@ pub mod pallet {
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 			// Insert the latest round into the header digest
-			let digest_item: DigestItem = ConsensusLog::LatestRoundNumber(new_latest_round).into();
+			let digest_item: DigestItem = ConsensusLog::LatestRoundNumber(end).into();
 			<frame_system::Pallet<T>>::deposit_log(digest_item);
 			// successful verification is beneficial to the network, so we do not charge when the
 			// signature is correct

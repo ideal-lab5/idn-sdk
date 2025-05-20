@@ -57,17 +57,17 @@ mod benchmarks {
 		r: Linear<1, { T::MaxSigsPerBlock::get().into() }>,
 	) -> Result<(), BenchmarkError> {
 		let drand = MockDrand::new();
-
+		// get the beacon pubkey
 		let mut pk_bytes = Vec::new();
 		drand.pk.serialize_compressed(&mut pk_bytes).unwrap();
 		let opk: OpaquePublicKey = pk_bytes.try_into().unwrap();
 
 		let mut asig = G1Affine::zero();
-		let mut apk = G1Affine::zero();
+		let mut amsg = G1Affine::zero();
 
 		(0..r).for_each(|i| {
-			let id = compute_round_on_g1(i.into()).unwrap();
-			apk = (apk + id).into();
+			let msg = compute_round_on_g1(i.into()).unwrap();
+			amsg = (amsg + msg).into();
 
 			let sig = drand.sign(i.into());
 			asig = (asig + sig).into();
@@ -76,8 +76,8 @@ mod benchmarks {
 		let mut asig_bytes = Vec::new();
 		asig.serialize_compressed(&mut asig_bytes).unwrap();
 
-		let mut apk_bytes = Vec::new();
-		apk.serialize_compressed(&mut apk_bytes).unwrap();
+		let mut amsg_bytes = Vec::new();
+		amsg.serialize_compressed(&mut amsg_bytes).unwrap();
 
 		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
 		let config = BeaconConfigurationOf::<T> { genesis_round: 0u64, public_key: pubkey };
@@ -85,13 +85,13 @@ mod benchmarks {
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
 
 		#[extrinsic_call]
-		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), r.into());
+		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), 0u64, r.into());
 
 		assert_eq!(
 			SparseAccumulation::<T>::get(),
 			Some(Accumulation {
 				signature: asig_bytes.try_into().unwrap(),
-				message_hash: apk_bytes.try_into().unwrap(),
+				message_hash: amsg_bytes.try_into().unwrap(),
 			}),
 		);
 
