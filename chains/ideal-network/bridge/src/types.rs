@@ -26,7 +26,6 @@ use pallet_idn_manager::{
 	Subscription as MngSubscription, SubscriptionDetails as MngSubscriptionDetails,
 	UpdateSubParams as MngUpdateSubParams,
 };
-use pallet_randomness_beacon::types::Accumulation;
 use scale_info::TypeInfo;
 use sha2::{Digest, Sha256};
 use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
@@ -62,12 +61,6 @@ impl RuntimePulse {
 	/// A contructor, usually reserved for testing
 	pub fn new(message: OpaqueSignature, signature: OpaqueSignature) -> Self {
 		Self { message, signature }
-	}
-}
-
-impl From<Accumulation> for RuntimePulse {
-	fn from(acc: Accumulation) -> Self {
-		RuntimePulse { signature: acc.signature, message: acc.message_hash }
 	}
 }
 

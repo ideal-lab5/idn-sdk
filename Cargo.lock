@@ -1678,7 +1678,6 @@ version = "0.0.1-dev"
 dependencies = [
  "frame-support",
  "pallet-idn-manager",
- "pallet-randomness-beacon",
  "parity-scale-codec",
  "scale-info",
  "sha2 0.10.9",

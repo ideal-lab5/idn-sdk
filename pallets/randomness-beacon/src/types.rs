@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use bp_idn::types::RuntimePulse;
 use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::pallet_prelude::*;
 use serde::{Deserialize, Serialize};
@@ -39,6 +40,12 @@ impl TryFrom<OpaqueAccumulation> for Accumulation {
 		let message_hash: OpaqueSignature = opaque.message_hash.try_into().map_err(|_| ())?;
 
 		Ok(Self { signature, message_hash })
+	}
+}
+
+impl From<Accumulation> for RuntimePulse {
+	fn from(acc: Accumulation) -> Self {
+		RuntimePulse::new(acc.message_hash, acc.signature)
 	}
 }
 

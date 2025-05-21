@@ -38,11 +38,13 @@ ark-serialize.workspace = true
 ark-ec.workspace = true
 ark-std.workspace = true
 
+# IDN dependencies
+bp-idn.workspace = true
+
 [dev-dependencies]
 sp-keystore.workspace = true
 sp-inherents.workspace = true
 pallet-balances.workspace = true
-bp-idn.workspace = true
 
 [features]
 default = ["std"]
@@ -72,6 +74,7 @@ std = [
 	"pallet-balances/std",
 ]
 runtime-benchmarks = [
+	"bp-idn/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
