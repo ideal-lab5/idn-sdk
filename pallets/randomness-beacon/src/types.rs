@@ -45,7 +45,7 @@ impl TryFrom<OpaqueAccumulation> for Accumulation {
 
 impl From<Accumulation> for RuntimePulse {
 	fn from(acc: Accumulation) -> Self {
-		RuntimePulse { signature: acc.signature, message: acc.message_hash }
+		RuntimePulse::new(acc.message_hash, acc.signature)
 	}
 }
 
