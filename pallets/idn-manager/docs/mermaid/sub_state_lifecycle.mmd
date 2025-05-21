@@ -2,5 +2,6 @@ stateDiagram-v2
     [*] --> Active
     Active --> Paused
     Paused --> Active
-    Paused --> [*]
-    Active --> [*]
+    Paused --> Finalized
+    Active --> Finalized
+    Finalized --> [*]

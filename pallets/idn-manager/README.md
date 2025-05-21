@@ -29,6 +29,7 @@ The subscription state lifecycle defines the different states a subscription can
 
 - **Active:** The subscription is active and randomness is being distributed.
 - **Paused:** The subscription is temporarily paused and randomness distribution is suspended.
+- **Finalized:** The subscription has been finalized and cannot be modified or reactivated.
 
 ## Configuration
 
@@ -72,7 +73,7 @@ The IDN Manager pallet emits the following events:
 - `SubscriptionUpdated`: A subscription has been updated.
 - `SubscriptionPaused`: A subscription has been paused.
 - `SubscriptionReactivated`: A subscription has been reactivated.
-- `SubscriptionRemoved`: A subscription has been terminated.
+- `SubscriptionTerminated`: A subscription has been terminated.
 - `FeesCollected`: Fees have been successfully collected from a subscription.
 
 ## Benchmarking
