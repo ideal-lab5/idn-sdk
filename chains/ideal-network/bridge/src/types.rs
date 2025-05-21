@@ -58,6 +58,7 @@ impl Default for RuntimePulse {
 }
 
 impl RuntimePulse {
+	/// A contructor, usually reserved for testing
 	pub fn new(message: OpaqueSignature, signature: OpaqueSignature) -> Self {
 		Self { message, signature }
 	}
