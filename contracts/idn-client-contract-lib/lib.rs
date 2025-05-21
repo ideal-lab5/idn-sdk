@@ -102,6 +102,8 @@ pub enum SubscriptionState {
 	Active,
 	/// Subscription is paused and not receiving randomness
 	Paused,
+	/// The subscription is finalized and cannot be resumed.
+	Finalized,
 }
 
 /// Parameters for creating a new subscription
@@ -497,8 +499,7 @@ mod tests {
 		assert!(matches!(reactivate_message, Xcm::<()> { .. }));
 
 		// Test updating a subscription XCM message
-		let update_params =
-			UpdateSubParams { sub_id: 123, credits: 20, frequency: 10 };
+		let update_params = UpdateSubParams { sub_id: 123, credits: 20, frequency: 10 };
 		let update_message = client.construct_update_subscription_xcm(&update_params);
 		assert!(matches!(update_message, Xcm::<()> { .. }));
 
@@ -591,7 +592,8 @@ mod tests {
 	}
 
 	#[test]
-	fn test_error_handling() { // Existing test
+	fn test_error_handling() {
+		// Existing test
 		// Verify TooManySubscriptions error is distinct from other errors
 		assert_ne!(Error::TooManySubscriptions, Error::NonXcmEnvError);
 
@@ -604,7 +606,8 @@ mod tests {
 
 	#[test]
 	fn test_create_subscription_xcm_send_failure() {
-		// Note: Can't directly mock ink::env::xcm_send in unit tests, but we can check error conversion logic
+		// Note: Can't directly mock ink::env::xcm_send in unit tests, but we can check error
+		// conversion logic
 		let err = ink::env::Error::ReturnError(ink::env::ReturnErrorCode::XcmSendFailed);
 		let converted: Error = err.into();
 		assert_eq!(converted, Error::XcmSendFailed);
@@ -614,7 +617,8 @@ mod tests {
 	fn test_pause_subscription_invalid_id() {
 		// Simulate passing an invalid subscription ID (e.g., 0)
 		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
-		// In practice, this would fail at the runtime/pallet level, but we can check XCM message is still constructed
+		// In practice, this would fail at the runtime/pallet level, but we can check XCM message is
+		// still constructed
 		let msg = client.construct_pause_subscription_xcm(0);
 		assert!(matches!(msg, Xcm::<()> { .. }));
 	}
@@ -622,11 +626,7 @@ mod tests {
 	#[test]
 	fn test_update_subscription_invalid_id() {
 		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
-		let params = UpdateSubParams {
-			sub_id: 0,
-			credits: 1,
-			frequency: 1,
-		};
+		let params = UpdateSubParams { sub_id: 0, credits: 1, frequency: 1 };
 		let msg = client.construct_update_subscription_xcm(&params);
 		assert!(matches!(msg, Xcm::<()> { .. }));
 	}
@@ -673,11 +673,7 @@ mod tests {
 	#[test]
 	fn test_contract_pulse_trait_methods() {
 		use crate::ContractPulse;
-		let pulse = ContractPulse {
-			round: 42,
-			rand: [7u8; 32],
-			sig: [2u8; 48],
-		};
+		let pulse = ContractPulse { round: 42, rand: [7u8; 32], sig: [2u8; 48] };
 		assert_eq!(pulse.round(), 42);
 		assert_eq!(pulse.rand(), [7u8; 32]);
 		assert_eq!(pulse.sig(), [2u8; 48]);
@@ -688,14 +684,9 @@ mod tests {
 	#[test]
 	fn test_contract_pulse_encode_decode() {
 		use crate::ContractPulse;
-		let pulse = ContractPulse {
-			round: 1,
-			rand: [3u8; 32],
-			sig: [4u8; 48],
-		};
+		let pulse = ContractPulse { round: 1, rand: [3u8; 32], sig: [4u8; 48] };
 		let encoded = pulse.encode();
 		let decoded = ContractPulse::decode(&mut &encoded[..]).unwrap();
 		assert_eq!(pulse, decoded);
 	}
-	
 }
