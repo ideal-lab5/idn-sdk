@@ -65,7 +65,7 @@ mod benchmarks {
 		let mut asig = G1Affine::zero();
 		let mut amsg = G1Affine::zero();
 
-		(0..r).for_each(|i| {
+		(0..r + 1).for_each(|i| {
 			let msg = compute_round_on_g1(i.into()).unwrap();
 			amsg = (amsg + msg).into();
 
