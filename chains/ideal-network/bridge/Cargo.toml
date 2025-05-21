@@ -20,7 +20,6 @@ sp-runtime.workspace = true
 
 # IDN
 pallet-idn-manager.workspace = true
-pallet-randomness-beacon.workspace = true
 sp-consensus-randomness-beacon.workspace = true
 sp-idn-crypto.workspace = true
 sp-idn-traits.workspace = true
@@ -33,9 +32,13 @@ std = [
 	"sha2/std",
 	"frame-support/std",
 	"pallet-idn-manager/std",
-	"pallet-randomness-beacon/std",
 	"sp-consensus-randomness-beacon/std",
 	"sp-idn-crypto/std",
 	"sp-idn-traits/std",
 	"sp-runtime/std",
+]
+runtime-benchmarks = [
+	"frame-support/runtime-benchmarks",
+	"pallet-idn-manager/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
 ]
