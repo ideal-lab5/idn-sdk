@@ -1,6 +1,6 @@
 # Benchmarking Guide
 
-This guide explains how to run benchmarks for the Ideal Labs SDK.
+This guide explains how to run benchmarks for the Ideal Network SDK.
 
 ---
 
