@@ -73,13 +73,14 @@ use libp2p::{
 		Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
 	},
 	identity::Keypair,
+	multiaddr::Protocol,
 	swarm::{Swarm, SwarmEvent},
-	Multiaddr, SwarmBuilder,
+	Multiaddr, PeerId, SwarmBuilder,
 };
 use prost::Message;
 use sc_utils::mpsc::{TracingUnboundedReceiver, TracingUnboundedSender};
 use sp_consensus_randomness_beacon::types::*;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
 const LOG_TARGET: &'static str = "gossipsub";
@@ -149,7 +150,9 @@ pub struct GossipsubNetwork {
 	/// The mpsc channel sender
 	sender: TracingUnboundedSender<CanonicalPulse>,
 	/// The number of peers the node is connected to
-	pub(crate) connected_peers: u8,
+	connected_peers: u8,
+	// The list of allowed peer ids
+	allowed_peer_map: HashMap<PeerId, Multiaddr>,
 }
 
 impl GossipsubNetwork {
@@ -191,7 +194,7 @@ impl GossipsubNetwork {
 
 		swarm.listen_on(listen_addr.clone()).map_err(|_| Error::SwarmListenFailure)?;
 
-		Ok(Self { swarm, sender, connected_peers: 0 })
+		Ok(Self { swarm, sender, connected_peers: 0, allowed_peer_map: HashMap::new() })
 	}
 
 	/// Start the gossipsub network.
@@ -203,9 +206,23 @@ impl GossipsubNetwork {
 	pub async fn run(&mut self, topic_str: &str, peers: Vec<Multiaddr>) -> Result<(), Error> {
 		if !peers.is_empty() {
 			for peer in &peers {
-				self.swarm.dial((*peer).clone()).map_err(|_| {
-					return Error::InvalidMultiaddress { who: (*peer).clone() };
-				})?;
+				let peer_id = peer.iter().find_map(|p| {
+					if let Protocol::P2p(peer) = p {
+						Some(peer)
+					} else {
+						None
+					}
+				});
+				// if a peer id could be extracted, try to dial
+				if let Some(id) = peer_id {
+					self.allowed_peer_map.insert(id, peer.clone());
+					self.swarm.dial((*peer).clone()).map_err(|_| {
+						return Error::InvalidMultiaddress { who: (*peer).clone() };
+					})?;
+				} else {
+					// if we cannot extract a peer id then it is a critical failure
+					return Err(Error::InvalidMultiaddress { who: (*peer).clone() });
+				}
 			}
 			self.wait_for_peers(peers.len()).await;
 		}
@@ -246,7 +263,17 @@ impl GossipsubNetwork {
 
 		loop {
 			match self.swarm.next().await {
-				Some(SwarmEvent::Behaviour(gossipsub::Event::Message { message, .. })) => {
+				Some(SwarmEvent::Behaviour(gossipsub::Event::Message {
+					message,
+					propagation_source,
+					..
+				})) => {
+					// reject messages authored by unknown peers
+					if !self.allowed_peer_map.contains_key(&propagation_source) {
+						log::warn!(target: LOG_TARGET, "⛔ Message from untrusted peer: {propagation_source}");
+						continue;
+					}
+
 					match try_handle_pulse(&message.data) {
 						Ok(pulse) => {
 							log::info!(target: LOG_TARGET, "🎲 New pulse received and stored: #{:?}.", pulse.round);
@@ -362,6 +389,7 @@ mod tests {
 	#[tokio::test]
 	async fn can_build_new_node() {
 		let (node, _rx) = build_node();
+		assert!(node.connected_peers == 0, "There should be no connected peers.");
 		assert!(node.connected_peers == 0, "There should be no connected peers.");
 	}
 

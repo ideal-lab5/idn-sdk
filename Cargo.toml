@@ -64,12 +64,14 @@ async-trait = "0.1.86"
 futures = "0.3.31"
 futures-timer = "3.0.3"
 libp2p = { version = "0.55.0", features = [
-    "gossipsub",
-    "noise",
-    "tcp",
-    "ping",
-    "dns",
     "async-std",
+    "dns",
+    "gossipsub",
+    "identify",
+    "macros",
+    "noise",
+    "ping",
+    "tcp",
     "tokio",
     "websocket",
     "quic",
