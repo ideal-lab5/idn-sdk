@@ -47,6 +47,14 @@ cargo test
 
 See the [Benchmarking Guide](../../BENCHMARKING.md) for instructions on how to run benchmarks for this parachain.
 
+### Benchmark a new pallet
+
+When adding a new pallet the benchmarks need to be run and the weights added in the runtime configuration:
+1. Add the new pallet to `src/benchmarking.rs`
+2. Run the benchmarks using the guide from above
+3. Add the generated weights to `src/weights/mod.rs`
+4. Update the `WeightInfo` type in the pallet's runtime configuration
+
 ## Local Development Chain
 
 1. This project uses [POP](https://onpop.io/) to orchestrate the relaychain and parachain nodes.
