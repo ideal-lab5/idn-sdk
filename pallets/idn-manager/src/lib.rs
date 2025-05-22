@@ -424,8 +424,10 @@ pub mod pallet {
 		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
 		/// execute. See [`on_finalize`](https://paritytech.github.io/polkadot-sdk/master/frame_support/traits/trait.Hooks.html#method.on_finalize).
 		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
-			// We assume the worst case scenario, that is, all subscriptions are terminating in this
-			// block.
+			// We assume the worst case scenario, that is, we've got max subscriptions in this
+			// block. We can't use `SubCounter` as a weight parameter, because we don't know at this
+			// point how many subscriptions will be created by the end of the block. Therefore we
+			// don't know how big the for loop in the `on_finalize` hook will be.
 			<T as pallet::Config>::WeightInfo::on_finalize(T::MaxSubscriptions::get())
 		}
 
@@ -436,7 +438,7 @@ pub mod pallet {
 			// Look for subscriptions that should be terminated
 			for (sub_id, sub) in Subscriptions::<T>::iter()
 				.filter(|(_, sub)| sub.state == SubscriptionState::Finalized)
-			// .take(T::MaxTerminatableSubs::get() as usize)
+				.take(T::MaxTerminatableSubs::get() as usize)
 			{
 				// terminate the subscription
 				let _ = Self::terminate_subscription(&sub, sub_id);
