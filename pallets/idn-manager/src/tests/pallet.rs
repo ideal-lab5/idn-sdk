@@ -815,6 +815,7 @@ fn test_credits_consumption_not_enough_balance() {
 				);
 				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
 				assert_ok!(IdnManager::dispatch(pulse.into()));
+				// TODO: as part of https://github.com/ideal-lab5/idn-sdk/issues/195 to check that the sub's changed state
 				break;
 			} else {
 				// Dispatch randomness
@@ -903,6 +904,58 @@ fn test_credits_consumption_frequency() {
 			// Finalize the block
 			IdnManager::on_finalize(System::block_number());
 		}
+		// Verify subscription is removed after being finalized
+		assert!(Subscriptions::<Test>::get(sub_id).is_none());
+	});
+}
+
+#[test]
+fn test_sub_state_is_finalized_when_credits_left_goes_low() {
+	ExtBuilder::build().execute_with(|| {
+		// Setup initial conditions
+		let credits: u64 = 10_000;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 3; // Every 3 blocks
+		let initial_balance = 10_000_000;
+		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+
+		// Set up account
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// Create subscription
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				sub_id: None,
+			}
+		));
+
+		// Get the subscription ID
+		let (sub_id, mut sub) = Subscriptions::<Test>::iter().next().unwrap();
+
+		assert_eq!(sub.credits_left, credits);
+
+		// Set the subscription to a state where it should be finalized, by forcing the credits_left
+		// go low
+		sub.credits_left = IdnManager::get_min_credits(&sub) - 1;
+		Subscriptions::<Test>::insert(sub_id, sub);
+
+		// Dispatch randomness
+		assert_ok!(IdnManager::dispatch(pulse.into()));
+
+		let sub = Subscriptions::<Test>::get(sub_id).unwrap();
+
+		// Assert the sub state transitioned to Finalized
+		assert_eq!(sub.state, SubscriptionState::Finalized);
+
+		// Finalize the block
+		IdnManager::on_finalize(System::block_number());
+
 		// Verify subscription is removed after being finalized
 		assert!(Subscriptions::<Test>::get(sub_id).is_none());
 	});
