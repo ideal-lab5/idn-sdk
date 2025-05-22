@@ -827,6 +827,10 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	pub(crate) fn get_min_credits(sub: &SubscriptionOf<T>) -> T::Credits {
+		T::FeesManager::get_idle_credits(sub)
+	}
+
 	fn pallet_account_id() -> T::AccountId {
 		T::PalletId::get().into_account_truncating()
 	}
@@ -854,6 +858,7 @@ impl<T: Config> Pallet<T> {
 					// will fail to be distributed for the pulse. Recommendations on handling this?
 					// Our initial idea is to simply log an event and continue, then pause the
 					// subscription.
+					// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
 					Self::collect_fees(&sub, consume_credits)?;
 
 					// Update subscription with consumed credits and last_delivered block number
@@ -865,6 +870,7 @@ impl<T: Config> Pallet<T> {
 					// will fail to be distributed for the pulse. Recommendations on handling this?
 					// Our initial idea is to simply log an event and continue, then pause the
 					// subscription.
+					// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
 					Self::xcm_send(
 						&sub.details.target,
 						// Create a tuple of call_index and pulse, encode it using SCALE codec,
@@ -1020,10 +1026,6 @@ impl<T: Config> Pallet<T> {
 		T::Xcm::send(origin.into(), versioned_target, versioned_msg)
 			.map_err(|_err| Error::<T>::XcmSendError)?;
 		Ok(())
-	}
-
-	fn get_min_credits(sub: &SubscriptionOf<T>) -> T::Credits {
-		T::FeesManager::get_idle_credits(sub)
 	}
 }
 
