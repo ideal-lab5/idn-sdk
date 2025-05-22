@@ -368,6 +368,35 @@ mod benchmarks {
 		assert!(sub.last_delivered.is_some());
 	}
 
+	#[benchmark]
+	fn on_finalize(s: Linear<1, { T::MaxSubscriptions::get() }>) {
+		fill_up_subscriptions::<T>(s);
+
+		assert_eq!(Subscriptions::<T>::iter().count(), s as usize);
+
+		// iterate over all subscriptions and finalize them
+		Subscriptions::<T>::iter().for_each(
+			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| {
+				// update the subscription as finalized
+				sub.state = SubscriptionState::Finalized;
+				// update the subscription
+				Subscriptions::<T>::insert(sub_id, sub);
+			},
+		);
+
+		let block_number = frame_system::Pallet::<T>::block_number();
+
+		#[block]
+		{
+			Pallet::<T>::on_finalize(block_number);
+		}
+
+		assert_eq!(
+			Subscriptions::<T>::iter().count(),
+			s.saturating_sub(T::MaxTerminatableSubs::get()) as usize
+		);
+	}
+
 	/// Fill up the subscriptions with the given number of subscriptions
 	fn fill_up_subscriptions<T: Config>(s: u32)
 	where

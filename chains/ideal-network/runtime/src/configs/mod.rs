@@ -320,6 +320,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
 	type MaxSubscriptions = types::MaxSubscriptions;
+	type MaxTerminatableSubs = types::MaxTerminatableSubs;
 	type SubscriptionId = types::SubscriptionId;
 	type DiffBalance = impls::DiffBalanceImpl<BalanceOf<Runtime>>;
 	type SiblingOrigin = EnsureXcm<AllowSiblingsOnly>;
