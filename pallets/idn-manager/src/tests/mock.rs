@@ -71,8 +71,9 @@ parameter_types! {
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
-	pub const MaxSubscriptions: u32 = 100;
+	pub const MaxSubscriptions: u32 = 1_000;
 	pub const MaxMetadataLen: u32 = 8;
+	pub const MaxTerminatableSubs: u32 = 100;
 }
 
 type Rand = [u8; 32];
@@ -148,6 +149,7 @@ impl pallet_idn_manager::Config for Test {
 	type MaxMetadataLen = MaxMetadataLen;
 	type Credits = u64;
 	type MaxSubscriptions = MaxSubscriptions;
+	type MaxTerminatableSubs = MaxTerminatableSubs;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Test>>;
 	type SiblingOrigin = MockEnsureXcm<primitives::AllowSiblingsOnly>; // Use the custom EnsureOrigin

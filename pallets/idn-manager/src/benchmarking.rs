@@ -28,6 +28,7 @@ use frame_support::{
 };
 use frame_system::{Pallet as System, RawOrigin};
 use sp_core::H256;
+use sp_idn_traits::Hashable;
 use xcm::v5::prelude::Junction;
 
 #[benchmarks(
@@ -368,22 +369,57 @@ mod benchmarks {
 		assert!(sub.last_delivered.is_some());
 	}
 
+	#[benchmark]
+	fn on_finalize() {
+		// We assume the worst case scenario, that is, we've got max subscriptions in the current
+		// block. We can't set `s` as a parameter (e.g. to pass `SubCounter`) to use it instead of
+		// `MaxSubscriptions`, because we don't know at the beginning of the block (when this is
+		// measured) how many subscriptions will be created by the end of the block. Therefore we
+		// don't know how big the for loop in the `on_finalize` hook will be.
+		let s = T::MaxSubscriptions::get();
+		let f = T::MaxTerminatableSubs::get();
+		fill_up_subscriptions::<T>(s);
+
+		assert_eq!(Subscriptions::<T>::iter().count(), s as usize);
+
+		// Mark max terminatable subscriptions as finalized
+		Subscriptions::<T>::iter().take(f as usize).for_each(
+			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| {
+				// update the subscription as finalized
+				sub.state = SubscriptionState::Finalized;
+
+				// update the subscription
+				Subscriptions::<T>::insert(sub_id, sub.clone());
+			},
+		);
+
+		let block_number = frame_system::Pallet::<T>::block_number();
+
+		#[block]
+		{
+			Pallet::<T>::on_finalize(block_number);
+		}
+
+		assert_eq!(Subscriptions::<T>::iter().count(), s.saturating_sub(f) as usize);
+	}
+
 	/// Fill up the subscriptions with the given number of subscriptions
 	fn fill_up_subscriptions<T: Config>(s: u32)
 	where
 		T::Credits: From<u64>,
 		T::Currency: Mutate<T::AccountId>,
+		T::AccountId: From<[u8; 32]>,
 	{
-		let subscriber: T::AccountId = whitelisted_caller();
-		let credits: T::Credits = 100u64.into();
+		let credits: T::Credits = 100_000u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 
-		T::Currency::set_balance(&subscriber, u32::MAX.into());
-
 		// Create s subscriptions
-		for _ in 0..s {
+		for i in 0..s {
+			let id: [u8; 32] = i.hash(&[i as u8]).into();
+			let subscriber: T::AccountId = id.into();
+			T::Currency::set_balance(&subscriber, u32::MAX.into());
 			let res = IdnManager::<T>::create_subscription(
 				<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
 				CreateSubParamsOf::<T> {
