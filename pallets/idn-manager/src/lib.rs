@@ -397,7 +397,7 @@ pub mod pallet {
 		/// Subscription is already active
 		SubscriptionAlreadyActive,
 		/// Subscription's state transition is not possible
-		SubStateTransitionImpossible,
+		SubscriptionInvalidTransition,
 		/// Subscription can't be updated
 		SubscriptionNotUpdatable,
 		/// The origin isn't the subscriber
@@ -541,7 +541,7 @@ pub mod pallet {
 		///   the specified ID does not exist.
 		/// * [`NotSubscriber`](Error::NotSubscriber) - If the origin is not the subscriber of the
 		///   specified subscription.
-		/// * [`SubStateTransitionImpossible`](Error::SubStateTransitionImpossible) - If the
+		/// * [`SubscriptionInvalidTransition`](Error::SubscriptionInvalidTransition) - If the
 		///   subscription cannot transition to the [`Paused`](SubscriptionState::Paused) state.
 		///
 		/// # Events
@@ -559,7 +559,7 @@ pub mod pallet {
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				ensure!(
 					sub.state == SubscriptionState::Active,
-					Error::<T>::SubStateTransitionImpossible
+					Error::<T>::SubscriptionInvalidTransition
 				);
 				sub.state = SubscriptionState::Paused;
 				Self::deposit_event(Event::SubscriptionPaused { sub_id });
@@ -687,7 +687,7 @@ pub mod pallet {
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				ensure!(
 					sub.state == SubscriptionState::Paused,
-					Error::<T>::SubStateTransitionImpossible
+					Error::<T>::SubscriptionInvalidTransition
 				);
 				sub.state = SubscriptionState::Active;
 				Self::deposit_event(Event::SubscriptionReactivated { sub_id });

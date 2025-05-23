@@ -1057,7 +1057,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 
 		assert_noop!(
 			IdnManager::pause_subscription(RuntimeOrigin::signed(ALICE), sub_id),
-			Error::<Test>::SubStateTransitionImpossible
+			Error::<Test>::SubscriptionInvalidTransition
 		);
 
 		// Assert the SubscriptionPaused event was not emitted
@@ -1106,7 +1106,7 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 
 		assert_noop!(
 			IdnManager::reactivate_subscription(RuntimeOrigin::signed(ALICE), sub_id),
-			Error::<Test>::SubStateTransitionImpossible
+			Error::<Test>::SubscriptionInvalidTransition
 		);
 
 		// Assert the SubscriptionReactivated event was not emitted
