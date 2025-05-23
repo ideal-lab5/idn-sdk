@@ -118,6 +118,8 @@ enum TracingEvent {
 	PongFailed,
 	/// Successful pinged a peer
 	PingSuccess,
+	/// A peer could not be dialed again after disconnecting
+	RedialFailure,
 	/// An untrusted peer sent a message
 	UntrustedPeer,
 	/// An error occurred while trying to send the decoded pulse to the mpsc channel
@@ -129,10 +131,11 @@ impl TracingEvent {
 		match *self {
 			TracingEvent::NewPulse => "🎲 New pulse received and stored.",
 			TracingEvent::NondecodableMessage => {
-				"❓A message was encountered but we could not decode it."
+				"❓A message was received but we could not decode it."
 			},
 			TracingEvent::PongFailed => "💀 Peer failed to pong!",
 			TracingEvent::PingSuccess => "🏓 Ping to peer succeeded.",
+			TracingEvent::RedialFailure => "❌ Failed to redial peer.",
 			TracingEvent::UnboundedSendError => "❌ Unable to send message to the queue.",
 			TracingEvent::UntrustedPeer => "⛔ Message from untrusted peer.",
 		}
@@ -382,7 +385,7 @@ impl GossipsubNetwork {
 						// redial known peers
 						if let Some(addr) = self.allowed_peer_map.get(&peer) {
 							if let Err(e) = self.swarm.dial(addr.clone()) {
-								log::error!(target: LOG_TARGET, "❌ Failed to redial peer {}: {:?}", peer, e);
+								tracing::error!(target: LOG_TARGET, %peer, ?e, "{}", TracingEvent::RedialFailure.value());
 							}
 						}
 					},
@@ -666,6 +669,52 @@ mod tests {
 
 		node.handle_event(SwarmEvent::Behaviour(trusted_gossipsub_event)).await;
 		assert!(logs_contain(TracingEvent::NondecodableMessage.value()));
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn can_ping_success() {
+		let (mut node, _rx) = build_node();
+
+		let trusted_peer_id = libp2p::PeerId::random();
+		let maddr = Multiaddr::empty();
+		let mut allow_map = HashMap::new();
+		allow_map.insert(trusted_peer_id, maddr);
+		node.set_allowed_peer_map(allow_map);
+
+		let ping_success_event = ComposedEvent::Ping(PingEvent {
+			peer: trusted_peer_id,
+			connection: libp2p::swarm::ConnectionId::new_unchecked(1),
+			result: Ok(Duration::from_secs(1)),
+		});
+
+
+		node.handle_event(SwarmEvent::Behaviour(ping_success_event)).await;
+		assert!(logs_contain(TracingEvent::PingSuccess.value()));
+		assert!(logs_contain(&trusted_peer_id.to_string()));
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn can_handle_pong_failure() {
+		let (mut node, _rx) = build_node();
+
+		let trusted_peer_id = libp2p::PeerId::random();
+		let maddr = Multiaddr::empty();
+		let mut allow_map = HashMap::new();
+		allow_map.insert(trusted_peer_id, maddr);
+		node.set_allowed_peer_map(allow_map);
+
+		let ping_success_event = ComposedEvent::Ping(PingEvent {
+			peer: trusted_peer_id,
+			connection: libp2p::swarm::ConnectionId::new_unchecked(1),
+			result: Err(libp2p::ping::Failure::Unsupported),
+		});
+
+
+		node.handle_event(SwarmEvent::Behaviour(ping_success_event)).await;
+		assert!(logs_contain(TracingEvent::PongFailed.value()));
+		assert!(logs_contain(&format!("{}", libp2p::ping::Failure::Unsupported)));
 	}
 
 	/* drand receiver tests */
