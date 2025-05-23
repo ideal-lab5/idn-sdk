@@ -15,7 +15,7 @@
  */
 
 use crate::{
-	mock::*, types::*, weights::WeightInfo, BeaconConfig, Call, Error, LatestRound,
+	mock::*, types::*, weights::WeightInfo, BeaconConfig, Call, DidUpdate, Error, LatestRound,
 	SparseAccumulation,
 };
 use codec::Encode;
@@ -40,7 +40,7 @@ fn can_fail_write_pulse_when_genesis_round_not_set() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig.try_into().unwrap(), 2),
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig.try_into().unwrap(), 1000, 1001,),
 			Error::<Test>::BeaconConfigNotSet,
 		);
 	});
@@ -75,11 +75,18 @@ fn can_submit_valid_pulses_under_the_limit() {
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig.clone().try_into().unwrap(),
-			2
+			1000,
+			1001,
 		));
 
 		let maybe_res = SparseAccumulation::<Test>::get();
 		assert!(maybe_res.is_some());
+
+		let latest_round = LatestRound::<Test>::get();
+		assert_eq!(1002, latest_round.unwrap());
+
+		let did_update = DidUpdate::<Test>::get();
+		assert!(did_update);
 
 		let aggr = maybe_res.unwrap();
 		assert_eq!(asig, aggr.signature);
@@ -95,7 +102,7 @@ fn can_fail_when_sig_height_is_0() {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 0),
+			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 1000),
 			Error::<Test>::ZeroHeightProvided
 		);
 	});
@@ -110,7 +117,7 @@ fn can_fail_when_sig_height_is_exceeds_max() {
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 10000),
+			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 10000),
 			Error::<Test>::ExcessiveHeightProvided
 		);
 	});
@@ -118,36 +125,41 @@ fn can_fail_when_sig_height_is_exceeds_max() {
 
 #[test]
 fn can_submit_valid_sigs_in_sequence() {
-	let round2 = 1004u64;
-
 	let config = get_config(1000);
 
 	let (asig1, _amsg1, _raw1) = get(vec![PULSE1000, PULSE1001]);
-	let (asig2, _amsg2, _raw2) = get(vec![PULSE1002, PULSE1003]);
-
-	// the aggregated values
-	let (asig, amsg, _all_sigs) = get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003]);
+	let (asig2, amsg2, _raw2) = get(vec![PULSE1002, PULSE1003]);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig1.try_into().unwrap(), 2));
+		assert_ok!(Drand::try_submit_asig(
+			RuntimeOrigin::none(),
+			asig1.try_into().unwrap(),
+			1000,
+			1001
+		));
 
 		Drand::on_finalize(1);
 		System::set_block_number(2);
 
-		assert_ok!(Drand::try_submit_asig(RuntimeOrigin::none(), asig2.try_into().unwrap(), 2));
+		assert_ok!(Drand::try_submit_asig(
+			RuntimeOrigin::none(),
+			asig2.clone().try_into().unwrap(),
+			1002,
+			1003,
+		));
 
 		let maybe_res = SparseAccumulation::<Test>::get();
 		assert!(maybe_res.is_some());
 
 		let aggr = maybe_res.unwrap();
-		assert_eq!(asig, aggr.signature);
-		assert_eq!(amsg, aggr.message_hash);
+		assert_eq!(asig2, aggr.signature);
+		assert_eq!(amsg2, aggr.message_hash);
 
 		let actual_latest = LatestRound::<Test>::get();
-		assert_eq!(round2, actual_latest.unwrap());
+		assert_eq!(1004, actual_latest.unwrap());
 	});
 }
 
@@ -164,10 +176,16 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig.clone().try_into().unwrap(),
-			2
+			1000,
+			1001,
 		));
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone().try_into().unwrap(), 2),
+			Drand::try_submit_asig(
+				RuntimeOrigin::none(),
+				asig.clone().try_into().unwrap(),
+				1000,
+				1001,
+			),
 			Error::<Test>::SignatureAlreadyVerified,
 		);
 	});
@@ -186,14 +204,30 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig.clone().try_into().unwrap(),
-			2
+			1000,
+			1001,
 		));
 
 		Drand::on_finalize(1);
 		System::set_block_number(2);
 
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig.clone().try_into().unwrap(), 2),
+			Drand::try_submit_asig(
+				RuntimeOrigin::none(),
+				asig.clone().try_into().unwrap(),
+				1000,
+				1001,
+			),
+			Error::<Test>::StartExpired,
+		);
+
+		assert_noop!(
+			Drand::try_submit_asig(
+				RuntimeOrigin::none(),
+				asig.clone().try_into().unwrap(),
+				1002,
+				1004,
+			),
 			Error::<Test>::VerificationFailed,
 		);
 
@@ -243,24 +277,23 @@ fn can_create_inherent() {
 	let (asig3, _amsg3, _sig3) = get(vec![PULSE1002]);
 	let pulse3 = CanonicalPulse { round: 1002u64, signature: asig3.try_into().unwrap() };
 
-	let (expected_asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
-	let expected_height = 3;
+	let (expected_asig, _amsg, _raw) = get(vec![PULSE1001, PULSE1002]);
 	let expected_asig_array: [u8; 48] = expected_asig.try_into().unwrap();
+
+	let expected_start = 1001;
+	let expected_end = 1002;
 
 	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode(), pulse3.encode()];
 	let mut inherent_data = InherentData::new();
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
 	new_test_ext().execute_with(|| {
-		LatestRound::<Test>::set(Some(0));
-		BeaconConfig::<Test>::set(Some(config.clone()));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
 		let result = Drand::create_inherent(&inherent_data);
-		if let Some(Call::try_submit_asig { asig, height }) = result {
+		if let Some(Call::try_submit_asig { asig, start, end }) = result {
 			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
-			assert_eq!(
-				height, expected_height,
-				"The number of valid pulses should match the input."
-			);
+			assert_eq!(start, expected_start, "The sequence should start at 1001");
+			assert_eq!(end, expected_end, "The sequence should end at 1002");
 		} else {
 			panic!("Expected Some(Call::try_submit_asig), got None");
 		}
