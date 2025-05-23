@@ -106,13 +106,17 @@ parameter_types! {
 			.expect("Invalid Treasury Account");
 	/// The Subscription Deposit Multiplier, used for calculating the subscription fee
 	pub const SDMultiplier: u64 = 10;
-	/// The maximum number of subscriptions allowed
-	pub const MaxSubscriptions: u32 = 1_000;
-	/// Maximum number of subscriptions that can be terminated in a `on_finalize` execution.
+	/// Maximum number of subscriptions allowed
 	///
-	/// This should be set to a number that keeps the estimated `on_finalize` Proof size under
+	/// This and [`MaxTerminatableSubs`] should be set to a number that keeps the estimated
+	/// `dispatch_pulse` Proof size in combinations with the `on_finalize` Proof size under
 	/// the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
-	pub const MaxTerminatableSubs: u32 = 100;
+	pub const MaxSubscriptions: u32 = 2_000;
+	/// Maximum number of subscriptions that can be terminated in a `on_finalize` execution
+	///
+	/// This and [`MaxSubscriptions`] should be set to a number that keeps the estimated Proof
+	/// Size in the weights under the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
+	pub const MaxTerminatableSubs: u32 = 200;
 	/// The maximum length of the metadata vector
 	pub const MaxMetadataLen: u32 = 8;
 }

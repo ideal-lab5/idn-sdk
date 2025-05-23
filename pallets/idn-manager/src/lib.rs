@@ -318,13 +318,17 @@ pub mod pallet {
 			+ PartialOrd;
 
 		/// Maximum number of subscriptions allowed
+		///
+		/// This and [`MaxTerminatableSubs`] should be set to a number that keeps the estimated
+		/// `dispatch_pulse` Proof size in combinations with the `on_finalize` Proof size under
+		/// the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
 		#[pallet::constant]
 		type MaxSubscriptions: Get<u32>;
 
-		/// Maximum number of subscriptions that can be terminated in a `on_finalize` execution.
+		/// Maximum number of subscriptions that can be terminated in a `on_finalize` execution
 		///
-		/// This should be set to a number that keeps the estimated `on_finalize` Proof size under
-		/// the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
+		/// This and [`MaxSubscriptions`] should be set to a number that keeps the estimated Proof
+		/// Size in the weights under the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
 		#[pallet::constant]
 		type MaxTerminatableSubs: Get<u32>;
 
@@ -424,11 +428,7 @@ pub mod pallet {
 		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
 		/// execute. See [`on_finalize`](https://paritytech.github.io/polkadot-sdk/master/frame_support/traits/trait.Hooks.html#method.on_finalize).
 		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
-			// We assume the worst case scenario, that is, we've got max subscriptions in this
-			// block. We can't use `SubCounter` as a weight parameter, because we don't know at this
-			// point how many subscriptions will be created by the end of the block. Therefore we
-			// don't know how big the for loop in the `on_finalize` hook will be.
-			<T as pallet::Config>::WeightInfo::on_finalize(T::MaxSubscriptions::get())
+			<T as pallet::Config>::WeightInfo::on_finalize()
 		}
 
 		/// It iterates over all [`Finalized`](SubscriptionState::Finalized) subscriptions calls
@@ -1058,7 +1058,7 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 	}
 
 	fn dispatch_weight() -> Weight {
-		T::WeightInfo::dispatch_pulse(T::MaxSubscriptions::get())
+		T::WeightInfo::dispatch_pulse(SubCounter::<T>::get())
 	}
 }
 
