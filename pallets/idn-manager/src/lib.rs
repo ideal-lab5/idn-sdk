@@ -818,8 +818,6 @@ impl<T: Config> Pallet<T> {
 		Self::manage_diff_fees(&sub.details.subscriber, &fees_diff)?;
 		Self::release_deposit(&sub.details.subscriber, sd)?;
 
-		Self::deposit_event(Event::SubscriptionTerminated { sub_id });
-
 		Subscriptions::<T>::remove(sub_id);
 
 		// Decrease the subscription counter

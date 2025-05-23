@@ -393,7 +393,7 @@ mod benchmarks {
 	#[benchmark]
 	fn on_finalize() {
 		// We assume the worst case scenario, that is, we've got max subscriptions in the current
-		// block. We can't set `s` as a paramenter (e.g. to pass `SubCounter`) to use it instead of
+		// block. We can't set `s` as a parameter (e.g. to pass `SubCounter`) to use it instead of
 		// `MaxSubscriptions`, because we don't know at the beginning of the block (when this is
 		// measured) how many subscriptions will be created by the end of the block. Therefore we
 		// don't know how big the for loop in the `on_finalize` hook will be.
