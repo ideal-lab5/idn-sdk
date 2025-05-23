@@ -130,9 +130,8 @@ impl TracingEvent {
 	fn value(&self) -> &str {
 		match *self {
 			TracingEvent::NewPulse => "🎲 New pulse received and stored.",
-			TracingEvent::NondecodableMessage => {
-				"❓A message was received but we could not decode it."
-			},
+			TracingEvent::NondecodableMessage =>
+				"❓A message was received but we could not decode it.",
 			TracingEvent::PongFailed => "💀 Peer failed to pong!",
 			TracingEvent::PingSuccess => "🏓 Ping to peer succeeded.",
 			TracingEvent::RedialFailure => "❌ Failed to redial peer.",
@@ -141,7 +140,6 @@ impl TracingEvent {
 		}
 	}
 }
-
 
 /// receive messages from drand
 #[derive(Clone)]
@@ -688,7 +686,6 @@ mod tests {
 			result: Ok(Duration::from_secs(1)),
 		});
 
-
 		node.handle_event(SwarmEvent::Behaviour(ping_success_event)).await;
 		assert!(logs_contain(TracingEvent::PingSuccess.value()));
 		assert!(logs_contain(&trusted_peer_id.to_string()));
@@ -710,7 +707,6 @@ mod tests {
 			connection: libp2p::swarm::ConnectionId::new_unchecked(1),
 			result: Err(libp2p::ping::Failure::Unsupported),
 		});
-
 
 		node.handle_event(SwarmEvent::Behaviour(ping_success_event)).await;
 		assert!(logs_contain(TracingEvent::PongFailed.value()));

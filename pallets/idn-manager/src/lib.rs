@@ -399,9 +399,8 @@ pub mod pallet {
 		/// execute. See [`on_finalize`](https://paritytech.github.io/polkadot-sdk/master/frame_support/traits/trait.Hooks.html#method.on_finalize).
 		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
 			// We assume the worst case scenario, that is, all subscriptions are finishing in this
-			// block. 	
-			// <T as pallet::Config>::WeightInfo::on_finalize(T::MaxSubscriptions::get())
-			<T as pallet::Config>::WeightInfo::on_finalize(0)
+			// block.
+			<T as pallet::Config>::WeightInfo::on_finalize(T::MaxSubscriptions::get())
 		}
 
 		/// It iterates over all subscriptions with zero credits and calls `finish_subscription` to
