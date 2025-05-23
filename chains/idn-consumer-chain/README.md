@@ -43,29 +43,17 @@ docker run [image] [options]
 cargo test
 ```
 
-**Benchmarks**
+## Benchmarking
 
-Build with benchmarks using:
+See the [Benchmarking Guide](../../BENCHMARKING.md) for instructions on how to run benchmarks for this parachain.
 
-```sh
-cargo build -p idn-consumer-node --release --features runtime-benchmarks
-```
+### Benchmark a new pallet
 
-and run them with:
-
-```sh
-# list all benchmarks
-./target/release/idn-consumer-node benchmark pallet --chain dev --pallet "*" --extrinsic "*" --repeat 0
-# benchmark all the pallets
-./target/release/idn-consumer-node benchmark pallet \
-    --chain dev \
-    --wasm-execution=compiled \
-    --pallet "*" \
-    --extrinsic "*" \
-    --steps 50 \
-    --repeat 20 \
-    --output <output_file.rs>
-```
+When adding a new pallet the benchmarks need to be run and the weights added in the runtime configuration:
+1. Add the new pallet to `src/benchmarking.rs`
+2. Run the benchmarks using the guide from above
+3. Add the generated weights to `src/weights/mod.rs`
+4. Update the `WeightInfo` type in the pallet's runtime configuration
 
 ## Local Development Chain
 

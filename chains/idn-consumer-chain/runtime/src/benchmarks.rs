@@ -25,4 +25,8 @@ frame_benchmarking::define_benchmarks!(
 	[pallet_session, SessionBench::<Runtime>]
 	[cumulus_pallet_xcmp_queue, XcmpQueue]
 	[pallet_message_queue, MessageQueue]
+	[pallet_transaction_payment, TransactionPayment]
+	[pallet_idn_consumer, IdnConsumer]
+	[pallet_contracts, Contracts]
+	[pallet_revive, Revive]
 );

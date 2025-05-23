@@ -9,3 +9,6 @@ Various runtime modules, primitives, pallets, and smart contracts used by the Id
 - **client**: Client-side implementations
 - **support**: Shared utilities and traits
 - **contracts**: ink! smart contracts
+
+## Chains benchmarking
+See the [Benchmarking Guide](./BENCHMARKING.md) for instructions on how to run benchmarks for this project's parachains.

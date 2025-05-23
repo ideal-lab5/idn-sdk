@@ -235,7 +235,6 @@ impl pallet_randomness_beacon::Config for Runtime {
 parameter_types! {
 	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
-	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
 	pub const MaxSubscriptions: u32 = 1_000;
 	pub const SiblingParaId: u32 = 88;
@@ -267,7 +266,7 @@ impl TryConvert<RuntimeOrigin, Location> for AllowSiblingsOnly {
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager = FeesManagerImpl<TreasuryAccount, BaseFee, SubscriptionOf<Runtime>, Balances>;
+	type FeesManager = FeesManagerImpl<TreasuryAccount, SubscriptionOf<Runtime>, Balances>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;

@@ -1,0 +1,26 @@
+[
+  {
+    "name": "ideal-network",
+    "package": "idn-runtime",
+    "path": "chains/ideal-network/runtime",
+    "uri": "wss://idn-0.idealabs.network:443",
+    "is_relay": false,
+    "blocktime": 6000
+  },
+  {
+    "name": "idn-consumer",
+    "package": "idn-consumer-runtime",
+    "path": "chains/idn-consumer-chain/runtime",
+    "uri": "wss://idn-consumer-0.idealabs.network:443",
+    "is_relay": false,
+    "blocktime": 6000
+  },
+  {
+    "name": "idn-sdk-kitchensink",
+    "package": "idn-sdk-kitchensink-runtime",
+    "path": "chains/kitchensink/runtime",
+    "uri": "wss://idn-sdk-kitchensink-0.idealabs.network:443",
+    "is_relay": true,
+    "blocktime": 6000
+  }
+]

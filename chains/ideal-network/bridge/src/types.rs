@@ -28,6 +28,7 @@ use pallet_idn_manager::{
 };
 use scale_info::TypeInfo;
 use sha2::{Digest, Sha256};
+use sp_core::crypto::Ss58Codec;
 use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
@@ -100,13 +101,13 @@ parameter_types! {
 	/// The IDN Manager Pallet ID
 	pub const IdnManagerPalletId: PalletId = PalletId(*b"idn_mngr");
 	/// The IDN Treasury Account for fee collection
-	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
-	/// The base fee, used for calculating the subscription fee
-	pub const BaseFee: u64 = 10;
+	pub TreasuryAccount: AccountId32 =
+		AccountId32::from_ss58check("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C")
+			.expect("Invalid Treasury Account");
 	/// The Subscription Deposit Multiplier, used for calculating the subscription fee
 	pub const SDMultiplier: u64 = 10;
 	/// The maximum number of subscriptions allowed
-	pub const MaxSubscriptions: u32 = 1_000_000;
+	pub const MaxSubscriptions: u32 = 5_000;
 	/// The maximum length of the metadata vector
 	pub const MaxMetadataLen: u32 = 8;
 }

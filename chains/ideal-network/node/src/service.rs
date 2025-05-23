@@ -23,7 +23,7 @@ use std::{sync::Arc, time::Duration};
 // Local Runtime Types
 use idn_runtime::{
 	apis::RuntimeApi,
-	constants::*,
+	constants::idn::{PRIMARY, QUICKNET_GOSSIPSUB_TOPIC, SECONDARY},
 	opaque::{Block, Hash},
 };
 
