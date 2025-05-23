@@ -340,7 +340,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let initial_balance = 10_000_000;
+		let initial_balance = u32::MAX as u64;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
@@ -348,9 +348,9 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 			assert_ok!(IdnManager::create_subscription(
 				RuntimeOrigin::signed(ALICE.clone()),
 				CreateSubParamsOf::<Test> {
-					credits,
+					credits: credits + i as u64,
 					target: target.clone(),
-					call_index: [i.try_into().unwrap(); 2],
+					call_index: [i as u8; 2],
 					frequency,
 					metadata: None,
 					sub_id: None,
