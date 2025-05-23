@@ -85,7 +85,10 @@ use sp_consensus_randomness_beacon::types::*;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
+#[cfg(not(test))]
 const LOG_TARGET: &'static str = "gossipsub";
+#[cfg(test)]
+const LOG_TARGET: &'static str = module_path!();
 
 /// The default address instructing libp2p to choose a random open port on the local machine
 const RAND_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/0";
@@ -104,6 +107,38 @@ pub enum Error {
 	/// The swarm could not listen on the given port
 	SwarmListenFailure,
 }
+
+/// Events that are traced
+enum TracingEvent {
+	/// A new pulse was consumed
+	NewPulse,
+	/// A message was received from a trusted peer but we do not know how to decode it
+	NondecodableMessage,
+	/// The peer failed to pong back
+	PongFailed,
+	/// Successful pinged a peer
+	PingSuccess,
+	/// An untrusted peer sent a message
+	UntrustedPeer,
+	/// An error occurred while trying to send the decoded pulse to the mpsc channel
+	UnboundedSendError,
+}
+
+impl TracingEvent {
+	fn value(&self) -> &str {
+		match *self {
+			TracingEvent::NewPulse => "🎲 New pulse received and stored.",
+			TracingEvent::NondecodableMessage => {
+				"❓A message was encountered but we could not decode it."
+			},
+			TracingEvent::PongFailed => "💀 Peer failed to pong!",
+			TracingEvent::PingSuccess => "🏓 Ping to peer succeeded.",
+			TracingEvent::UnboundedSendError => "❌ Unable to send message to the queue.",
+			TracingEvent::UntrustedPeer => "⛔ Message from untrusted peer.",
+		}
+	}
+}
+
 
 /// receive messages from drand
 #[derive(Clone)]
@@ -311,7 +346,7 @@ impl GossipsubNetwork {
 	/// Handle incoming swarm events
 	///
 	/// * `event`: A `SwarmEvent<ComposedEvent>`
-	pub(crate) async fn handle_event(&mut self, event: SwarmEvent<ComposedEvent>) {
+	async fn handle_event(&mut self, event: SwarmEvent<ComposedEvent>) {
 		match event {
 			SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossipsub::Event::Message {
 				message,
@@ -320,20 +355,19 @@ impl GossipsubNetwork {
 			})) => {
 				// reject messages authored by unknown peers
 				if !self.allowed_peer_map.contains_key(&propagation_source) {
-					log::warn!(target: LOG_TARGET, "⛔ Message from untrusted peer: {propagation_source}");
-					// continue;
+					tracing::warn!(target: LOG_TARGET, peer_id = %propagation_source, "{}", TracingEvent::UntrustedPeer.value());
 				} else {
 					match try_handle_pulse(&message.data) {
 						Ok(pulse) => {
-							log::info!(target: LOG_TARGET, "🎲 New pulse received and stored: #{:?}.", pulse.round);
+							tracing::info!(target: LOG_TARGET, round = %pulse.round, "{}", TracingEvent::NewPulse.value());
 							if let Err(e) = self.sender.unbounded_send(pulse.clone()) {
-								log::error!(target: LOG_TARGET, "Unable to send message to the queue. err = {}", e);
+								// Not sure how to test this line
+								tracing::error!(target: LOG_TARGET, error = %e, "{}", TracingEvent::UnboundedSendError.value());
 							}
 						},
 
 						Err(_) => {
-							// handle non-decodable messages: https://github.com/ideal-lab5/idn-sdk/issues/60
-							log::warn!(target: LOG_TARGET, "A message was encountered but we could not decode it.");
+							tracing::error!(target: LOG_TARGET, "{}", TracingEvent::NondecodableMessage.value());
 						},
 					}
 				}
@@ -341,10 +375,10 @@ impl GossipsubNetwork {
 			SwarmEvent::Behaviour(ComposedEvent::Ping(PingEvent { peer, result, .. })) => {
 				match result {
 					Ok(rtt) => {
-						log::info!(target: LOG_TARGET, "🏓 Ping to {} succeeded in {:?}", peer, rtt);
+						tracing::info!(target: LOG_TARGET, %peer, ?rtt, "{}", TracingEvent::PingSuccess.value());
 					},
 					Err(e) => {
-						log::warn!(target: LOG_TARGET, "💀 Peer {} failed ping: {:?}", peer, e);
+						tracing::warn!(target: LOG_TARGET, error = %e, "{}", TracingEvent::PongFailed.value());
 						// redial known peers
 						if let Some(addr) = self.allowed_peer_map.get(&peer) {
 							if let Err(e) = self.swarm.dial(addr.clone()) {
@@ -372,12 +406,19 @@ pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<CanonicalPulse, Error> {
 	Ok(pulse)
 }
 
+/// Helper functions for testing purposes only
+#[cfg(test)]
+impl GossipsubNetwork {
+	fn set_allowed_peer_map(&mut self, allowed_peer_map: HashMap<PeerId, Multiaddr>) {
+		self.allowed_peer_map = allowed_peer_map;
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 	use tokio::time::{sleep, Duration};
-
 
 	fn build_node() -> (GossipsubNetwork, TracingUnboundedReceiver<CanonicalPulse>) {
 		let local_identity: Keypair = Keypair::generate_ed25519();
@@ -534,26 +575,97 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[tracing_test::traced_test]
 	async fn can_reject_messages_from_untrusted_sources() {
-		let (node, _rx) = build_node();
+		let (mut node, _rx) = build_node();
 
 		let untrusted_peer_id = libp2p::PeerId::random();
 		let message_id = gossipsub::MessageId::new(&[0]);
 		let topic = IdentTopic::new("").hash();
 
-		let message = gossipsub::Message {
-			source: None,
-			data: vec![],
-			sequence_number: None,
-			topic,
-		};
+		let message =
+			gossipsub::Message { source: None, data: vec![], sequence_number: None, topic };
 
 		let untrusted_gossipsub_event = ComposedEvent::Gossipsub(gossipsub::Event::Message {
 			propagation_source: untrusted_peer_id,
 			message_id,
 			message,
 		});
-		
+
+		node.handle_event(SwarmEvent::Behaviour(untrusted_gossipsub_event)).await;
+
+		assert!(logs_contain(TracingEvent::UntrustedPeer.value()));
+		assert!(logs_contain(&untrusted_peer_id.to_string()));
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn can_accept_messages_from_trusted_sources_and_process_a_pulse() {
+		let (mut node, _rx) = build_node();
+
+		let trusted_peer_id = libp2p::PeerId::random();
+		let maddr = Multiaddr::empty();
+		let mut allow_map = HashMap::new();
+		allow_map.insert(trusted_peer_id, maddr);
+		node.set_allowed_peer_map(allow_map);
+
+		let message_id = gossipsub::MessageId::new(&[0]);
+		let topic = IdentTopic::new("").hash();
+
+		let pulse = ProtoPulse {
+			round: 14475418,
+			signature: [
+				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
+				95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49,
+				223, 95, 22, 186, 113, 163, 202, 195, 230, 117,
+			]
+			.to_vec(),
+		};
+
+		let message = gossipsub::Message {
+			source: None,
+			data: pulse.encode_to_vec(),
+			sequence_number: None,
+			topic,
+		};
+
+		let trusted_gossipsub_event = ComposedEvent::Gossipsub(gossipsub::Event::Message {
+			propagation_source: trusted_peer_id,
+			message_id,
+			message,
+		});
+
+		node.handle_event(SwarmEvent::Behaviour(trusted_gossipsub_event)).await;
+
+		assert!(logs_contain(TracingEvent::NewPulse.value()));
+		assert!(logs_contain("14475418"));
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn can_accept_messages_from_trusted_sources_and_handle_unknown_message_formats() {
+		let (mut node, _rx) = build_node();
+
+		let trusted_peer_id = libp2p::PeerId::random();
+		let maddr = Multiaddr::empty();
+		let mut allow_map = HashMap::new();
+		allow_map.insert(trusted_peer_id, maddr);
+		node.set_allowed_peer_map(allow_map);
+
+		let message_id = gossipsub::MessageId::new(&[0]);
+		let topic = IdentTopic::new("").hash();
+
+		let message =
+			gossipsub::Message { source: None, data: vec![], sequence_number: None, topic };
+
+		let trusted_gossipsub_event = ComposedEvent::Gossipsub(gossipsub::Event::Message {
+			propagation_source: trusted_peer_id,
+			message_id,
+			message,
+		});
+
+		node.handle_event(SwarmEvent::Behaviour(trusted_gossipsub_event)).await;
+		assert!(logs_contain(TracingEvent::NondecodableMessage.value()));
 	}
 
 	/* drand receiver tests */
