@@ -31,8 +31,10 @@ mod weights;
 
 extern crate alloc;
 
-use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::Pays};
-use pallet_idn_consumer::{ConsumerTrait, Pulse, SubscriptionId};
+use pallet_idn_consumer::{
+	traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer},
+	Pulse, Quote, SubInfoResponse, SubscriptionId,
+};
 use smallvec::smallvec;
 use sp_runtime::{
 	generic, impl_opaque_keys,
@@ -90,6 +92,9 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
+
+// Export pallet_balances::Call for use in contracts and revive pallets
+pub use pallet_balances::Call as BalancesCall;
 
 /// The SignedExtension to the basic transaction logic.
 #[docify::export(template_signed_extra)]
@@ -150,13 +155,33 @@ impl WeightToFeePolynomial for WeightToFee {
 	}
 }
 
-pub struct Consumer;
-impl ConsumerTrait<Pulse, SubscriptionId, DispatchResultWithPostInfo> for Consumer {
-	fn consume(pulse: Pulse, sub_id: SubscriptionId) -> DispatchResultWithPostInfo {
+/// Dummy implementation of the ['PulseConsumer'] trait.
+pub struct PulseConsumerImpl;
+impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
+	fn consume_pulse(pulse: Pulse, sub_id: SubscriptionId) -> Result<(), ()> {
 		// Randomness consumption logic goes here.
-		log::info!("IDN Consumer: Consuming pulse: {:?}", pulse);
-		log::info!("IDN Consumer: Subscription ID: {:?}", sub_id);
-		Ok(Pays::No.into())
+		log::info!("IDN Consumer: Consuming pulse: {:?} with sub id: {:?}", pulse, sub_id);
+		Ok(())
+	}
+}
+
+/// Dummy implementation of the ['QuoteConsumer'] trait.
+pub struct QuoteConsumerImpl;
+impl QuoteConsumer<Quote, (), ()> for QuoteConsumerImpl {
+	fn consume_quote(quote: Quote) -> Result<(), ()> {
+		// Quote consumption logic goes here.
+		log::info!("IDN Consumer: Consuming quote: {:?}", quote);
+		Ok(())
+	}
+}
+
+/// Dummy implementation of the ['SubInfoConsumer'] trait.
+pub struct SubInfoConsumerImpl;
+impl SubInfoConsumer<SubInfoResponse, (), ()> for SubInfoConsumerImpl {
+	fn consume_sub_info(sub_info: SubInfoResponse) -> Result<(), ()> {
+		// Subscription info consumption logic goes here.
+		log::info!("IDN Consumer: Consuming subscription info: {:?}", sub_info);
+		Ok(())
 	}
 }
 
@@ -293,6 +318,8 @@ mod runtime {
 	pub type Timestamp = pallet_timestamp::Pallet<Runtime>;
 	#[runtime::pallet_index(3)]
 	pub type ParachainInfo = parachain_info::Pallet<Runtime>;
+	#[runtime::pallet_index(4)]
+	pub type RandomnessCollectiveFlip = pallet_insecure_randomness_collective_flip;
 
 	// Monetary stuff.
 	#[runtime::pallet_index(10)]
@@ -303,6 +330,12 @@ mod runtime {
 	// Governance
 	#[runtime::pallet_index(15)]
 	pub type Sudo = pallet_sudo;
+
+	// Contracts
+	#[runtime::pallet_index(16)]
+	pub type Contracts = pallet_contracts;
+	#[runtime::pallet_index(17)]
+	pub type Revive = pallet_revive;
 
 	// Collator support. The order of these 4 are important and shall not change.
 	#[runtime::pallet_index(20)]
@@ -330,6 +363,18 @@ mod runtime {
 	#[runtime::pallet_index(40)]
 	pub type IdnConsumer = pallet_idn_consumer::Pallet<Runtime>;
 }
+
+type EventRecord = frame_system::EventRecord<
+	<Runtime as frame_system::Config>::RuntimeEvent,
+	<Runtime as frame_system::Config>::Hash,
+>;
+
+// Prints debug output of the `revive` pallet to stdout if the node is
+// started with `-lruntime::revive=trace` or `-lruntime::contracts=debug`.
+const CONTRACTS_DEBUG_OUTPUT: pallet_contracts::DebugInfo =
+	pallet_contracts::DebugInfo::UnsafeDebug;
+const CONTRACTS_EVENTS: pallet_contracts::CollectEvents =
+	pallet_contracts::CollectEvents::UnsafeCollect;
 
 cumulus_pallet_parachain_system::register_validate_block! {
 	Runtime = Runtime,

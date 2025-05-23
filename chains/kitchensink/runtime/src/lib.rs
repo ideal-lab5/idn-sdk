@@ -23,9 +23,14 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarks;
 
+mod impls;
+
 extern crate alloc;
 
-use crate::{interface::AccountId, sp_runtime::AccountId32};
+use crate::{
+	interface::AccountId,
+	sp_runtime::{traits::TryConvert, AccountId32},
+};
 use alloc::vec::Vec;
 use bp_idn::types::RuntimePulse;
 use pallet_idn_manager::{
@@ -41,6 +46,7 @@ use polkadot_sdk::{
 	},
 	*,
 };
+use xcm::v5::{Junction::Parachain, Location};
 
 /// Provides getters for genesis configuration presets.
 pub mod genesis_config_presets {
@@ -174,6 +180,10 @@ mod runtime {
 	/// Provides a way to ingest randomness.
 	#[runtime::pallet_index(6)]
 	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
+
+	/// Provides a way to consume randomness.
+	#[runtime::pallet_index(7)]
+	pub type IdnConsumer = pallet_idn_consumer::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -227,8 +237,8 @@ parameter_types! {
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
-	pub const MaxPulseFilterLen: u32 = 100;
 	pub const MaxSubscriptions: u32 = 1_000;
+	pub const SiblingParaId: u32 = 88;
 }
 
 #[derive(TypeInfo)]
@@ -237,6 +247,20 @@ pub struct MaxMetadataLen;
 impl Get<u32> for MaxMetadataLen {
 	fn get() -> u32 {
 		8
+	}
+}
+
+pub struct AllowSiblingsOnly;
+impl Contains<Location> for AllowSiblingsOnly {
+	fn contains(location: &Location) -> bool {
+		matches!(location.unpack(), (1, [Parachain(_)]))
+	}
+}
+
+impl TryConvert<RuntimeOrigin, Location> for AllowSiblingsOnly {
+	// There's no XCM in the Kitchensink runtime, so we can just return a hardcoded value.
+	fn try_convert(_origin: RuntimeOrigin) -> Result<Location, RuntimeOrigin> {
+		Ok(Location::new(1, [Parachain(SiblingParaId::get())]))
 	}
 }
 
@@ -252,10 +276,45 @@ impl pallet_idn_manager::Config for Runtime {
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;
 	type Credits = u64;
-	type MaxPulseFilterLen = MaxPulseFilterLen;
 	type MaxSubscriptions = MaxSubscriptions;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
+	type SiblingOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, AllowSiblingsOnly>;
+}
+
+pub const MOCK_IDN_PARA_ID: u32 = 88;
+parameter_types! {
+	pub MockSiblingIdnLocation: Location = Location::new(1, Parachain(MOCK_IDN_PARA_ID));
+	pub const ConsumerParaId: u32 = 2001;
+	pub const ConsumerPalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_cons");
+	pub const AssetHubFee: u128 = 1_000;
+}
+
+pub struct AllowIdnSiblingOnly;
+impl Contains<Location> for AllowIdnSiblingOnly {
+	fn contains(location: &Location) -> bool {
+		matches!(location.unpack(), (1, [Parachain(MOCK_IDN_PARA_ID)]))
+	}
+}
+
+impl TryConvert<RuntimeOrigin, Location> for AllowIdnSiblingOnly {
+	// There's no XCM in the Kitchensink runtime, so we can just return a hardcoded value.
+	fn try_convert(_origin: RuntimeOrigin) -> Result<Location, RuntimeOrigin> {
+		Ok(Location::new(1, [Parachain(MOCK_IDN_PARA_ID)]))
+	}
+}
+impl pallet_idn_consumer::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type PulseConsumer = impls::PulseConsumerImpl;
+	type QuoteConsumer = impls::QuoteConsumerImpl;
+	type SubInfoConsumer = impls::SubInfoConsumerImpl;
+	type SiblingIdnLocation = MockSiblingIdnLocation;
+	type IdnOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, AllowIdnSiblingOnly>;
+	type Xcm = ();
+	type PalletId = ConsumerPalletId;
+	type ParaId = ConsumerParaId;
+	type AssetHubFee = AssetHubFee;
+	type WeightInfo = pallet_idn_consumer::weights::SubstrateWeight<Runtime>;
 }
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;

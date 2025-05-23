@@ -22,13 +22,14 @@
 use crate::{
 	self as pallet_idn_manager,
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
-	BalanceOf, SubscriptionOf,
+	primitives, BalanceOf, SubscriptionOf,
 };
 use frame_support::{
 	construct_runtime, derive_impl,
-	pallet_prelude::{Decode, Encode, TypeInfo},
+	pallet_prelude::{Decode, Encode, PhantomData, TypeInfo},
 	parameter_types,
 	sp_runtime::BuildStorage,
+	traits::{Contains, OriginTrait},
 };
 use frame_system as system;
 use sp_runtime::{
@@ -36,6 +37,7 @@ use sp_runtime::{
 	AccountId32,
 };
 use sp_std::fmt::Debug;
+use xcm::v5::{Junction::Parachain, Location};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -47,6 +49,9 @@ construct_runtime!(
 		Balances: pallet_balances,
 	}
 );
+
+pub const SIBLING_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+pub const SIBLING_PARA_ID: u32 = 88;
 
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
 impl frame_system::Config for Test {
@@ -66,26 +71,23 @@ parameter_types! {
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const BaseFee: u64 = 10;
 	pub const SDMultiplier: u64 = 10;
-	pub const MaxPulseFilterLen: u32 = 100;
 	pub const MaxSubscriptions: u32 = 100;
 	pub const MaxMetadataLen: u32 = 8;
 }
 
 type Rand = [u8; 32];
-type Sig = [u8; 64];
-type Round = u64;
-type Pubkey = [u8; 64];
+type Sig = [u8; 48];
+type Pubkey = [u8; 96];
 
 #[derive(Encode, Clone, Copy, PartialEq, TypeInfo, Debug, Decode)]
 pub struct Pulse {
 	pub rand: Rand,
-	pub round: Round,
+	pub message: Sig,
 	pub sig: Sig,
 }
 
 impl sp_idn_traits::pulse::Pulse for Pulse {
 	type Rand = Rand;
-	type Round = Round;
 	type Sig = Sig;
 	type Pubkey = Pubkey;
 
@@ -97,8 +99,8 @@ impl sp_idn_traits::pulse::Pulse for Pulse {
 		self.rand
 	}
 
-	fn round(&self) -> Self::Round {
-		self.round
+	fn message(&self) -> Self::Sig {
+		self.message
 	}
 
 	fn authenticate(&self, _pk: Self::Pubkey) -> bool {
@@ -108,7 +110,28 @@ impl sp_idn_traits::pulse::Pulse for Pulse {
 
 impl Default for Pulse {
 	fn default() -> Self {
-		Pulse { rand: Rand::default(), round: Round::default(), sig: [0u8; 64] }
+		Pulse { rand: Rand::default(), message: [1u8; 48], sig: [0u8; 48] }
+	}
+}
+
+// Mock implementation of EnsureXcm
+pub struct MockEnsureXcm<F>(PhantomData<F>);
+
+impl<F: Contains<Location>> frame_support::traits::EnsureOrigin<RuntimeOrigin>
+	for MockEnsureXcm<F>
+{
+	type Success = Location;
+
+	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+		if origin.clone().into_signer().unwrap() == SIBLING_PARA_ACCOUNT {
+			return Ok(Location::new(1, [Parachain(SIBLING_PARA_ID)]));
+		}
+		Err(origin)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+		Ok(RuntimeOrigin::root())
 	}
 }
 
@@ -124,10 +147,10 @@ impl pallet_idn_manager::Config for Test {
 	type Xcm = ();
 	type MaxMetadataLen = MaxMetadataLen;
 	type Credits = u64;
-	type MaxPulseFilterLen = MaxPulseFilterLen;
 	type MaxSubscriptions = MaxSubscriptions;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Test>>;
+	type SiblingOrigin = MockEnsureXcm<primitives::AllowSiblingsOnly>; // Use the custom EnsureOrigin
 }
 
 sp_api::impl_runtime_apis! {

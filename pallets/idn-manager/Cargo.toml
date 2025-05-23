@@ -58,7 +58,8 @@ std = [
 	"xcm/std",
 	"pallet-xcm/std",
 	"pallet-balances/std",
-	"xcm-builder/std"
+	"xcm-builder/std",
+	"sp-runtime/std",
 ]
 
 runtime-benchmarks = [

@@ -17,41 +17,12 @@
 //! Types used in the IDN pallet manager
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
-use frame_support::BoundedVec;
+use frame_support::{traits::Contains, BoundedVec};
 use scale_info::TypeInfo;
-use sp_core::{blake2_256, H256};
-use sp_idn_traits::pulse::{Pulse, PulseProperty};
-use sp_std::vec::Vec;
-use xcm::v5::Location;
+use xcm::v5::{Junction::Parachain, Location};
 
+/// The type for the metadata of a subscription
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
-
-/// The pulse property type used in the pallet, representing various properties of a pulse.
-pub type PulsePropertyOf<P> =
-	PulseProperty<<P as Pulse>::Rand, <P as Pulse>::Round, <P as Pulse>::Sig>;
-
-/// A filter that controls which pulses are delivered to a subscription
-///
-/// This type allows subscribers to define specific criteria for which pulses they want to receive.
-/// For example, a subscriber might want to receive only pulses from specific round numbers.
-///
-/// # Implementation
-/// - Uses a bounded vector to limit the maximum number of filter conditions
-/// - Each element is a [`PulseProperty`] that can match against `round` (but not `rand` values)
-/// - A pulse passes the filter if it matches ANY of the properties in the filter
-///
-/// # Usage
-/// ```rust
-/// use sp_idn_traits::pulse::PulseProperty as PulsePropertyTrait;
-/// type PulseProperty = PulsePropertyTrait<[u8; 32], u64, [u8; 48]>;
-/// // Create a filter for even-numbered rounds only
-/// let filter = vec![
-///     PulseProperty::Round(2),
-///     PulseProperty::Round(4),
-///     PulseProperty::Round(6),
-/// ];
-/// ```
-pub type PulseFilter<Pulse, Len> = BoundedVec<PulsePropertyOf<Pulse>, Len>;
 
 /// Two-byte identifier for dispatching XCM calls
 ///
@@ -72,7 +43,7 @@ pub type CallIndex = [u8; 2];
 #[derive(
 	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, Default,
 )]
-pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, SubscriptionId> {
+pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId> {
 	// Number of random values to receive
 	pub credits: Credits,
 	// XCM multilocation for pulse delivery
@@ -83,25 +54,79 @@ pub struct CreateSubParams<Credits, Frequency, Metadata, PulseFilter, Subscripti
 	pub frequency: Frequency,
 	// Bounded vector for additional data
 	pub metadata: Option<Metadata>,
-	// Optional Pulse Filter
-	pub pulse_filter: Option<PulseFilter>,
 	// Optional Subscription Id, if None, a new one will be generated
 	pub sub_id: Option<SubscriptionId>,
 }
 
-impl<
-		Credits: Encode,
-		Frequency: Encode,
-		Metadata: Encode,
-		PulseFilter: Encode,
-		SubscriptionId: From<H256> + Encode,
-	> CreateSubParams<Credits, Frequency, Metadata, PulseFilter, SubscriptionId>
-{
-	pub fn hash(&self, salt: Vec<u8>) -> SubscriptionId {
-		let id_tuple = (self, salt);
-		// Encode the tuple using SCALE codec.
-		let encoded = id_tuple.encode();
-		// Hash the encoded bytes using blake2_256.
-		H256::from_slice(&blake2_256(&encoded)).into()
+/// XCM filter for allowing only sibling parachains to call certain functions in the IDN Manager
+pub struct AllowSiblingsOnly;
+impl Contains<Location> for AllowSiblingsOnly {
+	fn contains(location: &Location) -> bool {
+		matches!(location.unpack(), (1, [Parachain(_)]))
 	}
+}
+
+/// An arbitrary reference for a quote request. There is no uniqueness guarantee as this could be
+/// anything specified by the requester.
+pub type RequestReference = [u8; 32];
+
+/// A quote for a subscription.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct Quote<Balance> {
+	/// References the [`QuoteRequest`]` for this quote.
+	pub req_ref: RequestReference,
+	/// The fees quoted.
+	pub fees: Balance,
+	/// The deposit quoted.
+	pub deposit: Balance,
+}
+
+/// A request for a quote. This is used to get a quote for a subscription before creating it.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct QuoteRequest<CreateSubParams> {
+	/// The arbitrary reference for this quote request.
+	pub req_ref: RequestReference,
+	/// It specifies the parameters for the subscription.
+	pub create_sub_params: CreateSubParams,
+}
+
+/// Contains the parameters for requesting a quote for a subscription.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct QuoteSubParams<CreateSubParams> {
+	/// The quote request details.
+	pub quote_request: QuoteRequest<CreateSubParams>,
+	/// The call index for the dispatchable that handles the generated quote.
+	/// This is the function in the parachain that originated the request that will be called by
+	/// the IDN parachain and receive the [`Quote`].
+	pub call_index: CallIndex,
+}
+
+/// Contains the parameters for requesting a subscription info by its Id.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct SubInfoRequest<SubId> {
+	/// An arbitrary reference for this subscription info request.
+	pub req_ref: RequestReference,
+	/// The subscription Id to get the info for.
+	pub sub_id: SubId,
+	/// The call index for the dispatchable that handles the generated subscription info on the
+	/// target parachain.
+	pub call_index: CallIndex,
+}
+
+/// The subscription info returned by the IDN Manager to the target parachain.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub struct SubInfoResponse<Sub> {
+	/// References the [`SubInfoRequest`]`
+	pub req_ref: RequestReference,
+	pub sub: Sub,
 }

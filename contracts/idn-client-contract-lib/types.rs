@@ -6,19 +6,18 @@ use sp_idn_traits::pulse::Pulse;
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
 pub struct ContractPulse {
-	pub round: u64,
+	pub message: [u8; 48],
 	pub rand: [u8; 32],
 	pub sig: [u8; 48],
 }
 
 impl Pulse for ContractPulse {
-	type Round = u64;
 	type Rand = [u8; 32];
 	type Sig = [u8; 48];
 	type Pubkey = [u8; 32]; // Placeholder, adjust as needed
 
-	fn round(&self) -> Self::Round {
-		self.round
+	fn message(&self) -> Self::Sig {
+		self.message
 	}
 	fn rand(&self) -> Self::Rand {
 		self.rand

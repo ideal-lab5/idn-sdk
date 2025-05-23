@@ -20,7 +20,7 @@ use crate::{
 };
 use codec::Encode;
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
-use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber, RuntimePulse};
+use sp_consensus_randomness_beacon::types::{CanonicalPulse, OpaquePublicKey, RoundNumber};
 use sp_idn_crypto::test_utils::{get, PULSE1000, PULSE1001, PULSE1002, PULSE1003};
 
 const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
@@ -35,7 +35,7 @@ fn can_construct_pallet_and_set_genesis_params() {
 
 #[test]
 fn can_fail_write_pulse_when_genesis_round_not_set() {
-	let (asig, _apk, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
@@ -65,7 +65,7 @@ fn can_set_genesis_round_once_as_root() {
 
 #[test]
 fn can_submit_valid_pulses_under_the_limit() {
-	let (asig, apk, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let (asig, amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
 	let config = get_config(1000);
 
 	new_test_ext().execute_with(|| {
@@ -83,7 +83,7 @@ fn can_submit_valid_pulses_under_the_limit() {
 
 		let aggr = maybe_res.unwrap();
 		assert_eq!(asig, aggr.signature);
-		assert_eq!(apk, aggr.message_hash);
+		assert_eq!(amsg, aggr.message_hash);
 	});
 }
 
@@ -122,11 +122,11 @@ fn can_submit_valid_sigs_in_sequence() {
 
 	let config = get_config(1000);
 
-	let (asig1, _apk1, _raw1) = get(vec![PULSE1000, PULSE1001]);
-	let (asig2, _apk2, _raw2) = get(vec![PULSE1002, PULSE1003]);
+	let (asig1, _amsg1, _raw1) = get(vec![PULSE1000, PULSE1001]);
+	let (asig2, _amsg2, _raw2) = get(vec![PULSE1002, PULSE1003]);
 
 	// the aggregated values
-	let (asig, apk, _all_sigs) = get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003]);
+	let (asig, amsg, _all_sigs) = get(vec![PULSE1000, PULSE1001, PULSE1002, PULSE1003]);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
@@ -144,7 +144,7 @@ fn can_submit_valid_sigs_in_sequence() {
 
 		let aggr = maybe_res.unwrap();
 		assert_eq!(asig, aggr.signature);
-		assert_eq!(apk, aggr.message_hash);
+		assert_eq!(amsg, aggr.message_hash);
 
 		let actual_latest = LatestRound::<Test>::get();
 		assert_eq!(round2, actual_latest.unwrap());
@@ -153,8 +153,8 @@ fn can_submit_valid_sigs_in_sequence() {
 
 #[test]
 fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
-	let (asig, _apk1, _raw) = get(vec![PULSE1000, PULSE1001]);
-	// let sigs = as_pulses(raw);
+	let (asig, _amsg1, _raw) = get(vec![PULSE1000, PULSE1001]);
+
 	let config = get_config(1000);
 
 	new_test_ext().execute_with(|| {
@@ -175,7 +175,7 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 
 #[test]
 fn can_fail_to_submit_invalid_sigs_in_sequence() {
-	let (asig, apk1, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let (asig, amsg1, _raw) = get(vec![PULSE1000, PULSE1001]);
 
 	let config = get_config(1000);
 
@@ -202,7 +202,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 
 		let aggr = maybe_res.unwrap();
 		assert_eq!(asig.clone(), aggr.signature);
-		assert_eq!(apk1, aggr.message_hash);
+		assert_eq!(amsg1, aggr.message_hash);
 
 		let actual_latest = LatestRound::<Test>::get();
 		assert_eq!(1002, actual_latest.unwrap());
@@ -233,17 +233,17 @@ fn can_create_inherent() {
 	let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
 	let public_key: OpaquePublicKey = pk.try_into().unwrap();
 	let config = BeaconConfiguration { public_key, genesis_round: genesis };
-	let (asig1, _apk1, _sig1) = get(vec![PULSE1000]);
+	let (asig1, _amsg1, _sig1) = get(vec![PULSE1000]);
 	// this pulse will be ignored
-	let pulse1 = RuntimePulse { round: 1000u64, signature: asig1.try_into().unwrap() };
+	let pulse1 = CanonicalPulse { round: 1000u64, signature: asig1.try_into().unwrap() };
 
-	let (asig2, _apk2, _sig2) = get(vec![PULSE1001]);
-	let pulse2 = RuntimePulse { round: 1001u64, signature: asig2.try_into().unwrap() };
+	let (asig2, _amsg2, _sig2) = get(vec![PULSE1001]);
+	let pulse2 = CanonicalPulse { round: 1001u64, signature: asig2.try_into().unwrap() };
 
-	let (asig3, _apk3, _sig3) = get(vec![PULSE1002]);
-	let pulse3 = RuntimePulse { round: 1002u64, signature: asig3.try_into().unwrap() };
+	let (asig3, _amsg3, _sig3) = get(vec![PULSE1002]);
+	let pulse3 = CanonicalPulse { round: 1002u64, signature: asig3.try_into().unwrap() };
 
-	let (expected_asig, _apk, _raw) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
+	let (expected_asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
 	let expected_height = 3;
 	let expected_asig_array: [u8; 48] = expected_asig.try_into().unwrap();
 
@@ -290,10 +290,10 @@ fn can_not_create_inherent_when_data_is_unavailable() {
 #[test]
 fn can_check_inherent() {
 	// setup the inherent data
-	let (asig1, _apk1, _s1) = get(vec![PULSE1000]);
-	let pulse1 = RuntimePulse { round: 1000u64, signature: asig1.try_into().unwrap() };
-	let (asig2, _apk2, _s2) = get(vec![PULSE1001]);
-	let pulse2 = RuntimePulse { round: 1001u64, signature: asig2.try_into().unwrap() };
+	let (asig1, _amsg1, _s1) = get(vec![PULSE1000]);
+	let pulse1 = CanonicalPulse { round: 1000u64, signature: asig1.try_into().unwrap() };
+	let (asig2, _amsg2, _s2) = get(vec![PULSE1001]);
+	let pulse2 = CanonicalPulse { round: 1001u64, signature: asig2.try_into().unwrap() };
 
 	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode()];
 	let mut inherent_data = InherentData::new();

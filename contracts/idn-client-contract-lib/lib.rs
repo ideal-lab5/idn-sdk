@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 use ink::{
 	env::Error as EnvError,
@@ -93,9 +93,6 @@ pub type BlockNumber = u32;
 /// Metadata is optional additional information for a subscription
 pub type Metadata = Vec<u8>;
 
-/// Pulse filter is an optional filter for pulses
-pub type PulseFilter = Vec<u8>;
-
 /// Represents the state of a subscription
 #[allow(clippy::cast_possible_truncation)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -121,8 +118,6 @@ pub struct CreateSubParams {
 	pub frequency: BlockNumber,
 	/// Optional metadata for the subscription
 	pub metadata: Option<Metadata>,
-	/// Optional filter for pulses
-	pub pulse_filter: Option<PulseFilter>,
 	/// Optional subscription ID, if None, a new one will be generated
 	pub sub_id: Option<SubscriptionId>,
 }
@@ -137,8 +132,6 @@ pub struct UpdateSubParams {
 	pub credits: u32,
 	/// New distribution interval
 	pub frequency: BlockNumber,
-	/// New pulse filter
-	pub pulse_filter: Option<PulseFilter>,
 }
 
 /// Client trait for interacting with the IDN Manager pallet
@@ -490,7 +483,6 @@ mod tests {
 			call_index: [0, 1],
 			frequency: 5,
 			metadata: None,
-			pulse_filter: None,
 			sub_id: Some(123),
 		};
 		let create_message = client.construct_create_subscription_xcm(&create_params);
@@ -506,7 +498,7 @@ mod tests {
 
 		// Test updating a subscription XCM message
 		let update_params =
-			UpdateSubParams { sub_id: 123, credits: 20, frequency: 10, pulse_filter: None };
+			UpdateSubParams { sub_id: 123, credits: 20, frequency: 10 };
 		let update_message = client.construct_update_subscription_xcm(&update_params);
 		assert!(matches!(update_message, Xcm::<()> { .. }));
 
@@ -526,7 +518,6 @@ mod tests {
 			call_index: [0, 1],
 			frequency: 5,
 			metadata: None,
-			pulse_filter: None,
 			sub_id: Some(123),
 		};
 		let create_message = client.construct_create_subscription_xcm(&create_params);
@@ -562,7 +553,6 @@ mod tests {
 			call_index: [0, 1],
 			frequency: 5,
 			metadata: None,
-			pulse_filter: None,
 			sub_id: Some(123),
 		};
 		let message = decoded.construct_create_subscription_xcm(&create_params);
@@ -582,7 +572,6 @@ mod tests {
 			call_index: [0, 0],
 			frequency: 0,
 			metadata: None,
-			pulse_filter: None,
 			sub_id: None,
 		};
 		let zero_credits_message = client.construct_create_subscription_xcm(&zero_credits_params);
@@ -595,7 +584,6 @@ mod tests {
 			call_index: [255, 255],
 			frequency: u32::MAX,
 			metadata: Some(vec![255; 1000]),
-			pulse_filter: Some(vec![255; 1000]),
 			sub_id: Some(u64::MAX),
 		};
 		let large_values_message = client.construct_create_subscription_xcm(&large_values_params);
@@ -638,7 +626,6 @@ mod tests {
 			sub_id: 0,
 			credits: 1,
 			frequency: 1,
-			pulse_filter: None,
 		};
 		let msg = client.construct_update_subscription_xcm(&params);
 		assert!(matches!(msg, Xcm::<()> { .. }));
@@ -653,7 +640,6 @@ mod tests {
 			call_index: [255, 255],
 			frequency: u32::MAX,
 			metadata: Some(vec![255; 4096]),
-			pulse_filter: Some(vec![0; 4096]),
 			sub_id: Some(u64::MAX),
 		};
 		let msg = client.construct_create_subscription_xcm(&params);
@@ -669,7 +655,6 @@ mod tests {
 			call_index: [255, 0], // Unlikely to be valid
 			frequency: 1,
 			metadata: None,
-			pulse_filter: None,
 			sub_id: Some(1),
 		};
 		let msg = client.construct_create_subscription_xcm(&params);

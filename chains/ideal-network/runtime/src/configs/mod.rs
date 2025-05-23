@@ -18,7 +18,7 @@
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
-use bp_idn::types;
+use bp_idn::{impls, types};
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -35,7 +35,7 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
-use pallet_idn_manager::{BalanceOf, SubscriptionOf};
+use pallet_idn_manager::{primitives::AllowSiblingsOnly, BalanceOf, SubscriptionOf};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
 use polkadot_runtime_common::{
@@ -305,13 +305,13 @@ impl pallet_collator_selection::Config for Runtime {
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager = types::FeesManagerImpl<
+	type FeesManager = impls::FeesManagerImpl<
 		types::TreasuryAccount,
 		types::BaseFee,
 		SubscriptionOf<Runtime>,
 		Balances,
 	>;
-	type DepositCalculator = types::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
+	type DepositCalculator = impls::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
 	type PalletId = types::IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = types::RuntimePulse;
@@ -319,10 +319,10 @@ impl pallet_idn_manager::Config for Runtime {
 	type Xcm = ();
 	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
-	type MaxPulseFilterLen = types::MaxPulseFilterLen;
 	type MaxSubscriptions = types::MaxSubscriptions;
 	type SubscriptionId = types::SubscriptionId;
-	type DiffBalance = types::DiffBalanceImpl<BalanceOf<Runtime>>;
+	type DiffBalance = impls::DiffBalanceImpl<BalanceOf<Runtime>>;
+	type SiblingOrigin = EnsureXcm<AllowSiblingsOnly>;
 }
 
 impl pallet_randomness_beacon::Config for Runtime {

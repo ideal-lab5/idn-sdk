@@ -64,21 +64,20 @@ Once deployed, you can interact with the contract through the following methods:
 #### Creating a Subscription
 
 ```
-create_subscription(credits: u32, frequency: u32, metadata: Option<Vec<u8>>, pulse_filter: Option<Vec<u8>>)
+create_subscription(credits: u32, frequency: u32, metadata: Option<Vec<u8>>)
 ```
 
 Parameters:
 - `credits`: Number of random values to receive
 - `frequency`: Distribution interval for random values (in blocks)
 - `metadata`: Optional metadata for the subscription
-- `pulse_filter`: Optional filter for pulses
 
 #### Managing Subscriptions
 
 ```
 pause_subscription()
 reactivate_subscription()
-update_subscription(credits: u32, frequency: u32, pulse_filter: Option<Vec<u8>>)
+update_subscription(credits: u32, frequency: u32)
 kill_subscription()
 ```
 
@@ -111,6 +110,22 @@ The contract includes comprehensive unit tests for all functionality:
 # Run unit tests
 cargo test
 ```
+
+#### End-to-End Testing
+
+To run the end-to-end tests with the idn-consumer-node instead of the default substrate-contracts-node:
+
+1. Build the idn-consumer-node:
+   ```bash
+   cargo build --release -p idn-consumer-node
+   ```
+
+2. Run the tests with the CONTRACTS_NODE environment variable:
+   ```bash
+   CONTRACTS_NODE={absolute path}/idn-sdk/target/release/idn-consumer-node cargo test --features e2e-tests
+   ```
+
+Note: The idn-consumer-node must have the contracts pallet enabled for these tests to work.
 
 ## Implementation Details
 

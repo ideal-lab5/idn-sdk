@@ -11,6 +11,7 @@ publish = false
 
 [dependencies]
 codec.workspace = true
+log.workspace = true
 frame-benchmarking = { optional = true, workspace = true }
 
 scale-info.workspace = true
@@ -26,11 +27,15 @@ polkadot-sdk = { workspace = true, features = [
 serde_json = { workspace = true, default-features = false, features = [
 	"alloc",
 ] }
+xcm.workspace = true
+xcm-builder.workspace = true
 # IDN Deps
 bp-idn.workspace = true
+pallet-idn-consumer.workspace = true
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
 sp-idn-crypto.workspace = true
+sp-consensus-randomness-beacon.workspace = true
 
 [build-dependencies]
 polkadot-sdk = { optional = true, workspace = true, features = [
@@ -48,12 +53,19 @@ std = [
 	"scale-info/std",
 	"serde_json/std",
 	"sp-idn-crypto/std",
+	"sp-consensus-randomness-beacon/std",
 	"pallet-idn-manager/std",
 	"pallet-randomness-beacon/std",
+	"xcm/std",
+	"xcm-builder/std",
+	"pallet-idn-consumer/std",
 ]
 
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"pallet-idn-manager/runtime-benchmarks",
 	"pallet-randomness-beacon/runtime-benchmarks",
+	"xcm/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
+	"pallet-idn-consumer/runtime-benchmarks",
 ]

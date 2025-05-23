@@ -12,6 +12,7 @@ publish = false
 [dependencies]
 codec.workspace = true
 scale-info.workspace = true
+sha2.workspace = true
 
 # Substrate
 frame-support.workspace = true
@@ -20,14 +21,24 @@ sp-runtime.workspace = true
 # IDN
 pallet-idn-manager.workspace = true
 sp-consensus-randomness-beacon.workspace = true
+sp-idn-crypto.workspace = true
+sp-idn-traits.workspace = true
 
 [features]
 default = ["std"]
 std = [
 	"codec/std",
 	"scale-info/std",
+	"sha2/std",
 	"frame-support/std",
 	"pallet-idn-manager/std",
 	"sp-consensus-randomness-beacon/std",
+	"sp-idn-crypto/std",
+	"sp-idn-traits/std",
 	"sp-runtime/std",
+]
+runtime-benchmarks = [
+	"frame-support/runtime-benchmarks",
+	"pallet-idn-manager/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
 ]

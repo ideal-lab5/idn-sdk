@@ -30,11 +30,7 @@ use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
 
-#[benchmarks(
-	where
-		<T::Pulse as Pulse>::Round: From<u64>,
-		<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
-)]
+#[benchmarks(where <T::Pulse as Pulse>::Pubkey: From<[u8;96]>)]
 mod benchmarks {
 	use super::*;
 
@@ -84,7 +80,7 @@ mod benchmarks {
 		apk.serialize_compressed(&mut apk_bytes).unwrap();
 
 		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
-		let config = BeaconConfigurationOf::<T> { genesis_round: 0u64.into(), public_key: pubkey };
+		let config = BeaconConfigurationOf::<T> { genesis_round: 0u64, public_key: pubkey };
 
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
 
@@ -118,10 +114,8 @@ mod benchmarks {
 	#[benchmark]
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
 		let public_key = [1; 96];
-		let config = BeaconConfigurationOf::<T> {
-			genesis_round: 1u64.into(),
-			public_key: public_key.into(),
-		};
+		let config =
+			BeaconConfigurationOf::<T> { genesis_round: 1u64, public_key: public_key.into() };
 
 		#[extrinsic_call]
 		_(RawOrigin::Root, config.clone());

@@ -38,7 +38,8 @@ ark-serialize.workspace = true
 ark-ec.workspace = true
 ark-std.workspace = true
 
-pallet-idn-manager = { workspace = true, default-features = false }
+# IDN dependencies
+bp-idn.workspace = true
 
 [dev-dependencies]
 sp-keystore.workspace = true
@@ -51,6 +52,7 @@ std = [
 	"codec/std",
 	"log/std",
 	"sha2/std",
+	"bp-idn/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
@@ -62,7 +64,6 @@ std = [
 	"sp-runtime/std",
 	"serde/std",
 	"hex/std",
-
 	"ark-bls12-381/std",
 	"ark-serialize/std",
 	"ark-ec/std",
@@ -70,15 +71,14 @@ std = [
 	"sp-consensus-randomness-beacon/std",
 	"sp-idn-traits/std",
 	"sp-std/std",
-	"pallet-idn-manager/std",
 	"pallet-balances/std",
 ]
 runtime-benchmarks = [
+	"bp-idn/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
-	"pallet-idn-manager/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks"
 ]
 try-runtime = [

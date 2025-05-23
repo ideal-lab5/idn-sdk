@@ -34,3 +34,24 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod pulse;
+
+use frame_support::pallet_prelude::Encode;
+use sp_core::H256;
+use sp_io::hashing::blake2_256;
+
+/// Trait for hashing with a salt.
+pub trait Hashable {
+	fn hash(&self, salt: &[u8]) -> H256;
+}
+impl<T> Hashable for T
+where
+	T: Encode,
+{
+	fn hash(&self, salt: &[u8]) -> H256 {
+		let id_tuple = (self, salt);
+		// Encode the tuple using SCALE codec.
+		let encoded = id_tuple.encode();
+		// Hash the encoded bytes using blake2_256.
+		H256::from_slice(&blake2_256(&encoded))
+	}
+}

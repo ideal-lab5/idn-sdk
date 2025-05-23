@@ -20,3 +20,4 @@
 
 pub(crate) mod mock;
 mod pallet;
+mod primitives;

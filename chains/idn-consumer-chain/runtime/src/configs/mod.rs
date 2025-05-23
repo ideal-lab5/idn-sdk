@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+mod contracts;
+mod revive;
 #[path = "xcm.rs"]
 mod xcm_config;
 
@@ -51,12 +53,12 @@ use xcm::{
 // Local module imports
 use super::{
 	weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight},
-	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook,
-	Consumer, Hash, MessageQueue, Nonce, PalletInfo, ParachainInfo, ParachainSystem, Runtime,
-	RuntimeCall, RuntimeEvent, RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask,
-	Session, SessionKeys, System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO,
-	EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO,
-	SLOT_DURATION, VERSION,
+	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook, Hash,
+	MessageQueue, Nonce, PalletInfo, ParachainInfo, ParachainSystem, PulseConsumerImpl,
+	QuoteConsumerImpl, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason, RuntimeHoldReason,
+	RuntimeOrigin, RuntimeTask, Session, SessionKeys, SubInfoConsumerImpl, System, WeightToFee,
+	XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT,
+	MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
 };
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
@@ -317,11 +319,17 @@ parameter_types! {
 
 impl pallet_idn_consumer::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type Consumer = Consumer;
+	type PulseConsumer = PulseConsumerImpl;
+	type QuoteConsumer = QuoteConsumerImpl;
+	type SubInfoConsumer = SubInfoConsumerImpl;
 	type SiblingIdnLocation = SiblingIdnLocation;
 	type IdnOrigin = EnsureXcm<Equals<Self::SiblingIdnLocation>>;
 	type Xcm = pallet_xcm::Pallet<Self>;
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
 	type AssetHubFee = AssetHubFee;
+	// TODO: run benchmarks against reference hw https://github.com/ideal-lab5/idn-sdk/issues/235
+	type WeightInfo = ();
 }
+
+impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

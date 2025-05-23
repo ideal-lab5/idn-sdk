@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
-extern crate alloc;
+//! Trait implementations for the IDN runtime
+//!
+//! The implamentations in this module are used to define the behavior of the IDN runtime.
 
-pub mod gossipsub;
+// Reexports of the default IDN Manager implementations. These can be replaced with more complex
+// implementations if needed.
+pub use pallet_idn_manager::impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl};
