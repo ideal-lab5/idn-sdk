@@ -65,16 +65,18 @@
 //! 	}
 //! });
 //! ```
+use ::futures::StreamExt;
 use alloc::collections::VecDeque;
-use futures::StreamExt;
 use libp2p::{
 	gossipsub,
 	gossipsub::{
-		Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
+		Behaviour as GossipsubBehaviour, Config as GossipsubConfig, Event as GossipsubEvent,
+		IdentTopic, MessageAuthenticity,
 	},
 	identity::Keypair,
 	multiaddr::Protocol,
-	swarm::{Swarm, SwarmEvent},
+	ping::{Behaviour as PingBehaviour, Config as PingConfig, Event as PingEvent},
+	swarm::{NetworkBehaviour, Swarm, SwarmEvent},
 	Multiaddr, PeerId, SwarmBuilder,
 };
 use prost::Message;
@@ -143,10 +145,36 @@ impl<const N: usize> DrandReceiver<N> {
 	}
 }
 
+/// A custom network behaviour that supports both gossipsub and ping protocols
+#[derive(NetworkBehaviour)]
+#[behaviour(out_event = "ComposedEvent")]
+struct CustomBehaviour {
+	gossipsub: GossipsubBehaviour,
+	ping: PingBehaviour,
+}
+
+#[derive(Debug)]
+enum ComposedEvent {
+	Gossipsub(GossipsubEvent),
+	Ping(PingEvent),
+}
+
+impl From<GossipsubEvent> for ComposedEvent {
+	fn from(event: GossipsubEvent) -> Self {
+		ComposedEvent::Gossipsub(event)
+	}
+}
+
+impl From<PingEvent> for ComposedEvent {
+	fn from(event: PingEvent) -> Self {
+		ComposedEvent::Ping(event)
+	}
+}
+
 /// A gossipsub network with any behaviour and shared state
 pub struct GossipsubNetwork {
 	/// The behaviour config for the swam
-	swarm: Swarm<GossipsubBehaviour>,
+	swarm: Swarm<CustomBehaviour>,
 	/// The mpsc channel sender
 	sender: TracingUnboundedSender<CanonicalPulse>,
 	/// The number of peers the node is connected to
@@ -174,6 +202,8 @@ impl GossipsubNetwork {
 		let message_authenticity = MessageAuthenticity::Signed(key.clone());
 		let gossipsub = GossipsubBehaviour::new(message_authenticity, gossipsub_config)
 			.map_err(|_| Error::InvalidGossipsubNetworkBehaviour)?;
+		let ping = PingBehaviour::new(PingConfig::new());
+		let behaviour = CustomBehaviour { gossipsub, ping };
 		// setup a libp2p swarm with tcp transport, using noise protocol for encryption
 		// and yamux for multiplexing
 		let mut swarm = SwarmBuilder::with_existing_identity(key.clone())
@@ -184,7 +214,7 @@ impl GossipsubNetwork {
 				libp2p::yamux::Config::default,
 			)
 			.expect("The TCP config is correct.")
-			.with_behaviour(|_| gossipsub)
+			.with_behaviour(|_| behaviour)
 			.expect("The behaviour is well defined.")
 			.build();
 
@@ -258,16 +288,15 @@ impl GossipsubNetwork {
 		// filter.
 		self.swarm
 			.behaviour_mut()
+			.gossipsub
 			.subscribe(&topic)
 			.expect("The libp2p gossipsub behavior has no subscription filter.");
 
 		loop {
 			match self.swarm.next().await {
-				Some(SwarmEvent::Behaviour(gossipsub::Event::Message {
-					message,
-					propagation_source,
-					..
-				})) => {
+				Some(SwarmEvent::Behaviour(ComposedEvent::Gossipsub(
+					gossipsub::Event::Message { message, propagation_source, .. },
+				))) => {
 					// reject messages authored by unknown peers
 					if !self.allowed_peer_map.contains_key(&propagation_source) {
 						log::warn!(target: LOG_TARGET, "⛔ Message from untrusted peer: {propagation_source}");
@@ -284,8 +313,24 @@ impl GossipsubNetwork {
 
 						Err(_) => {
 							// handle non-decodable messages: https://github.com/ideal-lab5/idn-sdk/issues/60
-							log::info!(target: LOG_TARGET, "A message was encountered but we could not decode it!");
+							log::warn!(target: LOG_TARGET, "A message was encountered but we could not decode it.");
 						},
+					}
+				},
+				Some(SwarmEvent::Behaviour(ComposedEvent::Ping(PingEvent { peer, result, .. }))) => {
+					match result {
+						Ok(rtt) => {
+							log::info!(target: LOG_TARGET, "🏓 Ping to {} succeeded in {:?}", peer, rtt);
+						},
+						Err(e) => {
+							log::warn!(target: LOG_TARGET, "💀 Peer {} failed ping: {:?}", peer, e);
+							// redial known peers
+							if let Some(addr) = self.allowed_peer_map.get(&peer) {
+								if let Err(e) = self.swarm.dial(addr.clone()) {
+									log::error!(target: LOG_TARGET, "❌ Failed to redial peer {}: {:?}", peer, e);
+								}
+							}
+						}
 					}
 				},
 				_ => {
@@ -390,7 +435,7 @@ mod tests {
 	async fn can_build_new_node() {
 		let (node, _rx) = build_node();
 		assert!(node.connected_peers == 0, "There should be no connected peers.");
-		assert!(node.connected_peers == 0, "There should be no connected peers.");
+		assert!(node.allowed_peer_map == HashMap::new(), "There should be no connected peers.");
 	}
 
 	#[tokio::test]
@@ -402,6 +447,7 @@ mod tests {
 		let node = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, Some(&listen_addr))
 			.unwrap();
 		assert!(node.connected_peers == 0, "There should be no connected peers.");
+		assert!(node.allowed_peer_map == HashMap::new(), "There should be no connected peers.");
 	}
 
 	#[tokio::test]
