@@ -19,9 +19,11 @@
 /// The gossipsub topic where quicknet pulses are published
 pub const QUICKNET_GOSSIPSUB_TOPIC: &str =
 	"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
-/// A primary peer who subscribes and publishes to the topic
+/// A primary peer multiaddress who subscribes and publishes to the topic
 pub const PRIMARY: &str =
 	"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG";
 /// A secondary (redundant) peer who subscribes and publishes to the topic
 pub const SECONDARY: &str =
 	"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y";
+/// The maximum queue size for the mpsc channel that stores raw pulse data (protobuf)
+pub const MAX_QUEUE_SIZE: usize = 100;
