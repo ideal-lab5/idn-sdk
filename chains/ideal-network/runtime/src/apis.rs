@@ -15,7 +15,17 @@
  */
 
 #[cfg(feature = "runtime-benchmarks")]
+<<<<<<< HEAD
 use crate::benchmarks::*;
+=======
+use crate::{
+	configs::xcm_config::{
+		FeeAssetId, RelayLocation, ToParentBaseDeliveryFee, ToSiblingBaseDeliveryFee,
+		TransactionByteFee,
+	},
+	XcmpQueue, EXISTENTIAL_DEPOSIT,
+};
+>>>>>>> 2353412 (refactor xcm bench config)
 // External crates imports
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
