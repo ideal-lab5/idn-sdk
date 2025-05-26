@@ -168,6 +168,7 @@ substrate-wasm-builder = "26.0.0"
 pallet-xcm = { version = "19.1.0", default-features = false }
 polkadot-cli = { version = "23.0.0", default-features = false }
 polkadot-parachain-primitives = { version = "16.1.0", default-features = false }
+polkadot-core-primitives = { version = "17.1.0", default-features = false }
 polkadot-primitives = { version = "18.1.0", default-features = false }
 polkadot-runtime-common = { version = "19.1.0", default-features = false }
 xcm = { version = "16.1.0", default-features = false, package = "staging-xcm" }

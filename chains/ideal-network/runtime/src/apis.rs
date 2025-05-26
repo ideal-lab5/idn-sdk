@@ -15,6 +15,14 @@
  */
 
 // External crates imports
+#[cfg(feature = "runtime-benchmarks")]
+use crate::{
+	configs::xcm_config::{
+		FeeAssetId, RelayLocation, ToParentBaseDeliveryFee, ToSiblingBaseDeliveryFee,
+		TransactionByteFee,
+	},
+	XcmpQueue, EXISTENTIAL_DEPOSIT,
+};
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	weights::Weight,
@@ -38,6 +46,32 @@ use super::{
 	Runtime, RuntimeCall, RuntimeGenesisConfig, SessionKeys, System, TransactionPayment,
 	SLOT_DURATION, VERSION,
 };
+
+#[cfg(feature = "runtime-benchmarks")]
+frame_support::parameter_types! {
+	pub ExistentialDepositAsset: Option<xcm::v5::Asset> = Some((
+		RelayLocation::get(),
+		EXISTENTIAL_DEPOSIT
+	).into());
+	pub const RandomParaId: cumulus_primitives_core::ParaId =
+		cumulus_primitives_core::ParaId::new(43211234);
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
+	FeeAssetId,
+	ToSiblingBaseDeliveryFee,
+	TransactionByteFee,
+	XcmpQueue,
+>;
+
+#[cfg(feature = "runtime-benchmarks")]
+type PriceForParentDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
+	FeeAssetId,
+	ToParentBaseDeliveryFee,
+	TransactionByteFee,
+	ParachainSystem,
+>;
 
 impl_runtime_apis! {
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
@@ -223,6 +257,7 @@ impl_runtime_apis! {
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
+			use pallet_xcm::benchmarking::Pallet as PalletXcmExtrinsiscsBenchmark;
 			use super::*;
 
 			let mut list = Vec::<BenchmarkList>::new();
@@ -237,6 +272,11 @@ impl_runtime_apis! {
 			config: frame_benchmarking::BenchmarkConfig
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, alloc::string::String> {
 			use frame_benchmarking::{BenchmarkError, BenchmarkBatch};
+			use configs::xcm_config::{
+				RelayLocation,
+				XcmConfig,
+			};
+			use xcm::v5::{Location, Parent, Asset, Fungibility::Fungible, AssetId};
 			use super::*;
 
 			use frame_system_benchmarking::Pallet as SystemBench;
@@ -247,12 +287,52 @@ impl_runtime_apis! {
 				}
 
 				fn verify_set_code() {
-					System::assert_last_event(cumulus_pallet_parachain_system::Event::<Runtime>::ValidationFunctionStored.into());
+					System::assert_last_event(
+						cumulus_pallet_parachain_system::Event::<Runtime>::ValidationFunctionStored.into()
+					);
 				}
 			}
 
 			use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
 			impl cumulus_pallet_session_benchmarking::Config for Runtime {}
+
+			use pallet_xcm::benchmarking::Pallet as PalletXcmExtrinsiscsBenchmark;
+
+			impl pallet_xcm::benchmarking::Config for Runtime {
+				type DeliveryHelper = (
+					cumulus_primitives_utility::ToParentDeliveryHelper<
+						XcmConfig,
+						ExistentialDepositAsset,
+						PriceForParentDelivery,
+					>,
+					polkadot_runtime_common::xcm_sender::ToParachainDeliveryHelper<
+						XcmConfig,
+						ExistentialDepositAsset,
+						PriceForSiblingParachainDelivery,
+						RandomParaId,
+						ParachainSystem,
+					>,
+				);
+				fn reachable_dest() -> Option<Location> {
+					Some(Parent.into())
+				}
+
+				fn teleportable_asset_and_dest() -> Option<(Asset, Location)> {
+					// Relay/native token can be teleported between IDN and Relay.
+					Some((
+						Self::get_asset(),
+						Parent.into(),
+					))
+				}
+
+				fn reserve_transferable_asset_and_dest() -> Option<(Asset, Location)> {
+					None
+				}
+
+				fn get_asset() -> Asset {
+					Asset { id: AssetId(RelayLocation::get()), fun: Fungible(EXISTENTIAL_DEPOSIT) }
+				}
+			}
 
 			use frame_support::traits::WhitelistedStorageKeys;
 			let whitelist = AllPalletsWithSystem::whitelisted_storage_keys();

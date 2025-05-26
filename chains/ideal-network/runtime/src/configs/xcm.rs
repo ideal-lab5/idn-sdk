@@ -15,8 +15,9 @@
  */
 
 use crate::{
-	AccountId, AllPalletsWithSystem, Balances, ParachainInfo, ParachainSystem, PolkadotXcm,
-	Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmpQueue,
+	AccountId, AllPalletsWithSystem, Balance, Balances, ParachainInfo, ParachainSystem,
+	PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmpQueue,
+	CENTIUNIT,
 };
 use frame_support::{
 	parameter_types,
@@ -49,6 +50,12 @@ parameter_types! {
 	// and prepend `UniversalLocation` with `GlobalConsensus(RelayNetwork::get())`.
 	pub UniversalLocation: InteriorLocation = Parachain(ParachainInfo::parachain_id().into()).into();
 	pub TreasuryAccount: AccountId = TREASURY_PALLET_ID.into_account_truncating();
+	/// The asset ID for the asset that we use to pay for message delivery fees.
+	pub FeeAssetId: AssetId = AssetId(RelayLocation::get());
+	/// The base fee for the message delivery fees.
+	pub const ToSiblingBaseDeliveryFee: u128 = CENTIUNIT.saturating_mul(3);
+	pub const ToParentBaseDeliveryFee: u128 = CENTIUNIT.saturating_mul(3);
+	pub const TransactionByteFee: Balance = crate::constants::relay::fee::TRANSACTION_BYTE_FEE;
 }
 
 /// Type for specifying how a `Location` can be converted into an `AccountId`. This is used

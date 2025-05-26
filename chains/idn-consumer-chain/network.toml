@@ -15,3 +15,4 @@ default_command = "../../target/release/idn-consumer-node"
 
 [[parachains.collators]]
 name = "collator-01"
+rpc_port = 9944
