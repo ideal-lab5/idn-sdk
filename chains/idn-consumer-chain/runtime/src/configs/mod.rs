@@ -17,7 +17,7 @@
 mod contracts;
 mod revive;
 #[path = "xcm.rs"]
-mod xcm_config;
+pub(crate) mod xcm_config;
 
 // Substrate and Polkadot dependencies
 use crate::weights::{
