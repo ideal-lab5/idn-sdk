@@ -30,5 +30,5 @@ frame_benchmarking::define_benchmarks!(
 	[pallet_randomness_beacon, RandBeacon]
 	[pallet_idn_manager, IdnManager]
 	[pallet_transaction_payment, TransactionPayment]
-	[pallet_xcm, PalletXcmExtrinsiscsBenchmark::<Runtime>]
+	[pallet_xcm, PalletXcmExtrinsicsBenchmark::<Runtime>]
 );

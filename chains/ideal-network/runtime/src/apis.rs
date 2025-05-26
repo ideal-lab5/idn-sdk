@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-// External crates imports
 #[cfg(feature = "runtime-benchmarks")]
 use crate::{
 	configs::xcm_config::{
@@ -23,6 +22,7 @@ use crate::{
 	},
 	XcmpQueue, EXISTENTIAL_DEPOSIT,
 };
+// External crates imports
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	weights::Weight,
@@ -257,7 +257,7 @@ impl_runtime_apis! {
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
-			use pallet_xcm::benchmarking::Pallet as PalletXcmExtrinsiscsBenchmark;
+			use pallet_xcm::benchmarking::Pallet as PalletXcmExtrinsicsBenchmark;
 			use super::*;
 
 			let mut list = Vec::<BenchmarkList>::new();
@@ -296,7 +296,7 @@ impl_runtime_apis! {
 			use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
 			impl cumulus_pallet_session_benchmarking::Config for Runtime {}
 
-			use pallet_xcm::benchmarking::Pallet as PalletXcmExtrinsiscsBenchmark;
+			use pallet_xcm::benchmarking::Pallet as PalletXcmExtrinsicsBenchmark;
 
 			impl pallet_xcm::benchmarking::Config for Runtime {
 				type DeliveryHelper = (

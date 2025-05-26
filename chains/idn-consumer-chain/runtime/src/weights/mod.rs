@@ -32,6 +32,7 @@ pub mod pallet_timestamp_weights;
 pub mod pallet_transaction_payment_weights;
 pub mod paritydb_weights;
 pub mod rocksdb_weights;
+pub mod xcm;
 
 pub use block_weights::constants::BlockExecutionWeight;
 pub use cumulus_pallet_parachain_system_weights::WeightInfo as CumulusParachainSystemWeightInfo;

@@ -17,7 +17,7 @@
 use crate::{
 	AccountId, AllPalletsWithSystem, Balance, Balances, ParachainInfo, ParachainSystem,
 	PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent, RuntimeHoldReason, RuntimeOrigin, WeightToFee,
-	XcmpQueue,
+	XcmpQueue, CENTIUNIT,
 };
 use frame_support::{
 	parameter_types,
@@ -39,7 +39,7 @@ use xcm_builder::{
 	FrameTransactionalProcessor, FungibleAdapter, IsConcrete, NativeAsset, ParentIsPreset,
 	RelayChainAsNative, SiblingParachainAsNative, SiblingParachainConvertsVia,
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	TrailingSetTopicAsId, UsingComponents, WithComputedOrigin, WithUniqueTopic,
+	TrailingSetTopicAsId, UsingComponents, WeightInfoBounds, WithComputedOrigin, WithUniqueTopic,
 };
 use xcm_executor::XcmExecutor;
 
@@ -52,6 +52,12 @@ parameter_types! {
 	// and prepend `UniversalLocation` with `GlobalConsensus(RelayNetwork::get())`.
 	pub UniversalLocation: InteriorLocation = Parachain(ParachainInfo::parachain_id().into()).into();
 	pub TreasuryAccount: AccountId = TREASURY_PALLET_ID.into_account_truncating();
+	/// The asset ID for the asset that we use to pay for message delivery fees.
+	pub FeeAssetId: AssetId = AssetId(RelayLocation::get());
+	/// The base fee for the message delivery fees.
+	pub const ToSiblingBaseDeliveryFee: u128 = CENTIUNIT.saturating_mul(3);
+	pub const ToParentBaseDeliveryFee: u128 = CENTIUNIT.saturating_mul(3);
+	pub const TransactionByteFee: Balance = crate::constants::relay::fee::TRANSACTION_BYTE_FEE;
 }
 
 /// Type for specifying how a `Location` can be converted into an `AccountId`. This is used
@@ -144,7 +150,11 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = (); // Teleporting is disabled.
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<
+		crate::weights::xcm::IdnConsumerPolkadotXcmWeight<RuntimeCall>,
+		RuntimeCall,
+		MaxInstructions,
+	>;
 	type Trader =
 		UsingComponents<WeightToFee, RelayLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = PolkadotXcm;
