@@ -1034,10 +1034,6 @@ impl<T: Config> Pallet<T> {
 		// Get the minimum balance for the currency used in the pallet
 		<T::Currency as Inspect<AccountIdOf<T>>>::minimum_balance()
 	}
-
-	fn get_min_credits(sub: &SubscriptionOf<T>) -> T::Credits {
-		T::FeesManager::get_idle_credits(sub)
-	}
 }
 
 impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {

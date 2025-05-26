@@ -18,8 +18,8 @@
 
 use super::*;
 use crate::{
-	pallet::Pallet as IdnManager, primitives::QuoteRequest, BalanceOf, CreateSubParamsOf,
-	SubInfoRequestOf, UpdateSubParamsOf,
+	pallet::Pallet as IdnManager, primitives::QuoteRequest, CreateSubParamsOf, SubInfoRequestOf,
+	UpdateSubParamsOf,
 };
 use frame_benchmarking::v2::*;
 use frame_support::{
