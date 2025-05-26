@@ -1,6 +1,6 @@
 use crate::{
-	Balance, Balances, BalancesCall, Perbill, Runtime, RuntimeCall, RuntimeEvent,
-	RuntimeHoldReason, Timestamp, MILLIUNIT, UNIT,
+	weights::ReviveWeightInfo, Balance, Balances, BalancesCall, Perbill, Runtime, RuntimeCall,
+	RuntimeEvent, RuntimeHoldReason, Timestamp, MILLIUNIT, UNIT,
 };
 
 use frame_support::{
@@ -37,7 +37,7 @@ impl pallet_revive::Config for Runtime {
 	type DepositPerItem = DepositPerItem;
 	type DepositPerByte = DepositPerByte;
 	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
-	type WeightInfo = pallet_revive::weights::SubstrateWeight<Self>;
+	type WeightInfo = ReviveWeightInfo<Self>;
 	type AddressMapper = pallet_revive::AccountId32Mapper<Self>;
 	type RuntimeMemory = ConstU32<{ 128 * 1024 * 1024 }>;
 	type PVFMemory = ConstU32<{ 512 * 1024 * 1024 }>;

@@ -106,8 +106,7 @@ pub use weights::WeightInfo;
 const LOG_TARGET: &str = "pallet-idn-manager";
 
 /// The balance type used in the pallet, derived from the currency type in the configuration.
-pub type BalanceOf<T> =
-	<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance;
+pub type BalanceOf<T> = <<T as Config>::Currency as Inspect<AccountIdOf<T>>>::Balance;
 
 /// The metadata type used in the pallet, represented as a bounded vector of bytes.
 pub type MetadataOf<T> = SubscriptionMetadata<<T as Config>::MaxMetadataLen>;
@@ -126,7 +125,7 @@ pub type SubscriptionIdOf<T> = <T as pallet::Config>::SubscriptionId;
 
 /// The subscription type used in the pallet, containing various details about the subscription.
 pub type SubscriptionOf<T> = Subscription<
-	<T as frame_system::Config>::AccountId,
+	AccountIdOf<T>,
 	BlockNumberFor<T>,
 	<T as pallet::Config>::Credits,
 	MetadataOf<T>,
@@ -176,9 +175,12 @@ pub struct SubscriptionDetails<AccountId> {
 	pub call_index: CallIndex,
 }
 
+/// The AccountId type used in the pallet, derived from the configuration.
+pub type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+
 /// The subscription details type used in the pallet, containing information about the subscription
 /// owner and target.
-pub type SubscriptionDetailsOf<T> = SubscriptionDetails<<T as frame_system::Config>::AccountId>;
+pub type SubscriptionDetailsOf<T> = SubscriptionDetails<AccountIdOf<T>>;
 
 /// The parameters for creating a new subscription, containing various details about the
 /// subscription.
@@ -985,10 +987,17 @@ impl<T: Config> Pallet<T> {
 			.map_err(|_err| Error::<T>::XcmSendError)?;
 		Ok(())
 	}
+
+	/// Return the existential deposit of [`Config::Currency`].
+	#[cfg(any(test, feature = "runtime-benchmarks"))]
+	fn min_balance() -> BalanceOf<T> {
+		// Get the minimum balance for the currency used in the pallet
+		<T::Currency as Inspect<AccountIdOf<T>>>::minimum_balance()
+	}
 }
 
 impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
-	/// Dispatches a collection of pulses by distributing it to eligible subscriptions.
+	/// Dispatches a pulse by distributing it to eligible subscriptions.
 	///
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the

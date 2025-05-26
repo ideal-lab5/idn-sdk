@@ -20,6 +20,11 @@ mod revive;
 mod xcm_config;
 
 // Substrate and Polkadot dependencies
+use crate::weights::{
+	BalancesWeightInfo, CollatorSelectionWeightInfo, CumulusParachainSystemWeightInfo,
+	CumulusXcmpQueueWeightInfo, IdnConsumerWeightInfo, MessageQueueWeightInfo, SessionWeightInfo,
+	SudoWeightInfo, SystemWeightInfo, TimestampWeightInfo, TransactionPaymentWeightInfo,
+};
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -27,8 +32,7 @@ use frame_support::{
 	dispatch::DispatchClass,
 	parameter_types,
 	traits::{
-		ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, Equals, TransformOrigin,
-		VariantCountOf,
+		ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, TransformOrigin, VariantCountOf,
 	},
 	weights::{ConstantMultiplier, Weight},
 	PalletId,
@@ -122,6 +126,7 @@ impl frame_system::Config for Runtime {
 	/// The action to take on a Runtime Upgrade
 	type OnSetCode = cumulus_pallet_parachain_system::ParachainSetCode<Self>;
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type SystemWeightInfo = SystemWeightInfo<Self>;
 }
 
 impl pallet_timestamp::Config for Runtime {
@@ -129,7 +134,7 @@ impl pallet_timestamp::Config for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Aura;
 	type MinimumPeriod = ConstU64<0>;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = TimestampWeightInfo<Self>;
 }
 
 impl pallet_authorship::Config for Runtime {
@@ -150,7 +155,7 @@ impl pallet_balances::Config for Runtime {
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = BalancesWeightInfo<Self>;
 	type MaxReserves = ConstU32<50>;
 	type ReserveIdentifier = [u8; 8];
 	type RuntimeHoldReason = RuntimeHoldReason;
@@ -172,13 +177,13 @@ impl pallet_transaction_payment::Config for Runtime {
 	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 	type OperationalFeeMultiplier = ConstU8<5>;
-	type WeightInfo = ();
+	type WeightInfo = TransactionPaymentWeightInfo<Self>;
 }
 
 impl pallet_sudo::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeCall = RuntimeCall;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = SudoWeightInfo<Self>;
 }
 
 parameter_types! {
@@ -188,7 +193,7 @@ parameter_types! {
 }
 
 impl cumulus_pallet_parachain_system::Config for Runtime {
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = CumulusParachainSystemWeightInfo<Self>;
 	type RuntimeEvent = RuntimeEvent;
 	type OnSystemEvent = ();
 	type SelfParaId = parachain_info::Pallet<Runtime>;
@@ -210,7 +215,7 @@ parameter_types! {
 
 impl pallet_message_queue::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = MessageQueueWeightInfo<Self>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type MessageProcessor = pallet_message_queue::mock_helpers::NoopMessageProcessor<
 		cumulus_primitives_core::AggregateMessageOrigin,
@@ -242,7 +247,7 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type MaxInboundSuspended = sp_core::ConstU32<1_000>;
 	type ControllerOrigin = EnsureRoot<AccountId>;
 	type ControllerOriginConverter = XcmOriginToTransactDispatchOrigin;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = CumulusXcmpQueueWeightInfo<Self>;
 	type PriceForSiblingDelivery = NoPriceForMessageDelivery<ParaId>;
 	// Limit the number of messages and signals a HRML channel can have at most
 	type MaxActiveOutboundChannels = ConstU32<128>;
@@ -266,8 +271,7 @@ impl pallet_session::Config for Runtime {
 	// Essentially just Aura, but let's be pedantic.
 	type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
-	type WeightInfo = (); // Configure based on benchmarking results.
-
+	type WeightInfo = SessionWeightInfo<Self>;
 	type DisablingStrategy = ();
 }
 
@@ -305,7 +309,7 @@ impl pallet_collator_selection::Config for Runtime {
 	type ValidatorId = <Self as frame_system::Config>::AccountId;
 	type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
 	type ValidatorRegistration = Session;
-	type WeightInfo = (); // Configure based on benchmarking results.
+	type WeightInfo = CollatorSelectionWeightInfo<Self>;
 }
 
 const IDN_PARACHAIN_ID: u32 = 2000; // Example IDN parachain ID
@@ -317,19 +321,41 @@ parameter_types! {
 	pub const AssetHubFee: u128 = 1_000;
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+mod bench_ensure_origin {
+	use crate::RuntimeOrigin;
+	use frame_support::pallet_prelude::EnsureOrigin;
+	use xcm::v5::{prelude::Junction, Location};
+
+	pub struct BenchEnsureOrigin;
+	impl EnsureOrigin<RuntimeOrigin> for BenchEnsureOrigin {
+		type Success = Location;
+		fn try_origin(_origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+			Ok(Location::new(1, Junction::Parachain(88)))
+		}
+		fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+			Ok(RuntimeOrigin::root())
+		}
+	}
+}
+
 impl pallet_idn_consumer::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type PulseConsumer = PulseConsumerImpl;
 	type QuoteConsumer = QuoteConsumerImpl;
 	type SubInfoConsumer = SubInfoConsumerImpl;
 	type SiblingIdnLocation = SiblingIdnLocation;
-	type IdnOrigin = EnsureXcm<Equals<Self::SiblingIdnLocation>>;
-	type Xcm = pallet_xcm::Pallet<Self>;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type IdnOrigin = EnsureXcm<frame_support::traits::Equals<Self::SiblingIdnLocation>>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type IdnOrigin = bench_ensure_origin::BenchEnsureOrigin;
+	// TODO: correctly set the Xcm type https://github.com/ideal-lab5/idn-sdk/issues/186
+	type Xcm = ();
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
 	type AssetHubFee = AssetHubFee;
 	// TODO: run benchmarks against reference hw https://github.com/ideal-lab5/idn-sdk/issues/235
-	type WeightInfo = ();
+	type WeightInfo = IdnConsumerWeightInfo<Self>;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

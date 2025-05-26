@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+//! Benchmarking for the Ideal Network Runtime
+
 frame_benchmarking::define_benchmarks!(
 	// Only benchmark the following pallets
 	[frame_system, SystemBench::<Runtime>]
@@ -25,4 +27,8 @@ frame_benchmarking::define_benchmarks!(
 	[pallet_session, SessionBench::<Runtime>]
 	[cumulus_pallet_xcmp_queue, XcmpQueue]
 	[pallet_message_queue, MessageQueue]
+	[pallet_randomness_beacon, RandBeacon]
+	[pallet_idn_manager, IdnManager]
+	[pallet_transaction_payment, TransactionPayment]
+	[pallet_xcm, PalletXcmExtrinsiscsBenchmark::<Runtime>]
 );
