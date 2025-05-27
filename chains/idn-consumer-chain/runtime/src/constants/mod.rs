@@ -17,3 +17,5 @@
 //! Constants for the IDN Consumer Runtime
 
 pub(crate) mod relay;
+
+pub const IDN_PARACHAIN_ID: u32 = 2000; // Example IDN parachain ID

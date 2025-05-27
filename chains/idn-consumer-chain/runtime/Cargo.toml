@@ -64,7 +64,6 @@ pallet-insecure-randomness-collective-flip = { workspace = true }
 
 # Polkadot
 pallet-xcm.workspace = true
-pallet-xcm-benchmarks = { optional = true, workspace = true }
 polkadot-core-primitives.workspace = true
 polkadot-parachain-primitives.workspace = true
 polkadot-runtime-common.workspace = true
@@ -123,7 +122,6 @@ std = [
   "pallet-transaction-payment-rpc-runtime-api/std",
   "pallet-transaction-payment/std",
   "pallet-xcm/std",
-	"pallet-xcm-benchmarks?/std",
   "parachain-info/std",
   "parachains-common/std",
   "polkadot-core-primitives/std",
@@ -171,7 +169,6 @@ runtime-benchmarks = [
   "pallet-sudo/runtime-benchmarks",
   "pallet-timestamp/runtime-benchmarks",
   "pallet-xcm/runtime-benchmarks",
-	"pallet-xcm-benchmarks/runtime-benchmarks",
   "parachains-common/runtime-benchmarks",
   "polkadot-parachain-primitives/runtime-benchmarks",
   "polkadot-runtime-common/runtime-benchmarks",
