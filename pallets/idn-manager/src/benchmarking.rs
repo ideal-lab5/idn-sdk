@@ -18,8 +18,8 @@
 
 use super::*;
 use crate::{
-	pallet::Pallet as IdnManager, primitives::QuoteRequest, BalanceOf, CreateSubParamsOf,
-	SubInfoRequestOf, UpdateSubParamsOf,
+	pallet::Pallet as IdnManager, primitives::QuoteRequest, CreateSubParamsOf, SubInfoRequestOf,
+	UpdateSubParamsOf,
 };
 use frame_benchmarking::v2::*;
 use frame_support::{
@@ -28,6 +28,7 @@ use frame_support::{
 };
 use frame_system::{Pallet as System, RawOrigin};
 use sp_core::H256;
+use sp_idn_traits::Hashable;
 use xcm::v5::prelude::Junction;
 
 #[benchmarks(
@@ -390,18 +391,26 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn on_finalize(s: Linear<1, { T::MaxSubscriptions::get() }>) {
+	fn on_finalize() {
+		// We assume the worst case scenario, that is, we've got max subscriptions in the current
+		// block. We can't set `s` as a parameter (e.g. to pass `SubCounter`) to use it instead of
+		// `MaxSubscriptions`, because we don't know at the beginning of the block (when this is
+		// measured) how many subscriptions will be created by the end of the block. Therefore we
+		// don't know how big the for loop in the `on_finalize` hook will be.
+		let s = T::MaxSubscriptions::get();
+		let f = T::MaxTerminatableSubs::get();
 		fill_up_subscriptions::<T>(s);
 
 		assert_eq!(Subscriptions::<T>::iter().count(), s as usize);
 
-		// iterate over all subscriptions and update the credits_left parameter
-		Subscriptions::<T>::iter().for_each(
+		// Mark max terminatable subscriptions as finalized
+		Subscriptions::<T>::iter().take(f as usize).for_each(
 			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| {
-				// update the credits_left parameter
-				sub.credits_left = 0u64.into();
+				// update the subscription as finalized
+				sub.state = SubscriptionState::Finalized;
+
 				// update the subscription
-				Subscriptions::<T>::insert(sub_id, sub);
+				Subscriptions::<T>::insert(sub_id, sub.clone());
 			},
 		);
 
@@ -412,7 +421,7 @@ mod benchmarks {
 			Pallet::<T>::on_finalize(block_number);
 		}
 
-		assert_eq!(Subscriptions::<T>::iter().count(), 0);
+		assert_eq!(Subscriptions::<T>::iter().count(), s.saturating_sub(f) as usize);
 	}
 
 	/// Fill up the subscriptions with the given number of subscriptions
@@ -420,21 +429,18 @@ mod benchmarks {
 	where
 		T::Credits: From<u64>,
 		T::Currency: Mutate<T::AccountId>,
-		BalanceOf<T>: From<u64>,
+		T::AccountId: From<[u8; 32]>,
 	{
-		let subscriber: T::AccountId = whitelisted_caller();
-		let credits: T::Credits = 100u64.into();
+		let credits: T::Credits = 100_000u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 
-		T::Currency::set_balance(
-			&subscriber,
-			IdnManager::<T>::min_balance().saturating_mul(10_000_000u64.into()),
-		);
-
 		// Create s subscriptions
-		for _ in 0..s {
+		for i in 0..s {
+			let id: [u8; 32] = i.hash(&[i as u8]).into();
+			let subscriber: T::AccountId = id.into();
+			T::Currency::set_balance(&subscriber, u32::MAX.into());
 			let res = IdnManager::<T>::create_subscription(
 				<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
 				CreateSubParamsOf::<T> {

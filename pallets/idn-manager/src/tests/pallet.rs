@@ -340,7 +340,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 		let credits: u64 = 50;
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let initial_balance = 10_000_000;
+		let initial_balance = u32::MAX as u64;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
@@ -348,9 +348,9 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 			assert_ok!(IdnManager::create_subscription(
 				RuntimeOrigin::signed(ALICE.clone()),
 				CreateSubParamsOf::<Test> {
-					credits,
+					credits: credits + i as u64,
 					target: target.clone(),
-					call_index: [i.try_into().unwrap(); 2],
+					call_index: [i as u8; 2],
 					frequency,
 					metadata: None,
 					sub_id: None,
@@ -441,9 +441,9 @@ fn test_kill_subscription() {
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0u64);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0u64);
 
-		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
-			sub_id,
-		}));
+		System::assert_last_event(RuntimeEvent::IdnManager(
+			Event::<Test>::SubscriptionTerminated { sub_id },
+		));
 	});
 }
 
@@ -457,13 +457,13 @@ fn kill_subscription_fails_if_sub_does_not_exist() {
 			Error::<Test>::SubscriptionDoesNotExist
 		);
 
-		// Assert the SubscriptionRemoved event was not emitted
-		assert!(event_not_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		// Assert the SubscriptionTerminated event was not emitted
+		assert!(event_not_emitted(Event::<Test>::SubscriptionTerminated { sub_id }));
 	});
 }
 
 #[test]
-fn on_finalize_removes_zero_credit_subscriptions() {
+fn on_finalize_removes_finalized_subscriptions() {
 	ExtBuilder::build().execute_with(|| {
 		// Setup - Create a subscription
 		let credits: u64 = 50;
@@ -494,7 +494,9 @@ fn on_finalize_removes_zero_credit_subscriptions() {
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), fees);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), deposit);
 
-		// Manually set credits to zero
+		// Manually set state to finalized
+		subscription.state = SubscriptionState::Finalized;
+		// Set credits_left to zero to simulate a finalized subscription
 		subscription.credits_left = Zero::zero();
 		Subscriptions::<Test>::insert(sub_id, subscription);
 
@@ -514,9 +516,9 @@ fn on_finalize_removes_zero_credit_subscriptions() {
 		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0u64);
 
 		// Verify event was emitted
-		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
-			sub_id,
-		}));
+		System::assert_last_event(RuntimeEvent::IdnManager(
+			Event::<Test>::SubscriptionTerminated { sub_id },
+		));
 	});
 }
 
@@ -765,9 +767,9 @@ fn test_credits_consumption_and_cleanup() {
 		);
 
 		// Verify events
-		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
-			sub_id,
-		}));
+		System::assert_last_event(RuntimeEvent::IdnManager(
+			Event::<Test>::SubscriptionTerminated { sub_id },
+		));
 	});
 }
 
@@ -813,6 +815,7 @@ fn test_credits_consumption_not_enough_balance() {
 				);
 				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
 				assert_ok!(IdnManager::dispatch(pulse.into()));
+				// TODO: as part of https://github.com/ideal-lab5/idn-sdk/issues/195 to check that the sub's changed state
 				break;
 			} else {
 				// Dispatch randomness
@@ -901,7 +904,59 @@ fn test_credits_consumption_frequency() {
 			// Finalize the block
 			IdnManager::on_finalize(System::block_number());
 		}
-		// Verify subscription is removed after last credit
+		// Verify subscription is removed after being finalized
+		assert!(Subscriptions::<Test>::get(sub_id).is_none());
+	});
+}
+
+#[test]
+fn test_sub_state_is_finalized_when_credits_left_goes_low() {
+	ExtBuilder::build().execute_with(|| {
+		// Setup initial conditions
+		let credits: u64 = 10_000;
+		let target = Location::new(1, [Junction::PalletInstance(1)]);
+		let frequency: u64 = 3; // Every 3 blocks
+		let initial_balance = 10_000_000;
+		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+
+		// Set up account
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// Create subscription
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call_index: [1; 2],
+				frequency,
+				metadata: None,
+				sub_id: None,
+			}
+		));
+
+		// Get the subscription ID
+		let (sub_id, mut sub) = Subscriptions::<Test>::iter().next().unwrap();
+
+		assert_eq!(sub.credits_left, credits);
+
+		// Set the subscription to a state where it should be finalized, by forcing the credits_left
+		// go low
+		sub.credits_left = IdnManager::get_min_credits(&sub) - 1;
+		Subscriptions::<Test>::insert(sub_id, sub);
+
+		// Dispatch randomness
+		assert_ok!(IdnManager::dispatch(pulse.into()));
+
+		let sub = Subscriptions::<Test>::get(sub_id).unwrap();
+
+		// Assert the sub state transitioned to Finalized
+		assert_eq!(sub.state, SubscriptionState::Finalized);
+
+		// Finalize the block
+		IdnManager::on_finalize(System::block_number());
+
+		// Verify subscription is removed after being finalized
 		assert!(Subscriptions::<Test>::get(sub_id).is_none());
 	});
 }
@@ -1002,7 +1057,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 
 		assert_noop!(
 			IdnManager::pause_subscription(RuntimeOrigin::signed(ALICE), sub_id),
-			Error::<Test>::SubscriptionAlreadyPaused
+			Error::<Test>::SubscriptionInvalidTransition
 		);
 
 		// Assert the SubscriptionPaused event was not emitted
@@ -1051,7 +1106,7 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 
 		assert_noop!(
 			IdnManager::reactivate_subscription(RuntimeOrigin::signed(ALICE), sub_id),
-			Error::<Test>::SubscriptionAlreadyActive
+			Error::<Test>::SubscriptionInvalidTransition
 		);
 
 		// Assert the SubscriptionReactivated event was not emitted
@@ -1097,8 +1152,8 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 		// assert subscription still exists
 		assert!(Subscriptions::<Test>::get(sub_id).is_some());
 
-		// Assert the SubscriptionRemoved event was not emitted
-		assert!(event_not_emitted(Event::<Test>::SubscriptionRemoved { sub_id }));
+		// Assert the SubscriptionTerminated event was not emitted
+		assert!(event_not_emitted(Event::<Test>::SubscriptionTerminated { sub_id }));
 
 		// Attempt to pause the subscription using Bob's origin (should fail)
 		assert_noop!(
@@ -1160,7 +1215,8 @@ fn test_on_finalize_removes_finished_subscriptions() {
 
 		let (sub_id, mut subscription) = Subscriptions::<Test>::iter().next().unwrap();
 
-		// Manually set credits to zero to simulate a finished subscription
+		// Manually simulate a finished subscription
+		subscription.state = SubscriptionState::Finalized;
 		subscription.credits_left = Zero::zero();
 		Subscriptions::<Test>::insert(sub_id, subscription);
 
@@ -1174,10 +1230,10 @@ fn test_on_finalize_removes_finished_subscriptions() {
 		// 1. Subscription should be removed
 		assert!(!Subscriptions::<Test>::contains_key(sub_id));
 
-		// 2. SubscriptionRemoved event should be emitted
-		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubscriptionRemoved {
-			sub_id,
-		}));
+		// 2. SubscriptionTerminated event should be emitted
+		System::assert_last_event(RuntimeEvent::IdnManager(
+			Event::<Test>::SubscriptionTerminated { sub_id },
+		));
 	});
 }
 
