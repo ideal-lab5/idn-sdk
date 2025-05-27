@@ -55,6 +55,3 @@ tokio.workspace = true
 sc-block-builder.workspace = true
 sc-service.workspace = true
 tracing-test.workspace = true
-
-# [features]
-# e2e = []
