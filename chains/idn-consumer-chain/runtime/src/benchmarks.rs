@@ -14,19 +14,16 @@
  * limitations under the License.
  */
 
-use crate::{
-	configs::{
-		xcm_config::{
-			FeeAssetId, LocationToAccountId, RelayLocation, ToParentBaseDeliveryFee,
-			ToSiblingBaseDeliveryFee, TransactionByteFee, XcmConfig,
-		},
-		ExistentialDeposit,
+use crate::configs::{
+	xcm_config::{
+		FeeAssetId, RelayLocation, ToParentBaseDeliveryFee, ToSiblingBaseDeliveryFee,
+		TransactionByteFee, XcmConfig,
 	},
-	constants::relay::currency::UNITS,
+	ExistentialDeposit,
 };
 use frame_benchmarking::BenchmarkError;
 use scale_info::prelude::vec::Vec;
-use xcm::v5::{Asset, AssetId, Assets, Fungibility::Fungible, Location, Parent};
+use xcm::v5::{Asset, AssetId, Fungibility::Fungible, Location, Parent};
 
 pub use super::*;
 pub use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
@@ -106,24 +103,24 @@ impl pallet_xcm::benchmarking::Config for Runtime {
 	}
 }
 
-impl pallet_xcm_benchmarks::Config for Runtime {
-	type XcmConfig = XcmConfig;
-	type AccountIdConverter = LocationToAccountId;
-	type DeliveryHelper = cumulus_primitives_utility::ToParentDeliveryHelper<
-		XcmConfig,
-		ExistentialDepositAsset,
-		PriceForParentDelivery,
-	>;
-	fn valid_destination() -> Result<Location, BenchmarkError> {
-		Ok(RelayLocation::get())
-	}
-	fn worst_case_holding(_depositable_count: u32) -> Assets {
-		// just concrete assets according to relay chain.
-		let assets: Vec<Asset> =
-			vec![Asset { id: AssetId(RelayLocation::get()), fun: Fungible(1_000_000 * UNITS) }];
-		assets.into()
-	}
-}
+// impl pallet_xcm_benchmarks::Config for Runtime {
+// 	type XcmConfig = XcmConfig;
+// 	type AccountIdConverter = LocationToAccountId;
+// 	type DeliveryHelper = cumulus_primitives_utility::ToParentDeliveryHelper<
+// 		XcmConfig,
+// 		ExistentialDepositAsset,
+// 		PriceForParentDelivery,
+// 	>;
+// 	fn valid_destination() -> Result<Location, BenchmarkError> {
+// 		Ok(RelayLocation::get())
+// 	}
+// 	fn worst_case_holding(_depositable_count: u32) -> Assets {
+// 		// just concrete assets according to relay chain.
+// 		let assets: Vec<Asset> =
+// 			vec![Asset { id: AssetId(RelayLocation::get()), fun: Fungible(1_000_000 * UNITS) }];
+// 		assets.into()
+// 	}
+// }
 
 frame_benchmarking::define_benchmarks!(
 	// Only benchmark the following pallets
@@ -141,6 +138,4 @@ frame_benchmarking::define_benchmarks!(
 	[pallet_contracts, Contracts]
 	[pallet_revive, Revive]
 	[pallet_xcm, PalletXcmExtrinsicsBenchmark::<Runtime>]
-	// [pallet_xcm_benchmarks::fungible, XcmBalances]
-	// [pallet_xcm_benchmarks::generic, XcmGeneric]
 );

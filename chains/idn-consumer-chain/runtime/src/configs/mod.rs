@@ -49,10 +49,7 @@ use polkadot_runtime_common::{
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
-use xcm::{
-	latest::prelude::BodyId,
-	v5::{Junction, Location},
-};
+use xcm::latest::prelude::BodyId;
 
 // Local module imports
 use super::{
@@ -312,10 +309,7 @@ impl pallet_collator_selection::Config for Runtime {
 	type WeightInfo = CollatorSelectionWeightInfo<Self>;
 }
 
-const IDN_PARACHAIN_ID: u32 = 2000; // Example IDN parachain ID
-
 parameter_types! {
-	pub SiblingIdnLocation: Location = Location::new(1, Junction::Parachain(IDN_PARACHAIN_ID));
 	pub IdnConsumerParaId: ParaId = ParachainInfo::parachain_id();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 	pub const AssetHubFee: u128 = 1_000;
@@ -344,7 +338,7 @@ impl pallet_idn_consumer::Config for Runtime {
 	type PulseConsumer = PulseConsumerImpl;
 	type QuoteConsumer = QuoteConsumerImpl;
 	type SubInfoConsumer = SubInfoConsumerImpl;
-	type SiblingIdnLocation = SiblingIdnLocation;
+	type SiblingIdnLocation = xcm_config::SiblingIdnLocation;
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	type IdnOrigin = EnsureXcm<frame_support::traits::Equals<Self::SiblingIdnLocation>>;
 	#[cfg(feature = "runtime-benchmarks")]
