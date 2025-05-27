@@ -34,6 +34,7 @@ bp-idn.workspace = true
 pallet-idn-consumer.workspace = true
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
+pallet-scheduler.workspace = true
 sp-idn-crypto.workspace = true
 sp-consensus-randomness-beacon.workspace = true
 

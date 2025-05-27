@@ -85,7 +85,8 @@ pub use pallet::*;
 
 use frame_support::pallet_prelude::*;
 
-use sp_consensus_randomness_beacon::types::CanonicalPulse;
+use ark_bls12_381::G1Affine;
+use sp_consensus_randomness_beacon::types::{CanonicalPulse, RoundNumber};
 use sp_idn_crypto::verifier::SignatureVerifier;
 use sp_idn_traits::pulse::{Dispatcher, Pulse as TPulse};
 use sp_std::fmt::Debug;
@@ -115,14 +116,10 @@ const SERIALIZED_SIG_SIZE: usize = 48;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use ark_bls12_381::G1Affine;
 	use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
-	use sp_consensus_randomness_beacon::{
-		digest::ConsensusLog,
-		types::{OpaqueSignature, RoundNumber},
-	};
+	use sp_consensus_randomness_beacon::{digest::ConsensusLog, types::OpaqueSignature};
 	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
 	use sp_runtime::generic::DigestItem;
 
@@ -231,15 +228,21 @@ pub mod pallet {
 					let end = pulses.last().map(|p| p.round);
 
 					if let (Some(start), Some(end)) = (start, end) {
-						let asig = pulses
+						let filtered = pulses
 							.into_iter()
 							.filter_map(|pulse| {
 								let bytes = pulse.signature;
+								// TODO: get (round, sig as G1Affine)
 								G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()
 							})
-							.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| {
-								(acc + sig).into()
-							});
+							.collect::<Vec<_>>();
+
+						// TODO: send new pulses to scheduler pallet
+						
+						
+						let asig = filtered.iter().fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| {
+							(acc + sig).into()
+						});
 
 						let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
 						// [SRLABS]: This error is untestable since we know the signature is correct here.
@@ -403,5 +406,15 @@ pub mod pallet {
 
 			Ok(Pays::No.into())
 		}
+	}
+}
+
+pub trait LatestRoundProvider {
+	fn latest() -> RoundNumber;
+}
+
+impl<T: Config> LatestRoundProvider for Pallet<T> {
+	fn latest() -> RoundNumber {
+		LatestRound::<T>::get().unwrap_or(0)
 	}
 }

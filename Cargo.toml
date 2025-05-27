@@ -7,6 +7,7 @@ members = [
     "pallets/randomness-beacon",
     "pallets/idn-consumer",
     "pallets/idn-manager",
+    "pallets/scheduler",
     "chains/kitchensink/runtime",
     "chains/kitchensink/node",
     "chains/ideal-network/runtime",
@@ -99,6 +100,7 @@ pallet-aura = { version = "39.0.0", default-features = false }
 pallet-authorship = { version = "40.0.0", default-features = false }
 pallet-balances = { version = "41.1.0", default-features = false }
 pallet-message-queue = { version = "43.1.0", default-features = false }
+pallet-preimage = { version = "40.0.0", default-features = false }
 pallet-session = { version = "40.0.0", default-features = false }
 pallet-sudo = { version = "40.0.0", default-features = false }
 pallet-timestamp = { version = "39.0.0", default-features = false }
@@ -149,6 +151,7 @@ sp-keyring = { version = "41.0.0", default-features = false }
 sp-offchain = { version = "36.0.0", default-features = false }
 sp-session = { version = "38.1.0", default-features = false }
 sp-transaction-pool = { version = "36.0.0", default-features = false }
+sp-weights = { version = "31.1.0", default-features = false} 
 
 # Contracts & pallet-revive
 pallet-contracts = { version = "40.1.0", default-features = false }
@@ -180,6 +183,7 @@ ark-serialize = { version = "0.4.0", features = [
 ark-ec = { version = "0.4.0", default-features = false }
 ark-ff = { version = "0.4.0", default-features = false }
 ark-std = { version = "0.4.0", default-features = false }
+rand_chacha = { version = "0.9.0", default-features = false }
 sha2 = { version = "0.10.2", default-features = false }
 
 # Logging & Utilities
@@ -188,6 +192,8 @@ docify = { version = "0.2.9", default-features = false }
 jsonrpsee = { version = "0.24.7", features = ["server"] }
 log = { version = "0.4.26", default-features = false }
 simple-mermaid = { version = "0.1.1", default-features = false }
+substrate-test-utils = { version = "3.0.0" }
+
 
 # Parity SCALE Codec
 codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = [
@@ -224,6 +230,7 @@ bp-idn = { path = "./chains/ideal-network/bridge", default-features = false }
 pallet-idn-manager = { path = "./pallets/idn-manager", default-features = false }
 pallet-idn-consumer = { path = "./pallets/idn-consumer", default-features = false }
 pallet-randomness-beacon = { path = "./pallets/randomness-beacon", default-features = false }
+pallet-scheduler = { path = "./pallets/scheduler", default-features = false }
 sc-consensus-randomness-beacon = { path = "./client/consensus/randomness-beacon", default-features = false }
 sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }
 sp-idn-crypto = { path = "./primitives/crypto", default-features = false }
