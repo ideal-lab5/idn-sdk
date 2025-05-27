@@ -32,8 +32,10 @@
 // --pallet=frame_system
 // --header=/Users/juan/Projects/IdealLabs/idn-sdk/scripts/file_header.txt
 // --output=./chains/ideal-network/runtime/src/weights/frame_system_weights.rs
-// --output=./chains/ideal-network/runtime/src/weights
 // --wasm-execution=compiled
+// --steps=50
+// --repeat=20
+// --heap-pages=4096
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
@@ -59,7 +61,6 @@ impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
 	}
 	/// The range of component `b` is `[0, 3932160]`.
 	fn remark_with_event(b: u32, ) -> Weight {
-		// Minimum execution time: 5_000_000 picoseconds.
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
