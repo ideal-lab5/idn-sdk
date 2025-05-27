@@ -19,17 +19,13 @@ use ark_serialize::CanonicalSerialize;
 use sha2::{Digest, Sha256};
 use sp_std::vec::Vec;
 
+use ark_bls12_381::G1Affine;
 use ark_ec::{
 	bls12::Bls12Config,
-	hashing::{
-		curve_maps::wb::WBMap,
-		map_to_curve_hasher::MapToCurveBasedHasher,
-		HashToCurve,
-	},
+	hashing::{curve_maps::wb::WBMap, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
 	pairing::Pairing,
 };
 use ark_ff::field_hashers::DefaultFieldHasher;
-use ark_bls12_381::G1Affine;
 
 /// The context string when hashing round numbers to G1
 pub const QUICKNET_CTX: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
@@ -51,11 +47,11 @@ fn message(current_round: u64, prev_sig: &[u8]) -> Vec<u8> {
 pub fn compute_round_on_g1(round: u64) -> Result<G1Affine, CryptoError> {
 	let message = message(round, &[]);
 	let hasher = MapToCurveBasedHasher::<
-			<E as Pairing>::G1,
-			DefaultFieldHasher<Sha256, 128>,
-			WBMap<<Config as Bls12Config>::G1Config>,
-		>::new(QUICKNET_CTX)
-		.map_err(|_| CryptoError::HashToCurveFailure)?;
+		<E as Pairing>::G1,
+		DefaultFieldHasher<Sha256, 128>,
+		WBMap<<Config as Bls12Config>::G1Config>,
+	>::new(QUICKNET_CTX)
+	.map_err(|_| CryptoError::HashToCurveFailure)?;
 	// H(m) \in G1
 	let message_hash = hasher.hash(&message).map_err(|_| CryptoError::InvalidBuffer)?;
 
