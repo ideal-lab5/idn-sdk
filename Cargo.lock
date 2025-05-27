@@ -16539,7 +16539,6 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "tokio",
- "w3f-bls",
 ]
 
 [[package]]
