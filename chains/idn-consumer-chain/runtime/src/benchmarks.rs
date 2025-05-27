@@ -103,25 +103,6 @@ impl pallet_xcm::benchmarking::Config for Runtime {
 	}
 }
 
-// impl pallet_xcm_benchmarks::Config for Runtime {
-// 	type XcmConfig = XcmConfig;
-// 	type AccountIdConverter = LocationToAccountId;
-// 	type DeliveryHelper = cumulus_primitives_utility::ToParentDeliveryHelper<
-// 		XcmConfig,
-// 		ExistentialDepositAsset,
-// 		PriceForParentDelivery,
-// 	>;
-// 	fn valid_destination() -> Result<Location, BenchmarkError> {
-// 		Ok(RelayLocation::get())
-// 	}
-// 	fn worst_case_holding(_depositable_count: u32) -> Assets {
-// 		// just concrete assets according to relay chain.
-// 		let assets: Vec<Asset> =
-// 			vec![Asset { id: AssetId(RelayLocation::get()), fun: Fungible(1_000_000 * UNITS) }];
-// 		assets.into()
-// 	}
-// }
-
 frame_benchmarking::define_benchmarks!(
 	// Only benchmark the following pallets
 	[frame_system, SystemBench::<Runtime>]
