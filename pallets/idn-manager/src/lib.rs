@@ -31,6 +31,10 @@
 //!    - Subscription remains in storage
 //!    - Can be reactivated
 //!
+//! 3. Finalized
+//!   - Subscription is finalized for good
+//!   - Cannot be reactivated
+//!
 //! ### Termination
 //! Subscription ends when:
 //! - All allocated pulses are consumed
@@ -226,6 +230,8 @@ pub type UpdateSubParamsOf<T> = UpdateSubParams<
 ///   distributed.
 /// * [`Paused`](SubscriptionState::Paused) - The subscription is paused and randomness distribution
 ///   is temporarily suspended.
+/// * [`Finalized`](SubscriptionState::Finalized) - The subscription is finalized and cannot be
+///   resumed.
 ///
 /// See [Subscription State Lifecycle](./index.html#subscription-state-lifecycle) for more details.
 #[derive(
@@ -236,6 +242,8 @@ pub enum SubscriptionState {
 	Active,
 	/// The subscription is paused and randomness distribution is temporarily suspended.
 	Paused,
+	/// The subscription is finalized and cannot be resumed.
+	Finalized,
 }
 
 #[frame_support::pallet]
@@ -300,11 +308,29 @@ pub mod pallet {
 		type MaxMetadataLen: Get<u32>;
 
 		/// A type to define the amount of credits in a subscription
-		type Credits: Unsigned + Codec + TypeInfo + MaxEncodedLen + Debug + Saturating + Copy;
+		type Credits: Unsigned
+			+ Codec
+			+ TypeInfo
+			+ MaxEncodedLen
+			+ Debug
+			+ Saturating
+			+ Copy
+			+ PartialOrd;
 
 		/// Maximum number of subscriptions allowed
+		///
+		/// This and [`MaxTerminatableSubs`] should be set to a number that keeps the estimated
+		/// `dispatch_pulse` Proof size in combinations with the `on_finalize` Proof size under
+		/// the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
 		#[pallet::constant]
 		type MaxSubscriptions: Get<u32>;
+
+		/// Maximum number of subscriptions that can be terminated in a `on_finalize` execution
+		///
+		/// This and [`MaxSubscriptions`] should be set to a number that keeps the estimated Proof
+		/// Size in the weights under the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
+		#[pallet::constant]
+		type MaxTerminatableSubs: Get<u32>;
 
 		/// Subscription ID type
 		type SubscriptionId: From<H256>
@@ -344,8 +370,8 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// A new subscription was created (includes single-block subscriptions)
 		SubscriptionCreated { sub_id: T::SubscriptionId },
-		/// A subscription has finished
-		SubscriptionRemoved { sub_id: T::SubscriptionId },
+		/// A subscription has terminated
+		SubscriptionTerminated { sub_id: T::SubscriptionId },
 		/// A subscription was paused
 		SubscriptionPaused { sub_id: T::SubscriptionId },
 		/// A subscription was updated
@@ -370,8 +396,10 @@ pub mod pallet {
 		SubscriptionDoesNotExist,
 		/// Subscription is already active
 		SubscriptionAlreadyActive,
-		/// Subscription is already paused
-		SubscriptionAlreadyPaused,
+		/// Subscription's state transition is not possible
+		SubscriptionInvalidTransition,
+		/// Subscription can't be updated
+		SubscriptionNotUpdatable,
 		/// The origin isn't the subscriber
 		NotSubscriber,
 		/// Too many subscriptions in storage
@@ -400,21 +428,20 @@ pub mod pallet {
 		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
 		/// execute. See [`on_finalize`](https://paritytech.github.io/polkadot-sdk/master/frame_support/traits/trait.Hooks.html#method.on_finalize).
 		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
-			// We assume the worst case scenario, that is, all subscriptions are finishing in this
-			// block.
-			<T as pallet::Config>::WeightInfo::on_finalize(T::MaxSubscriptions::get())
+			<T as pallet::Config>::WeightInfo::on_finalize()
 		}
 
-		/// It iterates over all subscriptions with zero credits and calls `finish_subscription` to
-		/// conclude the subscription. `finish_subscription` involves refunding deposits, removing
-		/// the subscription from storage and dispatching events, among other actions.
+		/// It iterates over all [`Finalized`](SubscriptionState::Finalized) subscriptions calls
+		/// `terminate_subscription`. `terminate_subscription` involves refunding deposits,
+		/// removing the subscription from storage and dispatching events, among other actions.
 		fn on_finalize(_n: BlockNumberFor<T>) {
-			// Look for subscriptions that should be finished
-			for (sub_id, sub) in
-				Subscriptions::<T>::iter().filter(|(_, sub)| sub.credits_left == Zero::zero())
+			// Look for subscriptions that should be terminated
+			for (sub_id, sub) in Subscriptions::<T>::iter()
+				.filter(|(_, sub)| sub.state == SubscriptionState::Finalized)
+				.take(T::MaxTerminatableSubs::get() as usize)
 			{
-				// finish the subscription
-				let _ = Self::finish_subscription(&sub, sub_id);
+				// terminate the subscription
+				let _ = Self::terminate_subscription(&sub, sub_id);
 			}
 		}
 	}
@@ -514,8 +541,8 @@ pub mod pallet {
 		///   the specified ID does not exist.
 		/// * [`NotSubscriber`](Error::NotSubscriber) - If the origin is not the subscriber of the
 		///   specified subscription.
-		/// * [`SubscriptionAlreadyPaused`](Error::SubscriptionAlreadyPaused) - If the subscription
-		///   is already paused.
+		/// * [`SubscriptionInvalidTransition`](Error::SubscriptionInvalidTransition) - If the
+		///   subscription cannot transition to the [`Paused`](SubscriptionState::Paused) state.
 		///
 		/// # Events
 		/// * [`SubscriptionPaused`](Event::SubscriptionPaused) - A subscription has been paused.
@@ -531,8 +558,8 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				ensure!(
-					sub.state != SubscriptionState::Paused,
-					Error::<T>::SubscriptionAlreadyPaused
+					sub.state == SubscriptionState::Active,
+					Error::<T>::SubscriptionInvalidTransition
 				);
 				sub.state = SubscriptionState::Paused;
 				Self::deposit_event(Event::SubscriptionPaused { sub_id });
@@ -552,7 +579,7 @@ pub mod pallet {
 		///   specified subscription.
 		///
 		/// # Events
-		/// * [`SubscriptionRemoved`](Event::SubscriptionRemoved) - A subscription has been
+		/// * [`SubscriptionTerminated`](Event::SubscriptionTerminated) - A subscription has been
 		///   terminated.
 		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::kill_subscription())]
@@ -567,7 +594,7 @@ pub mod pallet {
 				Self::get_subscription(&sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 			ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 
-			Self::finish_subscription(&sub, sub_id)
+			Self::terminate_subscription(&sub, sub_id)
 		}
 
 		/// Updates a subscription.
@@ -596,6 +623,11 @@ pub mod pallet {
 			Subscriptions::<T>::try_mutate(params.sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
+				ensure!(
+					sub.state == SubscriptionState::Active ||
+						sub.state == SubscriptionState::Paused,
+					Error::<T>::SubscriptionNotUpdatable
+				);
 
 				let mut fees_diff = T::DiffBalance::new(Zero::zero(), BalanceDirection::None);
 
@@ -654,8 +686,8 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				ensure!(
-					sub.state != SubscriptionState::Active,
-					Error::<T>::SubscriptionAlreadyActive
+					sub.state == SubscriptionState::Paused,
+					Error::<T>::SubscriptionInvalidTransition
 				);
 				sub.state = SubscriptionState::Active;
 				Self::deposit_event(Event::SubscriptionReactivated { sub_id });
@@ -774,8 +806,8 @@ impl<T: Config> Pallet<T> {
 		T::DepositCalculator::calculate_storage_deposit(&subscription)
 	}
 
-	/// Finishes a subscription by removing it from storage and emitting a finish event.
-	pub(crate) fn finish_subscription(
+	/// Terminates a subscription by removing it from storage and emitting a terminate event.
+	pub(crate) fn terminate_subscription(
 		sub: &SubscriptionOf<T>,
 		sub_id: T::SubscriptionId,
 	) -> DispatchResult {
@@ -786,15 +818,17 @@ impl<T: Config> Pallet<T> {
 		Self::manage_diff_fees(&sub.details.subscriber, &fees_diff)?;
 		Self::release_deposit(&sub.details.subscriber, sd)?;
 
-		Self::deposit_event(Event::SubscriptionRemoved { sub_id });
-
 		Subscriptions::<T>::remove(sub_id);
 
 		// Decrease the subscription counter
 		SubCounter::<T>::mutate(|c| c.saturating_dec());
 
-		Self::deposit_event(Event::SubscriptionRemoved { sub_id });
+		Self::deposit_event(Event::SubscriptionTerminated { sub_id });
 		Ok(())
+	}
+
+	pub(crate) fn get_min_credits(sub: &SubscriptionOf<T>) -> T::Credits {
+		T::FeesManager::get_idle_credits(sub)
 	}
 
 	fn pallet_account_id() -> T::AccountId {
@@ -824,20 +858,19 @@ impl<T: Config> Pallet<T> {
 					// will fail to be distributed for the pulse. Recommendations on handling this?
 					// Our initial idea is to simply log an event and continue, then pause the
 					// subscription.
+					// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
 					Self::collect_fees(&sub, consume_credits)?;
 
 					// Update subscription with consumed credits and last_delivered block number
 					sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
 					sub.last_delivered = Some(current_block);
 
-					// Store the updated subscription
-					Subscriptions::<T>::insert(sub_id, &sub);
-
 					// Send the XCM message
 					// [SRLabs]: If this line throws an error then the entire set of subscriptions
 					// will fail to be distributed for the pulse. Recommendations on handling this?
 					// Our initial idea is to simply log an event and continue, then pause the
 					// subscription.
+					// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
 					Self::xcm_send(
 						&sub.details.target,
 						// Create a tuple of call_index and pulse, encode it using SCALE codec,
@@ -856,9 +889,16 @@ impl<T: Config> Pallet<T> {
 					Self::collect_fees(&sub, idle_credits)?;
 					// Update subscription with consumed credits
 					sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
-					// Store the updated subscription
-					Subscriptions::<T>::insert(sub_id, &sub);
 				}
+				// Finalize the subscription if there are not enough credits left
+				if sub.state != SubscriptionState::Finalized &&
+					sub.credits_left < Self::get_min_credits(&sub)
+				{
+					sub.state = SubscriptionState::Finalized;
+				}
+				// Store the updated subscription
+				Subscriptions::<T>::insert(sub_id, &sub);
+
 				Ok(())
 			},
 		)?;
@@ -1012,7 +1052,7 @@ impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
 	}
 
 	fn dispatch_weight() -> Weight {
-		T::WeightInfo::dispatch_pulse(T::MaxSubscriptions::get())
+		T::WeightInfo::dispatch_pulse(SubCounter::<T>::get())
 	}
 }
 
