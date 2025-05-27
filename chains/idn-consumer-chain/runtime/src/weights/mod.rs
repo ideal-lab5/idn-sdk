@@ -30,9 +30,9 @@ pub mod pallet_session_weights;
 pub mod pallet_sudo_weights;
 pub mod pallet_timestamp_weights;
 pub mod pallet_transaction_payment_weights;
+pub mod pallet_xcm_weights;
 pub mod paritydb_weights;
 pub mod rocksdb_weights;
-pub mod xcm;
 
 pub use block_weights::constants::BlockExecutionWeight;
 pub use cumulus_pallet_parachain_system_weights::WeightInfo as CumulusParachainSystemWeightInfo;
@@ -48,4 +48,5 @@ pub use pallet_session_weights::WeightInfo as SessionWeightInfo;
 pub use pallet_sudo_weights::WeightInfo as SudoWeightInfo;
 pub use pallet_timestamp_weights::WeightInfo as TimestampWeightInfo;
 pub use pallet_transaction_payment_weights::WeightInfo as TransactionPaymentWeightInfo;
+pub use pallet_xcm_weights::WeightInfo as XcmWeightInfo;
 pub use rocksdb_weights::constants::RocksDbWeight;
