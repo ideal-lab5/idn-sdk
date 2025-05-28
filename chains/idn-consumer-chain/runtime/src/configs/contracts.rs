@@ -15,8 +15,9 @@
  */
 
 use crate::{
-	Balance, Balances, BalancesCall, Perbill, RandomnessCollectiveFlip, Runtime, RuntimeCall,
-	RuntimeEvent, RuntimeHoldReason, Timestamp, MILLIUNIT, UNIT,
+	weights::ContractsWeightInfo, Balance, Balances, BalancesCall, Contracts, Perbill,
+	RandomnessCollectiveFlip, Runtime, RuntimeCall, RuntimeEvent, RuntimeHoldReason, Timestamp,
+	MILLIUNIT, UNIT,
 };
 use frame_support::{
 	parameter_types,
@@ -73,7 +74,7 @@ impl pallet_contracts::Config for Runtime {
 	type DepositPerByte = DepositPerByte;
 	type CallStack = [pallet_contracts::Frame<Self>; 23];
 	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
-	type WeightInfo = ();
+	type WeightInfo = ContractsWeightInfo<Runtime>;
 	type ChainExtension = ();
 	type Schedule = Schedule;
 	type AddressGenerator = pallet_contracts::DefaultAddressGenerator;
