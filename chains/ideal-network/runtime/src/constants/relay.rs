@@ -103,3 +103,6 @@ pub mod fee {
 		}
 	}
 }
+
+/// Polkadot Treasury pallet instance.
+pub const TREASURY_PALLET_ID: u8 = 19;
