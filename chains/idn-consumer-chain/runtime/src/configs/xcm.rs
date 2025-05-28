@@ -50,7 +50,7 @@ use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 parameter_types! {
 	pub SiblingIdnLocation: Location = Location::new(1, Junction::Parachain(constants::IDN_PARACHAIN_ID));
 	pub const RelayLocation: Location = Location::parent();
-	pub const RelayNetwork: Option<NetworkId> = None;
+	pub const RelayNetwork: Option<NetworkId> = Some(NetworkId::Polkadot);
 	pub const TokenLocation: Location = Location::here();
 	pub RelayChainOrigin: RuntimeOrigin = cumulus_pallet_xcm::Origin::Relay.into();
 	// For the real deployment, it is recommended to set `RelayNetwork` according to the relay chain
@@ -167,7 +167,7 @@ pub type Barrier = TrailingSetTopicAsId<
 				(
 					AllowTopLevelPaidExecutionFrom<Everything>,
 					AllowExplicitUnpaidExecutionFrom<ParentRelayOrSiblingIdn>,
-					// ^^^ Parent and its exec plurality get free execution
+					// ^^^ Relay chain or IDN get free execution
 				),
 				UniversalLocation,
 				ConstU32<8>,
