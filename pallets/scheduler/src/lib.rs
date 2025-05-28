@@ -68,6 +68,7 @@ mod tests;
 pub mod weights;
 pub use weights::WeightInfo;
 
+use ark_bls12_381::G1Affine;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin},
@@ -84,7 +85,6 @@ use frame_system::{
 	{self as system},
 };
 pub use pallet::*;
-use pallet_randomness_beacon::LatestRoundProvider;
 use scale_info::TypeInfo;
 use schedule::v3::TaskName;
 use sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
@@ -94,6 +94,11 @@ use sp_runtime::{
 	BoundedVec, DispatchError, RuntimeDebug,
 };
 use sp_std::{borrow::Borrow, cmp::Ordering, marker::PhantomData, prelude::*};
+use timelock::{
+	block_ciphers::{AESGCMBlockCipherProvider, AESOutput},
+	curves::drand::TinyBLS381,
+	tlock::tld,
+};
 
 /// Just a simple index for naming period tasks.
 pub type PeriodicIndex = u32;
@@ -225,10 +230,6 @@ pub mod pallet {
 
 		/// The preimage provider with which we look up call hashes to get the call.
 		type Preimages: QueryPreimage<H = Self::Hashing> + StorePreimage;
-
-		// /// something that can decrypt messages locked for the current slot
-		// type TlockProvider: TimelockEncryptionProvider<BlockNumberFor<Self>>;
-		type LatestRoundProvider: LatestRoundProvider;
 	}
 
 	#[pallet::storage]
@@ -283,22 +284,22 @@ pub mod pallet {
 		Named,
 	}
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		/// Execute the scheduled calls
-		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
-			let mut weight_counter = WeightMeter::with_limit(T::MaximumWeight::get());
-			// TODO: need to get the drand round number from storage
-			let latest = T::LatestRoundProvider::latest();
-			// // then we want to look at all pulses we have for round from latest onwards
-			// if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
-			// {
-			// 	// todo
-			// }
-			// Self::service_agendas(&mut weight_counter, now, u32::max_value());
-			weight_counter.consumed()
-		}
-	}
+	// #[pallet::hooks]
+	// impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+	// 	/// Execute the scheduled calls
+	// 	fn on_initialize(now: BlockNumberFor<T>) -> Weight {
+	// 		let mut weight_counter = WeightMeter::with_limit(T::MaximumWeight::get());
+	// 		// TODO: need to get the drand round number from storage
+	// 		// let latest = T::LatestRoundProvider::latest();
+	// 		// // then we want to look at all pulses we have for round from latest onwards
+	// 		// if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
+	// 		// {
+	// 		// 	// todo
+	// 		// }
+	// 		// Self::service_agendas(&mut weight_counter, now, u32::max_value());
+	// 		weight_counter.consumed()
+	// 	}
+	// }
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -355,25 +356,6 @@ impl<T: Config> Pallet<T> {
 			))
 		});
 	}
-
-	// fn resolve_time(
-	// 	when: DispatchTime<BlockNumberFor<T>>,
-	// ) -> Result<BlockNumberFor<T>, DispatchError> {
-	// 	let now = frame_system::Pallet::<T>::block_number();
-
-	// 	let when = match when {
-	// 		DispatchTime::At(x) => x,
-	// 		// The current block has already completed it's scheduled tasks, so
-	// 		// Schedule the task at lest one block after this current block.
-	// 		DispatchTime::After(x) => now.saturating_add(x).saturating_add(One::one()),
-	// 	};
-
-	// 	if when <= now {
-	// 		return Err(Error::<T>::TargetBlockNumberInPast.into());
-	// 	}
-
-	// 	Ok(when)
-	// }
 
 	#[allow(clippy::result_large_err)]
 	fn place_task(
@@ -460,14 +442,18 @@ use ServiceTaskError::*;
 
 impl<T: Config> Pallet<T> {
 	/// Service up to `max` agendas queue starting from earliest incompletely executed agenda.
-	/// should take a vec of pulses instead 
-	fn service_agendas(weight: &mut WeightMeter, pulses: Vec<(RoundNumber, G1Affine)>, max: u32) {
+	/// should take a vec of pulses instead
+	pub fn service_agendas(
+		weight: &mut WeightMeter,
+		pulses: Vec<(RoundNumber, G1Affine)>,
+		max: u32,
+	) {
 		if weight.try_consume(T::WeightInfo::service_agendas_base()).is_err() {
 			return;
 		}
 
-		let mut incomplete_since: RoundNumber = now + 1;
-		let mut when = IncompleteSince::<T>::take().unwrap_or(now);
+		// // let mut incomplete_since: RoundNumber = now + 1;
+		// let mut when = IncompleteSince::<T>::take().unwrap_or(now);
 		let mut executed = 0;
 
 		let max_items = T::MaxScheduledPerBlock::get();
@@ -476,27 +462,16 @@ impl<T: Config> Pallet<T> {
 
 		// loop over pulses
 		for (when, sig) in pulses {
-			// process pulses for the given round, could be multiple rounds per block
-			while count_down > 0 && when <= now && weight.can_consume(service_agenda_base_weight) {
-				let then = T::TlockProvider::latest();
-				if !Self::service_agenda(weight, &mut executed, now, when, then, u32::max_value()) {
-					incomplete_since = incomplete_since.min(when);
-				}
+			// process pulses for the round
+			// while count_down > 0 && when <= now && weight.can_consume(service_agenda_base_weight) {
+			// 	// let then = T::TlockProvider::latest();
+			if !Self::service_agenda(weight, &mut executed, when, sig, u32::max_value()) {
+				log::info!(
+					"*************************************************** SOMETHING WENT WRONG....."
+				);
+				// 		// incomplete_since = incomplete_since.min(when);
 			}
-		}
-
-		// while count_down > 0 && when <= now && weight.can_consume(service_agenda_base_weight) {
-		// 	let then = T::TlockProvider::latest();
-		// 	if !Self::service_agenda(weight, &mut executed, now, when, then, u32::max_value()) {
-		// 		incomplete_since = incomplete_since.min(when);
-		// 	}
-
-		// 	when.saturating_inc();
-		// 	count_down.saturating_dec();
-		// }
-		incomplete_since = incomplete_since.min(when);
-		if incomplete_since <= now {
-			IncompleteSince::<T>::put(incomplete_since);
+			// }
 		}
 	}
 
@@ -506,9 +481,8 @@ impl<T: Config> Pallet<T> {
 	fn service_agenda(
 		weight: &mut WeightMeter,
 		executed: &mut u32,
-		now: RoundNumber,
 		when: RoundNumber,
-		then: RoundNumber,
+		signature: G1Affine,
 		max: u32,
 	) -> bool {
 		let mut agenda = Agenda::<T>::get(when);
@@ -537,31 +511,13 @@ impl<T: Config> Pallet<T> {
 			};
 
 			if let Some(ref ciphertext) = task.maybe_ciphertext {
-				// the task should be delayed until `then` == `when`
-				if then == when {
-					// task.maybe_call = T::TlockProvider::decrypt_at(&ciphertext.clone(), then)
-					// 	.map_err(|_| pallet_randomness_beacon::TimelockError::DecryptionFailed)
-					// 	.and_then(|bare| {
-					// 		if let Ok(call) =
-					// 			<T as Config>::RuntimeCall::decode(&mut bare.message.as_slice())
-					// 		{
-					// 			Ok(call)
-					// 		} else {
-					// 			Err(pallet_randomness_beacon::TimelockError::DecryptionFailed)
-					// 		}
-					// 	})
-					// 	.and_then(|call| {
-					// 		T::Preimages::bound(call).map_err(|_| {
-					// 			pallet_randomness_beacon::TimelockError::DecryptionFailed
-					// 		})
-					// 	})
-					// 	.ok();
-				} else {
-					// insert the task back into the agenda and continue
-					agenda[agenda_index as usize] = Some(task);
-					postponed += 1;
-					continue;
-				}
+				// TODO: this ignores errors for now
+				task.maybe_call = tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, sig)
+					.ok()
+					.and_then(|bare| {
+						<T as Config>::RuntimeCall::decode(&mut bare.message.as_slice()).ok()
+					})
+					.and_then(|call| T::Preimages::bound(call).ok());
 			}
 
 			// if we haven't dispatched the call and the call data is empty
@@ -580,7 +536,7 @@ impl<T: Config> Pallet<T> {
 				postponed += 1;
 				break;
 			}
-			let result = Self::service_task(weight, now, when, agenda_index, *executed == 0, task);
+			let result = Self::service_task(weight, when, when, agenda_index, *executed == 0, task);
 			agenda[agenda_index as usize] = match result {
 				Err((Unavailable, slot)) => {
 					dropped += 1;

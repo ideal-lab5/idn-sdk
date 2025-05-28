@@ -10,6 +10,7 @@ description = "FRAME Scheduler pallet"
 readme = "README.md"
 
 [dependencies]
+ark-bls12-381.workspace = true
 codec.workspace = true
 log.workspace = true
 scale-info.workspace = true
@@ -22,7 +23,7 @@ sp-runtime.workspace = true
 sp-std.workspace = true
 sp-weights.workspace = true
 docify.workspace = true
-pallet-randomness-beacon = { default-features = false, path = "../randomness-beacon" }
+timelock.workspace = true
 
 [dev-dependencies]
 pallet-preimage.workspace = true
@@ -36,8 +37,6 @@ ark-ff.workspace = true
 ark-ec.workspace = true
 ark-serialize.workspace = true
 ark-bls12-381.workspace = true
-# ark-crypto-primitives.workspace = true
-# pallet-etf = { default-features = false, path = "../etf" }
 pallet-insecure-randomness-collective-flip.workspace = true
 rand_chacha.workspace = true
 
@@ -52,6 +51,7 @@ runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
 ]
 std = [
+	"ark-bls12-381/std",
 	"codec/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
@@ -66,7 +66,7 @@ std = [
 	"sp-std/std",
 	"sp-weights/std",
 	"pallet-timestamp/std",
-	"pallet-randomness-beacon/std"
+	"timelock/std"
 ]
 try-runtime = [
 	"frame-support/try-runtime",
