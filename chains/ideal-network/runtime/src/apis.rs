@@ -16,7 +16,6 @@
 
 #[cfg(feature = "runtime-benchmarks")]
 use crate::benchmarks::*;
-
 // External crates imports
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
