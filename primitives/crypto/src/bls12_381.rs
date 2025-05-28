@@ -27,6 +27,8 @@ pub enum CryptoError {
 	DeserializeG1Failure,
 	/// The data could not be deserialized to a valid element of G2.
 	DeserializeG2Failure,
+	/// The hash-to-curve map could not be obtained
+	HashToCurveFailure,
 	/// No data could be serialized from a valid element of G1.
 	SerializeG1Failure,
 	/// No data could be serialized from a valid element of G2.
