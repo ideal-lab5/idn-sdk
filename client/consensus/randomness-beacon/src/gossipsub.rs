@@ -65,24 +65,30 @@
 //! 	}
 //! });
 //! ```
+use ::futures::StreamExt;
 use alloc::collections::VecDeque;
-use futures::StreamExt;
 use libp2p::{
 	gossipsub,
 	gossipsub::{
-		Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
+		Behaviour as GossipsubBehaviour, Config as GossipsubConfig, Event as GossipsubEvent,
+		IdentTopic, MessageAuthenticity,
 	},
 	identity::Keypair,
-	swarm::{Swarm, SwarmEvent},
-	Multiaddr, SwarmBuilder,
+	multiaddr::Protocol,
+	ping::{Behaviour as PingBehaviour, Config as PingConfig, Event as PingEvent},
+	swarm::{NetworkBehaviour, Swarm, SwarmEvent},
+	Multiaddr, PeerId, SwarmBuilder,
 };
 use prost::Message;
 use sc_utils::mpsc::{TracingUnboundedReceiver, TracingUnboundedSender};
 use sp_consensus_randomness_beacon::types::*;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
+#[cfg(not(test))]
 const LOG_TARGET: &'static str = "gossipsub";
+#[cfg(test)]
+const LOG_TARGET: &'static str = module_path!();
 
 /// The default address instructing libp2p to choose a random open port on the local machine
 const RAND_LISTEN_ADDR: &str = "/ip4/0.0.0.0/tcp/0";
@@ -100,6 +106,39 @@ pub enum Error {
 	InvalidMultiaddress { who: Multiaddr },
 	/// The swarm could not listen on the given port
 	SwarmListenFailure,
+}
+
+/// Events that are traced
+enum TracingEvent {
+	/// A new pulse was consumed
+	NewPulse,
+	/// A message was received from a trusted peer but we do not know how to decode it
+	NondecodableMessage,
+	/// The peer failed to pong back
+	PongFailed,
+	/// Successful pinged a peer
+	PingSuccess,
+	/// A peer could not be dialed again after disconnecting
+	RedialFailure,
+	/// An untrusted peer sent a message
+	UntrustedPeer,
+	/// An error occurred while trying to send the decoded pulse to the mpsc channel
+	UnboundedSendError,
+}
+
+impl TracingEvent {
+	fn value(&self) -> &str {
+		match *self {
+			TracingEvent::NewPulse => "🎲 New pulse received and stored.",
+			TracingEvent::NondecodableMessage =>
+				"❓A message was received but we could not decode it.",
+			TracingEvent::PongFailed => "💀 Peer failed to pong!",
+			TracingEvent::PingSuccess => "🏓 Ping to peer succeeded.",
+			TracingEvent::RedialFailure => "❌ Failed to redial peer.",
+			TracingEvent::UnboundedSendError => "❌ Unable to send message to the queue.",
+			TracingEvent::UntrustedPeer => "⛔ Message from untrusted peer.",
+		}
+	}
 }
 
 /// receive messages from drand
@@ -142,14 +181,47 @@ impl<const N: usize> DrandReceiver<N> {
 	}
 }
 
+/// A custom network behaviour that supports both gossipsub and ping protocols
+#[derive(NetworkBehaviour)]
+#[behaviour(out_event = "ComposedEvent")]
+struct CustomBehaviour {
+	/// The gossipsub behaviour
+	gossipsub: GossipsubBehaviour,
+	/// The ping behaviour
+	ping: PingBehaviour,
+}
+
+/// A custom event that composes gossipsub and ping events
+#[derive(Debug)]
+enum ComposedEvent {
+	/// The gossipsub event
+	Gossipsub(GossipsubEvent),
+	/// The ping event
+	Ping(PingEvent),
+}
+
+impl From<GossipsubEvent> for ComposedEvent {
+	fn from(event: GossipsubEvent) -> Self {
+		ComposedEvent::Gossipsub(event)
+	}
+}
+
+impl From<PingEvent> for ComposedEvent {
+	fn from(event: PingEvent) -> Self {
+		ComposedEvent::Ping(event)
+	}
+}
+
 /// A gossipsub network with any behaviour and shared state
 pub struct GossipsubNetwork {
 	/// The behaviour config for the swam
-	swarm: Swarm<GossipsubBehaviour>,
+	swarm: Swarm<CustomBehaviour>,
 	/// The mpsc channel sender
 	sender: TracingUnboundedSender<CanonicalPulse>,
 	/// The number of peers the node is connected to
-	pub(crate) connected_peers: u8,
+	connected_peers: u8,
+	// The list of allowed peer ids
+	allowed_peer_map: HashMap<PeerId, Multiaddr>,
 }
 
 impl GossipsubNetwork {
@@ -171,6 +243,12 @@ impl GossipsubNetwork {
 		let message_authenticity = MessageAuthenticity::Signed(key.clone());
 		let gossipsub = GossipsubBehaviour::new(message_authenticity, gossipsub_config)
 			.map_err(|_| Error::InvalidGossipsubNetworkBehaviour)?;
+		// ping every 5 secs with 10s timeout
+		let ping_config = PingConfig::new()
+			.with_interval(Duration::from_secs(5))
+			.with_timeout(Duration::from_secs(10));
+		let ping = PingBehaviour::new(ping_config);
+		let behaviour = CustomBehaviour { gossipsub, ping };
 		// setup a libp2p swarm with tcp transport, using noise protocol for encryption
 		// and yamux for multiplexing
 		let mut swarm = SwarmBuilder::with_existing_identity(key.clone())
@@ -181,7 +259,7 @@ impl GossipsubNetwork {
 				libp2p::yamux::Config::default,
 			)
 			.expect("The TCP config is correct.")
-			.with_behaviour(|_| gossipsub)
+			.with_behaviour(|_| behaviour)
 			.expect("The behaviour is well defined.")
 			.build();
 
@@ -191,7 +269,7 @@ impl GossipsubNetwork {
 
 		swarm.listen_on(listen_addr.clone()).map_err(|_| Error::SwarmListenFailure)?;
 
-		Ok(Self { swarm, sender, connected_peers: 0 })
+		Ok(Self { swarm, sender, connected_peers: 0, allowed_peer_map: HashMap::new() })
 	}
 
 	/// Start the gossipsub network.
@@ -203,9 +281,23 @@ impl GossipsubNetwork {
 	pub async fn run(&mut self, topic_str: &str, peers: Vec<Multiaddr>) -> Result<(), Error> {
 		if !peers.is_empty() {
 			for peer in &peers {
-				self.swarm.dial((*peer).clone()).map_err(|_| {
-					return Error::InvalidMultiaddress { who: (*peer).clone() };
-				})?;
+				let peer_id = peer.iter().find_map(|p| {
+					if let Protocol::P2p(peer) = p {
+						Some(peer)
+					} else {
+						None
+					}
+				});
+				// if a peer id could be extracted, try to dial
+				if let Some(id) = peer_id {
+					self.allowed_peer_map.insert(id, peer.clone());
+					self.swarm.dial((*peer).clone()).map_err(|_| {
+						return Error::InvalidMultiaddress { who: (*peer).clone() };
+					})?;
+				} else {
+					// if we cannot extract a peer id then it is a critical failure
+					return Err(Error::InvalidMultiaddress { who: (*peer).clone() });
+				}
 			}
 			self.wait_for_peers(peers.len()).await;
 		}
@@ -241,34 +333,72 @@ impl GossipsubNetwork {
 		// filter.
 		self.swarm
 			.behaviour_mut()
+			.gossipsub
 			.subscribe(&topic)
 			.expect("The libp2p gossipsub behavior has no subscription filter.");
 
 		loop {
-			match self.swarm.next().await {
-				Some(SwarmEvent::Behaviour(gossipsub::Event::Message { message, .. })) => {
+			while let Some(event) = self.swarm.next().await {
+				self.handle_event(event).await;
+			}
+		}
+	}
+
+	/// Handle incoming swarm events
+	///
+	/// * `event`: A `SwarmEvent<ComposedEvent>`
+	async fn handle_event(&mut self, event: SwarmEvent<ComposedEvent>) {
+		match event {
+			SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossipsub::Event::Message {
+				message,
+				propagation_source,
+				..
+			})) => {
+				// reject messages authored by unknown peers
+				if !self.allowed_peer_map.contains_key(&propagation_source) {
+					tracing::warn!(target: LOG_TARGET, peer_id = %propagation_source, "{}", TracingEvent::UntrustedPeer.value());
+				} else {
 					match try_handle_pulse(&message.data) {
 						Ok(pulse) => {
-							log::info!(target: LOG_TARGET, "🎲 New pulse received and stored: #{:?}.", pulse.round);
+							tracing::info!(target: LOG_TARGET, round = %pulse.round, "{}", TracingEvent::NewPulse.value());
 							if let Err(e) = self.sender.unbounded_send(pulse.clone()) {
-								log::error!(target: LOG_TARGET, "Unable to send message to the queue. err = {}", e);
+								// Not sure how to test this line
+								tracing::error!(target: LOG_TARGET, error = %e, "{}", TracingEvent::UnboundedSendError.value());
 							}
 						},
 
 						Err(_) => {
-							// handle non-decodable messages: https://github.com/ideal-lab5/idn-sdk/issues/60
-							log::info!(target: LOG_TARGET, "A message was encountered but we could not decode it!");
+							tracing::error!(target: LOG_TARGET, "{}", TracingEvent::NondecodableMessage.value());
 						},
 					}
-				},
-				_ => {
-					// ignore all other events
-				},
-			}
+				}
+			},
+			SwarmEvent::Behaviour(ComposedEvent::Ping(PingEvent { peer, result, .. })) => {
+				match result {
+					Ok(rtt) => {
+						tracing::info!(target: LOG_TARGET, %peer, ?rtt, "{}", TracingEvent::PingSuccess.value());
+					},
+					Err(e) => {
+						tracing::warn!(target: LOG_TARGET, error = %e, "{}", TracingEvent::PongFailed.value());
+						// redial known peers
+						if let Some(addr) = self.allowed_peer_map.get(&peer) {
+							if let Err(e) = self.swarm.dial(addr.clone()) {
+								tracing::error!(target: LOG_TARGET, %peer, ?e, "{}", TracingEvent::RedialFailure.value());
+							}
+						}
+					},
+				}
+			},
+			_ => {
+				// ignore all other events
+			},
 		}
 	}
 }
 
+/// Safely convert an encoded `ProtoPulse` to a `CanonicalPulse`
+///
+/// * `data`: The encoded `ProtoPulse`
 pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<CanonicalPulse, Error> {
 	let pulse = ProtoPulse::decode(data).map_err(|_| Error::UnexpectedMessageFormat)?;
 	let pulse: CanonicalPulse =
@@ -277,11 +407,26 @@ pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<CanonicalPulse, Error> {
 	Ok(pulse)
 }
 
+/// Helper functions for testing purposes only
+#[cfg(test)]
+impl GossipsubNetwork {
+	fn set_allowed_peer_map(&mut self, allowed_peer_map: HashMap<PeerId, Multiaddr>) {
+		self.allowed_peer_map = allowed_peer_map;
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 	use tokio::time::{sleep, Duration};
+
+	fn build_node() -> (GossipsubNetwork, TracingUnboundedReceiver<CanonicalPulse>) {
+		let local_identity: Keypair = Keypair::generate_ed25519();
+		let gossipsub_config = GossipsubConfig::default();
+		let (tx, rx) = tracing_unbounded("drand-notification-channel", 100000);
+		(GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None).unwrap(), rx)
+	}
 
 	#[test]
 	fn can_convert_valid_data_to_opaque_pulse() {
@@ -339,13 +484,6 @@ mod tests {
 		);
 	}
 
-	fn build_node() -> (GossipsubNetwork, TracingUnboundedReceiver<CanonicalPulse>) {
-		let local_identity: Keypair = Keypair::generate_ed25519();
-		let gossipsub_config = GossipsubConfig::default();
-		let (tx, rx) = tracing_unbounded("drand-notification-channel", 100000);
-		(GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None).unwrap(), rx)
-	}
-
 	#[tokio::test]
 	async fn can_not_build_node_with_invalid_gossipsub_behavior() {
 		// supply a signing key but set anon validation, an invalid config
@@ -363,6 +501,7 @@ mod tests {
 	async fn can_build_new_node() {
 		let (node, _rx) = build_node();
 		assert!(node.connected_peers == 0, "There should be no connected peers.");
+		assert!(node.allowed_peer_map == HashMap::new(), "There should be no connected peers.");
 	}
 
 	#[tokio::test]
@@ -374,6 +513,7 @@ mod tests {
 		let node = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, Some(&listen_addr))
 			.unwrap();
 		assert!(node.connected_peers == 0, "There should be no connected peers.");
+		assert!(node.allowed_peer_map == HashMap::new(), "There should be no connected peers.");
 	}
 
 	#[tokio::test]
@@ -433,6 +573,144 @@ mod tests {
 
 		let result = GossipsubNetwork::new(&key, config, tx, Some(&invalid_addr));
 		assert!(result.is_err(), "Expected failure due to invalid listen address");
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn can_reject_messages_from_untrusted_sources() {
+		let (mut node, _rx) = build_node();
+
+		let untrusted_peer_id = libp2p::PeerId::random();
+		let message_id = gossipsub::MessageId::new(&[0]);
+		let topic = IdentTopic::new("").hash();
+
+		let message =
+			gossipsub::Message { source: None, data: vec![], sequence_number: None, topic };
+
+		let untrusted_gossipsub_event = ComposedEvent::Gossipsub(gossipsub::Event::Message {
+			propagation_source: untrusted_peer_id,
+			message_id,
+			message,
+		});
+
+		node.handle_event(SwarmEvent::Behaviour(untrusted_gossipsub_event)).await;
+
+		assert!(logs_contain(TracingEvent::UntrustedPeer.value()));
+		assert!(logs_contain(&untrusted_peer_id.to_string()));
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn can_accept_messages_from_trusted_sources_and_process_a_pulse() {
+		let (mut node, _rx) = build_node();
+
+		let trusted_peer_id = libp2p::PeerId::random();
+		let maddr = Multiaddr::empty();
+		let mut allow_map = HashMap::new();
+		allow_map.insert(trusted_peer_id, maddr);
+		node.set_allowed_peer_map(allow_map);
+
+		let message_id = gossipsub::MessageId::new(&[0]);
+		let topic = IdentTopic::new("").hash();
+
+		let pulse = ProtoPulse {
+			round: 14475418,
+			signature: [
+				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
+				95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49,
+				223, 95, 22, 186, 113, 163, 202, 195, 230, 117,
+			]
+			.to_vec(),
+		};
+
+		let message = gossipsub::Message {
+			source: None,
+			data: pulse.encode_to_vec(),
+			sequence_number: None,
+			topic,
+		};
+
+		let trusted_gossipsub_event = ComposedEvent::Gossipsub(gossipsub::Event::Message {
+			propagation_source: trusted_peer_id,
+			message_id,
+			message,
+		});
+
+		node.handle_event(SwarmEvent::Behaviour(trusted_gossipsub_event)).await;
+
+		assert!(logs_contain(TracingEvent::NewPulse.value()));
+		assert!(logs_contain("14475418"));
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn can_accept_messages_from_trusted_sources_and_handle_unknown_message_formats() {
+		let (mut node, _rx) = build_node();
+
+		let trusted_peer_id = libp2p::PeerId::random();
+		let maddr = Multiaddr::empty();
+		let mut allow_map = HashMap::new();
+		allow_map.insert(trusted_peer_id, maddr);
+		node.set_allowed_peer_map(allow_map);
+
+		let message_id = gossipsub::MessageId::new(&[0]);
+		let topic = IdentTopic::new("").hash();
+
+		let message =
+			gossipsub::Message { source: None, data: vec![], sequence_number: None, topic };
+
+		let trusted_gossipsub_event = ComposedEvent::Gossipsub(gossipsub::Event::Message {
+			propagation_source: trusted_peer_id,
+			message_id,
+			message,
+		});
+
+		node.handle_event(SwarmEvent::Behaviour(trusted_gossipsub_event)).await;
+		assert!(logs_contain(TracingEvent::NondecodableMessage.value()));
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn can_ping_success() {
+		let (mut node, _rx) = build_node();
+
+		let trusted_peer_id = libp2p::PeerId::random();
+		let maddr = Multiaddr::empty();
+		let mut allow_map = HashMap::new();
+		allow_map.insert(trusted_peer_id, maddr);
+		node.set_allowed_peer_map(allow_map);
+
+		let ping_success_event = ComposedEvent::Ping(PingEvent {
+			peer: trusted_peer_id,
+			connection: libp2p::swarm::ConnectionId::new_unchecked(1),
+			result: Ok(Duration::from_secs(1)),
+		});
+
+		node.handle_event(SwarmEvent::Behaviour(ping_success_event)).await;
+		assert!(logs_contain(TracingEvent::PingSuccess.value()));
+		assert!(logs_contain(&trusted_peer_id.to_string()));
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn can_handle_pong_failure() {
+		let (mut node, _rx) = build_node();
+
+		let trusted_peer_id = libp2p::PeerId::random();
+		let maddr = Multiaddr::empty();
+		let mut allow_map = HashMap::new();
+		allow_map.insert(trusted_peer_id, maddr);
+		node.set_allowed_peer_map(allow_map);
+
+		let ping_success_event = ComposedEvent::Ping(PingEvent {
+			peer: trusted_peer_id,
+			connection: libp2p::swarm::ConnectionId::new_unchecked(1),
+			result: Err(libp2p::ping::Failure::Unsupported),
+		});
+
+		node.handle_event(SwarmEvent::Behaviour(ping_success_event)).await;
+		assert!(logs_contain(TracingEvent::PongFailed.value()));
+		assert!(logs_contain(&format!("{}", libp2p::ping::Failure::Unsupported)));
 	}
 
 	/* drand receiver tests */

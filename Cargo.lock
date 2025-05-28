@@ -6660,7 +6660,7 @@ dependencies = [
  "libp2p-connection-limits 0.4.0",
  "libp2p-core 0.42.0",
  "libp2p-dns 0.42.0",
- "libp2p-identify",
+ "libp2p-identify 0.45.0",
  "libp2p-identity",
  "libp2p-kad",
  "libp2p-mdns 0.46.0",
@@ -6696,6 +6696,7 @@ dependencies = [
  "libp2p-core 0.43.0",
  "libp2p-dns 0.43.0",
  "libp2p-gossipsub",
+ "libp2p-identify 0.46.0",
  "libp2p-identity",
  "libp2p-mdns 0.47.0",
  "libp2p-metrics 0.16.0",
@@ -6901,6 +6902,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "libp2p-identify"
+version = "0.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8c06862544f02d05d62780ff590cc25a75f5c2b9df38ec7a370dcae8bb873cf"
+dependencies = [
+ "asynchronous-codec 0.7.0",
+ "either",
+ "futures",
+ "futures-bounded",
+ "futures-timer",
+ "libp2p-core 0.43.0",
+ "libp2p-identity",
+ "libp2p-swarm 0.46.0",
+ "quick-protobuf",
+ "quick-protobuf-codec",
+ "smallvec",
+ "thiserror 2.0.12",
+ "tracing",
+]
+
+[[package]]
 name = "libp2p-identity"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6997,7 +7019,7 @@ checksum = "77ebafa94a717c8442d8db8d3ae5d1c6a15e30f2d347e0cd31d057ca72e42566"
 dependencies = [
  "futures",
  "libp2p-core 0.42.0",
- "libp2p-identify",
+ "libp2p-identify 0.45.0",
  "libp2p-identity",
  "libp2p-kad",
  "libp2p-ping 0.45.0",
@@ -7016,6 +7038,7 @@ dependencies = [
  "futures",
  "libp2p-core 0.43.0",
  "libp2p-gossipsub",
+ "libp2p-identify 0.46.0",
  "libp2p-identity",
  "libp2p-ping 0.46.0",
  "libp2p-swarm 0.46.0",
@@ -7212,6 +7235,7 @@ dependencies = [
  "futures-timer",
  "libp2p-core 0.43.0",
  "libp2p-identity",
+ "libp2p-swarm-derive",
  "lru 0.12.5",
  "multistream-select",
  "once_cell",
@@ -14393,6 +14417,8 @@ dependencies = [
  "sp-timestamp",
  "substrate-prometheus-endpoint",
  "tokio",
+ "tracing",
+ "tracing-test",
 ]
 
 [[package]]
@@ -18127,6 +18153,27 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "tracing-test"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "557b891436fe0d5e0e363427fc7f217abf9ccd510d5136549847bdcbcd011d68"
+dependencies = [
+ "tracing-core",
+ "tracing-subscriber",
+ "tracing-test-macro",
+]
+
+[[package]]
+name = "tracing-test-macro"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04659ddb06c87d233c566112c1c9c5b9e98256d9af50ec3bc9c8327f873a7568"
+dependencies = [
+ "quote",
+ "syn 2.0.101",
 ]
 
 [[package]]

@@ -23,7 +23,7 @@ use std::{sync::Arc, time::Duration};
 // Local Runtime Types
 use idn_runtime::{
 	apis::RuntimeApi,
-	constants::idn::{PRIMARY, QUICKNET_GOSSIPSUB_TOPIC, SECONDARY},
+	constants::idn::{MAX_QUEUE_SIZE, PRIMARY, QUICKNET_GOSSIPSUB_TOPIC, SECONDARY},
 	opaque::{Block, Hash},
 };
 
@@ -67,9 +67,6 @@ type ParachainClient = TFullClient<Block, RuntimeApi, ParachainExecutor>;
 type ParachainBackend = TFullBackend<Block>;
 
 type ParachainBlockImport = TParachainBlockImport<Block, Arc<ParachainClient>, ParachainBackend>;
-
-/// The maximum number of historic pulses the node will retain
-const M: usize = 20;
 
 /// Assembly of PartialComponents (enough to run chain ops subcommands)
 pub type Service = PartialComponents<
@@ -203,7 +200,7 @@ fn start_consensus(
 	collator_key: CollatorPair,
 	overseer_handle: OverseerHandle,
 	announce_block: Arc<dyn Fn(Hash, Option<Vec<u8>>) + Send + Sync>,
-	pulse_receiver: DrandReceiver<M>,
+	pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
 ) -> Result<(), sc_service::Error> {
 	let proposer_factory = sc_basic_authorship::ProposerFactory::with_proof_recording(
 		task_manager.spawn_handle(),
