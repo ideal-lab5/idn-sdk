@@ -15,7 +15,7 @@
  */
 
 use crate::{
-	weights::ContractsWeightInfo, Balance, Balances, BalancesCall, Contracts, Perbill,
+	weights::ContractsWeightInfo, Balance, Balances, BalancesCall, Perbill,
 	RandomnessCollectiveFlip, Runtime, RuntimeCall, RuntimeEvent, RuntimeHoldReason, Timestamp,
 	MILLIUNIT, UNIT,
 };
@@ -78,6 +78,8 @@ impl pallet_contracts::Config for Runtime {
 	type ChainExtension = ();
 	type Schedule = Schedule;
 	type AddressGenerator = pallet_contracts::DefaultAddressGenerator;
+	/// The maximum size of the code that can be uploaded to the chain. It should be consistent with
+	/// runtime heap memory limits.
 	type MaxCodeLen = ConstU32<{ 123 * 1024 }>;
 	type DefaultDepositLimit = DefaultDepositLimit;
 	type MaxStorageKeyLen = ConstU32<128>;
