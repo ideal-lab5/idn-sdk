@@ -25,6 +25,7 @@ hex.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
+pallet-scheduler.workspace = true
 sp-idn-crypto.workspace = true
 sp-idn-traits.workspace = true
 sp-consensus-randomness-beacon.workspace = true

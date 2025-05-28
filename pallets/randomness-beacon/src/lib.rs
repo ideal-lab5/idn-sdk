@@ -238,7 +238,7 @@ pub mod pallet {
 							.collect::<Vec<_>>();
 
 						// TODO: send new pulses to scheduler pallet
-						
+						// pallet_scheduler::service_agendas();
 						
 						let asig = filtered.iter().fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| {
 							(acc + sig).into()
@@ -406,15 +406,5 @@ pub mod pallet {
 
 			Ok(Pays::No.into())
 		}
-	}
-}
-
-pub trait LatestRoundProvider {
-	fn latest() -> RoundNumber;
-}
-
-impl<T: Config> LatestRoundProvider for Pallet<T> {
-	fn latest() -> RoundNumber {
-		LatestRound::<T>::get().unwrap_or(0)
 	}
 }
