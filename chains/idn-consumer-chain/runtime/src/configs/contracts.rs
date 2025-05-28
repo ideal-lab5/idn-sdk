@@ -77,7 +77,7 @@ impl pallet_contracts::Config for Runtime {
 	type ChainExtension = ();
 	type Schedule = Schedule;
 	type AddressGenerator = pallet_contracts::DefaultAddressGenerator;
-	type MaxCodeLen = ConstU32<{ 256 * 1024 }>;
+	type MaxCodeLen = ConstU32<{ 123 * 1024 }>;
 	type DefaultDepositLimit = DefaultDepositLimit;
 	type MaxStorageKeyLen = ConstU32<128>;
 	type MaxTransientStorageSize = ConstU32<{ 1024 * 1024 }>;
@@ -89,7 +89,10 @@ impl pallet_contracts::Config for Runtime {
 	type Environment = ();
 	type Debug = ();
 	type ApiVersion = ();
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	type Migrations = ();
+	#[cfg(feature = "runtime-benchmarks")]
+	type Migrations = pallet_contracts::migration::codegen::BenchMigrations;
 	type Xcm = pallet_xcm::Pallet<Self>;
 	type UploadOrigin = EnsureSigned<Self::AccountId>;
 	type InstantiateOrigin = EnsureSigned<Self::AccountId>;
