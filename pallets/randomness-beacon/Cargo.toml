@@ -73,6 +73,7 @@ std = [
 	"sp-idn-traits/std",
 	"sp-std/std",
 	"pallet-balances/std",
+	"pallet-scheduler/std",
 ]
 runtime-benchmarks = [
 	"bp-idn/runtime-benchmarks",

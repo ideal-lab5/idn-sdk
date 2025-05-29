@@ -132,7 +132,7 @@ pub mod pallet {
 	pub(crate) type BeaconConfigurationOf<T> = BeaconConfiguration<PubkeyOf<T>, RoundNumber>;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + pallet_scheduler::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
@@ -233,16 +233,26 @@ pub mod pallet {
 							.filter_map(|pulse| {
 								let bytes = pulse.signature;
 								// TODO: get (round, sig as G1Affine)
-								G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()
+								// TODO: send new pulses to scheduler pallet
+								let round = pulse.round;
+								let sig =
+									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok();
+								pallet_scheduler::Pallet::<T>::service_agendas(
+									&mut frame_support::weights::WeightMeter::new(),
+									round,
+									sig.expect("it is ok"),
+									256,
+								);
+
+								sig
 							})
 							.collect::<Vec<_>>();
 
-						// TODO: send new pulses to scheduler pallet
-						// pallet_scheduler::service_agendas();
-						
-						let asig = filtered.iter().fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| {
-							(acc + sig).into()
-						});
+						let asig = filtered
+							.iter()
+							.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| {
+								(acc + sig).into()
+							});
 
 						let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
 						// [SRLABS]: This error is untestable since we know the signature is correct here.

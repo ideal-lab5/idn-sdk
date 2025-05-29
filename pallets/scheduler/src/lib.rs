@@ -59,6 +59,7 @@
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use ark_serialize::CanonicalDeserialize;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 #[cfg(test)]
@@ -94,11 +95,11 @@ use sp_runtime::{
 	BoundedVec, DispatchError, RuntimeDebug,
 };
 use sp_std::{borrow::Borrow, cmp::Ordering, marker::PhantomData, prelude::*};
-use timelock::{
-	block_ciphers::{AESGCMBlockCipherProvider, AESOutput},
-	curves::drand::TinyBLS381,
-	tlock::tld,
-};
+// use timelock::{
+// 	stream_ciphers::{AESGCMStreamCipherProvider, AESOutput},
+// 	curves::drand::TinyBLS381,
+// 	tlock::{tld, TLECiphertext},
+// };
 
 /// Just a simple index for naming period tasks.
 pub type PeriodicIndex = u32;
@@ -445,7 +446,9 @@ impl<T: Config> Pallet<T> {
 	/// should take a vec of pulses instead
 	pub fn service_agendas(
 		weight: &mut WeightMeter,
-		pulses: Vec<(RoundNumber, G1Affine)>,
+		// pulses: Vec<(RoundNumber, G1Affine)>,
+		when: RoundNumber,
+		sig: G1Affine,
 		max: u32,
 	) {
 		if weight.try_consume(T::WeightInfo::service_agendas_base()).is_err() {
@@ -461,7 +464,7 @@ impl<T: Config> Pallet<T> {
 		let service_agenda_base_weight = T::WeightInfo::service_agenda_base(max_items);
 
 		// loop over pulses
-		for (when, sig) in pulses {
+		// for (when, sig) in pulses {
 			// process pulses for the round
 			// while count_down > 0 && when <= now && weight.can_consume(service_agenda_base_weight) {
 			// 	// let then = T::TlockProvider::latest();
@@ -472,7 +475,7 @@ impl<T: Config> Pallet<T> {
 				// 		// incomplete_since = incomplete_since.min(when);
 			}
 			// }
-		}
+		// }
 	}
 
 	/// Returns `true` if the agenda was fully completed, `false` if it should be revisited at a
@@ -510,14 +513,17 @@ impl<T: Config> Pallet<T> {
 				Some(t) => t,
 			};
 
-			if let Some(ref ciphertext) = task.maybe_ciphertext {
+			if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
 				// TODO: this ignores errors for now
-				task.maybe_call = tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, sig)
-					.ok()
-					.and_then(|bare| {
-						<T as Config>::RuntimeCall::decode(&mut bare.message.as_slice()).ok()
-					})
-					.and_then(|call| T::Preimages::bound(call).ok());
+				// let ciphertext: TLECiphertext<TinyBLS381> =
+				// 	TLECiphertext::deserialize_compressed(ciphertext_bytes.as_slice()).unwrap();
+				// //.map_err(|_| JsError::new("Could not deserialize ciphertext"))?;
+				// task.maybe_call = tld::<TinyBLS381, AESGCMStreamCipherProvider>(ciphertext, signature.into())
+				// 	.ok()
+				// 	.and_then(|bare| {
+				// 		<T as Config>::RuntimeCall::decode(&mut bare.as_slice()).ok()
+				// 	})
+				// 	.and_then(|call| T::Preimages::bound(call).ok());
 			}
 
 			// if we haven't dispatched the call and the call data is empty

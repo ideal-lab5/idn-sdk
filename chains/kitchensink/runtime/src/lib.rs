@@ -96,6 +96,42 @@ pub mod genesis_config_presets {
 	}
 }
 
+// /// We assume that ~10% of the block weight is consumed by `on_initialize` handlers.
+// /// This is used to limit the maximal weight of a single extrinsic.
+// const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
+// /// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
+// /// by  Operational  extrinsics.
+// const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+// /// We allow for 2 seconds of compute with a 6 second average block time, with maximum proof size.
+// const MAXIMUM_BLOCK_WEIGHT: Weight =
+// 	Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_mul(2), u64::MAX);
+
+// parameter_types! {
+// 	pub const BlockHashCount: BlockNumber = 2400;
+// 	pub const Version: RuntimeVersion = VERSION;
+// 	pub RuntimeBlockLength: BlockLength =
+// 		BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+// 	pub RuntimeBlockWeights: BlockWeights = BlockWeights::builder()
+// 		.base_block(BlockExecutionWeight::get())
+// 		.for_class(DispatchClass::all(), |weights| {
+// 			weights.base_extrinsic = ExtrinsicBaseWeight::get();
+// 		})
+// 		.for_class(DispatchClass::Normal, |weights| {
+// 			weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+// 		})
+// 		.for_class(DispatchClass::Operational, |weights| {
+// 			weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
+// 			// Operational transactions have some extra reserved space, so that they
+// 			// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
+// 			weights.reserved = Some(
+// 				MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT
+// 			);
+// 		})
+// 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
+// 		.build_or_panic();
+// 	// pub MaxCollectivesProposalWeight: Weight = Perbill::from_percent(50) * RuntimeBlockWeights::get().max_block;
+// }
+
 /// The runtime version.
 #[runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
@@ -185,6 +221,12 @@ mod runtime {
 	/// Provides a way to consume randomness.
 	#[runtime::pallet_index(7)]
 	pub type IdnConsumer = pallet_idn_consumer::Pallet<Runtime>;
+
+	#[runtime::pallet_index(8)]
+	pub type Preimage = pallet_preimage::Pallet<Runtime>;
+
+	#[runtime::pallet_index(9)]
+	pub type Scheduler = pallet_scheduler::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -233,8 +275,15 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type Dispatcher = IdnManager;
 }
 
+use frame_system::limits::BlockWeights;
 
 parameter_types! {
+	/// Importing a block with 0 Extrinsics.
+	pub const BlockExecutionWeight: Weight =
+		Weight::from_parts(frame_support::weights::constants::WEIGHT_REF_TIME_PER_NANOS.saturating_mul(5_000_000), 0);
+	pub RuntimeBlockWeights: BlockWeights = BlockWeights::builder()
+		.base_block(BlockExecutionWeight::get())
+		.build_or_panic();
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
 		RuntimeBlockWeights::get().max_block;
 }
@@ -242,7 +291,7 @@ parameter_types! {
 impl pallet_scheduler::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeOrigin = RuntimeOrigin;
-	type PalletsOrigin = OriginCaller;
+	type PalletsOrigin = crate::OriginCaller;
 	type RuntimeCall = RuntimeCall;
 	type MaximumWeight = MaximumSchedulerWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
@@ -250,10 +299,34 @@ impl pallet_scheduler::Config for Runtime {
 	type MaxScheduledPerBlock = ConstU32<512>;
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	type MaxScheduledPerBlock = ConstU32<50>;
-	type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
-	type OriginPrivilegeCmp = EqualPrivilegeOnly;
+	type WeightInfo = pallet_scheduler::weights::SubstrateWeightInfo<Runtime>;
+	type OriginPrivilegeCmp = frame_support::traits::EqualPrivilegeOnly;
 	type Preimages = Preimage;
-	type BlockNumberProvider = frame_system::Pallet<Runtime>;
+	// type BlockNumberProvider = frame_system::Pallet<Runtime>;
+}
+
+parameter_types! {
+	pub const PreimageHoldReason: RuntimeHoldReason =
+		RuntimeHoldReason::Preimage(pallet_preimage::HoldReason::Preimage);
+}
+
+pub type Balance = u64;
+parameter_types! {
+	pub const DepositPerItem: Balance = 0;
+	pub const DepositPerByte: Balance = 0;
+}
+
+impl pallet_preimage::Config for Runtime {
+	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Runtime>;
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type ManagerOrigin = EnsureRoot<AccountId>;
+	type Consideration = frame_support::traits::fungible::HoldConsideration<
+		AccountId,
+		Balances,
+		PreimageHoldReason,
+		frame_support::traits::LinearStoragePrice<DepositPerItem, DepositPerByte, Balance>,
+	>;
 }
 
 parameter_types! {

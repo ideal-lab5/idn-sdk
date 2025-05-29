@@ -10,6 +10,7 @@ description = "FRAME Scheduler pallet"
 readme = "README.md"
 
 [dependencies]
+ark-serialize.workspace = true
 ark-bls12-381.workspace = true
 codec.workspace = true
 log.workspace = true
@@ -23,19 +24,16 @@ sp-runtime.workspace = true
 sp-std.workspace = true
 sp-weights.workspace = true
 docify.workspace = true
-timelock.workspace = true
+# timelock.workspace = true
 
 [dev-dependencies]
 pallet-preimage.workspace = true
 pallet-timestamp.workspace = true
 sp-core.workspace = true
 substrate-test-utils.workspace = true
-# etf-crypto-primitives = { git = "https://github.com/ideal-lab5/etf-sdk.git" }
 ark-std.workspace = true
 ark-ff.workspace = true
-# ark-poly.workspace = true
 ark-ec.workspace = true
-ark-serialize.workspace = true
 ark-bls12-381.workspace = true
 pallet-insecure-randomness-collective-flip.workspace = true
 rand_chacha.workspace = true
@@ -51,6 +49,7 @@ runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
 ]
 std = [
+	"ark-serialize/std",
 	"ark-bls12-381/std",
 	"codec/std",
 	"frame-benchmarking?/std",
@@ -66,7 +65,7 @@ std = [
 	"sp-std/std",
 	"sp-weights/std",
 	"pallet-timestamp/std",
-	"timelock/std"
+	# "timelock/std"
 ]
 try-runtime = [
 	"frame-support/try-runtime",

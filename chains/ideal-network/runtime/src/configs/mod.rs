@@ -364,3 +364,48 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;
 }
+
+parameter_types! {
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+		RuntimeBlockWeights::get().max_block;
+}
+
+impl pallet_scheduler::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
+	type PalletsOrigin = crate::OriginCaller;
+	type RuntimeCall = RuntimeCall;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = EnsureRoot<AccountId>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type MaxScheduledPerBlock = ConstU32<512>;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type MaxScheduledPerBlock = ConstU32<50>;
+	type WeightInfo = pallet_scheduler::weights::SubstrateWeightInfo<Runtime>;
+	type OriginPrivilegeCmp = frame_support::traits::EqualPrivilegeOnly;
+	type Preimages = crate::Preimage;
+	// type BlockNumberProvider = frame_system::Pallet<Runtime>;
+}
+
+parameter_types! {
+	pub const PreimageHoldReason: RuntimeHoldReason =
+		RuntimeHoldReason::Preimage(pallet_preimage::HoldReason::Preimage);
+}
+
+parameter_types! {
+	pub const DepositPerItem: Balance = 0;
+	pub const DepositPerByte: Balance = 0;
+}
+
+impl pallet_preimage::Config for Runtime {
+	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Runtime>;
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type ManagerOrigin = EnsureRoot<AccountId>;
+	type Consideration = frame_support::traits::fungible::HoldConsideration<
+		AccountId,
+		Balances,
+		PreimageHoldReason,
+		frame_support::traits::LinearStoragePrice<DepositPerItem, DepositPerByte, Balance>,
+	>;
+}

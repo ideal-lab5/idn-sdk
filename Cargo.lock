@@ -2414,6 +2414,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 
 [[package]]
+name = "constcat"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd7e35aee659887cbfb97aaf227ac12cad1a9d7c71e55ff3376839ed4e282d08"
+
+[[package]]
 name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5122,12 +5128,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "half"
-version = "1.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b43ede17f21864e81be2fa654110bf1e793774238d86ef8555c37e6519c0403"
-
-[[package]]
 name = "handlebars"
 version = "5.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5916,7 +5916,9 @@ dependencies = [
  "pallet-collator-selection",
  "pallet-idn-manager",
  "pallet-message-queue",
+ "pallet-preimage",
  "pallet-randomness-beacon",
+ "pallet-scheduler 4.0.0-dev",
  "pallet-session",
  "pallet-sudo",
  "pallet-timestamp",
@@ -6003,6 +6005,7 @@ dependencies = [
  "log",
  "pallet-idn-consumer",
  "pallet-idn-manager",
+ "pallet-preimage",
  "pallet-randomness-beacon",
  "pallet-scheduler 4.0.0-dev",
  "parity-scale-codec",
@@ -10158,7 +10161,6 @@ dependencies = [
  "sp-std",
  "sp-weights",
  "substrate-test-utils",
- "timelock",
 ]
 
 [[package]]
@@ -15650,16 +15652,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_cbor"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bef2ebfde456fb76bbcf9f59315333decc4fda0b2b44b420243c11e0f5ec1f5"
-dependencies = [
- "half",
- "serde",
-]
-
-[[package]]
 name = "serde_derive"
 version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16614,7 +16606,7 @@ dependencies = [
  "sp-inherents",
  "sp-runtime",
  "sp-std",
- "tokio",
+ "tokio 1.45.0",
 ]
 
 [[package]]
@@ -17921,33 +17913,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "timelock"
-version = "0.0.2"
-dependencies = [
- "aes-gcm",
- "ark-bls12-377",
- "ark-bls12-381 0.4.0",
- "ark-ec 0.4.2",
- "ark-ff 0.4.2",
- "ark-poly 0.4.2",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
- "array-bytes",
- "chacha20poly1305",
- "generic-array 0.14.7",
- "parity-scale-codec",
- "rand_chacha 0.3.1",
- "rand_core 0.6.4",
- "scale-info",
- "serde",
- "serde_cbor",
- "serde_json",
- "sha2 0.10.9",
- "sha3",
- "w3f-bls",
-]
-
-[[package]]
 name = "tiny-keccak"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -18536,9 +18501,9 @@ checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
 name = "w3f-bls"
-version = "0.1.9"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6bfb937b3d12077654a9e43e32a4e9c20177dd9fea0f3aba673e7840bb54f32"
+checksum = "9c5da5fa2c6afa2c9158eaa7cd9aee249765eb32b5fb0c63ad8b9e79336a47ec"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381 0.4.0",
@@ -18547,12 +18512,14 @@ dependencies = [
  "ark-serialize 0.4.2",
  "ark-serialize-derive 0.4.2",
  "arrayref",
+ "constcat",
  "digest 0.10.7",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rand_core 0.6.4",
  "sha2 0.10.9",
  "sha3",
+ "thiserror 1.0.69",
  "zeroize",
 ]
 

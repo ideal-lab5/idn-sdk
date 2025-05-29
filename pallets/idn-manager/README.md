@@ -13,7 +13,7 @@ The IDN Manager pallet provides functionality for managing subscriptions to rand
 - **Benchmarking:** Includes comprehensive benchmarking to measure and optimize performance.
 
 ## Architecture
-
+ 
 The IDN Manager pallet is designed with a modular architecture, allowing for different implementations of key components. The main components include:
 
 - **Subscriptions:** Stores information about active subscriptions, including the subscriber, target location and credits.
