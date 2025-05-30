@@ -50,8 +50,11 @@ pub enum CryptoError {
 #[inline]
 pub(crate) fn fast_pairing_opt(signature: G1Affine, q: G2Affine, r: G1Affine, s: G2Affine) -> bool {
 	let looped = Bls12_381::multi_miller_loop([signature.neg(), r], [q, s]);
-	let exp = Bls12_381::final_exponentiation(looped);
-	exp.unwrap().is_zero()
+	if let Some(exp) = Bls12_381::final_exponentiation(looped) {
+		return exp.is_zero();
+	}
+
+	false
 }
 
 /// Computes the 0 point in the G1 group
@@ -73,8 +76,54 @@ pub(crate) fn decode_g2(mut bytes: &[u8]) -> Result<G2Affine, CryptoError> {
 pub mod tests {
 
 	use super::*;
-	use ark_ec::AffineRepr;
+	use ark_bls12_381::{G1Projective, G2Projective};
+	use ark_ec::{AffineRepr, CurveGroup, Group};
 	use ark_serialize::CanonicalSerialize;
+	use ark_std::{rand::thread_rng, UniformRand};
+
+	#[test]
+	fn test_fast_pairing_opt_valid_pairing() {
+		let mut rng = thread_rng();
+
+		// Choose a random generator of G1 and G2
+		let g1 = G1Projective::generator();
+		let g2 = G2Projective::generator();
+
+		// Random scalar
+		let scalar = ark_bls12_381::Fr::rand(&mut rng);
+
+		// Simulate a valid pairing e(a * g1, g2) == e(g1, a * g2)
+		let sig = (g1 * scalar).into_affine();
+		let q = g2.into_affine();
+		let r = g1.into_affine();
+		let s = (g2 * scalar).into_affine();
+
+		assert!(fast_pairing_opt(sig, q, r, s));
+	}
+
+	#[test]
+	fn test_fast_pairing_opt_invalid_pairing() {
+		let mut rng = thread_rng();
+
+		let g1 = G1Projective::generator();
+		let g2 = G2Projective::generator();
+
+		let sig = (g1 * ark_bls12_381::Fr::rand(&mut rng)).into_affine();
+		let q = g2.into_affine();
+		let r = g1.into_affine();
+		let s = (g2 * ark_bls12_381::Fr::rand(&mut rng)).into_affine(); // different scalar
+
+		assert!(!fast_pairing_opt(sig, q, r, s));
+	}
+
+	#[test]
+	fn test_fast_pairing_opt_zero_result() {
+		// Use identity elements to test edge case
+		let g1_zero = G1Projective::zero().into_affine();
+		let g2_zero = G2Projective::zero().into_affine();
+
+		assert!(fast_pairing_opt(g1_zero, g2_zero, g1_zero, g2_zero));
+	}
 
 	/// Test that `zero_on_g1` returns the identity element on G1.
 	#[test]
