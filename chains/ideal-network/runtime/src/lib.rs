@@ -51,7 +51,7 @@ pub use sp_runtime::BuildStorage;
 
 use weights::ExtrinsicBaseWeight;
 
-pub use bp_idn::types::{AccountId, Balance, BlockNumber, Signature};
+pub use bp_idn::types::{AccountId, Balance, BlockNumber, Signature, TreasuryAccount};
 
 /// Index of a transaction in the chain.
 pub type Nonce = u32;

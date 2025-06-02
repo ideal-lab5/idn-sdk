@@ -34,7 +34,6 @@ ark-bls12-381.workspace = true
 ark-ff.workspace = true
 ark-serialize.workspace = true
 ark-std.workspace = true
-w3f-bls.workspace = true
 
 [dev-dependencies]
 array-bytes = "=6.2.3"
@@ -60,5 +59,4 @@ std = [
 	"ark-ff/std",
 	"ark-serialize/std",
 	"ark-std/std",
-	"w3f-bls/std"
 ]

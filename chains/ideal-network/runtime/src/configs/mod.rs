@@ -360,7 +360,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
-	type MaxSigsPerBlock = ConstU8<30>;
+	type MaxSigsPerBlock = ConstU8<5>;
 	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;
 }
