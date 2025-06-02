@@ -85,3 +85,13 @@ It should output something like this:
 
 3. Done, you can now interact with the parachain using this link https://polkadot.js.org/apps/?rpc=ws://127.0.0.1:1234#/explorer.
    Bear in mind that you may need to wait a few seconds for the block production to start.
+
+## Running the Node
+
+1. Generate the node key
+
+You can generate a node key using the following command:
+
+```sh
+subkey inspect --scheme ed25519 "<your seed phrase>"
+```
