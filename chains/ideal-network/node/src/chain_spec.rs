@@ -79,10 +79,10 @@ pub fn template_session_keys(keys: AuraId) -> runtime::SessionKeys {
 	runtime::SessionKeys { aura: keys }
 }
 
-pub fn development_config() -> ChainSpec {
+pub fn dev_config() -> ChainSpec {
 	// Give your base currency a unit name and decimal places
 	let mut properties = sc_chain_spec::Properties::new();
-	properties.insert("tokenSymbol".into(), "IDN".into());
+	properties.insert("tokenSymbol".into(), "idnDOT".into());
 	properties.insert("tokenDecimals".into(), 12.into());
 	properties.insert("ss58Format".into(), 42.into());
 
@@ -123,10 +123,56 @@ pub fn development_config() -> ChainSpec {
 	.build()
 }
 
+pub fn local_testnet_config() -> ChainSpec {
+	// Give your base currency a unit name and decimal places
+	let mut properties = sc_chain_spec::Properties::new();
+	properties.insert("tokenSymbol".into(), "idnDOT".into());
+	properties.insert("tokenDecimals".into(), 12.into());
+	properties.insert("ss58Format".into(), 42.into());
+
+	#[allow(deprecated)]
+	ChainSpec::builder(
+		runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
+		Extensions { relay_chain: "paseo-local".into(), para_id: 2000 },
+	)
+	.with_name("IDN Local Testnet")
+	.with_id("idn_local_testnet")
+	.with_chain_type(ChainType::Local)
+	.with_genesis_config_patch(testnet_genesis(
+		// initial collators.
+		vec![
+			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+				.unwrap()
+				.into(),
+			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+				.unwrap()
+				.into(),
+		],
+		vec![
+			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+				.unwrap()
+				.into(),
+			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+				.unwrap()
+				.into(),
+			sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
+				.unwrap()
+				.into(),
+		],
+		sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
+			.unwrap()
+			.into(),
+		2000.into(),
+	))
+	.with_protocol_id("idn-local-testnet-protocol-id")
+	.with_properties(properties)
+	.build()
+}
+
 pub fn testnet_config() -> ChainSpec {
 	// Give your base currency a unit name and decimal places
 	let mut properties = sc_chain_spec::Properties::new();
-	properties.insert("tokenSymbol".into(), "IDN".into());
+	properties.insert("tokenSymbol".into(), "idnDOT".into());
 	properties.insert("tokenDecimals".into(), 12.into());
 	properties.insert("ss58Format".into(), 42.into());
 
@@ -137,7 +183,7 @@ pub fn testnet_config() -> ChainSpec {
 	)
 	.with_name("IDN Testnet")
 	.with_id("idn_testnet")
-	.with_chain_type(ChainType::Local)
+	.with_chain_type(ChainType::Live)
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
 		vec![
