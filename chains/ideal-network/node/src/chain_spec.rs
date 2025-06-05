@@ -141,25 +141,25 @@ pub fn local_testnet_config() -> ChainSpec {
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
 		vec![
-			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+			sr25519::Public::from_str("5DG98CDpGab5LbqDCxJFdJrF6eDCVgKpdZqSEmWzcZA5Hq88") // seed: "//Idn-local-testnet-collator-01"
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+			sr25519::Public::from_str("5FHLJBPPa8R9SW4vBXLMsWQkQiX2J2ZczJNgtLpy46AkLx6T") // seed: "//Idn-local-testnet-collator-02"
 				.unwrap()
 				.into(),
 		],
 		vec![
-			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+			sr25519::Public::from_str("5DG98CDpGab5LbqDCxJFdJrF6eDCVgKpdZqSEmWzcZA5Hq88") // seed: "//Idn-local-testnet-collator-01"
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+			sr25519::Public::from_str("5FHLJBPPa8R9SW4vBXLMsWQkQiX2J2ZczJNgtLpy46AkLx6T") // seed: "//Idn-local-testnet-collator-02"
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
+			sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
 				.unwrap()
 				.into(),
 		],
-		sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
+		sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
 			.unwrap()
 			.into(),
 		2000.into(),

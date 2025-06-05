@@ -1,14 +1,12 @@
 [relaychain]
-default_image = "docker.io/parity/polkadot:latest"
-default_command = "polkadot"
-default_args = [ "-lparachain=debug" ]
-
 chain = "paseo-local"
 
-  [[relaychain.nodes]]
-  name = "alice"
-  validator = true
+[[relaychain.nodes]]
+name = "alice"
+rpc_port = 57731
+validator = true
 
-  [[relaychain.nodes]]
-  name = "bob"
-  validator = true
+[[relaychain.nodes]]
+name = "bob"
+rpc_port = 57735
+validator = true
