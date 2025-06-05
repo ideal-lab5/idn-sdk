@@ -3,7 +3,7 @@ default_image = "docker.io/parity/polkadot:latest"
 default_command = "polkadot"
 default_args = [ "-lparachain=debug" ]
 
-chain = "paseo-local"
+chain = "rococo-local"
 
   [[relaychain.nodes]]
   name = "alice"

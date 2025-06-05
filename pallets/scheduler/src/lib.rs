@@ -95,11 +95,11 @@ use sp_runtime::{
 	BoundedVec, DispatchError, RuntimeDebug,
 };
 use sp_std::{borrow::Borrow, cmp::Ordering, marker::PhantomData, prelude::*};
-// use timelock::{
-// 	stream_ciphers::{AESGCMStreamCipherProvider, AESOutput},
-// 	curves::drand::TinyBLS381,
-// 	tlock::{tld, TLECiphertext},
-// };
+use timelock::{
+	block_ciphers::{AESGCMBlockCipherProvider, AESOutput},
+	engines::drand::TinyBLS381,
+	tlock::{tld, TLECiphertext},
+};
 
 /// Just a simple index for naming period tasks.
 pub type PeriodicIndex = u32;
@@ -416,7 +416,7 @@ impl<T: Config> Pallet<T> {
 		origin: T::PalletsOrigin,
 		ciphertext: Ciphertext,
 	) -> Result<TaskAddress<RoundNumber>, DispatchError> {
-		// let when = Self::resolve_time(when)?;
+		log::info!("CIPHERTEXT RECEIVED: {:?}", ciphertext.clone());
 		let id = blake2_256(&ciphertext[..]);
 
 		let task = Scheduled {
@@ -465,16 +465,16 @@ impl<T: Config> Pallet<T> {
 
 		// loop over pulses
 		// for (when, sig) in pulses {
-			// process pulses for the round
-			// while count_down > 0 && when <= now && weight.can_consume(service_agenda_base_weight) {
-			// 	// let then = T::TlockProvider::latest();
-			if !Self::service_agenda(weight, &mut executed, when, sig, u32::max_value()) {
-				log::info!(
-					"*************************************************** SOMETHING WENT WRONG....."
-				);
-				// 		// incomplete_since = incomplete_since.min(when);
-			}
-			// }
+		// process pulses for the round
+		// while count_down > 0 && when <= now && weight.can_consume(service_agenda_base_weight) {
+		// 	// let then = T::TlockProvider::latest();
+		if !Self::service_agenda(weight, &mut executed, when, sig, u32::max_value()) {
+			log::info!(
+				"*************************************************** SOMETHING WENT WRONG....."
+			);
+			// 		// incomplete_since = incomplete_since.min(when);
+		}
+		// }
 		// }
 	}
 
@@ -514,22 +514,29 @@ impl<T: Config> Pallet<T> {
 			};
 
 			if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
-				// TODO: this ignores errors for now
-				// let ciphertext: TLECiphertext<TinyBLS381> =
-				// 	TLECiphertext::deserialize_compressed(ciphertext_bytes.as_slice()).unwrap();
-				// //.map_err(|_| JsError::new("Could not deserialize ciphertext"))?;
-				// task.maybe_call = tld::<TinyBLS381, AESGCMStreamCipherProvider>(ciphertext, signature.into())
-				// 	.ok()
-				// 	.and_then(|bare| {
-				// 		<T as Config>::RuntimeCall::decode(&mut bare.as_slice()).ok()
-				// 	})
-				// 	.and_then(|call| T::Preimages::bound(call).ok());
+				if let Ok(ciphertext) =
+					TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
+				{
+					task.maybe_call =
+						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
+							.ok()
+							.and_then(|bare| {
+								log::info!("GOT BARE: {:?}", bare);
+								<T as Config>::RuntimeCall::decode(&mut bare.as_slice()).ok()
+							})
+							.and_then(|call| T::Preimages::bound(call).ok());
+				} else {
+					log::info!("INVALID CIPHERTEXT PROVIDED: FAILED TO DESERIALIZE");
+				}
 			}
 
 			// if we haven't dispatched the call and the call data is empty
 			// then there is no valid call, so ignore this task
 			if task.maybe_call.is_none() {
+				log::info!("FAILED TO DECODE THE CALL OH NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
 				continue;
+			} else {
+				log::info!("WE DECODED THE CALL WOOHOOOOO!!!!!!!!!!!!!!!!!!!!!!!!");
 			}
 
 			let base_weight = T::WeightInfo::service_task(

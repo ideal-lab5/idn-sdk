@@ -39,7 +39,6 @@ pallet-authorship.workspace = true
 pallet-balances.workspace = true
 pallet-message-queue.workspace = true
 pallet-preimage.workspace = true
-pallet-scheduler.workspace = true
 pallet-session.workspace = true
 pallet-sudo.workspace = true
 pallet-timestamp.workspace = true
@@ -86,6 +85,7 @@ parachain-info.workspace = true
 bp-idn = { workspace = true, default-features = false }
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
+pallet-scheduler.workspace = true
 sp-consensus-randomness-beacon.workspace = true
 sp-idn-crypto.workspace = true
 

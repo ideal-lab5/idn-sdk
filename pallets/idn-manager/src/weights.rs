@@ -182,9 +182,12 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		//  Measured:  `133118`
 		//  Estimated: `651225`
 		// Minimum execution time: 14_343_000_000 picoseconds.
-		Weight::from_parts(14_742_000_000, 651225)
-			.saturating_add(T::DbWeight::get().reads(602_u64))
-			.saturating_add(T::DbWeight::get().writes(601_u64))
+		Weight::from_parts(0, 0)
+			// .saturating_add(T::DbWeight::get().reads(602_u64))
+			// .saturating_add(T::DbWeight::get().writes(601_u64))
+		// Weight::from_parts(14_742_000_000, 651225)
+		// 	.saturating_add(T::DbWeight::get().reads(602_u64))
+		// 	.saturating_add(T::DbWeight::get().writes(601_u64))
 	}
 }
 

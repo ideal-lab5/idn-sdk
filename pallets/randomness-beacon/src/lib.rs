@@ -240,8 +240,8 @@ pub mod pallet {
 								pallet_scheduler::Pallet::<T>::service_agendas(
 									&mut frame_support::weights::WeightMeter::new(),
 									round,
-									sig.expect("it is ok"),
-									256,
+									sig.expect("todo: it should be ok..."),
+									4,
 								);
 
 								sig
