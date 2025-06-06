@@ -110,7 +110,7 @@ This will start a local relay chain with two nodes, Alice and Bob.
 
 It should output something like this:
 
-```
+```sh
 ◇  🚀 Network launched successfully - ctrl-c to terminate
 │  ⛓️ paseo-local
 │       alice:
