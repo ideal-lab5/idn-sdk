@@ -416,7 +416,6 @@ impl<T: Config> Pallet<T> {
 		origin: T::PalletsOrigin,
 		ciphertext: Ciphertext,
 	) -> Result<TaskAddress<RoundNumber>, DispatchError> {
-		log::info!("CIPHERTEXT RECEIVED: {:?}", ciphertext.clone());
 		let id = blake2_256(&ciphertext[..]);
 
 		let task = Scheduled {
@@ -446,7 +445,6 @@ impl<T: Config> Pallet<T> {
 	/// should take a vec of pulses instead
 	pub fn service_agendas(
 		weight: &mut WeightMeter,
-		// pulses: Vec<(RoundNumber, G1Affine)>,
 		when: RoundNumber,
 		sig: G1Affine,
 		max: u32,
@@ -455,28 +453,164 @@ impl<T: Config> Pallet<T> {
 			return;
 		}
 
-		// // let mut incomplete_since: RoundNumber = now + 1;
-		// let mut when = IncompleteSince::<T>::take().unwrap_or(now);
 		let mut executed = 0;
-
-		let max_items = T::MaxScheduledPerBlock::get();
-		let mut count_down = max;
-		let service_agenda_base_weight = T::WeightInfo::service_agenda_base(max_items);
-
-		// loop over pulses
-		// for (when, sig) in pulses {
-		// process pulses for the round
-		// while count_down > 0 && when <= now && weight.can_consume(service_agenda_base_weight) {
-		// 	// let then = T::TlockProvider::latest();
 		if !Self::service_agenda(weight, &mut executed, when, sig, u32::max_value()) {
 			log::info!(
 				"*************************************************** SOMETHING WENT WRONG....."
 			);
-			// 		// incomplete_since = incomplete_since.min(when);
 		}
-		// }
-		// }
 	}
+
+	pub fn service_agenda_decrypt_and_decode(
+		weight: &mut WeightMeter,
+		when: RoundNumber,
+		signature: G1Affine,
+		max: u32,
+	) -> Vec<(TaskName, <T as Config>::RuntimeCall)> {
+		let mut recovered_calls = Vec::new();
+
+		let mut agenda = Agenda::<T>::get(when);
+		let mut ordered = agenda
+			.iter()
+			.enumerate()
+			.filter_map(|(index, maybe_item)| {
+				maybe_item.as_ref().map(|item| (index as u32, item.priority))
+			})
+			.collect::<Vec<_>>();
+		ordered.sort_by_key(|k| k.1);
+
+		let within_limit = weight
+			.try_consume(T::WeightInfo::service_agenda_base(ordered.len() as u32))
+			.is_ok();
+		debug_assert!(within_limit, "weight limit should have been checked in advance");
+
+		for (agenda_index, _) in ordered.into_iter().take(max as usize) {
+			let mut task = match agenda[agenda_index as usize].take() {
+				None => continue,
+				Some(t) => t,
+			};
+
+			if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
+				if let Ok(ciphertext) =
+					TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
+				{
+					let bare =
+						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
+							.unwrap();
+					let call = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()).unwrap();
+					let _ = T::Preimages::bound(call.clone());
+					// TODO: ids do not need to be Options anymore
+					recovered_calls.push((task.maybe_id.unwrap(), call));
+				}
+			}
+		}
+
+		recovered_calls
+	}
+
+	/// Returns `true` if the agenda was fully completed, `false` if it should be revisited at a
+	/// later block.
+	/// note: `then` is a latest block
+	fn service_agenda_simple(
+		weight: &mut WeightMeter,
+		executed: &mut u32,
+		when: RoundNumber,
+		signature: G1Affine,
+		max: u32,
+		call_data: Vec<<T as Config>::RuntimeCall>
+	) -> bool {
+		let mut agenda = Agenda::<T>::get(when);
+		let mut ordered = agenda
+			.iter()
+			.enumerate()
+			.filter_map(|(index, maybe_item)| {
+				maybe_item.as_ref().map(|item| (index as u32, item.priority))
+			})
+			.collect::<Vec<_>>();
+		ordered.sort_by_key(|k| k.1);
+		let within_limit = weight
+			.try_consume(T::WeightInfo::service_agenda_base(ordered.len() as u32))
+			.is_ok();
+		debug_assert!(within_limit, "weight limit should have been checked in advance");
+
+		// Items which we know can be executed and have postponed for execution in a later block.
+		let mut postponed = (ordered.len() as u32).saturating_sub(max);
+		// Items which we don't know can ever be executed.
+		let mut dropped = 0;
+
+
+		// now we have as input a vec of call data
+		// along with a collection of encrypted values
+		// but we do not have an easy way to prove that some data was properly decrypted..
+		// so for the time being, I'm not sure...
+		// could do it based on simple indexing for now? very unsafe...
+
+		for (agenda_index, _) in ordered.into_iter().take(max as usize) {
+			let mut task = match agenda[agenda_index as usize].take() {
+				None => continue,
+				Some(t) => t,
+			};
+
+			if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
+				if let Ok(ciphertext) =
+					TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
+				{
+					task.maybe_call =
+						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
+							.ok()
+							.and_then(|bare| {
+								<T as Config>::RuntimeCall::decode(&mut bare.as_slice()).ok()
+							})
+							.and_then(|call| T::Preimages::bound(call).ok());
+				} else {
+					log::info!("INVALID CIPHERTEXT PROVIDED: FAILED TO DESERIALIZE");
+				}
+			}
+
+			// if we haven't dispatched the call and the call data is empty
+			// then there is no valid call, so ignore this task
+			if task.maybe_call.is_none() {
+				log::info!("FAILED TO DECODE THE CALL OH NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
+				continue;
+			} else {
+				log::info!("WE DECODED THE CALL WOOHOOOOO!!!!!!!!!!!!!!!!!!!!!!!!");
+			}
+
+			let base_weight = T::WeightInfo::service_task(
+				// we know that maybe_call must be Some at this point
+				task.maybe_call.clone().unwrap().lookup_len().map(|x| x as usize),
+				task.maybe_id.is_some(),
+				task.maybe_periodic.is_some(),
+			);
+			if !weight.can_consume(base_weight) {
+				postponed += 1;
+				break;
+			}
+			let result = Self::service_task(weight, when, when, agenda_index, *executed == 0, task);
+			agenda[agenda_index as usize] = match result {
+				Err((Unavailable, slot)) => {
+					dropped += 1;
+					slot
+				},
+				Err((Overweight, slot)) => {
+					postponed += 1;
+					slot
+				},
+				Ok(()) => {
+					*executed += 1;
+					None
+				},
+			};
+		}
+		if postponed > 0 || dropped > 0 {
+			Agenda::<T>::insert(when, agenda);
+		} else {
+			Agenda::<T>::remove(when);
+		}
+
+		postponed == 0
+	}
+
 
 	/// Returns `true` if the agenda was fully completed, `false` if it should be revisited at a
 	/// later block.
@@ -521,7 +655,6 @@ impl<T: Config> Pallet<T> {
 						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
 							.ok()
 							.and_then(|bare| {
-								log::info!("GOT BARE: {:?}", bare);
 								<T as Config>::RuntimeCall::decode(&mut bare.as_slice()).ok()
 							})
 							.and_then(|call| T::Preimages::bound(call).ok());

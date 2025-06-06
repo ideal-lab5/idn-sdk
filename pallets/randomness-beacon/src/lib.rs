@@ -90,9 +90,10 @@ use sp_consensus_randomness_beacon::types::{CanonicalPulse, RoundNumber};
 use sp_idn_crypto::verifier::SignatureVerifier;
 use sp_idn_traits::pulse::{Dispatcher, Pulse as TPulse};
 use sp_std::fmt::Debug;
+use bp_idn::Call as RuntimeCall;
 
 extern crate alloc;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 pub mod types;
 pub mod weights;
@@ -118,10 +119,17 @@ pub mod pallet {
 	use super::*;
 	use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 	use frame_support::ensure;
+	use frame_support::traits::schedule::v3::TaskName;
 	use frame_system::pallet_prelude::*;
 	use sp_consensus_randomness_beacon::{digest::ConsensusLog, types::OpaqueSignature};
 	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
 	use sp_runtime::generic::DigestItem;
+	use timelock::{
+		block_ciphers::{AESGCMBlockCipherProvider, AESOutput},
+		engines::drand::TinyBLS381,
+		tlock::{tld, TLECiphertext},
+	};
+
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -226,23 +234,25 @@ pub mod pallet {
 					// first and last rounds
 					let start = pulses.first().map(|p| p.round);
 					let end = pulses.last().map(|p| p.round);
+					let mut data = Vec::new();
 
 					if let (Some(start), Some(end)) = (start, end) {
 						let filtered = pulses
 							.into_iter()
 							.filter_map(|pulse| {
 								let bytes = pulse.signature;
-								// TODO: get (round, sig as G1Affine)
-								// TODO: send new pulses to scheduler pallet
 								let round = pulse.round;
 								let sig =
 									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok();
-								pallet_scheduler::Pallet::<T>::service_agendas(
+								let opaque: [u8; 48] = bytes.as_ref().try_into().unwrap();
+								let res = pallet_scheduler::Pallet::<T>::service_agenda_decrypt_and_decode(
 									&mut frame_support::weights::WeightMeter::new(),
 									round,
-									sig.expect("todo: it should be ok..."),
-									4,
+									sig.expect("TODO"),
+									2 << 5, // aribitrary
 								);
+
+								data.extend(res);
 
 								sig
 							})
@@ -263,6 +273,7 @@ pub mod pallet {
 						return Some(Call::try_submit_asig {
 							asig: OpaqueSignature::try_from(asig_bytes)
 								.expect("The signature is well formatted. qed."),
+							raw_call_data: data,
 							start,
 							end,
 						});
@@ -332,6 +343,7 @@ pub mod pallet {
 			asig: OpaqueSignature,
 			start: RoundNumber,
 			end: RoundNumber,
+			raw_call_data: Vec<(TaskName, <T as pallet_scheduler::Config>::RuntimeCall)>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
@@ -378,6 +390,22 @@ pub mod pallet {
 			// dispatch pulses to subscribers
 			let runtime_pulse = T::Pulse::from(sacc);
 			T::Dispatcher::dispatch(runtime_pulse)?;
+
+			// // then execute scheduled transactions for each pulse
+			// let individual_sigs = PendingSigs::<T>::take();
+			// log::info!("******************************************** ATTEMPTING TO EXECUTED LOCKED TXS (0/1)");
+			// log::info!("******************************************** GOT SIGS {:?}", individual_sigs.clone());
+			// for (round, bytes) in individual_sigs {
+			// 	log::info!("******************************************** ATTEMPTING TO EXECUTED LOCKED TXS");
+			// 	// convert sig bytes to sig
+			// 	let sig = G1Affine::deserialize_compressed(&bytes[..]).unwrap();
+			// 	pallet_scheduler::Pallet::<T>::service_agendas(
+			// 		&mut frame_support::weights::WeightMeter::new(),
+			// 		round,
+			// 		sig,
+			// 		4,
+			// 	);
+			// }
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 			// Insert the latest round into the header digest
