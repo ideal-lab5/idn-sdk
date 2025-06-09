@@ -285,23 +285,6 @@ pub mod pallet {
 		Named,
 	}
 
-	// #[pallet::hooks]
-	// impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-	// 	/// Execute the scheduled calls
-	// 	fn on_initialize(now: BlockNumberFor<T>) -> Weight {
-	// 		let mut weight_counter = WeightMeter::with_limit(T::MaximumWeight::get());
-	// 		// TODO: need to get the drand round number from storage
-	// 		// let latest = T::LatestRoundProvider::latest();
-	// 		// // then we want to look at all pulses we have for round from latest onwards
-	// 		// if let Ok(Some(raw_pulses)) = data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
-	// 		// {
-	// 		// 	// todo
-	// 		// }
-	// 		// Self::service_agendas(&mut weight_counter, now, u32::max_value());
-	// 		weight_counter.consumed()
-	// 	}
-	// }
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Anonymously schedule a timelocked task.
@@ -443,12 +426,7 @@ use ServiceTaskError::*;
 impl<T: Config> Pallet<T> {
 	/// Service up to `max` agendas queue starting from earliest incompletely executed agenda.
 	/// should take a vec of pulses instead
-	pub fn service_agendas(
-		weight: &mut WeightMeter,
-		when: RoundNumber,
-		sig: G1Affine,
-		max: u32,
-	) {
+	pub fn service_agendas(weight: &mut WeightMeter, when: RoundNumber, sig: G1Affine, max: u32) {
 		if weight.try_consume(T::WeightInfo::service_agendas_base()).is_err() {
 			return;
 		}
@@ -499,7 +477,7 @@ impl<T: Config> Pallet<T> {
 							.unwrap();
 					let call = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()).unwrap();
 					let _ = T::Preimages::bound(call.clone());
-					// TODO: ids do not need to be Options anymore
+					// TODO: ids do not need to be Options anymore!
 					recovered_calls.push((task.maybe_id.unwrap(), call));
 				}
 			}
@@ -511,23 +489,35 @@ impl<T: Config> Pallet<T> {
 	/// Returns `true` if the agenda was fully completed, `false` if it should be revisited at a
 	/// later block.
 	/// note: `then` is a latest block
-	fn service_agenda_simple(
+	pub fn service_agenda_simple(
 		weight: &mut WeightMeter,
 		executed: &mut u32,
 		when: RoundNumber,
-		signature: G1Affine,
+		call_data: Vec<(TaskName, <T as Config>::RuntimeCall)>,
+		// TODO: remove max, replace with bounded vec for call data
 		max: u32,
-		call_data: Vec<<T as Config>::RuntimeCall>
 	) -> bool {
 		let mut agenda = Agenda::<T>::get(when);
+		// first order by priority and simulatenously fill in call data
 		let mut ordered = agenda
-			.iter()
+			.iter_mut()
 			.enumerate()
 			.filter_map(|(index, maybe_item)| {
+				if let Some(item) = maybe_item {
+					// find the right call data based on id
+					if let Some(id) = item.maybe_id {
+						item.maybe_call = call_data
+							.iter()
+							// TODO: just matches based on id, no real verification check
+							.find(|data| data.0.eq(&id)) 
+							.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
+					}
+				}
 				maybe_item.as_ref().map(|item| (index as u32, item.priority))
 			})
 			.collect::<Vec<_>>();
 		ordered.sort_by_key(|k| k.1);
+
 		let within_limit = weight
 			.try_consume(T::WeightInfo::service_agenda_base(ordered.len() as u32))
 			.is_ok();
@@ -538,35 +528,11 @@ impl<T: Config> Pallet<T> {
 		// Items which we don't know can ever be executed.
 		let mut dropped = 0;
 
-
-		// now we have as input a vec of call data
-		// along with a collection of encrypted values
-		// but we do not have an easy way to prove that some data was properly decrypted..
-		// so for the time being, I'm not sure...
-		// could do it based on simple indexing for now? very unsafe...
-
 		for (agenda_index, _) in ordered.into_iter().take(max as usize) {
 			let mut task = match agenda[agenda_index as usize].take() {
 				None => continue,
 				Some(t) => t,
 			};
-
-			if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
-				if let Ok(ciphertext) =
-					TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
-				{
-					task.maybe_call =
-						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
-							.ok()
-							.and_then(|bare| {
-								<T as Config>::RuntimeCall::decode(&mut bare.as_slice()).ok()
-							})
-							.and_then(|call| T::Preimages::bound(call).ok());
-				} else {
-					log::info!("INVALID CIPHERTEXT PROVIDED: FAILED TO DESERIALIZE");
-				}
-			}
-
 			// if we haven't dispatched the call and the call data is empty
 			// then there is no valid call, so ignore this task
 			if task.maybe_call.is_none() {
@@ -610,7 +576,6 @@ impl<T: Config> Pallet<T> {
 
 		postponed == 0
 	}
-
 
 	/// Returns `true` if the agenda was fully completed, `false` if it should be revisited at a
 	/// later block.

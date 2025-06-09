@@ -9839,6 +9839,7 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "sp-std",
+ "timelock",
 ]
 
 [[package]]

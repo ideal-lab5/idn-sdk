@@ -85,12 +85,14 @@ pub use pallet::*;
 
 use frame_support::pallet_prelude::*;
 
+use alloc::collections::btree_map::BTreeMap;
 use ark_bls12_381::G1Affine;
+use bp_idn::Call as RuntimeCall;
+use frame_support::traits::schedule::v3::TaskName;
 use sp_consensus_randomness_beacon::types::{CanonicalPulse, RoundNumber};
 use sp_idn_crypto::verifier::SignatureVerifier;
 use sp_idn_traits::pulse::{Dispatcher, Pulse as TPulse};
 use sp_std::fmt::Debug;
-use bp_idn::Call as RuntimeCall;
 
 extern crate alloc;
 use alloc::{vec, vec::Vec};
@@ -114,12 +116,13 @@ const LOG_TARGET: &str = "pallet-randomness-beacon";
 
 const SERIALIZED_SIG_SIZE: usize = 48;
 
+type NamedTask<T: Config> = Vec<(TaskName, <T as pallet_scheduler::Config>::RuntimeCall)>;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
 	use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 	use frame_support::ensure;
-	use frame_support::traits::schedule::v3::TaskName;
 	use frame_system::pallet_prelude::*;
 	use sp_consensus_randomness_beacon::{digest::ConsensusLog, types::OpaqueSignature};
 	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
@@ -129,7 +132,6 @@ pub mod pallet {
 		engines::drand::TinyBLS381,
 		tlock::{tld, TLECiphertext},
 	};
-
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -234,7 +236,9 @@ pub mod pallet {
 					// first and last rounds
 					let start = pulses.first().map(|p| p.round);
 					let end = pulses.last().map(|p| p.round);
-					let mut data = Vec::new();
+					// let mut data = Vec::new();
+					// data needs to be a map since we will have multiple pulses to consider
+					let mut tasks = BTreeMap::new();
 
 					if let (Some(start), Some(end)) = (start, end) {
 						let filtered = pulses
@@ -245,15 +249,15 @@ pub mod pallet {
 								let sig =
 									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok();
 								let opaque: [u8; 48] = bytes.as_ref().try_into().unwrap();
+
 								let res = pallet_scheduler::Pallet::<T>::service_agenda_decrypt_and_decode(
 									&mut frame_support::weights::WeightMeter::new(),
 									round,
 									sig.expect("TODO"),
-									2 << 5, // aribitrary
+									2 << 5, // arbitrary
 								);
-
-								data.extend(res);
-
+								
+								tasks.insert(round, res);
 								sig
 							})
 							.collect::<Vec<_>>();
@@ -270,10 +274,11 @@ pub mod pallet {
 						asig.serialize_compressed(&mut asig_bytes)
 							.expect("The signature is well formatted. qed.");
 
+						log::info!("SENDING RAW_CALL_DATA: {:?}", tasks.clone());
 						return Some(Call::try_submit_asig {
 							asig: OpaqueSignature::try_from(asig_bytes)
 								.expect("The signature is well formatted. qed."),
-							raw_call_data: data,
+							raw_call_data: tasks,
 							start,
 							end,
 						});
@@ -343,7 +348,9 @@ pub mod pallet {
 			asig: OpaqueSignature,
 			start: RoundNumber,
 			end: RoundNumber,
-			raw_call_data: Vec<(TaskName, <T as pallet_scheduler::Config>::RuntimeCall)>,
+			// this will have to be a map
+			// round number -> vec<raw call data>
+			raw_call_data: BTreeMap<RoundNumber, Vec<(TaskName, <T as pallet_scheduler::Config>::RuntimeCall)>>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
@@ -391,21 +398,17 @@ pub mod pallet {
 			let runtime_pulse = T::Pulse::from(sacc);
 			T::Dispatcher::dispatch(runtime_pulse)?;
 
-			// // then execute scheduled transactions for each pulse
-			// let individual_sigs = PendingSigs::<T>::take();
-			// log::info!("******************************************** ATTEMPTING TO EXECUTED LOCKED TXS (0/1)");
-			// log::info!("******************************************** GOT SIGS {:?}", individual_sigs.clone());
-			// for (round, bytes) in individual_sigs {
-			// 	log::info!("******************************************** ATTEMPTING TO EXECUTED LOCKED TXS");
-			// 	// convert sig bytes to sig
-			// 	let sig = G1Affine::deserialize_compressed(&bytes[..]).unwrap();
-			// 	pallet_scheduler::Pallet::<T>::service_agendas(
-			// 		&mut frame_support::weights::WeightMeter::new(),
-			// 		round,
-			// 		sig,
-			// 		4,
-			// 	);
-			// }
+			for (k, v) in raw_call_data {
+				log::info!("PROCESSING CALL DATA FOR ROUND {:?}, # CALLS = {:?}", k, v.len());
+				let mut executed = 0u32;
+				pallet_scheduler::Pallet::<T>::service_agenda_simple(
+					&mut frame_support::weights::WeightMeter::new(),
+					&mut executed,
+					k,
+					v,
+					2 << 5, // arbitrary
+				);
+			}
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 			// Insert the latest round into the header digest
