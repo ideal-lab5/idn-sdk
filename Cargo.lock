@@ -6004,6 +6004,7 @@ dependencies = [
  "log",
  "pallet-idn-consumer",
  "pallet-idn-manager",
+ "pallet-insecure-randomness-collective-flip",
  "pallet-preimage",
  "pallet-randomness-beacon",
  "pallet-scheduler 4.0.0-dev",
@@ -17921,7 +17922,7 @@ dependencies = [
 
 [[package]]
 name = "timelock"
-version = "0.2.0"
+version = "0.2.0-dev"
 dependencies = [
  "aes-gcm",
  "ark-bls12-377 0.5.0",

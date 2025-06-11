@@ -13,10 +13,11 @@ publish = false
 codec.workspace = true
 log.workspace = true
 frame-benchmarking = { optional = true, workspace = true }
-
 scale-info.workspace = true
 polkadot-sdk = { workspace = true, features = [
+	"pallet-authorship",
 	"pallet-balances",
+	"pallet-contracts",
 	"pallet-sudo",
 	"pallet-timestamp",
 	"pallet-transaction-payment",
@@ -33,6 +34,7 @@ xcm-builder.workspace = true
 bp-idn.workspace = true
 pallet-idn-consumer.workspace = true
 pallet-idn-manager.workspace = true
+pallet-insecure-randomness-collective-flip.workspace = true
 pallet-preimage.workspace = true
 pallet-randomness-beacon.workspace = true
 pallet-scheduler.workspace = true
@@ -57,6 +59,7 @@ std = [
 	"sp-idn-crypto/std",
 	"sp-consensus-randomness-beacon/std",
 	"pallet-idn-manager/std",
+	"pallet-insecure-randomness-collective-flip/std",
 	"pallet-preimage/std",
 	"pallet-randomness-beacon/std",
 	"pallet-scheduler/std",
