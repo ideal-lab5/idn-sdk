@@ -17922,7 +17922,7 @@ dependencies = [
 
 [[package]]
 name = "timelock"
-version = "0.2.0-dev"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "ark-bls12-377 0.5.0",

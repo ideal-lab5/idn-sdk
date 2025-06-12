@@ -207,10 +207,18 @@ impl GossipsubNetwork {
 					return Error::InvalidMultiaddress { who: (*peer).clone() };
 				})?;
 			}
+			let topic = IdentTopic::new(topic_str);
+			// Ref: https://docs.rs/libpp-gossipsub/0.48.0/src/libp2p_gossipsub/behaviour.rs.html#532
+			// The error can only occur if the subscription filter rejects it, but we specify no
+			// filter.
+			self.swarm
+				.behaviour_mut()
+				.subscribe(&topic)
+				.expect("The libp2p gossipsub behavior has no subscription filter.");
 			self.wait_for_peers(peers.len()).await;
 		}
 
-		self.subscribe(topic_str).await
+		self.subscribe().await
 	}
 
 	/// Executes until at least `target_count` ConnectionEstablished events
@@ -232,17 +240,7 @@ impl GossipsubNetwork {
 	/// and ignores and messages it cannot understand.
 	///
 	/// * `topic_str`: The gossipsub topic to subscribe to.
-	async fn subscribe(&mut self, topic_str: &str) -> Result<(), Error> {
-		let topic = IdentTopic::new(topic_str);
-		// [SRLabs]: The error can never be encountered
-		// Q: Can we use an expect, or is this unsafe?
-		// Ref: https://docs.rs/libpp-gossipsub/0.48.0/src/libp2p_gossipsub/behaviour.rs.html#532
-		// The error can only occur if the subscription filter rejects it, but we specify no
-		// filter.
-		self.swarm
-			.behaviour_mut()
-			.subscribe(&topic)
-			.expect("The libp2p gossipsub behavior has no subscription filter.");
+	async fn subscribe(&mut self) -> Result<(), Error> {
 
 		loop {
 			match self.swarm.next().await {

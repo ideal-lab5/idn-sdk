@@ -388,7 +388,7 @@ pub mod pallet {
 				None,
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
-			LatestRound::<T>::set(Some(end + 1));
+			LatestRound::<T>::set(Some(end + 1)); 
 
 			let sacc = Accumulation::try_from(acc).map_err(|_| Error::<T>::VerificationFailed)?;
 			SparseAccumulation::<T>::set(Some(sacc.clone()));
