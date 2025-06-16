@@ -152,13 +152,15 @@ impl xcm_executor::Config for XcmConfig {
 	// How to withdraw and deposit an asset.
 	type AssetTransactor = FungibleTransactor;
 	type OriginConverter = XcmOriginToTransactDispatchOrigin;
-	// IDN chain does not recognize a reserve location for any asset. Users must teleport
-	// DOT where allowed (e.g. with the Relay Chain).
-	type IsReserve = ();
-	/// Only allow teleportation of DOT.
+	/// Only allow reserve transfer of Relay Chain native token (e.g. DOT) from System or Relay
+	/// Chain.
+	type IsReserve = ConcreteAssetFromSystem<RelayLocation>;
+	/// Only allow teleportation of Relay Chain native token (e.g. DOT) from System or Relay
+	/// Chain.
 	type IsTeleporter = ConcreteAssetFromSystem<RelayLocation>;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
+	// TODO: use WeightInfoBounds https://github.com/ideal-lab5/idn-sdk/issues/262
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type Trader =
 		UsingComponents<WeightToFee, RelayLocation, AccountId, Balances, ToAuthor<Runtime>>;
@@ -210,6 +212,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Nothing;
+	// TODO: use WeightInfoBounds https://github.com/ideal-lab5/idn-sdk/issues/262
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;

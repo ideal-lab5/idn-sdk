@@ -14,7 +14,7 @@ chain = "paseo-local"
   validator = true
 
 [[parachains]]
-id = 1000
+id = 4502
 
   [[parachains.collators]]
   name = "idn-alice"
