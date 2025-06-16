@@ -119,17 +119,15 @@ pub type Ciphertext = BoundedVec<u8, ConstU32<4048>>;
 /// Information regarding an item to be executed in the future.
 #[cfg_attr(any(feature = "std", test), derive(PartialEq, Eq))]
 #[derive(Clone, RuntimeDebug, Encode, Decode, MaxEncodedLen, TypeInfo)]
-pub struct Scheduled<Name, Call, Ciphertext, BlockNumber, PalletsOrigin, AccountId> {
+pub struct Scheduled<Name, Call, Ciphertext, PalletsOrigin, AccountId> {
 	/// The unique identity for this task, if there is one.
-	maybe_id: Option<Name>,
+	id: Name,
 	/// This task's priority.
 	priority: schedule::Priority,
 	/// The call to be dispatched. If none, then delayed transactions are used
 	maybe_call: Option<Call>,
 	/// the delayed call ciphertext
 	maybe_ciphertext: Option<Ciphertext>,
-	/// If the call is periodic, then this points to the information concerning that.
-	maybe_periodic: Option<schedule::Period<BlockNumber>>,
 	/// The origin with which to dispatch the call.
 	origin: PalletsOrigin,
 	_phantom: PhantomData<AccountId>,
@@ -139,7 +137,6 @@ pub type ScheduledOf<T> = Scheduled<
 	TaskName,
 	BoundedCallOf<T>,
 	Ciphertext,
-	RoundNumber,
 	<T as Config>::PalletsOrigin,
 	<T as frame_system::Config>::AccountId,
 >;
@@ -152,12 +149,7 @@ pub(crate) trait MarginalWeightInfo: WeightInfo {
 			None => base,
 			Some(l) => Self::service_task_fetched(l as u32),
 		};
-		if named {
-			total.saturating_accrue(Self::service_task_named().saturating_sub(base));
-		}
-		if periodic {
-			total.saturating_accrue(Self::service_task_periodic().saturating_sub(base));
-		}
+		total.saturating_accrue(Self::service_task_named().saturating_sub(base));
 		total
 	}
 }
@@ -233,15 +225,13 @@ pub mod pallet {
 		type Preimages: QueryPreimage<H = Self::Hashing> + StorePreimage;
 	}
 
-	#[pallet::storage]
-	pub type IncompleteSince<T: Config> = StorageValue<_, RoundNumber>;
-
 	/// Items to be executed, indexed by the block number that they should be executed on.
 	#[pallet::storage]
 	pub type Agenda<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		RoundNumber,
+		// TODO: does not need to be an option
 		BoundedVec<Option<ScheduledOf<T>>, T::MaxScheduledPerBlock>,
 		ValueQuery,
 	>;
@@ -262,25 +252,17 @@ pub mod pallet {
 		/// Canceled some task.
 		Canceled { when: RoundNumber, index: u32 },
 		/// Dispatched some task.
-		Dispatched { task: TaskAddress<RoundNumber>, id: Option<TaskName>, result: DispatchResult },
+		Dispatched { task: TaskAddress<RoundNumber>, id: TaskName, result: DispatchResult },
 		/// The call for the provided hash was not found so the task has been aborted.
-		CallUnavailable { task: TaskAddress<RoundNumber>, id: Option<TaskName> },
-		/// The given task was unable to be renewed since the agenda is full at that block.
-		PeriodicFailed { task: TaskAddress<RoundNumber>, id: Option<TaskName> },
+		CallUnavailable { task: TaskAddress<RoundNumber>, id: TaskName },
 		/// The given task can never be executed since it is overweight.
-		PermanentlyOverweight { task: TaskAddress<RoundNumber>, id: Option<TaskName> },
+		PermanentlyOverweight { task: TaskAddress<RoundNumber>, id: TaskName },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
 		/// Failed to schedule a call
 		FailedToSchedule,
-		/// Cannot find the scheduled call.
-		NotFound,
-		/// Given target block number is in the past.
-		TargetBlockNumberInPast,
-		/// Reschedule failed because it does not change scheduled time.
-		RescheduleNoChange,
 		/// Attempt to use a non-named function on a named task.
 		Named,
 	}
@@ -314,7 +296,6 @@ impl<T: Config> Pallet<T> {
 						TaskName,
 						BoundedCallOf<T>,
 						Ciphertext,
-						RoundNumber,
 						OldOrigin,
 						T::AccountId,
 					>,
@@ -327,11 +308,10 @@ impl<T: Config> Pallet<T> {
 					.into_iter()
 					.map(|schedule| {
 						schedule.map(|schedule| Scheduled {
-							maybe_id: schedule.maybe_id,
+							id: schedule.id,
 							priority: schedule.priority,
 							maybe_call: schedule.maybe_call,
 							maybe_ciphertext: None,
-							maybe_periodic: schedule.maybe_periodic,
 							origin: schedule.origin.into(),
 							_phantom: Default::default(),
 						})
@@ -346,12 +326,10 @@ impl<T: Config> Pallet<T> {
 		when: u64,
 		what: ScheduledOf<T>,
 	) -> Result<TaskAddress<u64>, (DispatchError, ScheduledOf<T>)> {
-		let maybe_name = what.maybe_id;
+		let name = what.id;
 		let index = Self::push_to_agenda(when, what)?;
 		let address = (when, index);
-		if let Some(name) = maybe_name {
-			Lookup::<T>::insert(name, address)
-		}
+		Lookup::<T>::insert(name, address);
 		Self::deposit_event(Event::Scheduled { when, index: address.1 });
 		Ok(address)
 	}
@@ -402,11 +380,10 @@ impl<T: Config> Pallet<T> {
 		let id = blake2_256(&ciphertext[..]);
 
 		let task = Scheduled {
-			maybe_id: Some(id),
+			id,
 			priority,
 			maybe_call: None,
 			maybe_ciphertext: Some(ciphertext),
-			maybe_periodic: None,
 			origin,
 			_phantom: PhantomData,
 		};
@@ -464,7 +441,7 @@ impl<T: Config> Pallet<T> {
 					let call = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()).unwrap();
 					let _ = T::Preimages::bound(call.clone());
 					// TODO: ids do not need to be Options anymore!
-					recovered_calls.push((task.maybe_id.unwrap(), call));
+					recovered_calls.push((task.id, call));
 				}
 			}
 		}
@@ -490,13 +467,13 @@ impl<T: Config> Pallet<T> {
 			.filter_map(|(index, maybe_item)| {
 				if let Some(item) = maybe_item {
 					// find the right call data based on id
-					if let Some(id) = item.maybe_id {
-						item.maybe_call = call_data
-							.iter()
-							// TODO: just matches based on id, no real verification check
-							.find(|data| data.0.eq(&id)) 
-							.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
-					}
+					// if let Some(id) = item.id {
+					item.maybe_call = call_data
+						.iter()
+						// TODO: just matches based on id, no real verification check
+						.find(|data| data.0.eq(&item.id)) 
+						.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
+					// }
 				}
 				maybe_item.as_ref().map(|item| (index as u32, item.priority))
 			})
@@ -518,26 +495,18 @@ impl<T: Config> Pallet<T> {
 				None => continue,
 				Some(t) => t,
 			};
-			// if we haven't dispatched the call and the call data is empty
-			// then there is no valid call, so ignore this task
-			if task.maybe_call.is_none() {
-				log::info!("FAILED TO DECODE THE CALL OH NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
-				continue;
-			} else {
-				log::info!("WE DECODED THE CALL WOOHOOOOO!!!!!!!!!!!!!!!!!!!!!!!!");
-			}
 
 			let base_weight = T::WeightInfo::service_task(
 				// we know that maybe_call must be Some at this point
 				task.maybe_call.clone().unwrap().lookup_len().map(|x| x as usize),
-				task.maybe_id.is_some(),
-				task.maybe_periodic.is_some(),
+				true,
+				false,
 			);
 			if !weight.can_consume(base_weight) {
 				postponed += 1;
 				break;
 			}
-			let result = Self::service_task(weight, when, when, agenda_index, *executed == 0, task);
+			let result = Self::service_task(weight, when, agenda_index, *executed == 0, task);
 			agenda[agenda_index as usize] = match result {
 				Err((Unavailable, slot)) => {
 					dropped += 1;
@@ -562,101 +531,6 @@ impl<T: Config> Pallet<T> {
 		postponed == 0
 	}
 
-	// /// Returns `true` if the agenda was fully completed, `false` if it should be revisited at a
-	// /// later block.
-	// /// note: `then` is a latest block
-	// fn service_agenda(
-	// 	weight: &mut WeightMeter,
-	// 	executed: &mut u32,
-	// 	when: RoundNumber,
-	// 	signature: G1Affine,
-	// 	max: u32,
-	// ) -> bool {
-	// 	let mut agenda = Agenda::<T>::get(when);
-	// 	let mut ordered = agenda
-	// 		.iter()
-	// 		.enumerate()
-	// 		.filter_map(|(index, maybe_item)| {
-	// 			maybe_item.as_ref().map(|item| (index as u32, item.priority))
-	// 		})
-	// 		.collect::<Vec<_>>();
-	// 	ordered.sort_by_key(|k| k.1);
-	// 	let within_limit = weight
-	// 		.try_consume(T::WeightInfo::service_agenda_base(ordered.len() as u32))
-	// 		.is_ok();
-	// 	debug_assert!(within_limit, "weight limit should have been checked in advance");
-
-	// 	// Items which we know can be executed and have postponed for execution in a later block.
-	// 	let mut postponed = (ordered.len() as u32).saturating_sub(max);
-	// 	// Items which we don't know can ever be executed.
-	// 	let mut dropped = 0;
-
-	// 	for (agenda_index, _) in ordered.into_iter().take(max as usize) {
-	// 		let mut task = match agenda[agenda_index as usize].take() {
-	// 			None => continue,
-	// 			Some(t) => t,
-	// 		};
-
-	// 		if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
-	// 			if let Ok(ciphertext) =
-	// 				TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
-	// 			{
-	// 				task.maybe_call =
-	// 					tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
-	// 						.ok()
-	// 						.and_then(|bare| {
-	// 							<T as Config>::RuntimeCall::decode(&mut bare.as_slice()).ok()
-	// 						})
-	// 						.and_then(|call| T::Preimages::bound(call).ok());
-	// 			} else {
-	// 				log::info!("INVALID CIPHERTEXT PROVIDED: FAILED TO DESERIALIZE");
-	// 			}
-	// 		}
-
-	// 		// if we haven't dispatched the call and the call data is empty
-	// 		// then there is no valid call, so ignore this task
-	// 		if task.maybe_call.is_none() {
-	// 			log::info!("FAILED TO DECODE THE CALL OH NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
-	// 			continue;
-	// 		} else {
-	// 			log::info!("WE DECODED THE CALL WOOHOOOOO!!!!!!!!!!!!!!!!!!!!!!!!");
-	// 		}
-
-	// 		let base_weight = T::WeightInfo::service_task(
-	// 			// we know that maybe_call must be Some at this point
-	// 			task.maybe_call.clone().unwrap().lookup_len().map(|x| x as usize),
-	// 			task.maybe_id.is_some(),
-	// 			task.maybe_periodic.is_some(),
-	// 		);
-	// 		if !weight.can_consume(base_weight) {
-	// 			postponed += 1;
-	// 			break;
-	// 		}
-	// 		let result = Self::service_task(weight, when, when, agenda_index, *executed == 0, task);
-	// 		agenda[agenda_index as usize] = match result {
-	// 			Err((Unavailable, slot)) => {
-	// 				dropped += 1;
-	// 				slot
-	// 			},
-	// 			Err((Overweight, slot)) => {
-	// 				postponed += 1;
-	// 				slot
-	// 			},
-	// 			Ok(()) => {
-	// 				*executed += 1;
-	// 				None
-	// 			},
-	// 		};
-	// 	}
-	// 	if postponed > 0 || dropped > 0 {
-	// 		Agenda::<T>::insert(when, agenda);
-	// 	} else {
-	// 		Agenda::<T>::remove(when);
-	// 	}
-
-	// 	postponed == 0
-	// }
-
 	/// Service (i.e. execute) the given task, being careful not to overflow the `weight` counter.
 	///
 	/// This involves:
@@ -666,22 +540,20 @@ impl<T: Config> Pallet<T> {
 	#[allow(clippy::result_large_err)]
 	fn service_task(
 		weight: &mut WeightMeter,
-		now: RoundNumber,
 		when: RoundNumber,
 		agenda_index: u32,
 		is_first: bool,
 		mut task: ScheduledOf<T>,
 	) -> Result<(), (ServiceTaskError, Option<ScheduledOf<T>>)> {
-		if let Some(ref id) = task.maybe_id {
-			Lookup::<T>::remove(id);
-		}
+		
+			Lookup::<T>::remove(task.id);
 
 		let (call, lookup_len) = match T::Preimages::peek(&task.maybe_call.clone().unwrap()) {
 			Ok(c) => c,
 			Err(_) => {
 				Self::deposit_event(Event::CallUnavailable {
 					task: (when, agenda_index),
-					id: task.maybe_id,
+					id: task.id,
 				});
 
 				return Err((Unavailable, Some(task)));
@@ -690,8 +562,8 @@ impl<T: Config> Pallet<T> {
 
 		let _ = weight.try_consume(T::WeightInfo::service_task(
 			lookup_len.map(|x| x as usize),
-			task.maybe_id.is_some(),
-			task.maybe_periodic.is_some(),
+			true,
+			false,
 		));
 
 		match Self::execute_dispatch(weight, task.origin.clone(), call) {
@@ -699,7 +571,7 @@ impl<T: Config> Pallet<T> {
 				T::Preimages::drop(&task.maybe_call.clone().unwrap());
 				Self::deposit_event(Event::PermanentlyOverweight {
 					task: (when, agenda_index),
-					id: task.maybe_id,
+					id: task.id,
 				});
 				Err((Unavailable, Some(task)))
 			},
@@ -707,31 +579,12 @@ impl<T: Config> Pallet<T> {
 			Ok(result) => {
 				Self::deposit_event(Event::Dispatched {
 					task: (when, agenda_index),
-					id: task.maybe_id,
+					id: task.id,
 					result,
 				});
-				if let &Some((period, count)) = &task.maybe_periodic {
-					if count > 1 {
-						task.maybe_periodic = Some((period, count - 1));
-					} else {
-						task.maybe_periodic = None;
-					}
-					let wake = now.saturating_add(period);
-					match Self::place_task(wake, task) {
-						Ok(_) => {},
-						Err((_, task)) => {
-							// TODO: Leave task in storage somewhere for it to be rescheduled
-							// manually.
-							T::Preimages::drop(&task.maybe_call.clone().unwrap());
-							Self::deposit_event(Event::PeriodicFailed {
-								task: (when, agenda_index),
-								id: task.maybe_id,
-							});
-						},
-					}
-				} else {
-					T::Preimages::drop(&task.maybe_call.clone().unwrap());
-				}
+				
+				T::Preimages::drop(&task.maybe_call.clone().unwrap());
+				
 				Ok(())
 			},
 		}

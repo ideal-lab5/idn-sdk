@@ -246,19 +246,18 @@ pub mod pallet {
 							.filter_map(|pulse| {
 								let bytes = pulse.signature;
 								let round = pulse.round;
-								let sig =
-									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok();
+								let sig = G1Affine::deserialize_compressed(&mut bytes.as_ref());
 								let opaque: [u8; 48] = bytes.as_ref().try_into().unwrap();
 
 								let res = pallet_scheduler::Pallet::<T>::service_agenda_decrypt_and_decode(
 									&mut frame_support::weights::WeightMeter::new(),
 									round,
-									sig.expect("TODO"),
+									sig,
 									2 << 5, // arbitrary
 								);
-								
+
 								tasks.insert(round, res);
-								sig
+								sig.ok()
 							})
 							.collect::<Vec<_>>();
 
@@ -348,9 +347,10 @@ pub mod pallet {
 			asig: OpaqueSignature,
 			start: RoundNumber,
 			end: RoundNumber,
-			// this will have to be a map
-			// round number -> vec<raw call data>
-			raw_call_data: BTreeMap<RoundNumber, Vec<(TaskName, <T as pallet_scheduler::Config>::RuntimeCall)>>,
+			raw_call_data: BTreeMap<
+				RoundNumber,
+				Vec<(TaskName, <T as pallet_scheduler::Config>::RuntimeCall)>,
+			>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
@@ -388,7 +388,7 @@ pub mod pallet {
 				None,
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
-			LatestRound::<T>::set(Some(end + 1)); 
+			LatestRound::<T>::set(Some(end + 1));
 
 			let sacc = Accumulation::try_from(acc).map_err(|_| Error::<T>::VerificationFailed)?;
 			SparseAccumulation::<T>::set(Some(sacc.clone()));
