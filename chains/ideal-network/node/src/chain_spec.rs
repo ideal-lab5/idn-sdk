@@ -16,7 +16,7 @@
 
 use cumulus_primitives_core::ParaId;
 use idn_runtime as runtime;
-use runtime::{AccountId, AuraId, Signature, EXISTENTIAL_DEPOSIT};
+use runtime::{AccountId, AuraId, Signature};
 use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
 use sc_service::ChainType;
 use serde::{Deserialize, Serialize};
@@ -148,17 +148,7 @@ pub fn local_testnet_config() -> ChainSpec {
 				.unwrap()
 				.into(),
 		],
-		vec![
-			sr25519::Public::from_str("5DG98CDpGab5LbqDCxJFdJrF6eDCVgKpdZqSEmWzcZA5Hq88") // seed: "//Idn-local-testnet-collator-01"
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("5FHLJBPPa8R9SW4vBXLMsWQkQiX2J2ZczJNgtLpy46AkLx6T") // seed: "//Idn-local-testnet-collator-02"
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
-				.unwrap()
-				.into(),
-		],
+		vec![],
 		sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
 			.unwrap()
 			.into(),
@@ -194,17 +184,7 @@ pub fn testnet_config() -> ChainSpec {
 				.unwrap()
 				.into(),
 		],
-		vec![
-			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
-				.unwrap()
-				.into(),
-		],
+		vec![],
 		sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
 			.unwrap()
 			.into(),
@@ -230,7 +210,7 @@ fn testnet_genesis(
 		},
 		"collatorSelection": {
 			"invulnerables": invulnerables.clone(),
-			"candidacyBond": EXISTENTIAL_DEPOSIT * 16,
+			"candidacyBond": 0,
 		},
 		"session": {
 			"keys": invulnerables
