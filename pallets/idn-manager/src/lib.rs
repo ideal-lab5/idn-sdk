@@ -382,6 +382,8 @@ pub mod pallet {
 		RandomnessDistributed { sub_id: T::SubscriptionId },
 		/// Fees collected
 		FeesCollected { sub_id: T::SubscriptionId, fees: BalanceOf<T> },
+		/// Fees could not be collected for the given subscription id
+		FeeCollectionIssueEvent { sub_id: T::SubscriptionId },
 		/// Subscription Fees quoted
 		SubQuoted { requester: Location, quote: QuoteOf<T> },
 		/// Subscription Distributed
@@ -624,8 +626,8 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				ensure!(
-					sub.state == SubscriptionState::Active ||
-						sub.state == SubscriptionState::Paused,
+					sub.state == SubscriptionState::Active
+						|| sub.state == SubscriptionState::Paused,
 					Error::<T>::SubscriptionNotUpdatable
 				);
 
@@ -837,73 +839,90 @@ impl<T: Config> Pallet<T> {
 
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
-	fn distribute(pulse: T::Pulse) -> DispatchResult {
+	fn distribute(pulse: T::Pulse) {
 		// Get the current block number once for comparison
 		let current_block = frame_system::Pallet::<T>::block_number();
 
-		Subscriptions::<T>::iter().try_for_each(
-			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| -> DispatchResult {
-				// Filter for active subscriptions that are eligible for delivery based on frequency
-				if
-				// Subscription must be active
-				sub.state ==  SubscriptionState::Active   &&
+		for (sub_id, mut sub) in Subscriptions::<T>::iter() {
+			// Filter for active subscriptions that are eligible for delivery based on frequency
+			if
+			// Subscription must be active
+			sub.state ==  SubscriptionState::Active   &&
 					// And either never delivered before, or enough blocks have passed since last delivery
 					(sub.last_delivered.is_none() ||
 					current_block >= sub.last_delivered.unwrap() + sub.frequency)
-				{
-					// Make sure credits are consumed before sending the XCM message
-					let consume_credits = T::FeesManager::get_consume_credits(&sub);
+			{
+				// Make sure credits are consumed before sending the XCM message
+				let consume_credits = T::FeesManager::get_consume_credits(&sub);
 
-					// [SRLabs]: If this line throws an error then the entire set of subscriptions
-					// will fail to be distributed for the pulse. Recommendations on handling this?
-					// Our initial idea is to simply log an event and continue, then pause the
-					// subscription.
-					// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
-					Self::collect_fees(&sub, consume_credits)?;
-
-					// Update subscription with consumed credits and last_delivered block number
-					sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
-					sub.last_delivered = Some(current_block);
-
-					// Send the XCM message
-					// [SRLabs]: If this line throws an error then the entire set of subscriptions
-					// will fail to be distributed for the pulse. Recommendations on handling this?
-					// Our initial idea is to simply log an event and continue, then pause the
-					// subscription.
-					// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
-					Self::xcm_send(
-						&sub.details.target,
-						// Create a tuple of call_index and pulse, encode it using SCALE codec,
-						// then convert to Vec<u8> The encoded data will be used by the
-						// receiving chain to:
-						// 1. Find the target pallet using first byte of call_index
-						// 2. Find the target function using second byte of call_index
-						// 3. Pass the parameters to that function
-						(sub.details.call_index, &pulse, &sub_id).encode().into(),
-					)?;
-
-					Self::deposit_event(Event::RandomnessDistributed { sub_id });
-				} else {
-					let idle_credits = T::FeesManager::get_idle_credits(&sub);
-					// Collect fees for idle block
-					Self::collect_fees(&sub, idle_credits)?;
-					// Update subscription with consumed credits
-					sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
+				if let Err(e) = Self::collect_fees(&sub, consume_credits) {
+					// log the error
+					log::warn!(
+						target: LOG_TARGET, 
+						"Failed to collect fees for subscription id = {:?}: {:?}",
+						sub_id,
+						e
+					);
+					sub.state = SubscriptionState::Paused;
+					Self::deposit_event(Event::SubscriptionPaused { sub_id });
+					// Store the updated subscription
+					Subscriptions::<T>::insert(sub_id, &sub);
+					continue;
 				}
-				// Finalize the subscription if there are not enough credits left
-				if sub.state != SubscriptionState::Finalized &&
-					sub.credits_left < Self::get_min_credits(&sub)
-				{
-					sub.state = SubscriptionState::Finalized;
+
+				// Update subscription with consumed credits and last_delivered block number
+				sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
+				sub.last_delivered = Some(current_block);
+
+				// Send the XCM message
+				// [SRLabs]: If this line throws an error then the entire set of subscriptions
+				// will fail to be distributed for the pulse. Recommendations on handling this?
+				// Our initial idea is to simply log an event and continue, then pause the
+				// subscription.
+				// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
+				if let Err(e) = Self::xcm_send(
+					&sub.details.target,
+					// Create a tuple of call_index and pulse, encode it using SCALE codec,
+					// then convert to Vec<u8> The encoded data will be used by the
+					// receiving chain to:
+					// 1. Find the target pallet using first byte of call_index
+					// 2. Find the target function using second byte of call_index
+					// 3. Pass the parameters to that function
+					(sub.details.call_index, &pulse, &sub_id).encode().into(),
+				) {
+					// log the error
+					log::warn!(target: LOG_TARGET, 
+						"Failed to dispatch XCM for subscription id = {:?}: {:?}", sub_id, e);
+					// dispatch an event so we can easily index it
+					Self::deposit_event(Event::FeeCollectionIssueEvent { sub_id });
+					// pause the subscription
+					sub.state = SubscriptionState::Paused;
+					Self::deposit_event(Event::SubscriptionPaused { sub_id });
+					continue;
 				}
-				// Store the updated subscription
-				Subscriptions::<T>::insert(sub_id, &sub);
 
-				Ok(())
-			},
-		)?;
+				Self::deposit_event(Event::RandomnessDistributed { sub_id });
+			} else {
+				let idle_credits = T::FeesManager::get_idle_credits(&sub);
+				// Collect fees for idle block
+				if let Err(e) = Self::collect_fees(&sub, idle_credits) {
+					log::warn!(target: LOG_TARGET, 
+						"Failed to collect fees for idle subscription id = {:?}: {:?}", sub_id, e);
+				}
+				// Update subscription with consumed credits
+				sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
+			}
+			// Finalize the subscription if there are not enough credits left
+			if sub.state != SubscriptionState::Finalized
+				&& sub.credits_left < Self::get_min_credits(&sub)
+			{
+				sub.state = SubscriptionState::Finalized;
+			}
+			// panic!("{:?}", sub);
 
-		Ok(())
+			// Store the updated subscription
+			Subscriptions::<T>::insert(sub_id, &sub);
+		}
 	}
 
 	/// Collects fees for a subscription based on credits consumed.
@@ -1036,19 +1055,15 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
+impl<T: Config> Dispatcher<T::Pulse> for Pallet<T> {
 	/// Dispatches a pulse by distributing it to eligible subscriptions.
 	///
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
 	// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
-	fn dispatch(pulse: T::Pulse) -> DispatchResult {
-		if let Err(e) = Pallet::<T>::distribute(pulse) {
-			log::warn!(target: LOG_TARGET, "Distribution of pulse failed: {:?}", e);
-		}
-
-		Ok(())
+	fn dispatch(pulse: T::Pulse) {
+		Pallet::<T>::distribute(pulse);
 	}
 
 	fn dispatch_weight() -> Weight {

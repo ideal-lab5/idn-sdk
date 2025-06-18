@@ -701,7 +701,7 @@ fn test_credits_consumption_and_cleanup() {
 			System::set_block_number(System::block_number() + 1);
 
 			// Dispatch randomness
-			assert_ok!(IdnManager::dispatch(pulse.into()));
+			IdnManager::dispatch(pulse.into());
 
 			System::assert_last_event(RuntimeEvent::IdnManager(
 				Event::<Test>::RandomnessDistributed { sub_id },
@@ -800,7 +800,7 @@ fn test_credits_consumption_not_enough_balance() {
 		));
 
 		// Get subscription details
-		let (_, sub) = Subscriptions::<Test>::iter().next().unwrap();
+		let (sub_id, sub) = Subscriptions::<Test>::iter().next().unwrap();
 
 		// Consume credits one by one
 		for i in 0..credits {
@@ -814,12 +814,15 @@ fn test_credits_consumption_not_enough_balance() {
 					&sub,
 				);
 				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
-				assert_ok!(IdnManager::dispatch(pulse.into()));
+				IdnManager::dispatch(pulse.into());
 				// TODO: as part of https://github.com/ideal-lab5/idn-sdk/issues/195 to check that the sub's changed state
+				// get by sub_id
+				let updated_sub = Subscriptions::<Test>::get(sub_id).unwrap();
+				assert_eq!(updated_sub.state, SubscriptionState::Paused);
 				break;
 			} else {
 				// Dispatch randomness
-				assert_ok!(IdnManager::dispatch(pulse.into()));
+				IdnManager::dispatch(pulse.into());
 			}
 
 			// finalize block
@@ -874,7 +877,7 @@ fn test_credits_consumption_frequency() {
 			let credits_left = sub.credits_left;
 
 			// Dispatch randomness
-			assert_ok!(IdnManager::dispatch(pulse.into()));
+			IdnManager::dispatch(pulse.into());
 
 			// Check the subscription state
 			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
@@ -946,7 +949,7 @@ fn test_sub_state_is_finalized_when_credits_left_goes_low() {
 		Subscriptions::<Test>::insert(sub_id, sub);
 
 		// Dispatch randomness
-		assert_ok!(IdnManager::dispatch(pulse.into()));
+		IdnManager::dispatch(pulse.into());
 
 		let sub = Subscriptions::<Test>::get(sub_id).unwrap();
 
