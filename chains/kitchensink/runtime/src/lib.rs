@@ -338,8 +338,8 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const DepositPerItem: Balance = 0;
-	pub const DepositPerByte: Balance = 0;
+	pub const DepositPerItem: Balance = deposit(1, 0) as Balance;
+	pub const DepositPerByte: Balance = deposit(0, 1) as Balance;
 }
 
 impl pallet_preimage::Config for Runtime {

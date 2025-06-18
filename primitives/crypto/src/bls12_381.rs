@@ -31,7 +31,7 @@ pub enum CryptoError {
 	HashToCurveFailure,
 	/// No data could be serialized from a valid element of G1.
 	SerializeG1Failure,
-	/// No data could be serialized from a valid element of G2.
+	/// No data could be serialized from a valid element o f G2.
 	SerializeG2Failure,
 	/// The signature could no be verified.
 	InvalidSignature,
