@@ -74,9 +74,7 @@ impl sp_idn_traits::pulse::Pulse for MockPulse {
 }
 
 pub struct MockDispatcher;
-impl sp_idn_traits::pulse::Dispatcher<MockPulse>
-	for MockDispatcher
-{
+impl sp_idn_traits::pulse::Dispatcher<MockPulse> for MockDispatcher {
 	fn dispatch(_pulse: MockPulse) -> Result<(), sp_runtime::DispatchError> {
 		Ok(())
 	}

@@ -39,11 +39,10 @@ use sp_std::fmt::Debug;
 /// Typically implemented by modules that need to react to new random values,
 /// such as the IDN Manager which distributes randomness to subscribers.
 pub trait Dispatcher<P: Pulse> {
-	/// Process and dispatch a pulse. 
+	/// Process and dispatch a pulse.
 	///
 	/// # Parameters
 	/// * `pulse` - A pulse to be processed
-	///
 	fn dispatch(pulse: P);
 
 	/// Returns the weight of dispatching a pulse.

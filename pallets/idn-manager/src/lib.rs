@@ -626,8 +626,8 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				ensure!(
-					sub.state == SubscriptionState::Active
-						|| sub.state == SubscriptionState::Paused,
+					sub.state == SubscriptionState::Active ||
+						sub.state == SubscriptionState::Paused,
 					Error::<T>::SubscriptionNotUpdatable
 				);
 
@@ -858,7 +858,7 @@ impl<T: Config> Pallet<T> {
 				if let Err(e) = Self::collect_fees(&sub, consume_credits) {
 					// on failure: log warning, pause sub, emit event, move to next
 					log::warn!(
-						target: LOG_TARGET, 
+						target: LOG_TARGET,
 						"Failed to collect fees for subscription id = {:?}. Pausing Subscription due to: {:?}",
 						sub_id,
 						e
@@ -886,9 +886,9 @@ impl<T: Config> Pallet<T> {
 				) {
 					// on failure: log warning, pause sub, emit event, move to next
 					log::warn!(
-						target: LOG_TARGET, 
+						target: LOG_TARGET,
 						"Failed to dispatch XCM for subscription id = {:?}. Pausing subscription due to: {:?}",
-						sub_id, 
+						sub_id,
 						e
 					);
 					Self::deposit_event(Event::FeeCollectionIssueEvent { sub_id });
@@ -903,15 +903,16 @@ impl<T: Config> Pallet<T> {
 				let idle_credits = T::FeesManager::get_idle_credits(&sub);
 				// Collect fees for idle block
 				if let Err(e) = Self::collect_fees(&sub, idle_credits) {
-					log::warn!(target: LOG_TARGET, 
+					log::warn!(
+						target: LOG_TARGET,
 						"Failed to collect fees for idle subscription id = {:?}: {:?}", sub_id, e);
 				}
 				// Update subscription with consumed credits
 				sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
 			}
 			// Finalize the subscription if there are not enough credits left
-			if sub.state != SubscriptionState::Finalized
-				&& sub.credits_left < Self::get_min_credits(&sub)
+			if sub.state != SubscriptionState::Finalized &&
+				sub.credits_left < Self::get_min_credits(&sub)
 			{
 				sub.state = SubscriptionState::Finalized;
 			}

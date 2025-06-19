@@ -867,11 +867,9 @@ fn test_credits_consumption_xcm_send_fails() {
 
 			if i == 505 {
 				// let's fake an incorrect config
-				let bad_location: Location = Location {
-					parents: 42,
-					interior: xcm::opaque::latest::Junctions::Here,
-				};
-				
+				let bad_location: Location =
+					Location { parents: 42, interior: xcm::opaque::latest::Junctions::Here };
+
 				sub.details.target = bad_location;
 				Subscriptions::<Test>::insert(sub_id, sub);
 
@@ -889,7 +887,6 @@ fn test_credits_consumption_xcm_send_fails() {
 		}
 	});
 }
-
 
 #[test]
 fn test_credits_consumption_frequency() {

@@ -22,7 +22,9 @@
 use crate::{
 	self as pallet_idn_manager,
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
-	primitives, BalanceOf, SubscriptionOf, tests::xcm_controller::TestController,
+	primitives,
+	tests::xcm_controller::TestController,
+	BalanceOf, SubscriptionOf,
 };
 use frame_support::{
 	construct_runtime, derive_impl,
