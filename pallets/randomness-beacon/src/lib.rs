@@ -154,7 +154,7 @@ pub mod pallet {
 			+ PartialEq
 			+ From<Accumulation>;
 		/// Something that can dispatch pulses
-		type Dispatcher: Dispatcher<Self::Pulse, DispatchResult>;
+		type Dispatcher: Dispatcher<Self::Pulse>;
 	}
 
 	/// The round when we start consuming pulses
@@ -364,7 +364,7 @@ pub mod pallet {
 
 			// dispatch pulses to subscribers
 			let runtime_pulse = T::Pulse::from(sacc);
-			T::Dispatcher::dispatch(runtime_pulse)?;
+			T::Dispatcher::dispatch(runtime_pulse);
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 			// Insert the latest round into the header digest

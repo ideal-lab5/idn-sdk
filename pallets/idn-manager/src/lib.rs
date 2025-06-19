@@ -856,17 +856,16 @@ impl<T: Config> Pallet<T> {
 				let consume_credits = T::FeesManager::get_consume_credits(&sub);
 
 				if let Err(e) = Self::collect_fees(&sub, consume_credits) {
-					// log the error
+					// on failure: log warning, pause sub, emit event, move to next
 					log::warn!(
 						target: LOG_TARGET, 
-						"Failed to collect fees for subscription id = {:?}: {:?}",
+						"Failed to collect fees for subscription id = {:?}. Pausing Subscription due to: {:?}",
 						sub_id,
 						e
 					);
 					sub.state = SubscriptionState::Paused;
-					Self::deposit_event(Event::SubscriptionPaused { sub_id });
-					// Store the updated subscription
 					Subscriptions::<T>::insert(sub_id, &sub);
+					Self::deposit_event(Event::SubscriptionPaused { sub_id });
 					continue;
 				}
 
@@ -875,11 +874,6 @@ impl<T: Config> Pallet<T> {
 				sub.last_delivered = Some(current_block);
 
 				// Send the XCM message
-				// [SRLabs]: If this line throws an error then the entire set of subscriptions
-				// will fail to be distributed for the pulse. Recommendations on handling this?
-				// Our initial idea is to simply log an event and continue, then pause the
-				// subscription.
-				// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
 				if let Err(e) = Self::xcm_send(
 					&sub.details.target,
 					// Create a tuple of call_index and pulse, encode it using SCALE codec,
@@ -890,13 +884,16 @@ impl<T: Config> Pallet<T> {
 					// 3. Pass the parameters to that function
 					(sub.details.call_index, &pulse, &sub_id).encode().into(),
 				) {
-					// log the error
-					log::warn!(target: LOG_TARGET, 
-						"Failed to dispatch XCM for subscription id = {:?}: {:?}", sub_id, e);
-					// dispatch an event so we can easily index it
+					// on failure: log warning, pause sub, emit event, move to next
+					log::warn!(
+						target: LOG_TARGET, 
+						"Failed to dispatch XCM for subscription id = {:?}. Pausing subscription due to: {:?}",
+						sub_id, 
+						e
+					);
 					Self::deposit_event(Event::FeeCollectionIssueEvent { sub_id });
-					// pause the subscription
 					sub.state = SubscriptionState::Paused;
+					Subscriptions::<T>::insert(sub_id, &sub);
 					Self::deposit_event(Event::SubscriptionPaused { sub_id });
 					continue;
 				}
@@ -918,7 +915,6 @@ impl<T: Config> Pallet<T> {
 			{
 				sub.state = SubscriptionState::Finalized;
 			}
-			// panic!("{:?}", sub);
 
 			// Store the updated subscription
 			Subscriptions::<T>::insert(sub_id, &sub);
@@ -1032,6 +1028,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	/// Dispatches the call to the target
 	fn xcm_send(target: &Location, call: DoubleEncoded<()>) -> DispatchResult {
 		let msg = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },

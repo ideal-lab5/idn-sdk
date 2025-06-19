@@ -22,7 +22,7 @@
 use crate::{
 	self as pallet_idn_manager,
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
-	primitives, BalanceOf, SubscriptionOf,
+	primitives, BalanceOf, SubscriptionOf, tests::xcm_controller::TestController,
 };
 use frame_support::{
 	construct_runtime, derive_impl,
@@ -135,6 +135,128 @@ impl<F: Contains<Location>> frame_support::traits::EnsureOrigin<RuntimeOrigin>
 	}
 }
 
+// use xcm::latest::prelude::*;
+// use xcm::v5::Assets;
+// use xcm::VersionedLocation;
+// use xcm::VersionedXcm;
+// use xcm::VersionedXcm::V5;
+// use xcm_builder::{
+// 	test_utils::{QueryId, SendXcm, Xcm as TestXcm},
+// 	ExecuteController, QueryController, QueryHandler, SendController,
+// };
+// use xcm_executor::traits::QueryResponseStatus;
+
+// use sp_runtime::{DispatchError, DispatchErrorWithPostInfo};
+// use sp_weights::Weight;
+
+// pub struct TestController;
+
+// // ExecuteController
+// impl<Origin, RuntimeCall> ExecuteController<Origin, RuntimeCall> for TestController
+// where
+// 	Origin: Clone,
+// {
+// 	type WeightInfo = ();
+
+// 	fn execute(
+// 		_origin: Origin,
+// 		_message: Box<VersionedXcm<RuntimeCall>>,
+// 		_max_weight: Weight,
+// 	) -> Result<Weight, DispatchErrorWithPostInfo<PostDispatchInfo>> {
+// 		// Always succeed
+// 		Ok(Weight::from_parts(1_000_000_000, 0))
+// 	}
+// }
+
+// impl SendXcm for TestController {
+// 	type Ticket = ();
+// 	fn validate(
+// 		destination: &mut Option<Location>,
+// 		_message: &mut Option<TestXcm<()>>,
+// 	) -> SendResult<()> {
+// 		match destination.as_ref().ok_or(SendError::MissingArgument)?.unpack() {
+// 			(42, []) => Err(SendError::NotApplicable),
+// 			_ => Ok(((), Assets::new())),
+// 		}
+// 	}
+// 	fn deliver(_: ()) -> Result<XcmHash, SendError> {
+// 		Ok([0; 32])
+// 	}
+// }
+
+// // SendController
+// impl<Origin> SendController<Origin> for TestController
+// where
+// 	Origin: Clone,
+// {
+// 	type WeightInfo = ();
+// 	fn send(
+// 		_origin: Origin,
+// 		destination: Box<VersionedLocation>,
+// 		message: Box<VersionedXcm<()>>,
+// 	) -> Result<XcmHash, DispatchError> {
+// 		let mut loc: Option<TestXcm<()>> = None;
+// 		match *message {
+// 			V5(xcm) => loc = Some(xcm),
+// 			_ => {
+// 				// do nothing
+// 			},
+// 		}
+// 		let (ticket, _assets) = <Self as SendXcm>::validate(
+// 			&mut Some(destination.as_ref().try_as::<Location>().unwrap().clone()),
+// 			&mut loc,
+// 		)
+// 		.map_err(|_| DispatchError::Other("SendXcm Validation Failed"))?;
+// 		<Self as SendXcm>::deliver(ticket)
+// 			.map_err(|_| DispatchError::Other("SendXcm Deliver Failed"))
+// 	}
+// }
+
+// frame_support::parameter_types! {
+// pub static UniversalLocation: InteriorLocation
+// 		= (ByGenesis([0; 32]), Parachain(42)).into();
+// }
+
+// impl QueryHandler for TestController {
+// 	type BlockNumber = u64;
+// 	type Error = ();
+// 	type UniversalLocation = UniversalLocation;
+
+// 	fn new_query(
+// 		_responder: impl Into<Location>,
+// 		_timeout: Self::BlockNumber,
+// 		_match_querier: impl Into<Location>,
+// 	) -> u64 {
+// 		0
+// 	}
+
+// 	fn report_outcome(
+// 		_message: &mut TestXcm<()>,
+// 		_responder: impl Into<Location>,
+// 		_timeout: Self::BlockNumber,
+// 	) -> Result<u64, Self::Error> {
+// 		Ok(0)
+// 	}
+
+// 	fn take_response(_id: u64) -> QueryResponseStatus<Self::BlockNumber> {
+// 		QueryResponseStatus::NotFound
+// 	}
+// }
+
+// impl<Origin, Timeout> QueryController<Origin, Timeout> for TestController
+// where
+// 	Origin: Clone,
+// {
+// 	type WeightInfo = ();
+// 	fn query(
+// 		_origin: Origin,
+// 		_timeout: Timeout,
+// 		_match_querier: VersionedLocation,
+// 	) -> Result<QueryId, DispatchError> {
+// 		Ok(0u64)
+// 	}
+// }
+
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -144,7 +266,7 @@ impl pallet_idn_manager::Config for Test {
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = Pulse;
 	type WeightInfo = ();
-	type Xcm = ();
+	type Xcm = TestController;
 	type MaxMetadataLen = MaxMetadataLen;
 	type Credits = u64;
 	type MaxSubscriptions = MaxSubscriptions;
