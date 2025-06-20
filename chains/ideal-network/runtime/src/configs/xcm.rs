@@ -30,7 +30,7 @@ use parachains_common::xcm_config::ConcreteAssetFromSystem;
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::impls::ToAuthor;
 
-use xcm::latest::prelude::*;
+use xcm::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowTopLevelPaidExecutionFrom,
 	DenyReserveTransferToRelayChain, DenyThenTry, DescribeAllTerminal, DescribeFamily,
@@ -47,6 +47,7 @@ parameter_types! {
 	pub const RelayLocation: Location = Location::parent();
 	pub const RelayNetwork: Option<NetworkId> = Some(NetworkId::Polkadot);
 	pub const TokenLocation: Location = Location::here();
+	pub AssetHub: Location = Location::new(1, [Parachain(1000)]);
 	pub RelayChainOrigin: RuntimeOrigin = cumulus_pallet_xcm::Origin::Relay.into();
 	// For the real deployment, it is recommended to set `RelayNetwork` according to the relay chain
 	// and prepend `UniversalLocation` with `GlobalConsensus(RelayNetwork::get())`.
@@ -152,12 +153,11 @@ impl xcm_executor::Config for XcmConfig {
 	// How to withdraw and deposit an asset.
 	type AssetTransactor = FungibleTransactor;
 	type OriginConverter = XcmOriginToTransactDispatchOrigin;
-	/// Only allow reserve transfer of Relay Chain native token (e.g. DOT) from System or Relay
-	/// Chain.
+	// Only allow reserve transfer of Relay Chain native token (e.g. DOT) from System or Relay
+	// Chain.
 	type IsReserve = ConcreteAssetFromSystem<RelayLocation>;
-	/// Only allow teleportation of Relay Chain native token (e.g. DOT) from System or Relay
-	/// Chain.
-	type IsTeleporter = ConcreteAssetFromSystem<RelayLocation>;
+	// Telerporting is not enabled.
+	type IsTeleporter = ();
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	// TODO: use WeightInfoBounds https://github.com/ideal-lab5/idn-sdk/issues/262
@@ -201,6 +201,28 @@ pub type XcmRouter = WithUniqueTopic<(
 	XcmpQueue,
 )>;
 
+// pub struct RelayNativeFromSystem;
+// // impl Contains<(Location, AssetId)> for RelayNativeFromSystem {
+// // 	fn contains(&self, (location, asset_id): &(Location, AssetId)) -> bool {
+// // 		// Only allow reserve transfer of Relay Chain native token (e.g. DOT) from System or Relay
+// // 		// Chain.
+// // 		if let Location::Parent = location {
+// // 			if let AssetId(RelayLocation::get()) = asset_id {
+// // 				return true;
+// // 			}
+// // 		}
+// // 		false
+// // 	}
+// // }
+// impl Contains<(Location, Vec<Asset>)> for RelayNativeFromSystem {
+// 	fn contains((location, assets): &(Location, Vec<Asset>)) -> bool {
+// 		log::trace!(target: "xcm::contains", "RelayNativeFromSystem assets: {:?}, origin: {:?}",
+// assets, location); 		assets
+// 			.iter()
+// 			.any(|a| ConcreteAssetFromSystem::<RelayLocation>::contains(a, location))
+// 	}
+// }
+
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type SendXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
@@ -210,8 +232,11 @@ impl pallet_xcm::Config for Runtime {
 	// ^ Disable dispatchable execute on the XCM pallet.
 	// Needs to be `Everything` for local testing.
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Nothing;
+	// We don't allow teleporting assets.
+	type XcmTeleportFilter = Nothing;
+	// TODO: add filter to only allow reserve transfers of native to relay/system chains. Maybe make
+	// `RelayNativeFromSystem` work. `FilterByAssets<Equals<RelayLocation>>` could work too.
+	type XcmReserveTransferFilter = Everything;
 	// TODO: use WeightInfoBounds https://github.com/ideal-lab5/idn-sdk/issues/262
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type UniversalLocation = UniversalLocation;

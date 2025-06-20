@@ -19,7 +19,7 @@
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use frame_support::{traits::Contains, BoundedVec};
 use scale_info::TypeInfo;
-use xcm::v5::{Junction::Parachain, Location};
+use xcm::prelude::{Junction::Parachain, Location};
 
 /// The type for the metadata of a subscription
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;

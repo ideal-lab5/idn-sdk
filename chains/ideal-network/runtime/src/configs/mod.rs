@@ -49,7 +49,7 @@ use polkadot_runtime_common::{
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
-use xcm::latest::prelude::BodyId;
+use xcm::prelude::BodyId;
 
 // Local module imports
 use super::{
@@ -318,7 +318,7 @@ impl pallet_collator_selection::Config for Runtime {
 mod bench_ensure_origin {
 	use crate::RuntimeOrigin;
 	use frame_support::pallet_prelude::EnsureOrigin;
-	use xcm::v5::{prelude::Junction, Location};
+	use xcm::prelude::{Junction, Location};
 
 	pub struct BenchEnsureOrigin;
 	impl EnsureOrigin<RuntimeOrigin> for BenchEnsureOrigin {
