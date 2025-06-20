@@ -1,26 +1,79 @@
 [relaychain]
-default_image = "docker.io/parity/polkadot:latest"
-default_command = "polkadot"
-default_args = [ "-lparachain=debug" ]
-
+# default_image = "docker.io/parity/polkadot:stable2506-rc4"
+# default_command = "polkadot"
+default_args = [ "-lxcm=trace,debug" ]
 chain = "paseo-local"
 
-  [[relaychain.nodes]]
-  name = "alice"
-  validator = true
+[relaychain.runtime_genesis_patch.balances]
+balances = [
+    # Root account
+    ["5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ", 60000000000000000],
+]
 
-  [[relaychain.nodes]]
-  name = "bob"
-  validator = true
+[[relaychain.nodes]]
+name = "alice"
+rpc_port = 8833
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+validator = true
 
 [[parachains]]
 id = 4502
+chain = "local"
+default_command = "../../target/release/idn-node"
+default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
 
-  [[parachains.collators]]
-  name = "idn-alice"
-  rpc_port = 9933
-  command = "../../target/release/idn-node"
+[parachains.genesis_overrides.balances]
+balances = [
+    # Dev accounts
+    ["5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY", 10000000000000000],
+    ["5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty", 10000000000000000],
+    ["5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y", 10000000000000000],
+    ["5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy", 10000000000000000],
+    ["5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw", 10000000000000000],
+    ["5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL", 10000000000000000],
+    # Root account
+    ["5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ", 60000000000000000],
+    ["12ZHHNraSBqPNGsCgdynXNGi5GfVtZKCVZsV2gkZFwVACRDh", 50000000000000000], # does it work???
+    # Collators
+    ["5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V", 30000000000000000],
+    ["5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN", 30000000000000000] 
+]
 
-  [[parachains.collators]]
-  name = "idn-bob"
-  command = "../../target/release/idn-node"
+[[parachains.collators]]
+name = "idn-alice"
+rpc_port = 9933
+
+[[parachains.collators]]
+name = "idn-bob"
+
+# # Asset Hub
+# [[parachains]]
+#   id = 1000
+#   chain = "asset-hub-paseo-local"
+
+#   [parachains.genesis_overrides.balances]
+#   balances = [
+#       # Root account
+#       ["5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ", 60000000000000000],
+#   ]
+
+#   [[parachains.collators]]
+#   name = "asset-hub"
+#   args = ["-lxcm=trace"]
+#   rpc_port = 9977
+
+#   # Channels
+#   [[hrmp_channels]]
+#   sender = 1000
+#   recipient = 4001
+#   max_capacity = 1000
+#   max_message_size = 1024
+
+#   [[hrmp_channels]]
+#   sender = 4001
+#   recipient = 1000
+#   max_capacity = 1000
+#   max_message_size = 1024

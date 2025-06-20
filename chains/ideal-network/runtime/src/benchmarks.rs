@@ -18,14 +18,16 @@
 
 use crate::configs::{
 	xcm_config::{
-		FeeAssetId, RelayLocation, ToParentBaseDeliveryFee, ToSiblingBaseDeliveryFee,
-		TransactionByteFee, XcmConfig,
+		AssetHub, FeeAssetId, LocationToAccountId, RelayLocation, ToParentBaseDeliveryFee,
+		ToSiblingBaseDeliveryFee, TransactionByteFee, XcmConfig,
 	},
 	ExistentialDeposit,
 };
+use cumulus_primitives_core::ParaId;
 use frame_benchmarking::BenchmarkError;
 use scale_info::prelude::vec::Vec;
-use xcm::v5::{Asset, AssetId, Fungibility::Fungible, Location, Parent};
+use xcm::prelude::{Asset, AssetId, Fungibility::Fungible, Location};
+use xcm_executor::traits::ConvertLocation;
 
 pub use super::*;
 pub use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
@@ -35,12 +37,12 @@ pub use frame_system_benchmarking::Pallet as SystemBench;
 pub use pallet_xcm::benchmarking::Pallet as PalletXcmExtrinsicsBenchmark;
 
 frame_support::parameter_types! {
-	pub ExistentialDepositAsset: Option<xcm::v5::Asset> = Some((
+	pub ExistentialDepositAsset: Option<Asset> = Some((
 		RelayLocation::get(),
 		EXISTENTIAL_DEPOSIT
 	).into());
-	pub const RandomParaId: cumulus_primitives_core::ParaId =
-		cumulus_primitives_core::ParaId::new(43211234);
+
+	pub const AssetHubParaId: ParaId = ParaId::new(1000);
 }
 
 type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
@@ -83,21 +85,43 @@ impl pallet_xcm::benchmarking::Config for Runtime {
 			XcmConfig,
 			ExistentialDepositAsset,
 			PriceForSiblingParachainDelivery,
-			RandomParaId,
+			AssetHubParaId,
 			ParachainSystem,
 		>,
 	);
 	fn reachable_dest() -> Option<Location> {
-		Some(Parent.into())
+		Some(RelayLocation::get())
 	}
 
 	fn teleportable_asset_and_dest() -> Option<(Asset, Location)> {
-		// Relay/native token can be teleported between IDN and Relay.
-		Some((Self::get_asset(), Parent.into()))
+		// Teleporting is not enabled.
+		None
 	}
 
 	fn reserve_transferable_asset_and_dest() -> Option<(Asset, Location)> {
-		None
+		ParachainSystem::open_outbound_hrmp_channel_for_benchmarks_or_tests(AssetHubParaId::get());
+
+		let who = frame_benchmarking::whitelisted_caller();
+		// Give some multiple of the existential deposit.
+		let balance = ExistentialDeposit::get() * 10_000;
+		let _ =
+			<Balances as frame_support::traits::Currency<_>>::make_free_balance_be(&who, balance);
+		let ah_on_idn: AccountId = LocationToAccountId::convert_location(&AssetHub::get())?;
+		let _ = <Balances as frame_support::traits::Currency<_>>::make_free_balance_be(
+			&ah_on_idn, balance,
+		);
+		// IDN can reserve transfer relay chain native token to system chains.
+		Some((
+			Self::get_asset(),
+			AssetHub::get(), /* cumulus_primitives_core::ParentThen(
+			                  * 	cumulus_primitives_core::AccountId32 {
+			                  * 		network: Some(NetworkId::Polkadot),
+			                  * 		id: wc.into(),
+			                  * 	}
+			                  * 	.into(),
+			                  * )
+			                  * .into(), */
+		))
 	}
 
 	fn get_asset() -> Asset {
