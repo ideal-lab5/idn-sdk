@@ -382,7 +382,7 @@ mod benchmarks {
 
 		#[block]
 		{
-			let _ = IdnManager::<T>::dispatch(pulse);
+			IdnManager::<T>::dispatch(pulse);
 		}
 
 		// Verify the first subscription was updated

@@ -21,3 +21,4 @@
 pub(crate) mod mock;
 mod pallet;
 mod primitives;
+mod xcm_controller;

@@ -25,6 +25,7 @@ sp-core.workspace = true
 sp-io.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
+sp-weights.workspace = true
 xcm.workspace = true
 xcm-builder.workspace = true
 pallet-xcm.workspace = true
@@ -39,6 +40,7 @@ sp-consensus-randomness-beacon.workspace = true
 [dev-dependencies]
 pallet-balances.workspace = true
 sp-version.workspace = true
+xcm-executor.workspace = true
 
 [features]
 default = ["std"]
@@ -55,10 +57,12 @@ std = [
 	"sp-core/std",
 	"sp-io/std",
 	"sp-std/std",
+	"sp-weights/std",
 	"xcm/std",
 	"pallet-xcm/std",
 	"pallet-balances/std",
 	"xcm-builder/std",
+	"xcm-executor/std",
 	"sp-runtime/std",
 ]
 
