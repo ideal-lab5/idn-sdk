@@ -19,7 +19,7 @@
 use frame_support::{dispatch::PostDispatchInfo, parameter_types};
 use xcm::{latest::prelude::*, v5::Assets, VersionedLocation, VersionedXcm, VersionedXcm::V5};
 use xcm_builder::{
-	test_utils::{QueryId, SendXcm, Xcm as TestXcm},
+	test_utils::{QueryId, Response, SendXcm, Xcm as TestXcm},
 	ExecuteController, QueryController, QueryHandler, SendController,
 };
 use xcm_executor::traits::QueryResponseStatus;
@@ -120,7 +120,7 @@ impl QueryHandler for TestController {
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn expect_response(_id: QueryId, _response: crate::Response) {}
+	fn expect_response(_id: QueryId, _response: Response) {}
 }
 
 impl<Origin, Timeout> QueryController<Origin, Timeout> for TestController
