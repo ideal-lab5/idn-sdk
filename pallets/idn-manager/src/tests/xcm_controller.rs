@@ -118,6 +118,9 @@ impl QueryHandler for TestController {
 	fn take_response(_id: u64) -> QueryResponseStatus<Self::BlockNumber> {
 		QueryResponseStatus::NotFound
 	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn expect_response(_id: QueryId, _response: crate::Response) {}
 }
 
 impl<Origin, Timeout> QueryController<Origin, Timeout> for TestController
