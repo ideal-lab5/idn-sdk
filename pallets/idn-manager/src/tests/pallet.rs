@@ -815,8 +815,7 @@ fn test_credits_consumption_not_enough_balance() {
 				);
 				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
 				IdnManager::dispatch(pulse.into());
-				// TODO: as part of https://github.com/ideal-lab5/idn-sdk/issues/195 to check that the sub's changed state
-				// get by sub_id
+				
 				let updated_sub = Subscriptions::<Test>::get(sub_id).unwrap();
 				assert_eq!(updated_sub.state, SubscriptionState::Paused);
 				break;

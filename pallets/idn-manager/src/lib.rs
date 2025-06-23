@@ -382,8 +382,6 @@ pub mod pallet {
 		RandomnessDistributed { sub_id: T::SubscriptionId },
 		/// Fees collected
 		FeesCollected { sub_id: T::SubscriptionId, fees: BalanceOf<T> },
-		/// Fees could not be collected for the given subscription id
-		FeeCollectionIssueEvent { sub_id: T::SubscriptionId },
 		/// Subscription Fees quoted
 		SubQuoted { requester: Location, quote: QuoteOf<T> },
 		/// Subscription Distributed
@@ -626,8 +624,8 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				ensure!(
-					sub.state == SubscriptionState::Active ||
-						sub.state == SubscriptionState::Paused,
+					sub.state == SubscriptionState::Active
+						|| sub.state == SubscriptionState::Paused,
 					Error::<T>::SubscriptionNotUpdatable
 				);
 
@@ -856,16 +854,7 @@ impl<T: Config> Pallet<T> {
 				let consume_credits = T::FeesManager::get_consume_credits(&sub);
 
 				if let Err(e) = Self::collect_fees(&sub, consume_credits) {
-					// on failure: log warning, pause sub, emit event, move to next
-					log::warn!(
-						target: LOG_TARGET,
-						"Failed to collect fees for subscription id = {:?}. Pausing Subscription due to: {:?}",
-						sub_id,
-						e
-					);
-					sub.state = SubscriptionState::Paused;
-					Subscriptions::<T>::insert(sub_id, &sub);
-					Self::deposit_event(Event::SubscriptionPaused { sub_id });
+					Self::pause_subscription_on_error(sub_id, sub, "Failed to collect fees.", e);
 					continue;
 				}
 
@@ -884,17 +873,7 @@ impl<T: Config> Pallet<T> {
 					// 3. Pass the parameters to that function
 					(sub.details.call_index, &pulse, &sub_id).encode().into(),
 				) {
-					// on failure: log warning, pause sub, emit event, move to next
-					log::warn!(
-						target: LOG_TARGET,
-						"Failed to dispatch XCM for subscription id = {:?}. Pausing subscription due to: {:?}",
-						sub_id,
-						e
-					);
-					Self::deposit_event(Event::FeeCollectionIssueEvent { sub_id });
-					sub.state = SubscriptionState::Paused;
-					Subscriptions::<T>::insert(sub_id, &sub);
-					Self::deposit_event(Event::SubscriptionPaused { sub_id });
+					Self::pause_subscription_on_error(sub_id, sub, "Failed to dispatch XCM.", e);
 					continue;
 				}
 
@@ -911,8 +890,8 @@ impl<T: Config> Pallet<T> {
 				sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
 			}
 			// Finalize the subscription if there are not enough credits left
-			if sub.state != SubscriptionState::Finalized &&
-				sub.credits_left < Self::get_min_credits(&sub)
+			if sub.state != SubscriptionState::Finalized
+				&& sub.credits_left < Self::get_min_credits(&sub)
 			{
 				sub.state = SubscriptionState::Finalized;
 			}
@@ -920,6 +899,25 @@ impl<T: Config> Pallet<T> {
 			// Store the updated subscription
 			Subscriptions::<T>::insert(sub_id, &sub);
 		}
+	}
+
+	/// Gracefully handles the pausing of a subscription in the case an error occurs
+	fn pause_subscription_on_error(
+		sub_id: SubscriptionIdOf<T>,
+		mut sub: SubscriptionOf<T>,
+		message: &str,
+		err: DispatchError,
+	) {
+		log::warn!(
+			target: LOG_TARGET,
+			"{}: subscription id = {:?}. Pausing subscription due to: {:?}",
+			message,
+			sub_id,
+			err
+		);
+		sub.state = SubscriptionState::Paused;
+		Subscriptions::<T>::insert(sub_id, &sub);
+		Self::deposit_event(Event::SubscriptionPaused { sub_id });
 	}
 
 	/// Collects fees for a subscription based on credits consumed.
@@ -1059,7 +1057,6 @@ impl<T: Config> Dispatcher<T::Pulse> for Pallet<T> {
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
-	// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
 	fn dispatch(pulse: T::Pulse) {
 		Pallet::<T>::distribute(pulse);
 	}

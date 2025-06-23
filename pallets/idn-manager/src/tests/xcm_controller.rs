@@ -17,9 +17,11 @@
 //! Mock ExecuteController for fine-grained conditional error injection for xcm testing
 
 use frame_support::{dispatch::PostDispatchInfo, parameter_types};
-use xcm::{latest::prelude::*, v5::Assets, VersionedLocation, VersionedXcm, VersionedXcm::V5};
+use xcm::{latest::prelude::*, VersionedLocation, VersionedXcm, VersionedXcm::V5};
+#[cfg(feature = "runtime-benchmarks")]
+use xcm_builder::test_utils::Response;
 use xcm_builder::{
-	test_utils::{QueryId, Response, SendXcm, Xcm as TestXcm},
+	test_utils::{QueryId, SendXcm, Xcm as TestXcm},
 	ExecuteController, QueryController, QueryHandler, SendController,
 };
 use xcm_executor::traits::QueryResponseStatus;
