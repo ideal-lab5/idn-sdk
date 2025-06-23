@@ -147,7 +147,7 @@ impl pallet_balances::Config for Runtime {
 	type Balance = Balance;
 	/// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
-	// TODO: use `ResolveTo<TreasuryAccount, Balances>`
+	// TODO: use `ResolveTo<TreasuryAccount, Balances>` https://github.com/ideal-lab5/idn-sdk/issues/275
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;

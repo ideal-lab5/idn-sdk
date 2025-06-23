@@ -111,17 +111,7 @@ impl pallet_xcm::benchmarking::Config for Runtime {
 			&ah_on_idn, balance,
 		);
 		// IDN can reserve transfer relay chain native token to system chains.
-		Some((
-			Self::get_asset(),
-			AssetHub::get(), /* cumulus_primitives_core::ParentThen(
-			                  * 	cumulus_primitives_core::AccountId32 {
-			                  * 		network: Some(NetworkId::Polkadot),
-			                  * 		id: wc.into(),
-			                  * 	}
-			                  * 	.into(),
-			                  * )
-			                  * .into(), */
-		))
+		Some((Self::get_asset(), AssetHub::get()))
 	}
 
 	fn get_asset() -> Asset {
