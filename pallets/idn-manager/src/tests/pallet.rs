@@ -815,7 +815,7 @@ fn test_credits_consumption_not_enough_balance() {
 				);
 				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
 				IdnManager::dispatch(pulse.into());
-				
+
 				let updated_sub = Subscriptions::<Test>::get(sub_id).unwrap();
 				assert_eq!(updated_sub.state, SubscriptionState::Paused);
 				break;
