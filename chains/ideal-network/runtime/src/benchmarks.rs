@@ -18,8 +18,8 @@
 
 use crate::configs::{
 	xcm_config::{
-		AssetHub, FeeAssetId, LocationToAccountId, RelayLocation, ToParentBaseDeliveryFee,
-		ToSiblingBaseDeliveryFee, TransactionByteFee, XcmConfig,
+		AssetHub, BaseDeliveryFee, FeeAssetId, LocationToAccountId, RelayLocation,
+		TransactionByteFee, XcmConfig,
 	},
 	ExistentialDeposit,
 };
@@ -47,14 +47,14 @@ frame_support::parameter_types! {
 
 type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
 	FeeAssetId,
-	ToSiblingBaseDeliveryFee,
+	BaseDeliveryFee,
 	TransactionByteFee,
 	XcmpQueue,
 >;
 
 type PriceForParentDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
 	FeeAssetId,
-	ToParentBaseDeliveryFee,
+	BaseDeliveryFee,
 	TransactionByteFee,
 	ParachainSystem,
 >;
