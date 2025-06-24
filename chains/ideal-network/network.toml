@@ -1,26 +1,25 @@
 [relaychain]
-default_image = "docker.io/parity/polkadot:latest"
-default_command = "polkadot"
-default_args = [ "-lparachain=debug" ]
-
+default_args = [ "-lxcm=trace,debug" ]
 chain = "paseo-local"
 
-  [[relaychain.nodes]]
-  name = "alice"
-  validator = true
+[[relaychain.nodes]]
+name = "alice"
+rpc_port = 8833
+validator = true
 
-  [[relaychain.nodes]]
-  name = "bob"
-  validator = true
+[[relaychain.nodes]]
+name = "bob"
+validator = true
 
 [[parachains]]
 id = 4502
+chain = "local"
+default_command = "../../target/release/idn-node"
+default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
 
-  [[parachains.collators]]
-  name = "idn-alice"
-  rpc_port = 9933
-  command = "../../target/release/idn-node"
+[[parachains.collators]]
+name = "idn-alice"
+rpc_port = 9933
 
-  [[parachains.collators]]
-  name = "idn-bob"
-  command = "../../target/release/idn-node"
+[[parachains.collators]]
+name = "idn-bob"

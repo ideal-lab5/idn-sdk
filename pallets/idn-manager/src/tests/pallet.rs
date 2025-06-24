@@ -35,7 +35,7 @@ use frame_support::{
 };
 use sp_idn_traits::pulse::Dispatcher;
 use sp_runtime::{AccountId32, DispatchError::BadOrigin, TokenError};
-use xcm::v5::{Junction, Location};
+use xcm::prelude::{Junction, Location};
 
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 pub const BOB: AccountId32 = AccountId32::new([2u8; 32]);
