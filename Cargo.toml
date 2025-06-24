@@ -154,6 +154,7 @@ sp-keyring = { version = "41.0.0", default-features = false }
 sp-offchain = { version = "36.0.0", default-features = false }
 sp-session = { version = "38.1.0", default-features = false }
 sp-transaction-pool = { version = "36.0.0", default-features = false }
+sp-weights = { version = "31.1.0", default-features = false }
 
 # Contracts & pallet-revive
 pallet-contracts = { version = "40.1.0", default-features = false }

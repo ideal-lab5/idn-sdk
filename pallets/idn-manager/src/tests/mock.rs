@@ -22,7 +22,9 @@
 use crate::{
 	self as pallet_idn_manager,
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
-	primitives, BalanceOf, SubscriptionOf,
+	primitives,
+	tests::xcm_controller::TestController,
+	BalanceOf, SubscriptionOf,
 };
 use frame_support::{
 	construct_runtime, derive_impl,
@@ -144,7 +146,7 @@ impl pallet_idn_manager::Config for Test {
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = Pulse;
 	type WeightInfo = ();
-	type Xcm = ();
+	type Xcm = TestController;
 	type MaxMetadataLen = MaxMetadataLen;
 	type Credits = u64;
 	type MaxSubscriptions = MaxSubscriptions;
