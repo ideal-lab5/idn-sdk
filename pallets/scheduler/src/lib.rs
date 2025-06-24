@@ -1,20 +1,13 @@
-//! > Made with *Substrate*, for *Polkadot*.
 //!
-//! [![github]](https://github.com/paritytech/polkadot-sdk/tree/master/substrate/frame/scheduler) -
-//! [![polkadot]](https://polkadot.network)
 //!
-//! [polkadot]: https://img.shields.io/badge/polkadot-E6007A?style=for-the-badge&logo=polkadot&logoColor=white
-//! [github]: https://img.shields.io/badge/github-8da0cb?style=for-the-badge&labelColor=555555&logo=github
+//! # Timelocked Transactions Pallet
 //!
-//! # Scheduler Pallet
-//!
-//! A Pallet for scheduling runtime calls.
+//! A Pallet for scheduling confidential (timelocked) runtime calls.
 //!
 //! ## Overview
 //!
-//! This Pallet exposes capabilities for scheduling runtime calls to occur at a specified block
-//! number or at a specified period. These scheduled runtime calls may be named or anonymous and may
-//! be canceled.
+//! This Pallet exposes capabilities for scheduling runtime calls to occur at a specified round number output from a randomness beacon.
+//! These scheduled calls each contain a timelocked ciphertext and round number when they unlock.
 //!
 //! __NOTE:__ Instead of using the filter contained in the origin to call `fn schedule`, scheduled
 //! runtime calls will be dispatched with the default filter for the origin: namely
@@ -73,36 +66,29 @@ use ark_bls12_381::G1Affine;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin},
-	ensure,
 	traits::{
-		schedule::{self, DispatchTime, MaybeHashed},
+		schedule::{self, MaybeHashed},
 		Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, PrivilegeCmp, QueryPreimage,
 		StorageVersion, StorePreimage,
 	},
 	weights::{Weight, WeightMeter},
 };
-use frame_system::{
-	pallet_prelude::BlockNumberFor,
-	{self as system},
-};
+use frame_system::{self as system};
 pub use pallet::*;
 use scale_info::TypeInfo;
 use schedule::v3::TaskName;
-use sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
 use sp_io::hashing::blake2_256;
 use sp_runtime::{
-	traits::{BadOrigin, ConstU32, Dispatchable, One, Saturating, Zero},
+	traits::{ConstU32, Dispatchable},
 	BoundedVec, DispatchError, RuntimeDebug,
 };
-use sp_std::{borrow::Borrow, cmp::Ordering, marker::PhantomData, prelude::*};
+use sp_std::{marker::PhantomData, prelude::*};
 use timelock::{
-	block_ciphers::{AESGCMBlockCipherProvider, AESOutput},
+	block_ciphers::AESGCMBlockCipherProvider,
 	engines::drand::TinyBLS381,
 	tlock::{tld, TLECiphertext},
 };
 
-/// Just a simple index for naming period tasks.
-pub type PeriodicIndex = u32;
 /// The location of a scheduled task that can be used to remove it.
 pub type TaskAddress<BlockNumber> = (BlockNumber, u32);
 
@@ -143,14 +129,12 @@ pub type ScheduledOf<T> = Scheduled<
 
 // expected that WeightInfo is a struct and not a type
 pub(crate) trait MarginalWeightInfo: WeightInfo {
-	fn service_task(maybe_lookup_len: Option<usize>, named: bool, periodic: bool) -> Weight {
+	fn service_task(maybe_lookup_len: Option<usize>) -> Weight {
 		let base = Self::service_task_base();
-		let mut total = match maybe_lookup_len {
+		match maybe_lookup_len {
 			None => base,
 			Some(l) => Self::service_task_fetched(l as u32),
-		};
-		total.saturating_accrue(Self::service_task_named().saturating_sub(base));
-		total
+		}
 	}
 }
 impl<T: WeightInfo> MarginalWeightInfo for T {}
@@ -290,17 +274,7 @@ impl<T: Config> Pallet<T> {
 	/// Helper to migrate scheduler when the pallet origin type has changed.
 	pub fn migrate_origin<OldOrigin: Into<T::PalletsOrigin> + codec::Decode>() {
 		Agenda::<T>::translate::<
-			Vec<
-				Option<
-					Scheduled<
-						TaskName,
-						BoundedCallOf<T>,
-						Ciphertext,
-						OldOrigin,
-						T::AccountId,
-					>,
-				>,
-			>,
+			Vec<Option<Scheduled<TaskName, BoundedCallOf<T>, Ciphertext, OldOrigin, T::AccountId>>>,
 			_,
 		>(|_, agenda| {
 			Some(BoundedVec::truncate_from(
@@ -354,22 +328,6 @@ impl<T: Config> Pallet<T> {
 		Ok(index)
 	}
 
-	/// Remove trailing `None` items of an agenda at `when`. If all items are `None` remove the
-	/// agenda record entirely.
-	fn cleanup_agenda(when: RoundNumber) {
-		let mut agenda = Agenda::<T>::get(when);
-		match agenda.iter().rposition(|i| i.is_some()) {
-			Some(i) if agenda.len() > i + 1 => {
-				agenda.truncate(i + 1);
-				Agenda::<T>::insert(when, agenda);
-			},
-			Some(_) => {},
-			None => {
-				Agenda::<T>::remove(when);
-			},
-		}
-	}
-
 	/// schedule sealed tasks
 	fn do_schedule_sealed(
 		when: u64, // drand round number
@@ -401,7 +359,6 @@ enum ServiceTaskError {
 use ServiceTaskError::*;
 
 impl<T: Config> Pallet<T> {
-
 	pub fn service_agenda_decrypt_and_decode(
 		weight: &mut WeightMeter,
 		when: RoundNumber,
@@ -426,7 +383,7 @@ impl<T: Config> Pallet<T> {
 		debug_assert!(within_limit, "weight limit should have been checked in advance");
 
 		for (agenda_index, _) in ordered.into_iter().take(max as usize) {
-			let mut task = match agenda[agenda_index as usize].take() {
+			let task = match agenda[agenda_index as usize].take() {
 				None => continue,
 				Some(t) => t,
 			};
@@ -471,7 +428,7 @@ impl<T: Config> Pallet<T> {
 					item.maybe_call = call_data
 						.iter()
 						// TODO: just matches based on id, no real verification check
-						.find(|data| data.0.eq(&item.id)) 
+						.find(|data| data.0.eq(&item.id))
 						.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
 					// }
 				}
@@ -485,13 +442,17 @@ impl<T: Config> Pallet<T> {
 			.is_ok();
 		debug_assert!(within_limit, "weight limit should have been checked in advance");
 
+		// Items cannot be postponed. Anything that cannot be executed is dropped. 
+		// This is why it will be crucial to allow for time-based exection leasing to provide execution guarantees
 		// Items which we know can be executed and have postponed for execution in a later block.
+		// so we need to invert the metering a bit here
+		// instead of executing things up to a given weight, we need to execute 'leased' transaction slots
 		let mut postponed = (ordered.len() as u32).saturating_sub(max);
 		// Items which we don't know can ever be executed.
 		let mut dropped = 0;
 
 		for (agenda_index, _) in ordered.into_iter().take(max as usize) {
-			let mut task = match agenda[agenda_index as usize].take() {
+			let task = match agenda[agenda_index as usize].take() {
 				None => continue,
 				Some(t) => t,
 			};
@@ -499,8 +460,6 @@ impl<T: Config> Pallet<T> {
 			let base_weight = T::WeightInfo::service_task(
 				// we know that maybe_call must be Some at this point
 				task.maybe_call.clone().unwrap().lookup_len().map(|x| x as usize),
-				true,
-				false,
 			);
 			if !weight.can_consume(base_weight) {
 				postponed += 1;
@@ -523,7 +482,8 @@ impl<T: Config> Pallet<T> {
 			};
 		}
 		if postponed > 0 || dropped > 0 {
-			Agenda::<T>::insert(when, agenda);
+			// we cannot reschedule them, since that breaks front-running protection, so for now we simply drop them
+			// Agenda::<T>::insert(when, agenda);
 		} else {
 			Agenda::<T>::remove(when);
 		}
@@ -536,17 +496,15 @@ impl<T: Config> Pallet<T> {
 	/// This involves:
 	/// - removing and potentially replacing the `Lookup` entry for the task.
 	/// - realizing the task's call which can include a preimage lookup.
-	/// - Rescheduling the task for execution in a later agenda if periodic.
 	#[allow(clippy::result_large_err)]
 	fn service_task(
 		weight: &mut WeightMeter,
 		when: RoundNumber,
 		agenda_index: u32,
 		is_first: bool,
-		mut task: ScheduledOf<T>,
+		task: ScheduledOf<T>,
 	) -> Result<(), (ServiceTaskError, Option<ScheduledOf<T>>)> {
-		
-			Lookup::<T>::remove(task.id);
+		Lookup::<T>::remove(task.id);
 
 		let (call, lookup_len) = match T::Preimages::peek(&task.maybe_call.clone().unwrap()) {
 			Ok(c) => c,
@@ -560,11 +518,7 @@ impl<T: Config> Pallet<T> {
 			},
 		};
 
-		let _ = weight.try_consume(T::WeightInfo::service_task(
-			lookup_len.map(|x| x as usize),
-			true,
-			false,
-		));
+		let _ = weight.try_consume(T::WeightInfo::service_task(lookup_len.map(|x| x as usize)));
 
 		match Self::execute_dispatch(weight, task.origin.clone(), call) {
 			Err(()) if is_first => {
@@ -582,9 +536,9 @@ impl<T: Config> Pallet<T> {
 					id: task.id,
 					result,
 				});
-				
+
 				T::Preimages::drop(&task.maybe_call.clone().unwrap());
-				
+
 				Ok(())
 			},
 		}
