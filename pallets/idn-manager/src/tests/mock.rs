@@ -39,7 +39,7 @@ use sp_runtime::{
 	AccountId32,
 };
 use sp_std::fmt::Debug;
-use xcm::v5::{Junction::Parachain, Location};
+use xcm::prelude::{Junction::Parachain, Location};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 

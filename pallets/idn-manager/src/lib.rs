@@ -92,12 +92,9 @@ use sp_idn_traits::{
 use sp_runtime::traits::Saturating;
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use xcm::{
-	v5::{
-		prelude::{
-			ExpectTransactStatus, MaybeErrorCode, OriginKind, Transact, Unlimited, UnpaidExecution,
-			Xcm,
-		},
-		Location,
+	prelude::{
+		ExpectTransactStatus, Location, MaybeErrorCode, OriginKind, Transact, Unlimited,
+		UnpaidExecution, Xcm,
 	},
 	DoubleEncoded, VersionedLocation, VersionedXcm,
 };
@@ -1034,8 +1031,9 @@ impl<T: Config> Pallet<T> {
 			Transact { origin_kind: OriginKind::Xcm, fallback_max_weight: None, call },
 			ExpectTransactStatus(MaybeErrorCode::Success),
 		]);
-		let versioned_target: Box<VersionedLocation> = Box::new(target.clone().into());
-		let versioned_msg: Box<VersionedXcm<()>> = Box::new(xcm::VersionedXcm::V5(msg.into()));
+		let versioned_target: Box<VersionedLocation> =
+			Box::new(VersionedLocation::V5(target.clone()));
+		let versioned_msg: Box<VersionedXcm<()>> = Box::new(VersionedXcm::V5(msg.into()));
 		let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
 
 		T::Xcm::send(origin.into(), versioned_target, versioned_msg)

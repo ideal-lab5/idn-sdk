@@ -19,7 +19,7 @@
 use crate::primitives::AllowSiblingsOnly;
 use frame_support::traits::Contains;
 use sp_std::sync::Arc;
-use xcm::v5::{Junction, Junctions, Location};
+use xcm::prelude::{Junction, Junctions, Location};
 
 #[test]
 fn test_allow_siblings_only() {

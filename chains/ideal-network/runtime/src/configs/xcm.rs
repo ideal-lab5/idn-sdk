@@ -15,31 +15,38 @@
  */
 
 use crate::{
-	constants, weights::XcmWeightInfo, AccountId, AllPalletsWithSystem, Balance, Balances,
-	ParachainInfo, ParachainSystem, PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin,
+	configs::RuntimeBlockWeights,
+	constants,
+	weights::{CumulusXcmpQueueWeightInfo, MessageQueueWeightInfo, XcmWeightInfo},
+	AccountId, AllPalletsWithSystem, Balance, Balances, MessageQueue, ParachainInfo,
+	ParachainSystem, PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin,
 	TreasuryAccount, WeightToFee, XcmpQueue, CENTIUNIT,
 };
+use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
+	pallet_prelude::PhantomData,
 	parameter_types,
-	traits::{ConstU32, Disabled, Equals, Everything, Nothing},
+	traits::{ConstU32, Contains, Disabled, Equals, Everything, Nothing, TransformOrigin},
 	weights::Weight,
 };
 use frame_system::EnsureRoot;
-use pallet_xcm::XcmPassthrough;
-use parachains_common::xcm_config::ConcreteAssetFromSystem;
+use pallet_xcm::{AuthorizedAliasers, XcmPassthrough};
+use parachains_common::{
+	message_queue::{NarrowOriginToSibling, ParaIdToSibling},
+	xcm_config::{ConcreteAssetFromSystem, ParentRelayOrSiblingParachains},
+};
 use polkadot_parachain_primitives::primitives::Sibling;
-use polkadot_runtime_common::impls::ToAuthor;
-
-use xcm::latest::prelude::*;
+use polkadot_runtime_common::{impls::ToAuthor, xcm_sender::ExponentialPrice};
+use sp_runtime::{Perbill, Vec};
+use xcm::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowTopLevelPaidExecutionFrom,
-	DenyReserveTransferToRelayChain, DenyThenTry, DescribeAllTerminal, DescribeFamily,
-	DescribeTerminus, EnsureXcmOrigin, FixedWeightBounds, FrameTransactionalProcessor,
-	FungibleAdapter, HashedDescription, IsConcrete, ParentIsPreset, RelayChainAsNative,
-	SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	TrailingSetTopicAsId, UsingComponents, WithComputedOrigin, WithUniqueTopic,
-	XcmFeeManagerFromComponents,
+	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
+	AllowTopLevelPaidExecutionFrom, DescribeAllTerminal, DescribeFamily, DescribeTerminus,
+	EnsureXcmOrigin, FixedWeightBounds, FrameTransactionalProcessor, FungibleAdapter,
+	HashedDescription, IsConcrete, ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount,
+	SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId,
+	UsingComponents, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
 };
 use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 
@@ -47,6 +54,7 @@ parameter_types! {
 	pub const RelayLocation: Location = Location::parent();
 	pub const RelayNetwork: Option<NetworkId> = Some(NetworkId::Polkadot);
 	pub const TokenLocation: Location = Location::here();
+	pub AssetHub: Location = Location::new(1, [Parachain(1000)]);
 	pub RelayChainOrigin: RuntimeOrigin = cumulus_pallet_xcm::Origin::Relay.into();
 	// For the real deployment, it is recommended to set `RelayNetwork` according to the relay chain
 	// and prepend `UniversalLocation` with `GlobalConsensus(RelayNetwork::get())`.
@@ -54,14 +62,38 @@ parameter_types! {
 	/// The asset ID for the asset that we use to pay for message delivery fees.
 	pub FeeAssetId: AssetId = AssetId(RelayLocation::get());
 	/// The base fee for the message delivery fees.
-	pub const ToSiblingBaseDeliveryFee: u128 = CENTIUNIT.saturating_mul(3);
-	pub const ToParentBaseDeliveryFee: u128 = CENTIUNIT.saturating_mul(3);
+	pub const BaseDeliveryFee: u128 = CENTIUNIT.saturating_mul(3);
 	pub const TransactionByteFee: Balance = constants::relay::fee::TRANSACTION_BYTE_FEE;
 	pub RelayTreasuryLocation: Location =
 		(Parent, PalletInstance(constants::relay::TREASURY_PALLET_ID)).into();
 	pub RelayTreasuryPalletAccount: AccountId =
 		LocationToAccountId::convert_location(&RelayTreasuryLocation::get())
 			.unwrap_or(TreasuryAccount::get());
+	pub MessageQueueIdleServiceWeight: Weight = Perbill::from_percent(20) * RuntimeBlockWeights::get().max_block;
+	pub MessageQueueServiceWeight: Weight = Perbill::from_percent(35) * RuntimeBlockWeights::get().max_block;
+}
+
+impl pallet_message_queue::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = MessageQueueWeightInfo<Runtime>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type MessageProcessor = pallet_message_queue::mock_helpers::NoopMessageProcessor<
+		cumulus_primitives_core::AggregateMessageOrigin,
+	>;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type MessageProcessor = xcm_builder::ProcessXcmMessage<
+		AggregateMessageOrigin,
+		xcm_executor::XcmExecutor<XcmConfig>,
+		RuntimeCall,
+	>;
+	type Size = u32;
+	// The XCMP queue pallet is only ever able to handle the `Sibling(ParaId)` origin:
+	type QueueChangeHandler = NarrowOriginToSibling<XcmpQueue>;
+	type QueuePausedQuery = NarrowOriginToSibling<XcmpQueue>;
+	type HeapSize = sp_core::ConstU32<{ 103 * 1024 }>;
+	type MaxStale = sp_core::ConstU32<8>;
+	type ServiceWeight = MessageQueueServiceWeight;
+	type IdleMaxServiceWeight = MessageQueueIdleServiceWeight;
 }
 
 /// Type for specifying how a `Location` can be converted into an `AccountId`.
@@ -123,28 +155,18 @@ parameter_types! {
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
-pub type Barrier = TrailingSetTopicAsId<
-	DenyThenTry<
-		DenyReserveTransferToRelayChain,
+pub type Barrier = TrailingSetTopicAsId<(
+	TakeWeightCredit,
+	AllowKnownQueryResponses<PolkadotXcm>,
+	WithComputedOrigin<
 		(
-			TakeWeightCredit,
-			WithComputedOrigin<
-				(
-					AllowTopLevelPaidExecutionFrom<Everything>,
-					AllowExplicitUnpaidExecutionFrom<Equals<RelayTreasuryLocation>>,
-					// ^^^ Relay chain treasury get free execution
-				),
-				UniversalLocation,
-				ConstU32<8>,
-			>,
+			AllowTopLevelPaidExecutionFrom<Everything>,
+			AllowSubscriptionsFrom<ParentRelayOrSiblingParachains>,
 		),
+		UniversalLocation,
+		ConstU32<8>,
 	>,
->;
-
-/// Locations that will not be charged fees in the executor, neither for execution nor delivery. We
-/// only waive fees for the relay chain treasury location.
-pub type WaivedLocations = (Equals<RelayTreasuryLocation>,);
-
+)>;
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type RuntimeCall = RuntimeCall;
@@ -152,12 +174,11 @@ impl xcm_executor::Config for XcmConfig {
 	// How to withdraw and deposit an asset.
 	type AssetTransactor = FungibleTransactor;
 	type OriginConverter = XcmOriginToTransactDispatchOrigin;
-	/// Only allow reserve transfer of Relay Chain native token (e.g. DOT) from System or Relay
-	/// Chain.
+	// Only allow reserve transfer of Relay Chain native token (e.g. DOT) from System or Relay
+	// Chain.
 	type IsReserve = ConcreteAssetFromSystem<RelayLocation>;
-	/// Only allow teleportation of Relay Chain native token (e.g. DOT) from System or Relay
-	/// Chain.
-	type IsTeleporter = ConcreteAssetFromSystem<RelayLocation>;
+	// Telerporting is not enabled.
+	type IsTeleporter = ();
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	// TODO: use WeightInfoBounds https://github.com/ideal-lab5/idn-sdk/issues/262
@@ -173,14 +194,15 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetLocker = ();
 	type AssetExchanger = ();
 	type FeeManager = XcmFeeManagerFromComponents<
-		WaivedLocations,
+		// No locations have waived fees.
+		(),
 		SendXcmFeeToAccount<Self::AssetTransactor, RelayTreasuryPalletAccount>,
 	>;
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
-	type Aliasers = Nothing;
+	type Aliasers = AuthorizedAliasers<Runtime>;
 	type TransactionalProcessor = FrameTransactionalProcessor;
 	type HrmpNewChannelOpenRequestHandler = ();
 	type HrmpChannelAcceptedHandler = ();
@@ -196,10 +218,19 @@ pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, R
 /// queues.
 pub type XcmRouter = WithUniqueTopic<(
 	// Two routers - use UMP to communicate with the relay chain:
-	cumulus_primitives_utility::ParentAsUmp<ParachainSystem, (), ()>,
+	cumulus_primitives_utility::ParentAsUmp<ParachainSystem, PolkadotXcm, PriceForParentDelivery>,
 	// ..and XCMP to communicate with the sibling chains.
 	XcmpQueue,
 )>;
+
+/// Filter to determine if all specified assets are supported, used with
+/// reserve-transfers.
+pub struct FilterByAssets<Assets>(PhantomData<Assets>);
+impl<Assets: Contains<Location>> Contains<(Location, Vec<Asset>)> for FilterByAssets<Assets> {
+	fn contains(t: &(Location, Vec<Asset>)) -> bool {
+		t.1.iter().all(|a| Assets::contains(&a.id.0))
+	}
+}
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -210,8 +241,9 @@ impl pallet_xcm::Config for Runtime {
 	// ^ Disable dispatchable execute on the XCM pallet.
 	// Needs to be `Everything` for local testing.
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Nothing;
+	// We don't allow teleporting assets.
+	type XcmTeleportFilter = Nothing;
+	type XcmReserveTransferFilter = FilterByAssets<Equals<RelayLocation>>;
 	// TODO: use WeightInfoBounds https://github.com/ideal-lab5/idn-sdk/issues/262
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type UniversalLocation = UniversalLocation;
@@ -237,4 +269,32 @@ impl pallet_xcm::Config for Runtime {
 impl cumulus_pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
+}
+
+/// Means to price the delivery of an XCM to the parent chain.
+pub type PriceForParentDelivery =
+	ExponentialPrice<RelayLocation, BaseDeliveryFee, TransactionByteFee, ParachainSystem>;
+
+/// Means to price the delivery of an XCM to a sibling chain.
+pub type PriceForSiblingDelivery =
+	ExponentialPrice<RelayLocation, BaseDeliveryFee, TransactionByteFee, XcmpQueue>;
+
+impl cumulus_pallet_xcmp_queue::Config for Runtime {
+	type ChannelInfo = ParachainSystem;
+	type ControllerOrigin = EnsureRoot<AccountId>;
+	type ControllerOriginConverter = XcmOriginToTransactDispatchOrigin;
+	// Limit the number of messages and signals a HRMP channel can have at most.
+	type MaxActiveOutboundChannels = ConstU32<128>;
+	// Limits the number of inbound channels that we can suspend at the same time.
+	// A value close to the number of possible channels seems to be a sensible configuration.
+	type MaxInboundSuspended = ConstU32<128>;
+	// Limit the number of HRMP channels.
+	// note: https://github.com/polkadot-fellows/runtimes/blob/76d1fa680d00c3e447e40199e7b2250862ad4bfa/system-parachains/asset-hubs/asset-hub-polkadot/src/lib.rs#L692C2-L693C90
+	type MaxPageSize = ConstU32<{ 103 * 1024 }>;
+	type PriceForSiblingDelivery = PriceForSiblingDelivery;
+	type RuntimeEvent = RuntimeEvent;
+	type VersionWrapper = PolkadotXcm;
+	type WeightInfo = CumulusXcmpQueueWeightInfo<Runtime>;
+	// Enqueue XCMP messages from siblings for later processing.
+	type XcmpQueue = TransformOrigin<MessageQueue, AggregateMessageOrigin, ParaId, ParaIdToSibling>;
 }
