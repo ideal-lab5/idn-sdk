@@ -427,7 +427,7 @@ pub async fn start_parachain_node(
 	if validator {
 		let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
 		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(rx);
-		
+
 		let primary: Multiaddr =
 			PRIMARY.parse().expect("The string is a well-formatted multiaddress;qed");
 		let secondary: Multiaddr =
