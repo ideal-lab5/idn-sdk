@@ -218,7 +218,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 			.expect("The string is a well-formatted multiaddress. qed.");
 	let maddr2: Multiaddr =
 		"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
-			.parse() 
+			.parse()
 			.expect("The string is a well-formatted multiaddress. qed.");
 
 	let peers = vec![maddr1, maddr2];
