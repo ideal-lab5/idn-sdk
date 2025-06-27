@@ -207,7 +207,7 @@ impl TracingEvent {
 /// N is the retry timeout for resyncing with the swarm
 pub struct RetryableGossipsubRunner<const M: usize, const N: usize>;
 impl<const M: usize, const N: usize> RetryableGossipsubRunner<M, N> {
-	pub fn run<'a>(
+	pub fn run(
 		topic_str: &'static str,
 		peers: Vec<Multiaddr>,
 		tx: TracingUnboundedSender<CanonicalPulse>,
