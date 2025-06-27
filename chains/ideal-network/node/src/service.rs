@@ -23,7 +23,9 @@ use std::{sync::Arc, time::Duration};
 // Local Runtime Types
 use idn_runtime::{
 	apis::RuntimeApi,
-	constants::idn::{MAX_QUEUE_SIZE, PRIMARY, QUICKNET_GOSSIPSUB_TOPIC, SECONDARY},
+	constants::idn::{
+		MAX_QUEUE_SIZE, NO_MESSAGE_TIMEOUT, PRIMARY, QUICKNET_GOSSIPSUB_TOPIC, SECONDARY,
+	},
 	opaque::{Block, Hash},
 };
 
@@ -423,26 +425,26 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
-		// setup a libp2p node for gossipsub
 		let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
-		let pulse_receiver = DrandReceiver::new(rx);
+		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(rx);
+		let peers = default_peers();
 
-		let local_identity: Keypair = Keypair::generate_ed25519();
-		let cfg = GossipsubConfig::default();
-		// [SRLabs] If the gossipsub network fails to construct we consider it a critical failure
-		let mut gossipsub = GossipsubNetwork::new(&local_identity, cfg, tx, None)
-			.expect("The gossipsub network must start.");
 		let primary: Multiaddr =
 			PRIMARY.parse().expect("The string is a well-formatted multiaddress;qed");
 		let secondary: Multiaddr =
 			SECONDARY.parse().expect("The string is a well-formatted multiaddress;qed");
+		let peers = &[primary, secondary];
 
-		tokio::spawn(async move {
-			if let Err(e) = gossipsub.run(QUICKNET_GOSSIPSUB_TOPIC, vec![primary, secondary]).await
-			{
-				log::error!("Failed to run gossipsub network: {:?}", e);
-			}
-		});
+		if let Err(e) = RetryableGossipsubRunner::<MAX_QUEUE_SIZE, NO_MESSAGE_TIMEOUT>::run(
+			topic_str,
+			peers,
+			tx.clone(),
+			drand_receiver.clone(),
+		) {
+			// if the retryable gossipsub runner fails we consider it a critical error
+			// and bring down the node
+			panic!("A critical error occurred - bringing down the node: {:?}", e);
+		}
 
 		start_consensus(
 			client.clone(),

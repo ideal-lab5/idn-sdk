@@ -21,13 +21,24 @@
 //! the Drand beacon gossipsub topic, to which `ProtoPulse` messages are published as protobuf
 //! messages.
 //!
+//! The `RetryableGossipsubRunner` is an infallible runner for the GossipsubNetwork.  
+//! It constructs the gossipsub config and fresh keypair and uses it to spawn a new swarm and poll
+//! events. Sometimes when syncing to the gossipsub mesh, peers fail to include our new identity
+//! even though we can ping them. This would normally result in being able to ping peers, but never
+//! recevie a message from the gossipsub topic. To account for this, the struct will tear down and
+//! rebuild the swarm if we go `N` seconds without receiving a message. Note: This is *specifically*
+//! intended for scenarios where the gossipsub topic is published to with regular periodicity.
+//!
 //! ## Overview
 //!
+//! The `GossipsubNetwork:
 //! - runs a libp2p node and handles peer connections
 //! - subscribes to a gossipsub topic and writes well-formed messages to a `SharedState`
 //!
 //! ## Examples
 //!
+//! ### Standalone GossipsubNetwork
+//! The GossipsubNetwork struct can be used directly to ingest from the given topic
 //! ``` no_run
 //! use sc_consensus_randomness_beacon::gossipsub::GossipsubNetwork;
 //! use sp_consensus_randomness_beacon::types::*;
@@ -60,18 +71,65 @@
 //! let gossipsub_config = GossipsubConfig::default();
 //! let mut gossipsub = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None).unwrap();
 //! tokio::spawn(async move {
-//! 	if let Err(e) = gossipsub.run(topic_str, vec![maddr1, maddr2]).await {
+//! 	if let Err(e) = gossipsub.run(topic_str, &[maddr1, maddr2]).await {
 //! 		log::error!("Failed to run gossipsub network: {:?}", e);
 //! 	}
 //! });
 //! ```
+//!
+//! ### RetryableGossipsubRunner
+//!
+//! ``` no_run
+//! use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, GossipsubNetwork, RetryableGossipsubRunner};
+//! use sp_consensus_randomness_beacon::types::*;
+//! use futures::StreamExt;
+//! use libp2p::{
+//! 		gossipsub,
+//! 		gossipsub::{
+//! 			Behaviour as GossipsubBehaviour, Config as GossipsubConfig, IdentTopic, MessageAuthenticity,
+//! 		},
+//! 		identity::Keypair,
+//! 		swarm::{Swarm, SwarmEvent},
+//! 		Multiaddr, SwarmBuilder,
+//! };
+//! use sc_utils::mpsc::tracing_unbounded;
+//! use prost::Message;
+//! use std::sync::{Arc, Mutex};
+//!
+//! 	const MAX_CACHE_SIZE: usize = 30;
+//! 	const NO_MESSAGE_TIMEOUT_SECS: usize = 12;
+//!
+//! 	// setup gossipsub network if you are an authority
+//! 	let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
+//! 	// 30 pulses in storage at most
+//! 	let drand_receiver = DrandReceiver::<MAX_CACHE_SIZE>::new(rx);
+//! 	let topic_str: &str =
+//! 		"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
+//! 	let maddr1: Multiaddr =
+//! 		"/ip4/184.72.27.233/tcp/44544/p2p/12D3KooWBhAkxEn3XE7QanogjGrhyKBMC5GeM3JUTqz54HqS6VHG"
+//! 			.parse()
+//! 			.expect("The string is a well-formatted multiaddress. qed.");
+//! 	let maddr2: Multiaddr =
+//! 		"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
+//! 			.parse()
+//! 			.expect("The string is a well-formatted multiaddress. qed.");
+
+//!	let peers = vec![maddr1, maddr2];
+//!	RetryableGossipsubRunner::<MAX_CACHE_SIZE, NO_MESSAGE_TIMEOUT_SECS>::run(
+//!		topic_str,
+//!		peers,
+//!		tx.clone(),
+//!		drand_receiver.clone(),
+//!	);
+//! ```
+//!
 use ::futures::StreamExt;
 use alloc::collections::VecDeque;
 use libp2p::{
 	gossipsub,
 	gossipsub::{
-		Behaviour as GossipsubBehaviour, Config as GossipsubConfig, Event as GossipsubEvent,
-		IdentTopic, MessageAuthenticity,
+		Behaviour as GossipsubBehaviour, Config as GossipsubConfig, ConfigBuilder,
+		Event as GossipsubEvent, IdentTopic, MessageAuthenticity,
 	},
 	identity::Keypair,
 	multiaddr::Protocol,
@@ -80,7 +138,7 @@ use libp2p::{
 	Multiaddr, PeerId, SwarmBuilder,
 };
 use prost::Message;
-use sc_utils::mpsc::{TracingUnboundedReceiver, TracingUnboundedSender};
+use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver, TracingUnboundedSender};
 use sp_consensus_randomness_beacon::types::*;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
@@ -138,6 +196,75 @@ impl TracingEvent {
 			TracingEvent::UnboundedSendError => "❌ Unable to send message to the queue.",
 			TracingEvent::UntrustedPeer => "⛔ Message from untrusted peer.",
 		}
+	}
+}
+
+/// The RetryableGossipsubRunner allows us to safely execute the `GossipNetwork::run` function
+/// such that we can recover in the case that the gossipsub mesh fails to include our peer or
+/// rejects it.
+///
+/// M is the number of pulses to cache in the Drand receiver struct
+/// N is the retry timeout for resyncing with the swarm
+pub struct RetryableGossipsubRunner<const M: usize, const N: usize>;
+impl<const M: usize, const N: usize> RetryableGossipsubRunner<M, N> {
+	pub fn run<'a>(
+		topic_str: &'static str,
+		peers: Vec<Multiaddr>,
+		tx: TracingUnboundedSender<CanonicalPulse>,
+		rx: DrandReceiver<M>,
+	) -> Result<(), Error> {
+		tokio::spawn(async move {
+			loop {
+				// create a temp channel internally and forward it to the main channel
+				// this lets use freely recreate the swarm + internal state without impacting outer
+				// state
+				let (tx_temp, mut rx_temp) = tracing_unbounded("drand-temp-channel", 10000);
+				let tx_clone = tx.clone();
+				tokio::spawn(async move {
+					while let Some(pulse) = rx_temp.next().await {
+						let _ = tx_clone.unbounded_send(pulse);
+					}
+				});
+
+				let local_identity: Keypair = Keypair::generate_ed25519();
+				let gossipsub_config = build_config();
+				let mut gossipsub =
+					GossipsubNetwork::new(&local_identity, gossipsub_config, tx_temp, None)
+						.unwrap();
+				// Spawn run task
+				let peers = peers.clone();
+				let run_handle = tokio::spawn(async move {
+					if let Err(e) = gossipsub.run(topic_str, &peers).await {
+						log::error!("Failed to run gossipsub network: {:?}", e);
+					}
+				});
+				// sometimes the gossipsub mesh refuses to include our node on startup
+				// as a result, we fail to ingest any messages from the topic even when they are
+				// published in such a case we just reboot the node, which redials peers and
+				// attempts entry to the mesh again
+				let mut last_nonempty = tokio::time::Instant::now();
+				loop {
+					// the task should never complete, if it does we restart it
+					if run_handle.is_finished() {
+						log::warn!("gossipsub.run exited early — restarting.");
+						break;
+					}
+					// Check if any new pulses are available
+					if !rx.read().await.is_empty() {
+						last_nonempty = tokio::time::Instant::now();
+					}
+					// restart if > N secs passed
+					if last_nonempty.elapsed() > Duration::from_secs(N as u64) {
+						tracing::info!(target: LOG_TARGET, "No Gossipsub messages in > {}s — restarting.", N);
+						run_handle.abort();
+						break;
+					}
+					tokio::time::sleep(Duration::from_millis(500)).await;
+				}
+			}
+		});
+
+		Ok(())
 	}
 }
 
@@ -218,8 +345,6 @@ pub struct GossipsubNetwork {
 	swarm: Swarm<CustomBehaviour>,
 	/// The mpsc channel sender
 	sender: TracingUnboundedSender<CanonicalPulse>,
-	/// The number of peers the node is connected to
-	connected_peers: u8,
 	// The list of allowed peer ids
 	allowed_peer_map: HashMap<PeerId, Multiaddr>,
 }
@@ -269,7 +394,7 @@ impl GossipsubNetwork {
 
 		swarm.listen_on(listen_addr.clone()).map_err(|_| Error::SwarmListenFailure)?;
 
-		Ok(Self { swarm, sender, connected_peers: 0, allowed_peer_map: HashMap::new() })
+		Ok(Self { swarm, sender, allowed_peer_map: HashMap::new() })
 	}
 
 	/// Start the gossipsub network.
@@ -278,77 +403,46 @@ impl GossipsubNetwork {
 	///
 	/// * `topic_str`: The gossipsub topic to subscribe to.
 	/// * `peers`: A list of peers to dial.
-	pub async fn run(&mut self, topic_str: &str, peers: Vec<Multiaddr>) -> Result<(), Error> {
-		if !peers.is_empty() {
-			for peer in &peers {
-				let peer_id = peer.iter().find_map(|p| {
-					if let Protocol::P2p(peer) = p {
-						Some(peer)
-					} else {
-						None
-					}
-				});
-				// if a peer id could be extracted, try to dial
-				if let Some(id) = peer_id {
-					self.allowed_peer_map.insert(id, peer.clone());
-					self.swarm.dial((*peer).clone()).map_err(|_| {
-						return Error::InvalidMultiaddress { who: (*peer).clone() };
-					})?;
-				} else {
-					// if we cannot extract a peer id then it is a critical failure
-					return Err(Error::InvalidMultiaddress { who: (*peer).clone() });
-				}
-			}
-			self.wait_for_peers(peers.len()).await;
-		}
-
-		self.subscribe(topic_str).await
-	}
-
-	/// Executes until at least `target_count` ConnectionEstablished events
-	/// have been observed.
-	/// * `target_count`: The number of connection established events to observe until it terminates
-	async fn wait_for_peers(&mut self, target_count: usize) {
-		let mut connected_peers = 0;
-		while connected_peers < target_count {
-			if let Some(SwarmEvent::ConnectionEstablished { .. }) = self.swarm.next().await {
-				connected_peers += 1;
-				log::info!(target: LOG_TARGET, "📡 connected to new peer!");
-			}
-		}
-		self.connected_peers = connected_peers as u8;
-	}
-
-	/// Create a subscription to a gossipsub topic.
-	/// It writes new messages to the SharedState whenever they are decodable as Pulses
-	/// and ignores and messages it cannot understand.
-	///
-	/// * `topic_str`: The gossipsub topic to subscribe to.
-	async fn subscribe(&mut self, topic_str: &str) -> Result<(), Error> {
+	pub async fn run(&mut self, topic_str: &str, peers: &[Multiaddr]) -> Result<(), Error> {
 		let topic = IdentTopic::new(topic_str);
-		// [SRLabs]: The error can never be encountered
-		// Q: Can we use an expect, or is this unsafe?
 		// Ref: https://docs.rs/libpp-gossipsub/0.48.0/src/libp2p_gossipsub/behaviour.rs.html#532
 		// The error can only occur if the subscription filter rejects it, but we specify no
-		// filter.
-		self.swarm
-			.behaviour_mut()
-			.gossipsub
-			.subscribe(&topic)
-			.expect("The libp2p gossipsub behavior has no subscription filter.");
+		// filter. If this fails on startup, we consider it a critical failure and bring down the
+		// node.
+		let _ = self.swarm.behaviour_mut().gossipsub.subscribe(&topic).map_err(|_| {
+			panic!("Subscription to the gossipsub topic {:?} failed. Stopping the node.", topic_str)
+		});
 
-		loop {
-			while let Some(event) = self.swarm.next().await {
-				self.handle_event(event).await;
+		// dial peers
+		for peer in peers {
+			let peer_id = extract_peer_id(peer.clone());
+			// if a peer id could be extracted, try to dial and add to allowed peer map
+			if let Some(id) = peer_id {
+				self.swarm.dial((*peer).clone()).map_err(|_| {
+					return Error::InvalidMultiaddress { who: (*peer).clone() };
+				})?;
+				// add as an explicit peer to avoid ever being dropped, prevents mesh pruning of the
+				// peer
+				self.swarm.behaviour_mut().gossipsub.add_explicit_peer(&id);
+				self.allowed_peer_map.insert(id, peer.clone());
+			} else {
+				// if we cannot extract a peer id then it is a critical failure
+				return Err(Error::InvalidMultiaddress { who: (*peer).clone() });
 			}
 		}
+
+		// gossipsub sometimes has issues when joining the mesh, causing it to fail to
+		// propagate gossipsub Messages when polling the swarm (occurs roughly on <= 45% of
+		// startups)
+
+		self.handle_events().await
 	}
 
-	/// Handle incoming swarm events
-	///
-	/// * `event`: A `SwarmEvent<ComposedEvent>`
-	async fn handle_event(&mut self, event: SwarmEvent<ComposedEvent>) {
-		match event {
+	fn handle_event(&mut self, event: SwarmEvent<ComposedEvent>) {
+		match &event {
+			SwarmEvent::ConnectionEstablished { .. } => {
+				log::info!(target: LOG_TARGET, "📡 connected to new peer!");
+			},
 			SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossipsub::Event::Message {
 				message,
 				propagation_source,
@@ -366,7 +460,6 @@ impl GossipsubNetwork {
 								tracing::error!(target: LOG_TARGET, error = %e, "{}", TracingEvent::UnboundedSendError.value());
 							}
 						},
-
 						Err(_) => {
 							tracing::error!(target: LOG_TARGET, "{}", TracingEvent::NondecodableMessage.value());
 						},
@@ -394,6 +487,15 @@ impl GossipsubNetwork {
 			},
 		}
 	}
+
+	/// The main event loop for the libp2p node
+	async fn handle_events(&mut self) -> Result<(), Error> {
+		while let Some(event) = self.swarm.next().await {
+			self.handle_event(event);
+		}
+
+		Ok(())
+	}
 }
 
 /// Safely convert an encoded `ProtoPulse` to a `CanonicalPulse`
@@ -405,6 +507,26 @@ pub(crate) fn try_handle_pulse(data: &[u8]) -> Result<CanonicalPulse, Error> {
 		pulse.try_into().map_err(|_| Error::SignatureBufferCapacityExceeded)?;
 
 	Ok(pulse)
+}
+
+fn extract_peer_id(maddr: Multiaddr) -> Option<PeerId> {
+	maddr
+		.iter()
+		.find_map(|p| if let Protocol::P2p(peer) = p { Some(peer) } else { None })
+}
+
+pub fn build_config() -> GossipsubConfig {
+	ConfigBuilder::default()
+		.heartbeat_interval(Duration::from_millis(1000))
+		.duplicate_cache_time(Duration::from_secs(60))
+		.mesh_n(6)
+		.mesh_n_low(4)
+		.mesh_n_high(12)
+		.gossip_lazy(3)
+		// note: there is a typo in this function name
+		.gossip_retransimission(3)
+		.build()
+		.expect("Valid gossipsub configuration")
 }
 
 /// Helper functions for testing purposes only
@@ -500,7 +622,6 @@ mod tests {
 	#[tokio::test]
 	async fn can_build_new_node() {
 		let (node, _rx) = build_node();
-		assert!(node.connected_peers == 0, "There should be no connected peers.");
 		assert!(node.allowed_peer_map == HashMap::new(), "There should be no connected peers.");
 	}
 
@@ -512,7 +633,6 @@ mod tests {
 		let listen_addr: Multiaddr = "/ip4/0.0.0.0/tcp/4001".parse().unwrap();
 		let node = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, Some(&listen_addr))
 			.unwrap();
-		assert!(node.connected_peers == 0, "There should be no connected peers.");
 		assert!(node.allowed_peer_map == HashMap::new(), "There should be no connected peers.");
 	}
 
@@ -522,7 +642,7 @@ mod tests {
 		let (mut node, _rx) = build_node();
 
 		tokio::spawn(async move {
-			if let Err(_e) = node.run(topic_str, vec![]).await {
+			if let Err(_e) = node.run(topic_str, &[]).await {
 				panic!("There should be no error");
 			}
 		});
@@ -539,7 +659,7 @@ mod tests {
 		let fake_peer: Multiaddr = Multiaddr::empty().with_p2p(libp2p::PeerId::random()).unwrap();
 
 		tokio::spawn(async move {
-			if let Err(_e) = node.run(topic_str, vec![fake_peer]).await {
+			if let Err(_e) = node.run(topic_str, &[fake_peer]).await {
 				panic!("There should be no error");
 			}
 		});
@@ -593,7 +713,7 @@ mod tests {
 			message,
 		});
 
-		node.handle_event(SwarmEvent::Behaviour(untrusted_gossipsub_event)).await;
+		node.handle_event(SwarmEvent::Behaviour(untrusted_gossipsub_event));
 
 		assert!(logs_contain(TracingEvent::UntrustedPeer.value()));
 		assert!(logs_contain(&untrusted_peer_id.to_string()));
@@ -636,7 +756,7 @@ mod tests {
 			message,
 		});
 
-		node.handle_event(SwarmEvent::Behaviour(trusted_gossipsub_event)).await;
+		node.handle_event(SwarmEvent::Behaviour(trusted_gossipsub_event));
 
 		assert!(logs_contain(TracingEvent::NewPulse.value()));
 		assert!(logs_contain("14475418"));
@@ -665,7 +785,7 @@ mod tests {
 			message,
 		});
 
-		node.handle_event(SwarmEvent::Behaviour(trusted_gossipsub_event)).await;
+		node.handle_event(SwarmEvent::Behaviour(trusted_gossipsub_event));
 		assert!(logs_contain(TracingEvent::NondecodableMessage.value()));
 	}
 
@@ -686,7 +806,7 @@ mod tests {
 			result: Ok(Duration::from_secs(1)),
 		});
 
-		node.handle_event(SwarmEvent::Behaviour(ping_success_event)).await;
+		node.handle_event(SwarmEvent::Behaviour(ping_success_event));
 		assert!(logs_contain(TracingEvent::PingSuccess.value()));
 		assert!(logs_contain(&trusted_peer_id.to_string()));
 	}
@@ -708,7 +828,7 @@ mod tests {
 			result: Err(libp2p::ping::Failure::Unsupported),
 		});
 
-		node.handle_event(SwarmEvent::Behaviour(ping_success_event)).await;
+		node.handle_event(SwarmEvent::Behaviour(ping_success_event));
 		assert!(logs_contain(TracingEvent::PongFailed.value()));
 		assert!(logs_contain(&format!("{}", libp2p::ping::Failure::Unsupported)));
 	}
@@ -777,5 +897,71 @@ mod tests {
 		let actual = receiver.read().await;
 		assert_eq!(actual.len(), 1, "There should be one opaque pulse in the vec");
 		assert_eq!(actual[0], opaque2);
+	}
+
+	/*
+		RetryableGossipsubRunner tests
+	*/
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn test_can_run_retryable_gossipsub_network_with_empty_peers() {
+		const M: usize = 10;
+		const N: usize = 1;
+		let topic_str: &str = "test";
+		let peers = vec![];
+		let (tx, rx) = tracing_unbounded("test", 10000);
+		let receiver = DrandReceiver::<M>::new(rx);
+		assert!(RetryableGossipsubRunner::<M, N>::run(topic_str, peers, tx, receiver).is_ok());
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn test_retryable_runner_restarts_if_no_messages_arrive() {
+		const M: usize = 5;
+		const N: usize = 2;
+		let topic_str: &str = "test";
+		let peers = vec![];
+
+		let (tx, rx) = tracing_unbounded("test", 100);
+		let receiver = DrandReceiver::<M>::new(rx);
+		let _ = RetryableGossipsubRunner::<M, N>::run(topic_str, peers, tx, receiver);
+		// wait past the timeout
+		tokio::time::sleep(Duration::from_secs(N as u64 + 2)).await;
+		assert!(logs_contain("No Gossipsub messages in"));
+		assert!(logs_contain("restarting"));
+	}
+
+	#[tokio::test]
+	#[tracing_test::traced_test]
+	async fn test_retryable_runner_no_restart_if_messages_arrive_in_time() {
+		const M: usize = 5;
+		const N: usize = 2;
+		let topic_str: &str = "test";
+		let peers = vec![];
+
+		let (tx, rx) = tracing_unbounded("test", 100);
+		let receiver = DrandReceiver::<M>::new(rx);
+		let _ = RetryableGossipsubRunner::<M, N>::run(topic_str, peers, tx.clone(), receiver);
+
+		tokio::time::sleep(Duration::from_secs(N as u64 - 1)).await;
+
+		// send a pulse
+		let pulse = ProtoPulse {
+			round: 14475418,
+			signature: [
+				146, 37, 87, 193, 37, 144, 182, 61, 73, 122, 248, 242, 242, 43, 61, 28, 75, 93, 37,
+				95, 131, 38, 3, 203, 216, 6, 213, 241, 244, 90, 162, 208, 90, 104, 76, 235, 84, 49,
+				223, 95, 22, 186, 113, 163, 202, 195, 230, 117,
+			]
+			.to_vec(),
+		};
+		let opaque: CanonicalPulse = pulse.clone().try_into().unwrap();
+		// write an opaque pulse
+		tx.unbounded_send(opaque.clone()).unwrap();
+
+		// wait past the timeout
+		tokio::time::sleep(Duration::from_secs(N as u64 + 2)).await;
+		// the logs should be clear of restart messages
+		assert!(!logs_contain("No Gossipsub messages in"));
 	}
 }

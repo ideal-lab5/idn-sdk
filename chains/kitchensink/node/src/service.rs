@@ -18,16 +18,16 @@ use crate::cli::Consensus;
 use codec::Encode;
 use futures::FutureExt;
 use idn_sdk_kitchensink_runtime::{interface::OpaqueBlock as Block, RuntimeApi};
-use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair, Multiaddr};
+use libp2p::Multiaddr;
 use sc_client_api::backend::Backend;
-use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, GossipsubNetwork};
+use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, RetryableGossipsubRunner};
 use sc_executor::WasmExecutor;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::tracing_unbounded;
 use sp_runtime::traits::Block as BlockT;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 type HostFunctions = sp_io::SubstrateHostFunctions;
 
@@ -204,11 +204,12 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 		telemetry.as_ref().map(|x| x.handle()),
 	);
 
+	const MAX_CACHE_SIZE: usize = 30;
+	const NO_MESSAGE_TIMEOUT_SECS: usize = 12;
 	// setup gossipsub network if you are an authority
 	let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
 	// 30 pulses in storage at most
-	let drand_receiver = DrandReceiver::<30>::new(rx);
-
+	let drand_receiver = DrandReceiver::<MAX_CACHE_SIZE>::new(rx);
 	let topic_str: &str =
 		"/drand/pubsub/v0.0.0/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
 	let maddr1: Multiaddr =
@@ -217,18 +218,20 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 			.expect("The string is a well-formatted multiaddress. qed.");
 	let maddr2: Multiaddr =
 		"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y"
-			.parse()
+			.parse() 
 			.expect("The string is a well-formatted multiaddress. qed.");
 
-	let local_identity: Keypair = Keypair::generate_ed25519();
-	let gossipsub_config = GossipsubConfig::default();
-	let mut gossipsub = GossipsubNetwork::new(&local_identity, gossipsub_config, tx, None).unwrap();
-	// start consuming from the gossipsub topic
-	tokio::spawn(async move {
-		if let Err(e) = gossipsub.run(topic_str, vec![maddr1, maddr2]).await {
-			log::error!("Failed to run gossipsub network: {:?}", e);
-		}
-	});
+	let peers = vec![maddr1, maddr2];
+	if let Err(e) = RetryableGossipsubRunner::<MAX_CACHE_SIZE, NO_MESSAGE_TIMEOUT_SECS>::run(
+		topic_str,
+		peers,
+		tx.clone(),
+		drand_receiver.clone(),
+	) {
+		// if the retryable gossipsub runner fails we consider it a critical error
+		// and bring down the node
+		panic!("A critical error occurred - bringing down the node: {:?}", e);
+	}
 
 	match consensus {
 		Consensus::InstantSeal => {
@@ -273,7 +276,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 			let (mut sink, commands_stream) = futures::channel::mpsc::channel(1024);
 			task_manager.spawn_handle().spawn("block_authoring", None, async move {
 				loop {
-					futures_timer::Delay::new(std::time::Duration::from_millis(block_time)).await;
+					futures_timer::Delay::new(Duration::from_millis(block_time)).await;
 					sink.try_send(sc_consensus_manual_seal::EngineCommand::SealNewBlock {
 						create_empty: true,
 						finalize: true,
