@@ -58,8 +58,8 @@ use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::tracing_unbounded;
 use sp_keystore::KeystorePtr;
 
-use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair, Multiaddr};
-use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, GossipsubNetwork};
+use libp2p::Multiaddr;
+use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, RetryableGossipsubRunner};
 
 #[docify::export(wasm_executor)]
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
@@ -427,19 +427,18 @@ pub async fn start_parachain_node(
 	if validator {
 		let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
 		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(rx);
-		let peers = default_peers();
-
+		
 		let primary: Multiaddr =
 			PRIMARY.parse().expect("The string is a well-formatted multiaddress;qed");
 		let secondary: Multiaddr =
 			SECONDARY.parse().expect("The string is a well-formatted multiaddress;qed");
-		let peers = &[primary, secondary];
+		let peers = vec![primary, secondary];
 
 		if let Err(e) = RetryableGossipsubRunner::<MAX_QUEUE_SIZE, NO_MESSAGE_TIMEOUT>::run(
-			topic_str,
+			QUICKNET_GOSSIPSUB_TOPIC,
 			peers,
 			tx.clone(),
-			drand_receiver.clone(),
+			pulse_receiver.clone(),
 		) {
 			// if the retryable gossipsub runner fails we consider it a critical error
 			// and bring down the node
