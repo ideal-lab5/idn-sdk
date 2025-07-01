@@ -21,7 +21,7 @@ futures = { features = ["thread-pool"], workspace = true }
 futures-timer.workspace = true
 jsonrpsee = { features = ["server"], workspace = true }
 libp2p = { workspace = true }
-log.workspace = true 
+log.workspace = true
 serde_json = { workspace = true, default-features = true }
 tokio.workspace = true
 sc-basic-authorship = { workspace = true, default-features = false }
@@ -54,6 +54,4 @@ substrate-build-script-utils = { workspace = true, default-features = false }
 
 [features]
 default = ["std"]
-std = [
-	"idn-sdk-kitchensink-runtime/std",
-]
+std = ["idn-sdk-kitchensink-runtime/std"]
