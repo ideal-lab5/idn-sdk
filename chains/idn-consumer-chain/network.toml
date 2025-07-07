@@ -1,5 +1,9 @@
 [relaychain]
+<<<<<<< HEAD
 default_args = [ "-l=parachain=debug,xcm=trace" ]
+=======
+default_args = [ "-lxcm=trace,debug" ]
+>>>>>>> 18c2ac9 (update chainspec and pop toml)
 chain = "paseo-local"
 
 [[relaychain.nodes]]
