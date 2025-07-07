@@ -13,7 +13,8 @@ validator = true
 
 [[parachains]]
 id = 2001
-chain = "dev"
+name = "idn-consumer-chain"
+chain = "idnc-dev"
 default_command = "../../target/release/idn-consumer-node"
 default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
 
@@ -26,7 +27,8 @@ name = "idn-consumer-bob"
 
 [[parachains]]
 id = 2000
-chain = "dev"
+name = "ideal-network"
+chain = "idn-dev"
 default_command = "../../target/release/idn-node"
 default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
 
@@ -36,3 +38,15 @@ rpc_port = 9933
 
 [[parachains.collators]]
 name = "idn-bob"
+
+[[hrmp_channels]]
+sender = 2001
+recipient = 2000
+max_capacity = 1000
+max_message_size = 1048576
+
+[[hrmp_channels]]
+sender = 2000
+recipient = 2001
+max_capacity = 1000
+max_message_size = 1048576

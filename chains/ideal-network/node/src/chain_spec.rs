@@ -94,7 +94,7 @@ pub fn dev_config() -> ChainSpec {
 			para_id: 2000,
 		},
 	)
-	.with_name("IDN Development")
+	.with_name("IDN Dev")
 	.with_id("dev")
 	.with_chain_type(ChainType::Development)
 	.with_genesis_config_patch(testnet_genesis(
