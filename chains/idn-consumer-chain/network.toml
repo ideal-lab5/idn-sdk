@@ -1,8 +1,10 @@
 [relaychain]
+default_args = [ "-lxcm=trace,debug" ]
 chain = "paseo-local"
 
 [[relaychain.nodes]]
 name = "alice"
+rpc_port = 8833
 validator = true
 
 [[relaychain.nodes]]
@@ -10,9 +12,27 @@ name = "bob"
 validator = true
 
 [[parachains]]
-id = 2000
+id = 2001
+chain = "dev"
 default_command = "../../target/release/idn-consumer-node"
+default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
 
 [[parachains.collators]]
-name = "collator-01"
+name = "idn-consumer-alice"
 rpc_port = 9944
+
+[[parachains.collators]]
+name = "idn-consumer-bob"
+
+[[parachains]]
+id = 2000
+chain = "dev"
+default_command = "../../target/release/idn-node"
+default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
+
+[[parachains.collators]]
+name = "idn-alice"
+rpc_port = 9933
+
+[[parachains.collators]]
+name = "idn-bob"
