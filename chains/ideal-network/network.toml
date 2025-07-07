@@ -12,8 +12,8 @@ name = "bob"
 validator = true
 
 [[parachains]]
-id = 4502
-chain = "local"
+id = 2000
+chain = "dev"
 default_command = "../../target/release/idn-node"
 default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
 
