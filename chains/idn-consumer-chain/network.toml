@@ -16,7 +16,7 @@ id = 2001
 name = "idn-consumer-chain"
 chain = "idnc-dev"
 default_command = "../../target/release/idn-consumer-node"
-default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
+default_args = [ "-lxcm=trace,debug", "--enable-offchain-indexing=true" ]
 
 [[parachains.collators]]
 name = "idn-consumer-alice"
@@ -28,7 +28,7 @@ name = "idn-consumer-bob"
 [[parachains]]
 id = 2000
 name = "ideal-network"
-chain = "idn-dev"
+chain = "local"
 default_command = "../../target/release/idn-node"
 default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
 
