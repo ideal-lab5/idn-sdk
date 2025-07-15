@@ -92,10 +92,7 @@ use sp_idn_traits::{
 use sp_runtime::traits::Saturating;
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use xcm::{
-	prelude::{
-		ExpectTransactStatus, Location, MaybeErrorCode, OriginKind, Transact, Unlimited,
-		UnpaidExecution, Xcm,
-	},
+	prelude::{Location, OriginKind, Transact, Unlimited, UnpaidExecution, Xcm},
 	DoubleEncoded, VersionedLocation, VersionedXcm,
 };
 use xcm_builder::SendController;
@@ -727,7 +724,6 @@ pub mod pallet {
 		/// specified function via XCM.
 		#[pallet::call_index(6)]
 		#[pallet::weight(T::WeightInfo::get_subscription_info())]
-		#[allow(clippy::useless_conversion)]
 		pub fn get_subscription_info(
 			origin: OriginFor<T>,
 			req: SubInfoRequestOf<T>,
@@ -1029,7 +1025,6 @@ impl<T: Config> Pallet<T> {
 		let msg = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			Transact { origin_kind: OriginKind::Xcm, fallback_max_weight: None, call },
-			ExpectTransactStatus(MaybeErrorCode::Success),
 		]);
 		let versioned_target: Box<VersionedLocation> =
 			Box::new(VersionedLocation::V5(target.clone()));

@@ -211,7 +211,8 @@ impl xcm_executor::Config for XcmConfig {
 	type XcmEventEmitter = PolkadotXcm;
 }
 
-/// No local origins on this chain are allowed to dispatch XCM sends/executions.
+/// Converts a local signed origin into an XCM `Location`.
+/// Forms the basis for local origins sending/executing XCMs.
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>;
 
 /// The means for routing XCM messages which are not for local execution into the right message
@@ -234,6 +235,10 @@ impl<Assets: Contains<Location>> Contains<(Location, Vec<Asset>)> for FilterByAs
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+	// Any local signed origin can send XCM messages.
+	// It is up to the destination chain to decide whether to accept the message.
+	// This could be more restrictive, e.g. `EnsureXcmOrigin<RuntimeOrigin, ()>`, but we want to
+	// allow any signed origin to be able to reserve transfer tokens back to other chains.
 	type SendXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	type ExecuteXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
@@ -297,4 +302,69 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type WeightInfo = CumulusXcmpQueueWeightInfo<Runtime>;
 	// Enqueue XCMP messages from siblings for later processing.
 	type XcmpQueue = TransformOrigin<MessageQueue, AggregateMessageOrigin, ParaId, ParaIdToSibling>;
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use frame_support::{assert_ok, traits::fungible::Mutate};
+	use scale_info::prelude::sync::Arc;
+	use xcm::opaque::latest::{
+		Junction,
+		Junctions::{X1, X2},
+		Location,
+	};
+	use xcm_builder::test_utils::TransactAsset;
+
+	#[test]
+	fn test_withdraw_asset_here() {
+		let location = Location::here();
+		let asset = (Location::here(), 1u128).into();
+		let context = None;
+		// Set up the balance for the account corresponding to Location::here()
+		let account_id = LocationToAccountId::convert_location(&location).expect("should convert");
+		// Give the account a balance so withdrawal can succeed
+		println!("Location: {:?}, Account ID: {:?}", location, account_id);
+		Balances::set_balance(&account_id, 100);
+		assert_ok!(FungibleTransactor::withdraw_asset(&asset, &location, context));
+	}
+
+	#[test]
+	fn test_convert_location() {
+		let location = Location::new(1, X1(Arc::new([Junction::Parachain(2000)])));
+		let account_id = LocationToAccountId::convert_location(&location).unwrap();
+		println!("Sibling 2000. Location: {:?}, Account ID: {:?}", location, account_id);
+
+		let location = Location::new(1, X1(Arc::new([Junction::Parachain(2001)])));
+		let account_id = LocationToAccountId::convert_location(&location).unwrap();
+		println!("Sibling 2001. Location: {:?}, Account ID: {:?}", location, account_id);
+
+		let location = Location::new(0, X1(Arc::new([Junction::Parachain(2000)])));
+		let account_id = LocationToAccountId::convert_location(&location).unwrap();
+		println!("Child 2000. Location: {:?}, Account ID: {:?}", location, account_id);
+
+		let location = Location::new(0, X1(Arc::new([Junction::Parachain(2001)])));
+		let account_id = LocationToAccountId::convert_location(&location).unwrap();
+		println!("Child 2001. Location: {:?}, Account ID: {:?}", location, account_id);
+
+		let location = Location::new(1, Here);
+		let account_id = LocationToAccountId::convert_location(&location).unwrap();
+		println!("Here. Location: {:?}, Account ID: {:?}", location, account_id);
+
+		let location = Location::new(
+			1,
+			X2(Arc::new([
+				Junction::Parachain(2000),
+				AccountId32 {
+					network: Some(NetworkId::Polkadot),
+					id: [
+						28, 189, 45, 67, 83, 10, 68, 112, 90, 208, 136, 175, 49, 62, 24, 248, 11,
+						83, 239, 22, 179, 97, 119, 205, 75, 119, 184, 70, 242, 165, 240, 124,
+					],
+				},
+			])),
+		);
+		let account_id = LocationToAccountId::convert_location(&location).unwrap();
+		println!("Child 2000. Location: {:?}, Account ID: {:?}", location, account_id);
+	}
 }

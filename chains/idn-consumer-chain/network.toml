@@ -1,5 +1,5 @@
 [relaychain]
-default_args = [ "-lxcm=trace,debug" ]
+default_args = [ "-l=parachain=debug,xcm=trace" ]
 chain = "paseo-local"
 
 [[relaychain.nodes]]
@@ -16,7 +16,7 @@ id = 2001
 name = "idn-consumer-chain"
 chain = "idnc-dev"
 default_command = "../../target/release/idn-consumer-node"
-default_args = [ "-lxcm=trace,debug", "--enable-offchain-indexing=true" ]
+default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
 
 [[parachains.collators]]
 name = "idn-consumer-alice"
@@ -28,7 +28,7 @@ name = "idn-consumer-bob"
 [[parachains]]
 id = 2000
 name = "ideal-network"
-chain = "local"
+chain = "idn-dev"
 default_command = "../../target/release/idn-node"
 default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
 
@@ -42,11 +42,11 @@ name = "idn-bob"
 [[hrmp_channels]]
 sender = 2001
 recipient = 2000
-max_capacity = 1000
-max_message_size = 1048576
+max_capacity = 8
+max_message_size = 512
 
 [[hrmp_channels]]
 sender = 2000
 recipient = 2001
-max_capacity = 1000
-max_message_size = 1048576
+max_capacity = 8
+max_message_size = 512

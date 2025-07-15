@@ -139,32 +139,16 @@ impl Contains<Location> for ParentRelayOrSiblingIdn {
 	}
 }
 
-/// Accepts an asset if it is a concrete asset from the system (Relay Chain or IDN parachain).
-pub struct ConcreteAssetFromIDN<AssetLocation>(PhantomData<AssetLocation>);
-impl<AssetLocation: Get<Location>> ContainsPair<Asset, Location>
-	for ConcreteAssetFromIDN<AssetLocation>
-{
-	fn contains(asset: &Asset, origin: &Location) -> bool {
-		log::trace!(target: "xcm::contains", "ConcreteAssetFromIDN asset: {:?}, origin: {:?}", asset, origin);
-		let is_allowed = match origin.unpack() {
-			// The Relay Chain
-			(1, []) => true,
-			// IDN parachain
-			(1, [Junction::Parachain(constants::IDN_PARACHAIN_ID)]) => true,
-			// Others
-			_ => false,
-		};
-		asset.id.0 == AssetLocation::get() && is_allowed
-	}
-}
-
 pub type Barrier = TrailingSetTopicAsId<
 	DenyThenTry<
 		DenyReserveTransferToRelayChain,
 		(
+			// Allow local users to buy weight credit.
 			TakeWeightCredit,
 			WithComputedOrigin<
 				(
+					// If the message is one that immediately attempts to pay for execution, then
+					// allow it.
 					AllowTopLevelPaidExecutionFrom<Everything>,
 					AllowExplicitUnpaidExecutionFrom<ParentRelayOrSiblingIdn>,
 					// ^^^ Relay chain or IDN get free execution
@@ -187,11 +171,10 @@ impl xcm_executor::Config for XcmConfig {
 	// How to withdraw and deposit an asset.
 	type AssetTransactor = FungibleTransactor;
 	type OriginConverter = XcmOriginToTransactDispatchOrigin;
-	// Idn Consumer chain does not recognize a reserve location for any asset. Users must teleport
-	// DOT where allowed (e.g. with the Relay Chain).
+	// Idn Consumer chain does not recognize a reserve location for any asset.
 	type IsReserve = ();
-	/// Only allow teleportation of DOT.
-	type IsTeleporter = ConcreteAssetFromIDN<RelayLocation>;
+	// Telerporting is not enabled.
+	type IsTeleporter = ();
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
@@ -222,7 +205,8 @@ impl xcm_executor::Config for XcmConfig {
 	type XcmEventEmitter = PolkadotXcm;
 }
 
-/// No local origins on this chain are allowed to dispatch XCM sends/executions.
+/// Converts a local signed origin into an XCM `Location`.
+/// Forms the basis for local origins sending/executing XCMs.
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>;
 
 /// The means for routing XCM messages which are not for local execution into the right message
@@ -245,11 +229,9 @@ impl pallet_xcm::Config for Runtime {
 	type SendXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	type ExecuteXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
-	type XcmExecuteFilter = Nothing;
-	// ^ Disable dispatchable execute on the XCM pallet.
-	// Needs to be `Everything` for local testing.
+	type XcmExecuteFilter = Everything;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
+	type XcmTeleportFilter = Nothing;
 	type XcmReserveTransferFilter = Nothing;
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type UniversalLocation = UniversalLocation;
