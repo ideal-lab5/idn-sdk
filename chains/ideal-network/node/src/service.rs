@@ -427,7 +427,8 @@ pub async fn start_parachain_node(
 	if validator {
 		// tracks incoming protobuf messages from the gossipsub topic
 		let (tx, rx) = tracing_unbounded("drand-notification-channel", 100);
-		// reads raw (protobuf) pulses from rx and puts them into FIFO queue (with limit MAX_QUEUE_SIZE)
+		// reads raw (protobuf) pulses from rx and puts them into FIFO queue (with limit
+		// MAX_QUEUE_SIZE)
 		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(rx);
 
 		let primary: Multiaddr =
