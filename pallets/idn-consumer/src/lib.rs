@@ -79,6 +79,8 @@ pub use bp_idn::types::{Quote, RuntimePulse as Pulse, SubInfoResponse, Subscript
 pub use pallet::*;
 pub use weights::WeightInfo;
 
+const IDN_ASSET_ID: AssetId =
+	cumulus_primitives_core::AssetId(Location { parents: 1, interior: Junctions::Here });
 #[derive(Clone, PartialEq, Debug, Encode, Decode, TypeInfo, DecodeWithMemTracking)]
 struct SubFeesQuote {
 	quote_id: u8,
