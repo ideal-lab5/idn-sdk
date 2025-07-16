@@ -87,11 +87,7 @@ pub fn development_config() -> ChainSpec {
 
 	ChainSpec::builder(
 		runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
-		Extensions {
-			relay_chain: "paseo-local".into(),
-			// You MUST set this to the correct network!
-			para_id: 2001,
-		},
+		Extensions { relay_chain: "paseo-local".into(), para_id: 2001 },
 	)
 	.with_name("IDN Consumer Dev")
 	.with_id("dev")
@@ -140,11 +136,7 @@ pub fn local_testnet_config() -> ChainSpec {
 	#[allow(deprecated)]
 	ChainSpec::builder(
 		runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
-		Extensions {
-			relay_chain: "paseo-local".into(),
-			// You MUST set this to the correct network!
-			para_id: 4594,
-		},
+		Extensions { relay_chain: "paseo-local".into(), para_id: 4594 },
 	)
 	.with_name("IDN Consumer Local")
 	.with_id("local")
@@ -193,11 +185,7 @@ pub fn testnet_config() -> ChainSpec {
 	#[allow(deprecated)]
 	ChainSpec::builder(
 		runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
-		Extensions {
-			relay_chain: "paseo-local".into(),
-			// You MUST set this to the correct network!
-			para_id: 4594,
-		},
+		Extensions { relay_chain: "paseo-local".into(), para_id: 4594 },
 	)
 	.with_name("IDN Consumer Testnet")
 	.with_id("testnet")
