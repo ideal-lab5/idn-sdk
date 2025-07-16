@@ -96,6 +96,7 @@ use xcm::{
 	DoubleEncoded, VersionedLocation, VersionedXcm,
 };
 use xcm_builder::SendController;
+use xcm_executor::traits::ConvertLocation;
 
 pub use frame_system::pallet_prelude::BlockNumberFor;
 pub use pallet::*;
@@ -347,6 +348,9 @@ pub mod pallet {
 		/// type SiblingOrigin = pallet_xcm::EnsureXcm<AllowSiblingsOnly>;
 		/// ```
 		type SiblingOrigin: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
+
+		/// A type that converts XCM locations to account identifiers.
+		type XcmLocationToAccountId: ConvertLocation<Self::AccountId>;
 	}
 
 	/// The subscription storage. It maps a subscription ID to a subscription.
@@ -464,7 +468,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: CreateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
-			let subscriber = ensure_signed(origin)?;
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			ensure!(params.credits != Zero::zero(), Error::<T>::InvalidParams);
 
@@ -547,7 +551,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
-			let subscriber = ensure_signed(origin)?;
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
@@ -612,7 +616,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: UpdateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
-			let subscriber = ensure_signed(origin)?;
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			Subscriptions::<T>::try_mutate(params.sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -675,7 +679,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
-			let subscriber = ensure_signed(origin)?;
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
@@ -1034,6 +1038,14 @@ impl<T: Config> Pallet<T> {
 		T::Xcm::send(origin.into(), versioned_target, versioned_msg)
 			.map_err(|_err| Error::<T>::XcmSendError)?;
 		Ok(())
+	}
+
+	fn ensure_signed_or_xcm_sibling(origin: OriginFor<T>) -> Result<T::AccountId, DispatchError> {
+		match T::SiblingOrigin::ensure_origin(origin.clone()) {
+			Ok(location) => T::XcmLocationToAccountId::convert_location(&location)
+				.ok_or(DispatchError::from(Error::<T>::InvalidSubscriber)),
+			Err(_) => ensure_signed(origin).map_err(|e| e.into()),
+		}
 	}
 
 	/// Return the existential deposit of [`Config::Currency`].

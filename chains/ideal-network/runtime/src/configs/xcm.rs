@@ -149,24 +149,35 @@ pub type XcmOriginToTransactDispatchOrigin = (
 );
 
 parameter_types! {
+	pub const RootLocation: Location = Here.into_location();
 	// One XCM operation is 1_000_000_000 weight - almost certainly a conservative estimate.
 	pub UnitWeightCost: Weight = Weight::from_parts(1_000_000_000, 64 * 1024);
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
+/// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = TrailingSetTopicAsId<(
+	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
+	// Expected responses are OK.
 	AllowKnownQueryResponses<PolkadotXcm>,
+	// Allow XCMs with some computed origins to pass through.
 	WithComputedOrigin<
 		(
+			// If the message is one that immediately attempts to pay for execution, then allow it.
 			AllowTopLevelPaidExecutionFrom<Everything>,
+			// Subscriptions for version tracking are OK.
 			AllowSubscriptionsFrom<ParentRelayOrSiblingParachains>,
 		),
 		UniversalLocation,
 		ConstU32<8>,
 	>,
 )>;
+
+/// Locations that will not be charged fees in the executor, neither for execution nor delivery.
+pub type WaivedLocations = (Equals<RootLocation>,);
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type RuntimeCall = RuntimeCall;
@@ -194,8 +205,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetLocker = ();
 	type AssetExchanger = ();
 	type FeeManager = XcmFeeManagerFromComponents<
-		// No locations have waived fees.
-		(),
+		WaivedLocations,
 		SendXcmFeeToAccount<Self::AssetTransactor, RelayTreasuryPalletAccount>,
 	>;
 	type MessageExporter = ();

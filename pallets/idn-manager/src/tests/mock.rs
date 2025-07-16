@@ -40,6 +40,7 @@ use sp_runtime::{
 };
 use sp_std::fmt::Debug;
 use xcm::prelude::{Junction::Parachain, Location};
+use xcm_executor::traits::ConvertLocation;
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -137,6 +138,16 @@ impl<F: Contains<Location>> frame_support::traits::EnsureOrigin<RuntimeOrigin>
 	}
 }
 
+pub struct MockSiblingConversion;
+impl ConvertLocation<AccountId32> for MockSiblingConversion {
+	fn convert_location(location: &Location) -> Option<AccountId32> {
+		match location.unpack() {
+			(1, [Parachain(SIBLING_PARA_ID)]) => Some(SIBLING_PARA_ACCOUNT),
+			_ => None,
+		}
+	}
+}
+
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -154,6 +165,7 @@ impl pallet_idn_manager::Config for Test {
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Test>>;
 	type SiblingOrigin = MockEnsureXcm<primitives::AllowSiblingsOnly>; // Use the custom EnsureOrigin
+	type XcmLocationToAccountId = MockSiblingConversion;
 }
 
 sp_api::impl_runtime_apis! {

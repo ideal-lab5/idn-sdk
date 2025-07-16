@@ -25,7 +25,7 @@ The pallet can be configured using the following runtime parameters:
 - `Xcm`: A type exposing XCM APIs for cross-chain interactions.
 - `PalletId`: The unique identifier for this pallet.
 - `ParaId`: The parachain ID of the consumer chain.
-- `AssetHubFee`: The asset ID used for paying subscription fees.
+- `MaxIdnXcmFees`: The maximum amount of fees to pay for the execution of a single XCM message sent to the IDN chain, expressed in the IDN asset.
 - `WeightInfo`: Weight functions for benchmarking.
 
 ## Usage
@@ -61,9 +61,9 @@ let sub_id = IdnConsumer::<T>::create_subscription(
 
 #### Pause a Subscription
 
-  ```rust
-  IdnConsumer::<T>::pause_subscription(sub_id)?;
-  ```
+```rust
+IdnConsumer::<T>::pause_subscription(sub_id)?;
+```
 
 **Notes**
 
@@ -72,23 +72,24 @@ let sub_id = IdnConsumer::<T>::create_subscription(
 
 #### Reactivate a paused Subscription
 
-  ```rust
-  IdnConsumer::<T>::reactivate_subscription(sub_id)?;
-  ```
+```rust
+IdnConsumer::<T>::reactivate_subscription(sub_id)?;
+```
 
 **Notes**
 
 - This function fires and forgets an XCM call internally. [See note 2](#notes)
 
 #### Update a Subscription
-  ```rust
-  IdnConsumer::<T>::update_subscription(
-      sub_id,
-      credits,
-      frequency,
-      metadata,
-  )?;
-  ```
+
+```rust
+IdnConsumer::<T>::update_subscription(
+    sub_id,
+    credits,
+    frequency,
+    metadata,
+)?;
+```
 
 **Notes**
 
@@ -104,9 +105,10 @@ let sub_id = IdnConsumer::<T>::create_subscription(
 Only the fields provided as `Some` will be updated. Fields set to `None` will remain unchanged.
 
 #### Terminate a Subscription
-  ```rust
-  IdnConsumer::<T>::kill_subscription(sub_id)?;
-  ```
+
+```rust
+IdnConsumer::<T>::kill_subscription(sub_id)?;
+```
 
 **Notes**
 
@@ -117,15 +119,16 @@ Only the fields provided as `Some` will be updated. Fields set to `None` will re
 ### Requesting Quotes and Subscription Info
 
 #### Request a Quote
-  ```rust
-  let req_ref = IdnConsumer::<T>::request_quote(
-      credits,
-      frequency,
-      metadata,
-      sub_id,
-      req_ref,
-  )?;
-  ```
+
+```rust
+let req_ref = IdnConsumer::<T>::request_quote(
+    credits,
+    frequency,
+    metadata,
+    sub_id,
+    req_ref,
+)?;
+```
 
 **Parameters**
 
@@ -141,11 +144,12 @@ Only the fields provided as `Some` will be updated. Fields set to `None` will re
 
 #### Request Subscription Info
 
-  ```rust
-  let req_ref = IdnConsumer::<T>::request_sub_info(sub_id, req_ref)?;
-  ```
+```rust
+let req_ref = IdnConsumer::<T>::request_sub_info(sub_id, req_ref)?;
+```
 
 **Parameters**
+
 - `sub_id`: The ID of the subscription to get information about. This field is required.
 - `req_ref`: An optional request reference. If `None`, a new reference will be generated automatically to track the request.
 
@@ -156,43 +160,50 @@ Only the fields provided as `Some` will be updated. Fields set to `None` will re
 The following dispatchable functions are used to process data coming from the IDN chain. Only requests originating from the IDN chain are accepted, as they are filtered by the `IdnOrigin` configuration type.
 
 ### Consume Pulse
-  ```rust
-    consume_pulse(origin, pulse, sub_id)
-  ```
 
-  **Parameters**
-  - `origin`: The origin of the call. Must be from the IDN chain, verified using the `IdnOrigin` configuration type.
-  - `pulse`: The randomness pulse to be consumed. Type: `Pulse`.
-  - `sub_id`: The subscription ID associated with the pulse. Type: `SubscriptionId`.
+```rust
+  consume_pulse(origin, pulse, sub_id)
+```
 
-  This function processes randomness pulses delivered by the IDN chain. The logic for handling the pulse is defined in the `PulseConsumer` trait implementation, which is the core part of the pallet's definition.
+**Parameters**
+
+- `origin`: The origin of the call. Must be from the IDN chain, verified using the `IdnOrigin` configuration type.
+- `pulse`: The randomness pulse to be consumed. Type: `Pulse`.
+- `sub_id`: The subscription ID associated with the pulse. Type: `SubscriptionId`.
+
+This function processes randomness pulses delivered by the IDN chain. The logic for handling the pulse is defined in the `PulseConsumer` trait implementation, which is the core part of the pallet's definition.
 
 ### Consume Quote
-  ```rust
-    consume_quote(origin, quote)
-  ```
 
-  **Parameters**
-  - `origin`: The origin of the call. Must be from the IDN chain, verified using the `IdnOrigin` configuration type.
-  - `quote`: The subscription quote to be consumed. Type: `Quote`.
+```rust
+  consume_quote(origin, quote)
+```
+
+**Parameters**
+
+- `origin`: The origin of the call. Must be from the IDN chain, verified using the `IdnOrigin` configuration type.
+- `quote`: The subscription quote to be consumed. Type: `Quote`.
 
  <!-- TODO: update the following as part of https://github.com/ideal-lab5/idn-sdk/issues/236  -->
+
     This object contains two key components:
     - **Fees**: The amount of balance that will be held to later pay for the credits consumed.
     - **Deposit**: The storage deposit that will be held and released once the subscription ends.
 
-  This function processes subscription fee quotes received from the IDN chain. The behavior for handling the quote is defined in the `QuoteConsumer` trait implementation.
+This function processes subscription fee quotes received from the IDN chain. The behavior for handling the quote is defined in the `QuoteConsumer` trait implementation.
 
 ### Consume Subscription Info
-  ```rust
-    consume_sub_info(origin, sub_info)
-  ```
 
-  **Parameters**
-  - `origin`: The origin of the call. Must be from the IDN chain, verified using the `IdnOrigin` configuration type.
-  - `sub_info`: The information about the subscription of interest. Type: `SubInfoResponse`.
+```rust
+  consume_sub_info(origin, sub_info)
+```
 
-  This function processes subscription information received from the IDN chain. The behavior for handling the subscription info is defined in the `SubInfoConsumer` trait implementation.
+**Parameters**
+
+- `origin`: The origin of the call. Must be from the IDN chain, verified using the `IdnOrigin` configuration type.
+- `sub_info`: The information about the subscription of interest. Type: `SubInfoResponse`.
+
+This function processes subscription information received from the IDN chain. The behavior for handling the subscription info is defined in the `SubInfoConsumer` trait implementation.
 
 **Notes**
 
@@ -237,7 +248,7 @@ cargo build -p pallet-idn-consumer --release --features runtime-benchmarks
 
 1. Skipping pulses still consumes some credits though not as many as the ones delivered. When defining a `frequency` different to `1` or a subscription is paused, pulses will be skipped.
 
-2. Dispatching any of the XCM-based calls (e.g., `create_subscription`, `pause_subscription`, `kill_subscription`, etc.) could fail after being fired from the parachain implementing this pallet, even if the function returns `Ok`. The best way to verify if the request was successfully processed by the IDN is to query the `request_sub_info` function with the corresponding `sub_id` and compare the results. 
+2. Dispatching any of the XCM-based calls (e.g., `create_subscription`, `pause_subscription`, `kill_subscription`, etc.) could fail after being fired from the parachain implementing this pallet, even if the function returns `Ok`. The best way to verify if the request was successfully processed by the IDN is to query the `request_sub_info` function with the corresponding `sub_id` and compare the results.
 
    - If there is no `sub_id` associated with the request, the way to know that the request failed is because nothing will be received by the callback consumer dispatchable (e.g., `consume_pulse`, `consume_quote`, or `consume_sub_info`).
    - Ultimately, the IDN chain can be inspected manually to debug any error.

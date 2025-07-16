@@ -20,35 +20,33 @@ use crate::{
 	RuntimeHoldReason, RuntimeOrigin, WeightToFee, XcmpQueue, CENTIUNIT,
 };
 use frame_support::{
-	pallet_prelude::{Get, PhantomData},
 	parameter_types,
 	traits::{
-		fungible::HoldConsideration, ConstU32, Contains, ContainsPair, Everything,
-		LinearStoragePrice, Nothing,
+		fungible::HoldConsideration, ConstU32, Equals, Everything, LinearStoragePrice, Nothing,
 	},
 	weights::Weight,
 };
 use frame_system::EnsureRoot;
 use pallet_xcm::XcmPassthrough;
-use parachains_common::TREASURY_PALLET_ID;
+use parachains_common::{xcm_config::ParentRelayOrSiblingParachains, TREASURY_PALLET_ID};
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::impls::ToAuthor;
 use sp_runtime::traits::AccountIdConversion;
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowTopLevelPaidExecutionFrom,
-	DenyReserveTransferToRelayChain, DenyThenTry, DescribeAllTerminal, DescribeFamily,
-	DescribeTerminus, EnsureXcmOrigin, FixedWeightBounds, FrameTransactionalProcessor,
-	FungibleAdapter, HashedDescription, IsConcrete, ParentIsPreset, RelayChainAsNative,
-	SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	TrailingSetTopicAsId, UsingComponents, WithComputedOrigin, WithUniqueTopic,
-	XcmFeeManagerFromComponents,
+	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
+	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain,
+	DenyThenTry, DescribeAllTerminal, DescribeFamily, DescribeTerminus, EnsureXcmOrigin,
+	FixedWeightBounds, FrameTransactionalProcessor, FungibleAdapter, HashedDescription, IsConcrete,
+	ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount, SiblingParachainAsNative,
+	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
+	WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
 };
 use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 
 parameter_types! {
-	pub SiblingIdnLocation: Location = Location::new(1, Junction::Parachain(constants::IDN_PARACHAIN_ID));
+	pub IdnLocation: Location = Location::new(1, Junction::Parachain(constants::IDN_PARACHAIN_ID));
 	pub const RelayLocation: Location = Location::parent();
 	pub const RelayNetwork: Option<NetworkId> = Some(NetworkId::Polkadot);
 	pub const TokenLocation: Location = Location::here();
@@ -123,35 +121,33 @@ pub type XcmOriginToTransactDispatchOrigin = (
 );
 
 parameter_types! {
+	pub const RootLocation: Location = Here.into_location();
 	// One XCM operation is 1_000_000_000 weight - almost certainly a conservative estimate.
 	pub UnitWeightCost: Weight = Weight::from_parts(1_000_000_000, 64 * 1024);
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
-pub struct ParentRelayOrSiblingIdn;
-impl Contains<Location> for ParentRelayOrSiblingIdn {
-	fn contains(location: &Location) -> bool {
-		matches!(
-			location.unpack(),
-			(1, []) | (1, [Junction::Parachain(constants::IDN_PARACHAIN_ID)])
-		)
-	}
-}
-
 pub type Barrier = TrailingSetTopicAsId<
+	// Deny executing the XCM if it matches any of the Deny filter regardless of anything else. If
+	// it passes the Deny, and matches one of the Allow cases then it is let through.
 	DenyThenTry<
 		DenyReserveTransferToRelayChain,
 		(
 			// Allow local users to buy weight credit.
 			TakeWeightCredit,
+			// Expected responses are OK.
+			AllowKnownQueryResponses<PolkadotXcm>,
+			// Allow XCMs with some computed origins to pass through.
 			WithComputedOrigin<
 				(
 					// If the message is one that immediately attempts to pay for execution, then
 					// allow it.
 					AllowTopLevelPaidExecutionFrom<Everything>,
-					AllowExplicitUnpaidExecutionFrom<ParentRelayOrSiblingIdn>,
-					// ^^^ Relay chain or IDN get free execution
+					// IDN gets free execution
+					AllowExplicitUnpaidExecutionFrom<Equals<IdnLocation>>,
+					// Subscriptions for version tracking are OK.
+					AllowSubscriptionsFrom<ParentRelayOrSiblingParachains>,
 				),
 				UniversalLocation,
 				ConstU32<8>,
@@ -160,9 +156,8 @@ pub type Barrier = TrailingSetTopicAsId<
 	>,
 >;
 
-/// Locations that will not be charged fees in the executor, neither for execution nor delivery. We
-/// only waive fees for the IDN.
-pub type WaivedLocations = (ParentRelayOrSiblingIdn,);
+/// Locations that will not be charged fees in the executor, neither for execution nor delivery.
+pub type WaivedLocations = (Equals<RootLocation>,);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {

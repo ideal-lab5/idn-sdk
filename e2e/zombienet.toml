@@ -12,6 +12,7 @@ validator = true
 
 [[parachains]]
 id = 2001
+chain = "idnc-dev"
 name = "idn-consumer-chain"
 default_command = "../target/release/idn-consumer-node"
 
@@ -24,6 +25,7 @@ name = "idn-consumer-bob"
 
 [[parachains]]
 id = 2000
+chain = "idn-dev"
 name = "ideal-network"
 default_command = "../target/release/idn-node"
 
