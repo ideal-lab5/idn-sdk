@@ -74,7 +74,6 @@ use frame_support::{
 		EnsureOrigin, Hooks, IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Weight,
 		Zero,
 	},
-	sp_runtime::traits::AccountIdConversion,
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
 		tokens::Precision,
@@ -402,8 +401,6 @@ pub mod pallet {
 		NotSubscriber,
 		/// Too many subscriptions in storage
 		TooManySubscriptions,
-		/// An error occurred while sending the XCM message
-		XcmSendError,
 		/// Invalid subscriber
 		InvalidSubscriber,
 		/// Invalid parameters
@@ -828,10 +825,6 @@ impl<T: Config> Pallet<T> {
 		T::FeesManager::get_idle_credits(sub)
 	}
 
-	fn pallet_account_id() -> T::AccountId {
-		T::PalletId::get().into_account_truncating()
-	}
-
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
 	fn distribute(pulse: T::Pulse) {
@@ -851,7 +844,7 @@ impl<T: Config> Pallet<T> {
 				let consume_credits = T::FeesManager::get_consume_credits(&sub);
 
 				if let Err(e) = Self::collect_fees(&sub, consume_credits) {
-					Self::pause_subscription_on_error(sub_id, sub, "Failed to collect fees.", e);
+					Self::pause_subscription_on_error(sub_id, sub, "Failed to collect fees", e);
 					continue;
 				}
 
@@ -870,7 +863,7 @@ impl<T: Config> Pallet<T> {
 					// 3. Pass the parameters to that function
 					(sub.details.call_index, &pulse, &sub_id).encode().into(),
 				) {
-					Self::pause_subscription_on_error(sub_id, sub, "Failed to dispatch XCM.", e);
+					Self::pause_subscription_on_error(sub_id, sub, "Failed to dispatch XCM", e);
 					continue;
 				}
 
@@ -1025,6 +1018,14 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Dispatches the call to the target
+	/// WARNING: Possible attack vector, as the `Xcm::send` call's origin is different to the
+	/// account that created the subscription that feeds the target and the transact msg.
+	/// Also, this is requesting `UnpaidExecution`, which is expected to be honored by the
+	/// target chain.
+	/// A potential attacker could try to get "almost" free execution (only paying the pulse
+	/// consumption fees) to any target on a chain that honors `UnpaidExecution` requests from IDN.
+	/// Though the attacker would not be able to manipulate the call's parameters.
+	// TODO: Solve this issue https://github.com/ideal-lab5/idn-sdk/issues/290
 	fn xcm_send(target: &Location, call: DoubleEncoded<()>) -> DispatchResult {
 		let msg = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
@@ -1033,10 +1034,18 @@ impl<T: Config> Pallet<T> {
 		let versioned_target: Box<VersionedLocation> =
 			Box::new(VersionedLocation::V5(target.clone()));
 		let versioned_msg: Box<VersionedXcm<()>> = Box::new(VersionedXcm::V5(msg.into()));
-		let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
-
-		T::Xcm::send(origin.into(), versioned_target, versioned_msg)
-			.map_err(|_err| Error::<T>::XcmSendError)?;
+		// TODO: do not use root origin, instead bring down the origin all the way from
+		// `try_submit_asig` to here https://github.com/ideal-lab5/idn-sdk/issues/289
+		let origin = T::RuntimeOrigin::root();
+		let xcm_hash =
+			T::Xcm::send(origin.clone(), versioned_target.clone(), versioned_msg.clone())?;
+		log::trace!(
+			target: LOG_TARGET,
+			"XCM message sent with hash: {:?}. Target: {:?}. Msg: {:?}",
+			xcm_hash,
+			versioned_target,
+			versioned_msg
+		);
 		Ok(())
 	}
 

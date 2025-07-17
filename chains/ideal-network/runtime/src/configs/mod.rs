@@ -54,10 +54,10 @@ use super::{
 		SystemWeightInfo, TimestampWeightInfo, TransactionPaymentWeightInfo,
 	},
 	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook, Hash,
-	MessageQueue, Nonce, PalletInfo, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason,
-	RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys, System, WeightToFee,
-	XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT,
-	MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
+	MessageQueue, Nonce, PalletInfo, PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent,
+	RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
+	System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS,
+	MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
 };
 use xcm_config::RelayLocation;
 
@@ -293,7 +293,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type Pulse = types::RuntimePulse;
 	type WeightInfo = IdnManagerWeightInfo<Runtime>;
 	// TODO: correctly set the Xcm type https://github.com/ideal-lab5/idn-sdk/issues/186
-	type Xcm = ();
+	type Xcm = PolkadotXcm;
 	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
 	type MaxSubscriptions = types::MaxSubscriptions;

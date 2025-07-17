@@ -20,10 +20,14 @@ mod revive;
 pub(crate) mod xcm_config;
 
 // Substrate and Polkadot dependencies
-use crate::weights::{
-	BalancesWeightInfo, CollatorSelectionWeightInfo, CumulusParachainSystemWeightInfo,
-	CumulusXcmpQueueWeightInfo, IdnConsumerWeightInfo, MessageQueueWeightInfo, SessionWeightInfo,
-	SudoWeightInfo, SystemWeightInfo, TimestampWeightInfo, TransactionPaymentWeightInfo,
+use crate::{
+	weights::{
+		BalancesWeightInfo, CollatorSelectionWeightInfo, CumulusParachainSystemWeightInfo,
+		CumulusXcmpQueueWeightInfo, IdnConsumerWeightInfo, MessageQueueWeightInfo,
+		SessionWeightInfo, SudoWeightInfo, SystemWeightInfo, TimestampWeightInfo,
+		TransactionPaymentWeightInfo,
+	},
+	PolkadotXcm,
 };
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
@@ -344,7 +348,7 @@ impl pallet_idn_consumer::Config for Runtime {
 	#[cfg(feature = "runtime-benchmarks")]
 	type IdnOrigin = bench_ensure_origin::BenchEnsureOrigin;
 	// TODO: correctly set the Xcm type https://github.com/ideal-lab5/idn-sdk/issues/186
-	type Xcm = ();
+	type Xcm = PolkadotXcm;
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
 	type MaxIdnXcmFees = MaxIdnXcmFees;
