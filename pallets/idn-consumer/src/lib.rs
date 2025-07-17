@@ -48,7 +48,7 @@ use bp_idn::{
 	},
 	Call as RuntimeCall, IdnManagerCall,
 };
-use cumulus_primitives_core::{AssetId, Instruction::WithdrawAsset, ParaId};
+use cumulus_primitives_core::{Instruction::WithdrawAsset, ParaId};
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
 	pallet_prelude::{Decode, DecodeWithMemTracking, Encode, EnsureOrigin, Get, IsType, Pays},
