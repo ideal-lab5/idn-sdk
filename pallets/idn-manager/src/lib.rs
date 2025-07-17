@@ -1040,6 +1040,17 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	/// Validates the origin as either a signed origin or an XCM sibling origin.
+	///
+	/// # Parameters
+	/// - `origin`: The origin to validate, which can be either a signed origin or an XCM sibling
+	///   origin.
+	///
+	/// # Returns
+	/// - `Ok(T::AccountId)`: The account ID of the signed origin or the account ID derived from the
+	///   XCM sibling origin.
+	/// - `Err(DispatchError)`: An error if the origin is invalid or cannot be converted to an
+	///   account ID.
 	fn ensure_signed_or_xcm_sibling(origin: OriginFor<T>) -> Result<T::AccountId, DispatchError> {
 		match T::SiblingOrigin::ensure_origin(origin.clone()) {
 			Ok(location) => T::XcmLocationToAccountId::convert_location(&location)

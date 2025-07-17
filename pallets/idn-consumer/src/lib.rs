@@ -48,7 +48,7 @@ use bp_idn::{
 	},
 	Call as RuntimeCall, IdnManagerCall,
 };
-use cumulus_primitives_core::{Instruction::WithdrawAsset, ParaId};
+use cumulus_primitives_core::{AssetId, Instruction::WithdrawAsset, ParaId};
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
 	pallet_prelude::{Decode, DecodeWithMemTracking, Encode, EnsureOrigin, Get, IsType, Pays},
@@ -79,8 +79,6 @@ pub use bp_idn::types::{Quote, RuntimePulse as Pulse, SubInfoResponse, Subscript
 pub use pallet::*;
 pub use weights::WeightInfo;
 
-const IDN_ASSET_ID: AssetId =
-	cumulus_primitives_core::AssetId(Location { parents: 1, interior: Junctions::Here });
 #[derive(Clone, PartialEq, Debug, Encode, Decode, TypeInfo, DecodeWithMemTracking)]
 struct SubFeesQuote {
 	quote_id: u8,
@@ -441,8 +439,31 @@ impl<T: Config> Pallet<T> {
 		Ok(req_ref)
 	}
 
+	/// Sends an XCM message to the Ideal Network (IDN) chain.
+	///
+	/// This function constructs and dispatches an XCM message using the provided `RuntimeCall`.
+	/// The message includes the following instructions:
+	/// - `WithdrawAsset`: Withdraws the specified asset (IDN fee) from the sender's account.
+	/// - `BuyExecution`: Pays for the execution of the XCM message with the withdrawn asset.
+	/// - `Transact`: Executes the provided `RuntimeCall` on the target chain.
+	/// - `RefundSurplus`: Refunds any surplus fees to the sender.
+	/// - `DepositAsset`: Deposits the refunded asset back into the sender's account.
+	///
+	/// The function ensures that the XCM message is properly versioned and sent to the target
+	/// location (`SiblingIdnLocation`). If the message fails to send, an `XcmSendError` is
+	/// returned.
+	///
+	/// # Parameters
+	/// - `call`: The `RuntimeCall` to be executed on the target chain.
+	///
+	/// # Returns
+	/// - `Ok(())` if the message is successfully sent.
+	/// - `Err(Error<T>)` if the message fails to send.
 	fn xcm_send(call: RuntimeCall) -> Result<(), Error<T>> {
-		let idn_fee_asset = Asset { id: IDN_ASSET_ID, fun: T::MaxIdnXcmFees::get().into() };
+		let idn_fee_asset = Asset {
+			id: AssetId(Location { parents: 1, interior: Junctions::Here }),
+			fun: T::MaxIdnXcmFees::get().into(),
+		};
 
 		let xcm_call: Xcm<RuntimeCall> = Xcm(vec![
 			WithdrawAsset(idn_fee_asset.clone().into()),
