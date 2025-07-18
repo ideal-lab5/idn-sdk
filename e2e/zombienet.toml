@@ -1,28 +1,49 @@
 [relaychain]
-default_image = "docker.io/parity/polkadot:latest"
-default_command = "polkadot"
-default_args = [ "-lparachain=debug" ]
-
 chain = "rococo-local"
 
-  [[relaychain.nodes]]
-  name = "alice"
-  validator = true
+[[relaychain.nodes]]
+name = "alice"
+rpc_port = 8833
+validator = true
 
-  [[relaychain.nodes]]
-  name = "bob"
-  validator = true
-
-[[parachains]]
-id = 1000
-
-  [parachains.collator]
-  name = "idn"
-  command = "../target/release/idn-node"
+[[relaychain.nodes]]
+name = "bob"
+validator = true
 
 [[parachains]]
-id = 1001
+id = 2001
+chain = "idnc-dev"
+name = "idn-consumer-chain"
+default_command = "../target/release/idn-consumer-node"
 
-  [parachains.collator]
-  name = "idn-consumer"
-  command = "../target/release/idn-consumer-node"
+[[parachains.collators]]
+name = "idn-consumer-alice"
+rpc_port = 9944
+
+[[parachains.collators]]
+name = "idn-consumer-bob"
+
+[[parachains]]
+id = 2000
+chain = "idn-dev"
+name = "ideal-network"
+default_command = "../target/release/idn-node"
+
+[[parachains.collators]]
+name = "idn-alice"
+rpc_port = 9933
+
+[[parachains.collators]]
+name = "idn-bob"
+
+[[hrmp_channels]]
+sender = 2001
+recipient = 2000
+max_capacity = 8
+max_message_size = 512
+
+[[hrmp_channels]]
+sender = 2000
+recipient = 2001
+max_capacity = 8
+max_message_size = 512

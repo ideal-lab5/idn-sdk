@@ -155,7 +155,7 @@ parameter_types! {
 	pub IdnLocation: Location = Location::new(1, Junction::Parachain(2000));
 	pub IdnConsumerParaId: ParaId = 2001.into();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
-	pub const AssetHubFee: u128 = 1_000;
+	pub const MaxIdnXcmFees: u128 = 1_000;
 }
 
 impl pallet_idn_consumer::Config for Test {
@@ -168,7 +168,7 @@ impl pallet_idn_consumer::Config for Test {
 	type Xcm = MockXcm;
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
-	type AssetHubFee = AssetHubFee;
+	type MaxIdnXcmFees = MaxIdnXcmFees;
 	type WeightInfo = ();
 }
 

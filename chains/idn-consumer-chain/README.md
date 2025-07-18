@@ -86,3 +86,7 @@ It should output something like this:
 
 3. Done, you can now interact with the parachain using this link https://polkadot.js.org/apps/?rpc=ws://127.0.0.1:1234#/explorer.
    Bear in mind that you may need to wait a few seconds for the block production to start.
+
+Known issues:
+
+- If the HRMP channels are not created, you need to manually do it as explained [here](https://github.com/paritytech/polkadot-sdk/pull/1616#issuecomment-1727194584).

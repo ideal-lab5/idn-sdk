@@ -20,35 +20,33 @@ use crate::{
 	RuntimeHoldReason, RuntimeOrigin, WeightToFee, XcmpQueue, CENTIUNIT,
 };
 use frame_support::{
-	pallet_prelude::{Get, PhantomData},
 	parameter_types,
 	traits::{
-		fungible::HoldConsideration, ConstU32, Contains, ContainsPair, Everything,
-		LinearStoragePrice, Nothing,
+		fungible::HoldConsideration, ConstU32, Equals, Everything, LinearStoragePrice, Nothing,
 	},
 	weights::Weight,
 };
 use frame_system::EnsureRoot;
 use pallet_xcm::XcmPassthrough;
-use parachains_common::TREASURY_PALLET_ID;
+use parachains_common::{xcm_config::ParentRelayOrSiblingParachains, TREASURY_PALLET_ID};
 use polkadot_parachain_primitives::primitives::Sibling;
 use polkadot_runtime_common::impls::ToAuthor;
 use sp_runtime::traits::AccountIdConversion;
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowTopLevelPaidExecutionFrom,
-	DenyReserveTransferToRelayChain, DenyThenTry, DescribeAllTerminal, DescribeFamily,
-	DescribeTerminus, EnsureXcmOrigin, FixedWeightBounds, FrameTransactionalProcessor,
-	FungibleAdapter, HashedDescription, IsConcrete, ParentIsPreset, RelayChainAsNative,
-	SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	TrailingSetTopicAsId, UsingComponents, WithComputedOrigin, WithUniqueTopic,
-	XcmFeeManagerFromComponents,
+	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
+	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain,
+	DenyThenTry, DescribeAllTerminal, DescribeFamily, DescribeTerminus, EnsureXcmOrigin,
+	FixedWeightBounds, FrameTransactionalProcessor, FungibleAdapter, HashedDescription, IsConcrete,
+	ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount, SiblingParachainAsNative,
+	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
+	WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
 };
 use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 
 parameter_types! {
-	pub SiblingIdnLocation: Location = Location::new(1, Junction::Parachain(constants::IDN_PARACHAIN_ID));
+	pub IdnLocation: Location = Location::new(1, Junction::Parachain(constants::IDN_PARACHAIN_ID));
 	pub const RelayLocation: Location = Location::parent();
 	pub const RelayNetwork: Option<NetworkId> = Some(NetworkId::Polkadot);
 	pub const TokenLocation: Location = Location::here();
@@ -123,51 +121,33 @@ pub type XcmOriginToTransactDispatchOrigin = (
 );
 
 parameter_types! {
+	pub const RootLocation: Location = Here.into_location();
 	// One XCM operation is 1_000_000_000 weight - almost certainly a conservative estimate.
 	pub UnitWeightCost: Weight = Weight::from_parts(1_000_000_000, 64 * 1024);
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
-pub struct ParentRelayOrSiblingIdn;
-impl Contains<Location> for ParentRelayOrSiblingIdn {
-	fn contains(location: &Location) -> bool {
-		matches!(
-			location.unpack(),
-			(1, []) | (1, [Junction::Parachain(constants::IDN_PARACHAIN_ID)])
-		)
-	}
-}
-
-/// Accepts an asset if it is a concrete asset from the system (Relay Chain or IDN parachain).
-pub struct ConcreteAssetFromIDN<AssetLocation>(PhantomData<AssetLocation>);
-impl<AssetLocation: Get<Location>> ContainsPair<Asset, Location>
-	for ConcreteAssetFromIDN<AssetLocation>
-{
-	fn contains(asset: &Asset, origin: &Location) -> bool {
-		log::trace!(target: "xcm::contains", "ConcreteAssetFromIDN asset: {:?}, origin: {:?}", asset, origin);
-		let is_allowed = match origin.unpack() {
-			// The Relay Chain
-			(1, []) => true,
-			// IDN parachain
-			(1, [Junction::Parachain(constants::IDN_PARACHAIN_ID)]) => true,
-			// Others
-			_ => false,
-		};
-		asset.id.0 == AssetLocation::get() && is_allowed
-	}
-}
-
 pub type Barrier = TrailingSetTopicAsId<
+	// Deny executing the XCM if it matches any of the Deny filter regardless of anything else. If
+	// it passes the Deny, and matches one of the Allow cases then it is let through.
 	DenyThenTry<
 		DenyReserveTransferToRelayChain,
 		(
+			// Allow local users to buy weight credit.
 			TakeWeightCredit,
+			// Expected responses are OK.
+			AllowKnownQueryResponses<PolkadotXcm>,
+			// Allow XCMs with some computed origins to pass through.
 			WithComputedOrigin<
 				(
+					// If the message is one that immediately attempts to pay for execution, then
+					// allow it.
 					AllowTopLevelPaidExecutionFrom<Everything>,
-					AllowExplicitUnpaidExecutionFrom<ParentRelayOrSiblingIdn>,
-					// ^^^ Relay chain or IDN get free execution
+					// IDN gets free execution
+					AllowExplicitUnpaidExecutionFrom<Equals<IdnLocation>>,
+					// Subscriptions for version tracking are OK.
+					AllowSubscriptionsFrom<ParentRelayOrSiblingParachains>,
 				),
 				UniversalLocation,
 				ConstU32<8>,
@@ -176,9 +156,8 @@ pub type Barrier = TrailingSetTopicAsId<
 	>,
 >;
 
-/// Locations that will not be charged fees in the executor, neither for execution nor delivery. We
-/// only waive fees for the IDN.
-pub type WaivedLocations = (ParentRelayOrSiblingIdn,);
+/// Locations that will not be charged fees in the executor, neither for execution nor delivery.
+pub type WaivedLocations = (Equals<RootLocation>,);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -187,11 +166,10 @@ impl xcm_executor::Config for XcmConfig {
 	// How to withdraw and deposit an asset.
 	type AssetTransactor = FungibleTransactor;
 	type OriginConverter = XcmOriginToTransactDispatchOrigin;
-	// Idn Consumer chain does not recognize a reserve location for any asset. Users must teleport
-	// DOT where allowed (e.g. with the Relay Chain).
+	// Idn Consumer chain does not recognize a reserve location for any asset.
 	type IsReserve = ();
-	/// Only allow teleportation of DOT.
-	type IsTeleporter = ConcreteAssetFromIDN<RelayLocation>;
+	// Telerporting is not enabled.
+	type IsTeleporter = ();
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
@@ -222,7 +200,8 @@ impl xcm_executor::Config for XcmConfig {
 	type XcmEventEmitter = PolkadotXcm;
 }
 
-/// No local origins on this chain are allowed to dispatch XCM sends/executions.
+/// Converts a local signed origin into an XCM `Location`.
+/// Forms the basis for local origins sending/executing XCMs.
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>;
 
 /// The means for routing XCM messages which are not for local execution into the right message
@@ -245,11 +224,9 @@ impl pallet_xcm::Config for Runtime {
 	type SendXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	type ExecuteXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
-	type XcmExecuteFilter = Nothing;
-	// ^ Disable dispatchable execute on the XCM pallet.
-	// Needs to be `Everything` for local testing.
+	type XcmExecuteFilter = Everything;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
+	type XcmTeleportFilter = Nothing;
 	type XcmReserveTransferFilter = Nothing;
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type UniversalLocation = UniversalLocation;

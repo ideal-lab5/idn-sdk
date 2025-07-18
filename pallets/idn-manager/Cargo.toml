@@ -28,6 +28,7 @@ sp-std.workspace = true
 sp-weights.workspace = true
 xcm.workspace = true
 xcm-builder.workspace = true
+xcm-executor.workspace = true
 pallet-xcm.workspace = true
 # frame deps
 frame-benchmarking = { workspace = true, optional = true }

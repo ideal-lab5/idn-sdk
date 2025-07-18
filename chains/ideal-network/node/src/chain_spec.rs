@@ -82,19 +82,15 @@ pub fn template_session_keys(keys: AuraId) -> runtime::SessionKeys {
 pub fn dev_config() -> ChainSpec {
 	// Give your base currency a unit name and decimal places
 	let mut properties = sc_chain_spec::Properties::new();
-	properties.insert("tokenSymbol".into(), "DOT".into());
+	properties.insert("tokenSymbol".into(), "PAS".into());
 	properties.insert("tokenDecimals".into(), 10.into());
 	properties.insert("ss58Format".into(), 0.into());
 
 	ChainSpec::builder(
 		runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
-		Extensions {
-			relay_chain: "paseo-local".into(),
-			// You MUST set this to the correct network!
-			para_id: 2000,
-		},
+		Extensions { relay_chain: "paseo-local".into(), para_id: 2000 },
 	)
-	.with_name("IDN Development")
+	.with_name("IDN Dev")
 	.with_id("dev")
 	.with_chain_type(ChainType::Development)
 	.with_genesis_config_patch(testnet_genesis(
@@ -120,6 +116,8 @@ pub fn dev_config() -> ChainSpec {
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		2000.into(),
 	))
+	.with_protocol_id("idn-dev-protocol-id")
+	.with_properties(properties)
 	.build()
 }
 

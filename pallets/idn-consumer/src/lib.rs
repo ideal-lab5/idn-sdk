@@ -48,7 +48,7 @@ use bp_idn::{
 	},
 	Call as RuntimeCall, IdnManagerCall,
 };
-use cumulus_primitives_core::ParaId;
+use cumulus_primitives_core::{Instruction::WithdrawAsset, ParaId};
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
 	pallet_prelude::{Decode, DecodeWithMemTracking, Encode, EnsureOrigin, Get, IsType, Pays},
@@ -63,9 +63,13 @@ use sp_idn_traits::Hashable;
 use traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer};
 use xcm::{
 	v5::{
-		prelude::{BuyExecution, OriginKind, Transact, Xcm},
-		Asset, Junction, Junctions, Location,
+		prelude::{BuyExecution, DepositAsset, OriginKind, RefundSurplus, Transact, Xcm},
+		Asset,
+		AssetFilter::Wild,
+		AssetId, Junction, Junctions, Location,
 		WeightLimit::Unlimited,
+		WildAsset::AllOf,
+		WildFungibility,
 	},
 	VersionedLocation, VersionedXcm,
 };
@@ -142,9 +146,10 @@ pub mod pallet {
 		#[pallet::constant]
 		type ParaId: Get<ParaId>;
 
-		/// The asset hub asset ID for paying the IDN fees (e.g., DOT, USDC, etc.).
+		/// The maximum amount of fees to pay for the execution of a single XCM message sent to the
+		/// IDN chain, expressed in the IDN asset.
 		#[pallet::constant]
-		type AssetHubFee: Get<u128>;
+		type MaxIdnXcmFees: Get<u128>;
 
 		/// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
@@ -434,15 +439,44 @@ impl<T: Config> Pallet<T> {
 		Ok(req_ref)
 	}
 
+	/// Sends an XCM message to the Ideal Network (IDN) chain.
+	///
+	/// This function constructs and dispatches an XCM message using the provided `RuntimeCall`.
+	/// The message includes the following instructions:
+	/// - `WithdrawAsset`: Withdraws the specified asset (IDN fee) from the sender's account.
+	/// - `BuyExecution`: Pays for the execution of the XCM message with the withdrawn asset.
+	/// - `Transact`: Executes the provided `RuntimeCall` on the target chain.
+	/// - `RefundSurplus`: Refunds any surplus fees to the sender.
+	/// - `DepositAsset`: Deposits the refunded asset back into the sender's account.
+	///
+	/// The function ensures that the XCM message is properly versioned and sent to the target
+	/// location (`SiblingIdnLocation`). If the message fails to send, an `XcmSendError` is
+	/// returned.
+	///
+	/// # Parameters
+	/// - `call`: The `RuntimeCall` to be executed on the target chain.
+	///
+	/// # Returns
+	/// - `Ok(())` if the message is successfully sent.
+	/// - `Err(Error<T>)` if the message fails to send.
 	fn xcm_send(call: RuntimeCall) -> Result<(), Error<T>> {
-		let asset_hub_fee_asset: Asset = (Location::parent(), T::AssetHubFee::get()).into();
+		let idn_fee_asset = Asset {
+			id: AssetId(Location { parents: 1, interior: Junctions::Here }),
+			fun: T::MaxIdnXcmFees::get().into(),
+		};
 
 		let xcm_call: Xcm<RuntimeCall> = Xcm(vec![
-			BuyExecution { weight_limit: Unlimited, fees: asset_hub_fee_asset },
+			WithdrawAsset(idn_fee_asset.clone().into()),
+			BuyExecution { weight_limit: Unlimited, fees: idn_fee_asset.clone() },
 			Transact {
 				origin_kind: OriginKind::Xcm,
 				fallback_max_weight: None,
 				call: call.encode().into(),
+			},
+			RefundSurplus,
+			DepositAsset {
+				assets: Wild(AllOf { id: idn_fee_asset.id, fun: WildFungibility::Fungible }),
+				beneficiary: Location::here(),
 			},
 		]);
 

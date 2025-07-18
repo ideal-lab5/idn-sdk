@@ -312,7 +312,7 @@ impl pallet_collator_selection::Config for Runtime {
 parameter_types! {
 	pub IdnConsumerParaId: ParaId = ParachainInfo::parachain_id();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
-	pub const AssetHubFee: u128 = 1_000;
+	pub const MaxIdnXcmFees: u128 = 1_000_000_000_000;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -338,16 +338,16 @@ impl pallet_idn_consumer::Config for Runtime {
 	type PulseConsumer = PulseConsumerImpl;
 	type QuoteConsumer = QuoteConsumerImpl;
 	type SubInfoConsumer = SubInfoConsumerImpl;
-	type SiblingIdnLocation = xcm_config::SiblingIdnLocation;
+	type SiblingIdnLocation = xcm_config::IdnLocation;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type IdnOrigin = EnsureXcm<frame_support::traits::Equals<Self::SiblingIdnLocation>>;
+	type IdnOrigin = EnsureXcm<frame_support::traits::Equals<xcm_config::IdnLocation>>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type IdnOrigin = bench_ensure_origin::BenchEnsureOrigin;
 	// TODO: correctly set the Xcm type https://github.com/ideal-lab5/idn-sdk/issues/186
 	type Xcm = ();
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
-	type AssetHubFee = AssetHubFee;
+	type MaxIdnXcmFees = MaxIdnXcmFees;
 	// TODO: run benchmarks against reference hw https://github.com/ideal-lab5/idn-sdk/issues/235
 	type WeightInfo = IdnConsumerWeightInfo<Self>;
 }

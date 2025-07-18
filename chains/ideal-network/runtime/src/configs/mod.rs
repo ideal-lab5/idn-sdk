@@ -304,6 +304,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type SiblingOrigin = EnsureXcm<AllowSiblingsOnly>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type SiblingOrigin = bench_ensure_origin::BenchEnsureOrigin;
+	type XcmLocationToAccountId = xcm_config::LocationToAccountId;
 }
 
 parameter_types! {

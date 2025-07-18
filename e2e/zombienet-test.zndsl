@@ -4,6 +4,11 @@ Creds: config
 
 alice: is up
 bob: is up
-idn: is up
-idn-consumer: is up
-alice: parachain 1000 block height is at least 10 within 250 seconds
+idn-alice: is up
+idn-bob: is up
+idn-consumer-alice: is up
+idn-consumer-bob: is up
+
+# Ensure parachains are running
+idn-alice: parachain 2000 block height is at least 10 within 6000 seconds
+idn-consumer-alice: parachain 2001 block height is at least 10 within 6000 seconds

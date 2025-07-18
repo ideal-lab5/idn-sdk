@@ -90,8 +90,7 @@ impl pallet_xcm::benchmarking::Config for Runtime {
 	}
 
 	fn teleportable_asset_and_dest() -> Option<(Asset, Location)> {
-		// Relay/native token can be teleported between IDN Consumer and Relay.
-		Some((Self::get_asset(), Parent.into()))
+		None
 	}
 
 	fn reserve_transferable_asset_and_dest() -> Option<(Asset, Location)> {
