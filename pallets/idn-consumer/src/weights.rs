@@ -37,7 +37,7 @@
 // --template
 // ./weight-template.hbs
 // --output
-// ../../../pallets/idn-consumer/src
+// ../../../pallets/idn-consumer/src/weights.rs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
@@ -76,22 +76,22 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 19_000_000 picoseconds.
-		Weight::from_parts(22_000_000, 0)
+		// Minimum execution time: 18_000_000 picoseconds.
+		Weight::from_parts(19_000_000, 0)
 	}
 	fn consume_quote() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 11_000_000 picoseconds.
-		Weight::from_parts(15_000_000, 0)
+		// Minimum execution time: 12_000_000 picoseconds.
+		Weight::from_parts(18_000_000, 0)
 	}
 	fn consume_sub_info() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 21_000_000 picoseconds.
-		Weight::from_parts(23_000_000, 0)
+		// Minimum execution time: 22_000_000 picoseconds.
+		Weight::from_parts(26_000_000, 0)
 	}
 	fn create_subscription() -> Weight {
 		// Proof Size summary in bytes:
@@ -105,7 +105,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 1_000_000 picoseconds.
-		Weight::from_parts(1_000_000, 0)
+		Weight::from_parts(2_000_000, 0)
 	}
 	fn kill_subscription() -> Weight {
 		// Proof Size summary in bytes:
@@ -118,7 +118,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 1_000_000 picoseconds.
+		// Minimum execution time: 2_000_000 picoseconds.
 		Weight::from_parts(2_000_000, 0)
 	}
 	fn reactivate_subscription() -> Weight {
@@ -161,14 +161,14 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
-		Weight::from_parts(4_000_000, 0)
+		Weight::from_parts(3_000_000, 0)
 	}
 	fn sudo_update_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
-		Weight::from_parts(4_000_000, 0)
+		Weight::from_parts(3_000_000, 0)
 	}
 	fn sudo_reactivate_subscription() -> Weight {
 		// Proof Size summary in bytes:
@@ -199,22 +199,22 @@ impl WeightInfo for () {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 19_000_000 picoseconds.
-		Weight::from_parts(22_000_000, 0)
+		// Minimum execution time: 18_000_000 picoseconds.
+		Weight::from_parts(19_000_000, 0)
 	}
 	fn consume_quote() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 11_000_000 picoseconds.
-		Weight::from_parts(15_000_000, 0)
+		// Minimum execution time: 12_000_000 picoseconds.
+		Weight::from_parts(18_000_000, 0)
 	}
 	fn consume_sub_info() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 21_000_000 picoseconds.
-		Weight::from_parts(23_000_000, 0)
+		// Minimum execution time: 22_000_000 picoseconds.
+		Weight::from_parts(26_000_000, 0)
 	}
 	fn create_subscription() -> Weight {
 		// Proof Size summary in bytes:
@@ -228,7 +228,7 @@ impl WeightInfo for () {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 1_000_000 picoseconds.
-		Weight::from_parts(1_000_000, 0)
+		Weight::from_parts(2_000_000, 0)
 	}
 	fn kill_subscription() -> Weight {
 		// Proof Size summary in bytes:
@@ -241,7 +241,7 @@ impl WeightInfo for () {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 1_000_000 picoseconds.
+		// Minimum execution time: 2_000_000 picoseconds.
 		Weight::from_parts(2_000_000, 0)
 	}
 	fn reactivate_subscription() -> Weight {
@@ -284,14 +284,14 @@ impl WeightInfo for () {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
-		Weight::from_parts(4_000_000, 0)
+		Weight::from_parts(3_000_000, 0)
 	}
 	fn sudo_update_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
-		Weight::from_parts(4_000_000, 0)
+		Weight::from_parts(3_000_000, 0)
 	}
 	fn sudo_reactivate_subscription() -> Weight {
 		// Proof Size summary in bytes:
