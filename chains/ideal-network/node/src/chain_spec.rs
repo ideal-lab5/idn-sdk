@@ -112,6 +112,12 @@ pub fn dev_config() -> ChainSpec {
 			get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
 			get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
 			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+			sr25519::Public::from_str("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C") // Treasury Account
+				.unwrap()
+				.into(),
+			sr25519::Public::from_str("5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK") // Sibling 2001 Account (consumer)
+				.unwrap()
+				.into(),
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		2000.into(),

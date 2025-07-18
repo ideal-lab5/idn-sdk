@@ -25,6 +25,8 @@ use crate::weights::{
 	CumulusXcmpQueueWeightInfo, IdnConsumerWeightInfo, MessageQueueWeightInfo, SessionWeightInfo,
 	SudoWeightInfo, SystemWeightInfo, TimestampWeightInfo, TransactionPaymentWeightInfo,
 };
+#[cfg(not(feature = "runtime-benchmarks"))]
+use crate::PolkadotXcm;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -343,7 +345,9 @@ impl pallet_idn_consumer::Config for Runtime {
 	type IdnOrigin = EnsureXcm<frame_support::traits::Equals<xcm_config::IdnLocation>>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type IdnOrigin = bench_ensure_origin::BenchEnsureOrigin;
-	// TODO: correctly set the Xcm type https://github.com/ideal-lab5/idn-sdk/issues/186
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type Xcm = PolkadotXcm;
+	#[cfg(feature = "runtime-benchmarks")]
 	type Xcm = ();
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
