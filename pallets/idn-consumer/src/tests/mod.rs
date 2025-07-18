@@ -435,3 +435,97 @@ fn test_get_subscription_fails() {
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
 	});
 }
+
+#[test]
+fn test_sudo_create_subscription_success() {
+	ExtBuilder::build().execute_with(|| {
+		let credits = 10;
+		let frequency = 5;
+		let metadata = None;
+		let sub_id = None;
+		// Call the sudo dispatchable and assert success
+		assert_ok!(crate::Pallet::<Test>::sudo_create_subscription(
+			RuntimeOrigin::root(),
+			credits,
+			frequency,
+			metadata,
+			sub_id
+		));
+	});
+}
+
+#[test]
+fn test_sudo_pause_subscription_success() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+		assert_ok!(crate::Pallet::<Test>::sudo_pause_subscription(RuntimeOrigin::root(), sub_id));
+	});
+}
+
+#[test]
+fn test_sudo_kill_subscription_success() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+		assert_ok!(crate::Pallet::<Test>::sudo_kill_subscription(RuntimeOrigin::root(), sub_id));
+	});
+}
+
+#[test]
+fn test_sudo_update_subscription_success() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+		let credits = Some(20);
+		let frequency = Some(10);
+		let metadata = Some(None);
+		assert_ok!(crate::Pallet::<Test>::sudo_update_subscription(
+			RuntimeOrigin::root(),
+			sub_id,
+			credits,
+			frequency,
+			metadata
+		));
+	});
+}
+
+#[test]
+fn test_sudo_reactivate_subscription_success() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+		assert_ok!(crate::Pallet::<Test>::sudo_reactivate_subscription(
+			RuntimeOrigin::root(),
+			sub_id
+		));
+	});
+}
+
+#[test]
+fn test_sudo_request_quote_success() {
+	ExtBuilder::build().execute_with(|| {
+		let credits = 10;
+		let frequency = 5;
+		let metadata = None;
+		let sub_id = None;
+		let req_ref = None;
+		assert_ok!(crate::Pallet::<Test>::sudo_request_quote(
+			RuntimeOrigin::root(),
+			credits,
+			frequency,
+			metadata,
+			sub_id,
+			req_ref
+		));
+	});
+}
+
+#[test]
+fn test_sudo_request_sub_info_success() {
+	ExtBuilder::build().execute_with(|| {
+		let sub_id = [1; 32];
+		let req_ref = None;
+		assert_ok!(crate::Pallet::<Test>::sudo_request_sub_info(
+			RuntimeOrigin::root(),
+			sub_id,
+			req_ref
+		));
+	});
+}

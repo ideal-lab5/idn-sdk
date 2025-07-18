@@ -54,7 +54,7 @@ use frame_support::{
 	pallet_prelude::{Decode, DecodeWithMemTracking, Encode, EnsureOrigin, Get, IsType, Pays},
 	sp_runtime::traits::AccountIdConversion,
 };
-use frame_system::{pallet_prelude::OriginFor, RawOrigin};
+use frame_system::{ensure_root, pallet_prelude::OriginFor, RawOrigin};
 use scale_info::{
 	prelude::{boxed::Box, sync::Arc, vec},
 	TypeInfo,
@@ -287,6 +287,232 @@ pub mod pallet {
 
 			Self::deposit_event(Event::SubInfoConsumed { sub_id: sub_info.sub.id });
 
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to create a subscription on the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `credits`: Number of random values to receive.
+		/// - `frequency`: Distribution interval for pulses.
+		/// - `metadata`: Optional additional data for the subscription.
+		/// - `sub_id`: Optional subscription ID. If `None`, a new one will be generated.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if subscription creation fails (see [`Self::create_subscription`]).
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to create a subscription directly on the consumer chain.
+		#[pallet::call_index(3)]
+		#[pallet::weight(T::WeightInfo::sudo_create_subscription())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_create_subscription(
+			origin: OriginFor<T>,
+			credits: Credits,
+			frequency: IdnBlockNumber,
+			metadata: Option<Metadata>,
+			sub_id: Option<SubscriptionId>,
+		) -> DispatchResultWithPostInfo {
+			// Ensure the origin is a sudo origin
+			ensure_root(origin)?;
+
+			Self::create_subscription(credits, frequency, metadata, sub_id)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to pause a subscription on the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `sub_id`: The subscription ID to pause.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if pausing the subscription fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to create a subscription directly on the consumer chain.
+		#[pallet::call_index(4)]
+		#[pallet::weight(T::WeightInfo::sudo_pause_subscription())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_pause_subscription(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin)?;
+			Self::pause_subscription(sub_id)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to kill a subscription on the consumer chain with sudo privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `sub_id`: The subscription ID to kill.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if killing the subscription fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to create a subscription directly on the consumer chain.
+		#[pallet::call_index(5)]
+		#[pallet::weight(T::WeightInfo::sudo_kill_subscription())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_kill_subscription(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin)?;
+			Self::kill_subscription(sub_id)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to update a subscription on the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `sub_id`: The subscription ID to update.
+		/// - `credits`: Optional new number of random values to receive.
+		/// - `frequency`: Optional new distribution interval for pulses.
+		/// - `metadata`: Optional new metadata for the subscription.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if updating the subscription fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to create a subscription directly on the consumer chain.
+		#[pallet::call_index(6)]
+		#[pallet::weight(T::WeightInfo::sudo_update_subscription())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_update_subscription(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+			credits: Option<Credits>,
+			frequency: Option<IdnBlockNumber>,
+			metadata: Option<Option<Metadata>>,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin)?;
+			Self::update_subscription(sub_id, credits, frequency, metadata)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to reactivate a subscription on the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `sub_id`: The subscription ID to reactivate.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if reactivating the subscription fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to create a subscription directly on the consumer chain.
+		#[pallet::call_index(7)]
+		#[pallet::weight(T::WeightInfo::sudo_reactivate_subscription())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_reactivate_subscription(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin)?;
+			Self::reactivate_subscription(sub_id)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to request a subscription quote from the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `credits`: Number of random values to receive.
+		/// - `frequency`: Distribution interval for pulses.
+		/// - `metadata`: Optional additional data for the subscription.
+		/// - `sub_id`: Optional subscription ID.
+		/// - `req_ref`: Optional quote request reference.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if requesting the quote fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to create a subscription directly on the consumer chain.
+		#[pallet::call_index(8)]
+		#[pallet::weight(T::WeightInfo::sudo_request_quote())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_request_quote(
+			origin: OriginFor<T>,
+			credits: Credits,
+			frequency: IdnBlockNumber,
+			metadata: Option<Metadata>,
+			sub_id: Option<SubscriptionId>,
+			req_ref: Option<RequestReference>,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin)?;
+			Self::request_quote(credits, frequency, metadata, sub_id, req_ref)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to request subscription info from the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `sub_id`: The subscription ID to request info for.
+		/// - `req_ref`: Optional quote request reference.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if requesting the subscription info fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to create a subscription directly on the consumer chain.
+		#[pallet::call_index(9)]
+		#[pallet::weight(T::WeightInfo::sudo_request_sub_info())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_request_sub_info(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+			req_ref: Option<RequestReference>,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin)?;
+			Self::request_sub_info(sub_id, req_ref)?;
 			Ok(Pays::No.into())
 		}
 	}

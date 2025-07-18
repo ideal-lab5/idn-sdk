@@ -177,4 +177,117 @@ mod benchmarks {
 				.expect("request_sub_info should not fail");
 		}
 	}
+
+	#[benchmark]
+	fn sudo_create_subscription() {
+		let credits = 10;
+		let frequency = 5;
+		let metadata = None;
+		let sub_id = None;
+		let origin = RawOrigin::Root;
+
+		#[block]
+		{
+			IdnConsumer::<T>::sudo_create_subscription(
+				origin.into(),
+				credits,
+				frequency,
+				metadata,
+				sub_id,
+			)
+			.expect("sudo_create_subscription should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn sudo_pause_subscription() {
+		let sub_id = [1u8; 32];
+		let origin = RawOrigin::Root;
+
+		#[block]
+		{
+			IdnConsumer::<T>::sudo_pause_subscription(origin.into(), sub_id)
+				.expect("sudo_pause_subscription should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn sudo_kill_subscription() {
+		let sub_id = [1u8; 32];
+		let origin = RawOrigin::Root;
+
+		#[block]
+		{
+			IdnConsumer::<T>::sudo_kill_subscription(origin.into(), sub_id)
+				.expect("sudo_kill_subscription should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn sudo_update_subscription() {
+		let sub_id = [1u8; 32];
+		let credits = 10;
+		let frequency = 5;
+		let metadata = None;
+		let origin = RawOrigin::Root;
+
+		#[block]
+		{
+			IdnConsumer::<T>::sudo_update_subscription(
+				origin.into(),
+				sub_id,
+				Some(credits),
+				Some(frequency),
+				metadata,
+			)
+			.expect("sudo_update_subscription should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn sudo_reactivate_subscription() {
+		let sub_id = [1u8; 32];
+		let origin = RawOrigin::Root;
+
+		#[block]
+		{
+			IdnConsumer::<T>::sudo_reactivate_subscription(origin.into(), sub_id)
+				.expect("sudo_reactivate_subscription should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn sudo_request_quote() {
+		let sub_id = None;
+		let req_ref = None;
+		let credits = 10;
+		let frequency = 5;
+		let metadata = None;
+		let origin = RawOrigin::Root;
+
+		#[block]
+		{
+			IdnConsumer::<T>::sudo_request_quote(
+				origin.into(),
+				credits,
+				frequency,
+				metadata,
+				sub_id,
+				req_ref,
+			)
+			.expect("sudo_request_quote should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn sudo_request_sub_info() {
+		let sub_id = [1u8; 32];
+		let origin = RawOrigin::Root;
+
+		#[block]
+		{
+			IdnConsumer::<T>::sudo_request_sub_info(origin.into(), sub_id, None)
+				.expect("sudo_request_sub_info should not fail");
+		}
+	}
 }
