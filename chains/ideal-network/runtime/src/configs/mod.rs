@@ -46,6 +46,8 @@ use sp_version::RuntimeVersion;
 use xcm::prelude::BodyId;
 
 // Local module imports
+#[cfg(not(feature = "runtime-benchmarks"))]
+use super::PolkadotXcm;
 use super::{
 	weights::{
 		BalancesWeightInfo, BlockExecutionWeight, CollatorSelectionWeightInfo,
@@ -54,10 +56,10 @@ use super::{
 		SystemWeightInfo, TimestampWeightInfo, TransactionPaymentWeightInfo,
 	},
 	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook, Hash,
-	MessageQueue, Nonce, PalletInfo, PolkadotXcm, Runtime, RuntimeCall, RuntimeEvent,
-	RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
-	System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS,
-	MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
+	MessageQueue, Nonce, PalletInfo, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason,
+	RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys, System, WeightToFee,
+	XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT,
+	MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
 };
 use xcm_config::RelayLocation;
 
@@ -292,8 +294,10 @@ impl pallet_idn_manager::Config for Runtime {
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = types::RuntimePulse;
 	type WeightInfo = IdnManagerWeightInfo<Runtime>;
-	// TODO: correctly set the Xcm type https://github.com/ideal-lab5/idn-sdk/issues/186
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	type Xcm = PolkadotXcm;
+	#[cfg(feature = "runtime-benchmarks")]
+	type Xcm = ();
 	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
 	type MaxSubscriptions = types::MaxSubscriptions;

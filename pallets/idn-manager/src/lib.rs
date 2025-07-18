@@ -60,7 +60,8 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CallIndex, CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubscriptionMetadata,
+		CallIndex, CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubInfoResponse,
+		SubscriptionMetadata,
 	},
 	traits::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
@@ -465,6 +466,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: CreateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
+			log::trace!(target: LOG_TARGET, "Create subscription request received: {:?}", params);
 			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			ensure!(params.credits != Zero::zero(), Error::<T>::InvalidParams);
@@ -548,6 +550,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
+			log::trace!(target: LOG_TARGET, "Pause subscription request received: {:?}", sub_id);
 			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -583,7 +586,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
-			let subscriber = ensure_signed(origin)?;
+			log::trace!(target: LOG_TARGET, "Kill subscription request received: {:?}", sub_id);
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			let sub =
 				Self::get_subscription(&sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -613,6 +617,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: UpdateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
+			log::trace!(target: LOG_TARGET, "Update subscription request received: {:?}", params);
 			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			Subscriptions::<T>::try_mutate(params.sub_id, |maybe_sub| {
@@ -676,6 +681,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
+			log::trace!(target: LOG_TARGET, "Reactivating subscription: {:?}", sub_id);
 			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -699,15 +705,16 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: QuoteSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
+			log::trace!(target: LOG_TARGET, "Quote subscription request received: {:?}", params);
 			// Ensure the origin is a sibling, and get the location
 			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
 
-			let deposit = Self::calculate_storage_deposit_from_create_params(
-				&origin
-					.into_signer()
-					// we know that the origin is a sibling, thus signed, so this should never be
-					// reached
-					.ok_or(DispatchError::from(Error::<T>::InvalidSubscriber))?,
+			let deposit  = Self::calculate_storage_deposit_from_create_params(
+				&T::XcmLocationToAccountId::convert_location(&requester)
+					.ok_or_else(|| {
+						log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
+						Error::<T>::InvalidSubscriber
+					})?,
 				&params.quote_request.create_sub_params,
 			);
 			let fees =
@@ -715,7 +722,7 @@ pub mod pallet {
 
 			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
 
-			Self::xcm_send(&requester, (params.call_index, fees).encode().into())?;
+			Self::xcm_send(&requester, (params.call_index, quote.clone()).encode().into())?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
 
 			Ok(Some(T::WeightInfo::quote_subscription()).into())
@@ -729,13 +736,15 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			req: SubInfoRequestOf<T>,
 		) -> DispatchResult {
+			log::trace!(target: LOG_TARGET, "Get subscription info request received: {:?}", req);
 			// Ensure the origin is a sibling, and get the location
 			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
 
 			let sub =
 				Self::get_subscription(&req.sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 
-			Self::xcm_send(&requester, (req.call_index, sub).encode().into())?;
+			let response = SubInfoResponse { sub, req_ref: req.req_ref };
+			Self::xcm_send(&requester, (req.call_index, response).encode().into())?;
 			Self::deposit_event(Event::SubscriptionDistributed { sub_id: req.sub_id });
 
 			Ok(())
@@ -805,6 +814,7 @@ impl<T: Config> Pallet<T> {
 		sub: &SubscriptionOf<T>,
 		sub_id: T::SubscriptionId,
 	) -> DispatchResult {
+		log::trace!(target: LOG_TARGET, "Terminating subscription: {:?}", sub_id);
 		// fees left and deposit to refund
 		let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits_left, &Zero::zero());
 		let sd = T::DepositCalculator::calculate_storage_deposit(sub);
