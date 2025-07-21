@@ -402,7 +402,7 @@ pub mod pallet {
 		///
 		/// # Usage
 		/// This function is intended for privileged (sudo) operations, such as testing or
-		/// administrative tasks, to create a subscription directly on the consumer chain.
+		/// administrative tasks, to update a subscription directly on the consumer chain.
 		#[pallet::call_index(6)]
 		#[pallet::weight(T::WeightInfo::sudo_update_subscription())]
 		#[allow(clippy::useless_conversion)]
