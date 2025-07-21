@@ -520,7 +520,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	/// Creates a subscription.
 	pub fn create_subscription(
-		// Origin of the call, must be accetable by the IDN XCM barrier
+		// Origin of the call, must be acceptable by the IDN XCM barrier
 		origin: OriginFor<T>,
 		// Number of random values to receive
 		credits: Credits,
