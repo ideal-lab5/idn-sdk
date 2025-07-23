@@ -52,9 +52,8 @@ use cumulus_primitives_core::{Instruction::WithdrawAsset, ParaId};
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
 	pallet_prelude::{Decode, DecodeWithMemTracking, Encode, EnsureOrigin, Get, IsType, Pays},
-	sp_runtime::traits::AccountIdConversion,
 };
-use frame_system::{pallet_prelude::OriginFor, RawOrigin};
+use frame_system::{ensure_root, pallet_prelude::OriginFor};
 use scale_info::{
 	prelude::{boxed::Box, sync::Arc, vec},
 	TypeInfo,
@@ -289,12 +288,240 @@ pub mod pallet {
 
 			Ok(Pays::No.into())
 		}
+
+		/// Dispatchable function to create a subscription on the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `credits`: Number of random values to receive.
+		/// - `frequency`: Distribution interval for pulses.
+		/// - `metadata`: Optional additional data for the subscription.
+		/// - `sub_id`: Optional subscription ID. If `None`, a new one will be generated.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if subscription creation fails (see [`Self::create_subscription`]).
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to create a subscription directly on the consumer chain.
+		#[pallet::call_index(3)]
+		#[pallet::weight(T::WeightInfo::sudo_create_subscription())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_create_subscription(
+			origin: OriginFor<T>,
+			credits: Credits,
+			frequency: IdnBlockNumber,
+			metadata: Option<Metadata>,
+			sub_id: Option<SubscriptionId>,
+		) -> DispatchResultWithPostInfo {
+			// Ensure the origin is a sudo origin
+			ensure_root(origin.clone())?;
+
+			Self::create_subscription(origin, credits, frequency, metadata, sub_id)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to pause a subscription on the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `sub_id`: The subscription ID to pause.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if pausing the subscription fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to create a subscription directly on the consumer chain.
+		#[pallet::call_index(4)]
+		#[pallet::weight(T::WeightInfo::sudo_pause_subscription())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_pause_subscription(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin.clone())?;
+			Self::pause_subscription(origin, sub_id)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to kill a subscription on the consumer chain with sudo privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `sub_id`: The subscription ID to kill.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if killing the subscription fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to kill a subscription directly on the consumer chain.
+		#[pallet::call_index(5)]
+		#[pallet::weight(T::WeightInfo::sudo_kill_subscription())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_kill_subscription(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin.clone())?;
+			Self::kill_subscription(origin, sub_id)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to update a subscription on the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `sub_id`: The subscription ID to update.
+		/// - `credits`: Optional new number of random values to receive.
+		/// - `frequency`: Optional new distribution interval for pulses.
+		/// - `metadata`: Optional new metadata for the subscription.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if updating the subscription fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to update a subscription directly on the consumer chain.
+		#[pallet::call_index(6)]
+		#[pallet::weight(T::WeightInfo::sudo_update_subscription())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_update_subscription(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+			credits: Option<Credits>,
+			frequency: Option<IdnBlockNumber>,
+			metadata: Option<Option<Metadata>>,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin.clone())?;
+			Self::update_subscription(origin, sub_id, credits, frequency, metadata)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to reactivate a subscription on the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `sub_id`: The subscription ID to reactivate.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if reactivating the subscription fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to reactivate a subscription directly on the consumer chain.
+		#[pallet::call_index(7)]
+		#[pallet::weight(T::WeightInfo::sudo_reactivate_subscription())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_reactivate_subscription(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin.clone())?;
+			Self::reactivate_subscription(origin, sub_id)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to request a subscription quote from the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `credits`: Number of random values to receive.
+		/// - `frequency`: Distribution interval for pulses.
+		/// - `metadata`: Optional additional data for the subscription.
+		/// - `sub_id`: Optional subscription ID.
+		/// - `req_ref`: Optional quote request reference.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if requesting the quote fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to request a quote directly on the consumer chain.
+		#[pallet::call_index(8)]
+		#[pallet::weight(T::WeightInfo::sudo_request_quote())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_request_quote(
+			origin: OriginFor<T>,
+			credits: Credits,
+			frequency: IdnBlockNumber,
+			metadata: Option<Metadata>,
+			sub_id: Option<SubscriptionId>,
+			req_ref: Option<RequestReference>,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin.clone())?;
+			Self::request_quote(origin, credits, frequency, metadata, sub_id, req_ref)?;
+			Ok(Pays::No.into())
+		}
+
+		/// Dispatchable function to request subscription info from the consumer chain with sudo
+		/// privileges.
+		///
+		/// # Parameters
+		/// - `origin`: Must be the root (sudo) origin.
+		/// - `sub_id`: The subscription ID to request info for.
+		/// - `req_ref`: Optional quote request reference.
+		///
+		/// # Returns
+		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
+		///
+		/// # Errors
+		/// - Fails if the origin is not root.
+		/// - Fails if requesting the subscription info fails.
+		///
+		/// # Usage
+		/// This function is intended for privileged (sudo) operations, such as testing or
+		/// administrative tasks, to request subscription info directly on the consumer chain.
+		#[pallet::call_index(9)]
+		#[pallet::weight(T::WeightInfo::sudo_request_sub_info())]
+		#[allow(clippy::useless_conversion)]
+		pub fn sudo_request_sub_info(
+			origin: OriginFor<T>,
+			sub_id: SubscriptionId,
+			req_ref: Option<RequestReference>,
+		) -> DispatchResultWithPostInfo {
+			ensure_root(origin.clone())?;
+			Self::request_sub_info(origin, sub_id, req_ref)?;
+			Ok(Pays::No.into())
+		}
 	}
 }
 
 impl<T: Config> Pallet<T> {
 	/// Creates a subscription.
 	pub fn create_subscription(
+		// Origin of the call, must be acceptable by the IDN XCM barrier
+		origin: OriginFor<T>,
 		// Number of random values to receive
 		credits: Credits,
 		// Distribution interval for pulses
@@ -306,7 +533,7 @@ impl<T: Config> Pallet<T> {
 	) -> Result<SubscriptionId, Error<T>> {
 		let mut params = CreateSubParams {
 			credits,
-			target: Self::pallet_location()?,
+			target: Self::self_para_sibling_location()?,
 			// the `0` on the second element is the call index for the `consume` call
 			call_index: Self::pulse_callback_index()?,
 			frequency,
@@ -327,25 +554,35 @@ impl<T: Config> Pallet<T> {
 
 		let call = RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params });
 
-		Self::xcm_send(call)?;
+		Self::xcm_send(origin, call)?;
 
 		Ok(sub_id)
 	}
 
 	/// Pauses a subscription.
-	pub fn pause_subscription(sub_id: SubscriptionId) -> Result<(), Error<T>> {
+	pub fn pause_subscription(
+		// Origin of the call, must be accetable by the IDN XCM barrier
+		origin: OriginFor<T>,
+		sub_id: SubscriptionId,
+	) -> Result<(), Error<T>> {
 		let call = RuntimeCall::IdnManager(IdnManagerCall::pause_subscription { sub_id });
-		Self::xcm_send(call)
+		Self::xcm_send(origin, call)
 	}
 
 	/// Kills a subscription.
-	pub fn kill_subscription(sub_id: SubscriptionId) -> Result<(), Error<T>> {
+	pub fn kill_subscription(
+		// Origin of the call, must be accetable by the IDN XCM barrier
+		origin: OriginFor<T>,
+		sub_id: SubscriptionId,
+	) -> Result<(), Error<T>> {
 		let call = RuntimeCall::IdnManager(IdnManagerCall::kill_subscription { sub_id });
-		Self::xcm_send(call)
+		Self::xcm_send(origin, call)
 	}
 
 	/// Updates a subscription.
 	pub fn update_subscription(
+		// Origin of the call, must be accetable by the IDN XCM barrier
+		origin: OriginFor<T>,
 		sub_id: SubscriptionId,
 		credits: Option<Credits>,
 		frequency: Option<IdnBlockNumber>,
@@ -355,13 +592,17 @@ impl<T: Config> Pallet<T> {
 
 		let call = RuntimeCall::IdnManager(IdnManagerCall::update_subscription { params });
 
-		Self::xcm_send(call)
+		Self::xcm_send(origin, call)
 	}
 
 	/// Reactivates a subscription.
-	pub fn reactivate_subscription(sub_id: SubscriptionId) -> Result<(), Error<T>> {
+	pub fn reactivate_subscription(
+		// Origin of the call, must be accetable by the IDN XCM barrier
+		origin: OriginFor<T>,
+		sub_id: SubscriptionId,
+	) -> Result<(), Error<T>> {
 		let call = RuntimeCall::IdnManager(IdnManagerCall::reactivate_subscription { sub_id });
-		Self::xcm_send(call)
+		Self::xcm_send(origin, call)
 	}
 
 	/// Request a subscription quote for a given number of credits and frequency.
@@ -371,6 +612,8 @@ impl<T: Config> Pallet<T> {
 	/// [`Pallet::consume_quote`] function along with the `req_ref`.
 	/// The `req_ref` is generated by this function and used to identify the request when returned.
 	pub fn request_quote(
+		// Origin of the call, must be accetable by the IDN XCM barrier
+		origin: OriginFor<T>,
 		// Number of random values to receive
 		credits: Credits,
 		// Distribution interval for pulses
@@ -384,7 +627,7 @@ impl<T: Config> Pallet<T> {
 	) -> Result<RequestReference, Error<T>> {
 		let create_sub_params = CreateSubParams {
 			credits,
-			target: Self::pallet_location()?,
+			target: Self::self_para_sibling_location()?,
 			// the `0` on the second element is the call index for the `consume` call
 			call_index: Self::pulse_callback_index()?,
 			frequency,
@@ -407,7 +650,7 @@ impl<T: Config> Pallet<T> {
 
 		let call = RuntimeCall::IdnManager(IdnManagerCall::quote_subscription { params });
 
-		Self::xcm_send(call)?;
+		Self::xcm_send(origin, call)?;
 
 		Ok(req_ref)
 	}
@@ -419,6 +662,8 @@ impl<T: Config> Pallet<T> {
 	/// [`Pallet::consume_sub_info`] function along with the `req_ref`.
 	/// The `req_ref` is generated by this function and used to identify the request when returned.
 	pub fn request_sub_info(
+		// Origin of the call, must be accetable by the IDN XCM barrier
+		origin: OriginFor<T>,
 		sub_id: SubscriptionId,
 		// Optional quote request reference, if None, a new one will be generated
 		req_ref: Option<RequestReference>,
@@ -434,7 +679,7 @@ impl<T: Config> Pallet<T> {
 		let req = SubInfoRequest { sub_id, req_ref, call_index: Self::sub_info_callback_index()? };
 		let call = RuntimeCall::IdnManager(IdnManagerCall::get_subscription_info { req });
 
-		Self::xcm_send(call)?;
+		Self::xcm_send(origin, call)?;
 
 		Ok(req_ref)
 	}
@@ -454,12 +699,13 @@ impl<T: Config> Pallet<T> {
 	/// returned.
 	///
 	/// # Parameters
+	/// - `origin`: The origin of the call.
 	/// - `call`: The `RuntimeCall` to be executed on the target chain.
 	///
 	/// # Returns
 	/// - `Ok(())` if the message is successfully sent.
 	/// - `Err(Error<T>)` if the message fails to send.
-	fn xcm_send(call: RuntimeCall) -> Result<(), Error<T>> {
+	fn xcm_send(origin: OriginFor<T>, call: RuntimeCall) -> Result<(), Error<T>> {
 		let idn_fee_asset = Asset {
 			id: AssetId(Location { parents: 1, interior: Junctions::Here }),
 			fun: T::MaxIdnXcmFees::get().into(),
@@ -476,7 +722,8 @@ impl<T: Config> Pallet<T> {
 			RefundSurplus,
 			DepositAsset {
 				assets: Wild(AllOf { id: idn_fee_asset.id, fun: WildFungibility::Fungible }),
-				beneficiary: Location::here(),
+				// refund any surplus back to the chain's sovereign account
+				beneficiary: Self::self_para_sibling_location()?,
 			},
 		]);
 
@@ -485,7 +732,7 @@ impl<T: Config> Pallet<T> {
 
 		let versioned_msg: Box<VersionedXcm<()>> = Box::new(xcm::VersionedXcm::V5(xcm_call.into()));
 
-		T::Xcm::send(Self::pallet_origin().into(), versioned_target, versioned_msg)
+		T::Xcm::send(origin, versioned_target, versioned_msg)
 			.map_err(|_err| Error::<T>::XcmSendError)?;
 
 		Ok(())
@@ -498,24 +745,11 @@ impl<T: Config> Pallet<T> {
 			.map_err(|_| Error::<T>::PalletIndexConversionError)
 	}
 
-	/// Get the account id of this pallet
-	fn pallet_account_id() -> T::AccountId {
-		T::PalletId::get().into_account_truncating()
-	}
-
-	/// Get the signed origin of this pallet
-	fn pallet_origin() -> RawOrigin<T::AccountId> {
-		RawOrigin::Signed(Self::pallet_account_id())
-	}
-
-	/// Get this pallet's xcm Location
-	fn pallet_location() -> Result<Location, Error<T>> {
+	/// Get this parachain's Location as a sibling of the IDN chain.
+	fn self_para_sibling_location() -> Result<Location, Error<T>> {
 		Ok(Location {
 			parents: 1,
-			interior: Junctions::X2(Arc::new([
-				Junction::Parachain(T::ParaId::get().into()),
-				Junction::PalletInstance(Self::pallet_index()?),
-			])),
+			interior: Junctions::X1(Arc::new([Junction::Parachain(T::ParaId::get().into())])),
 		})
 	}
 

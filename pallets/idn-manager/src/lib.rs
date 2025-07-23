@@ -60,7 +60,8 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CallIndex, CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubscriptionMetadata,
+		CallIndex, CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubInfoResponse,
+		SubscriptionMetadata,
 	},
 	traits::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
@@ -74,7 +75,6 @@ use frame_support::{
 		EnsureOrigin, Hooks, IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Weight,
 		Zero,
 	},
-	sp_runtime::traits::AccountIdConversion,
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
 		tokens::Precision,
@@ -402,8 +402,6 @@ pub mod pallet {
 		NotSubscriber,
 		/// Too many subscriptions in storage
 		TooManySubscriptions,
-		/// An error occurred while sending the XCM message
-		XcmSendError,
 		/// Invalid subscriber
 		InvalidSubscriber,
 		/// Invalid parameters
@@ -468,6 +466,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: CreateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
+			log::trace!(target: LOG_TARGET, "Create subscription request received: {:?}", params);
 			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			ensure!(params.credits != Zero::zero(), Error::<T>::InvalidParams);
@@ -551,6 +550,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
+			log::trace!(target: LOG_TARGET, "Pause subscription request received: {:?}", sub_id);
 			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -586,7 +586,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
-			let subscriber = ensure_signed(origin)?;
+			log::trace!(target: LOG_TARGET, "Kill subscription request received: {:?}", sub_id);
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			let sub =
 				Self::get_subscription(&sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -616,6 +617,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: UpdateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
+			log::trace!(target: LOG_TARGET, "Update subscription request received: {:?}", params);
 			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			Subscriptions::<T>::try_mutate(params.sub_id, |maybe_sub| {
@@ -679,6 +681,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
+			log::trace!(target: LOG_TARGET, "Reactivating subscription: {:?}", sub_id);
 			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -702,15 +705,16 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: QuoteSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
+			log::trace!(target: LOG_TARGET, "Quote subscription request received: {:?}", params);
 			// Ensure the origin is a sibling, and get the location
 			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
 
-			let deposit = Self::calculate_storage_deposit_from_create_params(
-				&origin
-					.into_signer()
-					// we know that the origin is a sibling, thus signed, so this should never be
-					// reached
-					.ok_or(DispatchError::from(Error::<T>::InvalidSubscriber))?,
+			let deposit  = Self::calculate_storage_deposit_from_create_params(
+				&T::XcmLocationToAccountId::convert_location(&requester)
+					.ok_or_else(|| {
+						log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
+						Error::<T>::InvalidSubscriber
+					})?,
 				&params.quote_request.create_sub_params,
 			);
 			let fees =
@@ -718,7 +722,7 @@ pub mod pallet {
 
 			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
 
-			Self::xcm_send(&requester, (params.call_index, fees).encode().into())?;
+			Self::xcm_send(&requester, (params.call_index, quote.clone()).encode().into())?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
 
 			Ok(Some(T::WeightInfo::quote_subscription()).into())
@@ -732,13 +736,15 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			req: SubInfoRequestOf<T>,
 		) -> DispatchResult {
+			log::trace!(target: LOG_TARGET, "Get subscription info request received: {:?}", req);
 			// Ensure the origin is a sibling, and get the location
 			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
 
 			let sub =
 				Self::get_subscription(&req.sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 
-			Self::xcm_send(&requester, (req.call_index, sub).encode().into())?;
+			let response = SubInfoResponse { sub, req_ref: req.req_ref };
+			Self::xcm_send(&requester, (req.call_index, response).encode().into())?;
 			Self::deposit_event(Event::SubscriptionDistributed { sub_id: req.sub_id });
 
 			Ok(())
@@ -808,6 +814,7 @@ impl<T: Config> Pallet<T> {
 		sub: &SubscriptionOf<T>,
 		sub_id: T::SubscriptionId,
 	) -> DispatchResult {
+		log::trace!(target: LOG_TARGET, "Terminating subscription: {:?}", sub_id);
 		// fees left and deposit to refund
 		let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits_left, &Zero::zero());
 		let sd = T::DepositCalculator::calculate_storage_deposit(sub);
@@ -826,10 +833,6 @@ impl<T: Config> Pallet<T> {
 
 	pub(crate) fn get_min_credits(sub: &SubscriptionOf<T>) -> T::Credits {
 		T::FeesManager::get_idle_credits(sub)
-	}
-
-	fn pallet_account_id() -> T::AccountId {
-		T::PalletId::get().into_account_truncating()
 	}
 
 	/// Distribute randomness to subscribers
@@ -851,7 +854,7 @@ impl<T: Config> Pallet<T> {
 				let consume_credits = T::FeesManager::get_consume_credits(&sub);
 
 				if let Err(e) = Self::collect_fees(&sub, consume_credits) {
-					Self::pause_subscription_on_error(sub_id, sub, "Failed to collect fees.", e);
+					Self::pause_subscription_on_error(sub_id, sub, "Failed to collect fees", e);
 					continue;
 				}
 
@@ -870,7 +873,7 @@ impl<T: Config> Pallet<T> {
 					// 3. Pass the parameters to that function
 					(sub.details.call_index, &pulse, &sub_id).encode().into(),
 				) {
-					Self::pause_subscription_on_error(sub_id, sub, "Failed to dispatch XCM.", e);
+					Self::pause_subscription_on_error(sub_id, sub, "Failed to dispatch XCM", e);
 					continue;
 				}
 
@@ -1025,6 +1028,14 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Dispatches the call to the target
+	/// WARNING: Possible attack vector, as the `Xcm::send` call's origin is different to the
+	/// account that created the subscription that feeds the target and the transact msg.
+	/// Also, this is requesting `UnpaidExecution`, which is expected to be honored by the
+	/// target chain.
+	/// A potential attacker could try to get "almost" free execution (only paying the pulse
+	/// consumption fees) to any target on a chain that honors `UnpaidExecution` requests from IDN.
+	/// Though the attacker would not be able to manipulate the call's parameters.
+	// TODO: Solve this issue https://github.com/ideal-lab5/idn-sdk/issues/290
 	fn xcm_send(target: &Location, call: DoubleEncoded<()>) -> DispatchResult {
 		let msg = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
@@ -1033,10 +1044,18 @@ impl<T: Config> Pallet<T> {
 		let versioned_target: Box<VersionedLocation> =
 			Box::new(VersionedLocation::V5(target.clone()));
 		let versioned_msg: Box<VersionedXcm<()>> = Box::new(VersionedXcm::V5(msg.into()));
-		let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
-
-		T::Xcm::send(origin.into(), versioned_target, versioned_msg)
-			.map_err(|_err| Error::<T>::XcmSendError)?;
+		// TODO: do not use root origin, instead bring down the origin all the way from
+		// `try_submit_asig` to here https://github.com/ideal-lab5/idn-sdk/issues/289
+		let origin = T::RuntimeOrigin::root();
+		let xcm_hash =
+			T::Xcm::send(origin.clone(), versioned_target.clone(), versioned_msg.clone())?;
+		log::trace!(
+			target: LOG_TARGET,
+			"XCM message sent with hash: {:?}. Target: {:?}. Msg: {:?}",
+			xcm_hash,
+			versioned_target,
+			versioned_msg
+		);
 		Ok(())
 	}
 

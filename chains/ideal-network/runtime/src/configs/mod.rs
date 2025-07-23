@@ -46,6 +46,8 @@ use sp_version::RuntimeVersion;
 use xcm::prelude::BodyId;
 
 // Local module imports
+#[cfg(not(feature = "runtime-benchmarks"))]
+use super::PolkadotXcm;
 use super::{
 	weights::{
 		BalancesWeightInfo, BlockExecutionWeight, CollatorSelectionWeightInfo,
@@ -292,7 +294,9 @@ impl pallet_idn_manager::Config for Runtime {
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = types::RuntimePulse;
 	type WeightInfo = IdnManagerWeightInfo<Runtime>;
-	// TODO: correctly set the Xcm type https://github.com/ideal-lab5/idn-sdk/issues/186
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type Xcm = PolkadotXcm;
+	#[cfg(feature = "runtime-benchmarks")]
 	type Xcm = ();
 	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
