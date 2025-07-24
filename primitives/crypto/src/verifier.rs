@@ -133,6 +133,31 @@ pub mod tests {
 		hex::decode(pk_bytes).unwrap()
 	}
 
+	#[test]
+	fn notatest() {
+		let pk_bytes = get_beacon_pk();
+		let asig_bytes  = hex::decode(b"0x927bce885c03829474056b65460ee86d6aecd12d12ab29ce972bc659e92eef36109488263014a617d6eab49b6e0cba7b").unwrap();
+		let start = 20188190;
+		let end = 20188192;
+
+		let mut amsg = crate::bls12_381::zero_on_g1();
+		for r in start..end + 1 {
+			let msg = crate::bls12_381::compute_round_on_g1(r).unwrap();
+			amsg = (amsg + msg).into();
+		}
+			// convert to bytes
+			let mut amsg_bytes = Vec::new();
+			amsg.serialize_compressed(&mut amsg_bytes).unwrap();
+
+
+		let aggr = QuicknetVerifier::verify(
+			pk_bytes.try_into().clone(),
+			asig_bytes.clone(),
+			amsg.clone(),
+			None,
+		).unwrap();
+	}
+
 	// d = sk * Q(1000)
 	// in the case of no aggregation, it outputs the input if valid
 	#[test]
