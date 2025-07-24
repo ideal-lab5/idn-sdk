@@ -236,7 +236,6 @@ pub mod pallet {
 					// first and last rounds
 					let start = pulses.first().map(|p| p.round);
 					let end = pulses.last().map(|p| p.round);
-					// let mut data = Vec::new();
 					// data needs to be a map since we will have multiple pulses to consider
 					let mut tasks = BTreeMap::new();
 
