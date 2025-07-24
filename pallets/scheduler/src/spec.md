@@ -67,6 +67,9 @@ Now, when a collator prepares a block, they first decrypt each bid for the round
    2) $score_i = C_i/w_i$
 2) Rank the ciphertexts by score, rejecting any that are below some given threshold.
 3) Starting from the highest ranked bid, we work towards the lowest one and fill 'execution slots' up to some maximum weight:
+
+- Q: what if they don't have enough credits?
+
     ``` 
     MAX_WEIGHT = X
     Calls = []
