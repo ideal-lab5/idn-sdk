@@ -327,7 +327,8 @@ fn can_create_inherent_with_extra_pulses_drained() {
 	let expected_start = 1001;
 	let expected_end = 1003;
 
-	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode(), pulse3.encode(), pulse4.encode()];
+	let bytes: Vec<Vec<u8>> =
+		vec![pulse1.encode(), pulse2.encode(), pulse3.encode(), pulse4.encode()];
 	let mut inherent_data = InherentData::new();
 	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
 
