@@ -301,6 +301,50 @@ fn can_create_inherent() {
 }
 
 #[test]
+fn can_create_inherent_with_extra_pulses_drained() {
+	// setup the inherent data
+	let genesis = 1000;
+	let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
+	let public_key: OpaquePublicKey = pk.try_into().unwrap();
+	let config = BeaconConfiguration { public_key, genesis_round: genesis };
+
+	let (asig1, _amsg1, _sig1) = get(vec![PULSE1000]);
+	let pulse1 = CanonicalPulse { round: 1000u64, signature: asig1.try_into().unwrap() };
+
+	let (asig2, _amsg2, _sig2) = get(vec![PULSE1001]);
+	let pulse2 = CanonicalPulse { round: 1001u64, signature: asig2.try_into().unwrap() };
+
+	let (asig3, _amsg3, _sig3) = get(vec![PULSE1002]);
+	let pulse3 = CanonicalPulse { round: 1002u64, signature: asig3.try_into().unwrap() };
+
+	let (asig4, _amsg4, _sig4) = get(vec![PULSE1003]);
+	let pulse4 = CanonicalPulse { round: 1003u64, signature: asig4.try_into().unwrap() };
+
+	// pulse round = 1000 should be drained
+	let (expected_asig, _amsg, _raw) = get(vec![PULSE1001, PULSE1002, PULSE1003]);
+	let expected_asig_array: [u8; 48] = expected_asig.try_into().unwrap();
+
+	let expected_start = 1001;
+	let expected_end = 1003;
+
+	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode(), pulse3.encode(), pulse4.encode()];
+	let mut inherent_data = InherentData::new();
+	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
+
+	new_test_ext().execute_with(|| {
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
+		let result = Drand::create_inherent(&inherent_data);
+		if let Some(Call::try_submit_asig { asig, start, end }) = result {
+			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
+			assert_eq!(start, expected_start, "The sequence should start at 1001");
+			assert_eq!(end, expected_end, "The sequence should end at 1002");
+		} else {
+			panic!("Expected Some(Call::try_submit_asig), got None");
+		}
+	});
+}
+
+#[test]
 fn can_not_create_inherent_when_genesis_round_is_none() {
 	let inherent_data = InherentData::new();
 	new_test_ext().execute_with(|| {
