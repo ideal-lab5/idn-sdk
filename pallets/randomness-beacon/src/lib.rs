@@ -226,7 +226,7 @@ pub mod pallet {
 						.collect();
 					// sort by ascending round
 					pulses.sort_by_key(|pulse| pulse.round);
-					// if there are too many pulsees, drain to ensure correct size
+					// if there are too many pulses, drain to ensure correct size
 					let max = T::MaxSigsPerBlock::get() as usize;
 					let remove = pulses.len();
 					if max <= remove {
