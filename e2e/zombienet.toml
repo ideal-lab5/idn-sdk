@@ -15,40 +15,28 @@ chain_spec_path="chainspec/paseo-local-plain.json"
 
 [[parachains]]
 id = 2001
-# chain = "idnc-dev"
-cumulus_based = true
+chain = "idnc-dev"
 name = "idn-consumer-chain"
-default_command = "../target/release/idn-consumer-node"
 
     [[parachains.collators]]
     name = "idn-consumer-alice"
+    command = "../target/release/idn-consumer-node"
     rpc_port = 9944
 
     [[parachains.collators]]
     name = "idn-consumer-bob"
+    command = "../target/release/idn-consumer-node"
 
 [[parachains]]
 id = 2000
-# chain = "idn-dev"
+chain = "idn-dev"
 name = "ideal-network"
-cumulus_based = true
-default_command = "../target/release/idn-node"
 
     [[parachains.collators]]
     name = "idn-alice"
+    command = "../target/release/idn-node"
     rpc_port = 9933
 
     [[parachains.collators]]
+    command = "../target/release/idn-node"
     name = "idn-bob"
-
-# [[hrmp_channels]]
-#     sender = 2000
-#     recipient = 2001
-#     max_capacity = 8
-#     max_message_size = 512
-
-# [[hrmp_channels]]
-#     sender = 2001
-#     recipient = 2000
-#     max_capacity = 8
-#     max_message_size = 512
