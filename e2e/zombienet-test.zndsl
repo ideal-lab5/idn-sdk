@@ -13,7 +13,8 @@ idn-consumer-bob: is up
 
 # Force open HRMP work around due to bug https://www.github.com/paritytech/polkadot-sdk/pull/1616#issuecomment-1727194584 
 #alice: ts-script ./typescript/testing-file.ts return is equal to 2 within 120 seconds
-alice: run ./open_hrmp.sh within 120 seconds
+idn-alice: js-script ./scripts/setup/set-drand-pubkey.js within 120 seconds
+alice: run ./scripts/setup/open_hrmp.sh within 120 seconds
 
 # Ensure Blocks are being produced, also give enough time to allow for HRMP channels to open
 alice: parachain 2000 block height is at least 10 within 6000 seconds
