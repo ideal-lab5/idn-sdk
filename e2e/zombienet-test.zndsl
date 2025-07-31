@@ -14,7 +14,7 @@ idn-consumer-bob: is up
 # Force open HRMP work around due to bug https://www.github.com/paritytech/polkadot-sdk/pull/1616#issuecomment-1727194584 
 #alice: ts-script ./typescript/testing-file.ts return is equal to 2 within 120 seconds
 idn-alice: js-script ./scripts/setup/set-drand-pubkey.js within 120 seconds
-#alice: run ./scripts/setup/open_hrmp.sh within 120 seconds
+alice: run ./scripts/setup/open_hrmp.sh within 120 seconds
 
 # Ensure Blocks are being produced, also give enough time to allow for HRMP channels to open
 alice: parachain 2000 block height is at least 10 within 6000 seconds
@@ -22,5 +22,15 @@ alice: parachain 2001 block height is at least 10 within 6000 seconds
 
 # Fund Sovereign Account
 idn-alice: js-script ./scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,1000000" within 120 seconds
+# Pause to allow next transaction to go through
+sleep 15 seconds
 # Fund Treasury Account
 idn-alice: js-script ./scripts/setup/balance-transfer.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C,1000000" within 120 seconds
+
+# Request Quote
+idn-consumer-alice: js-script ./scripts/testing/quote-subscription.js within 120 seconds
+idn-consumer-alice: system event contains "An HRMP message was sent to a sibling parachain" within 120 seconds
+idn-consumer-alice: system event contains "An XCM message was sent" within 120 seconds
+idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
+idn-alice: system event contains "An HRMP message was sent to a sibling parachain" within 120 seconds
+idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds

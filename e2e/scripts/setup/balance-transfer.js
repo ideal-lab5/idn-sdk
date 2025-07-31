@@ -15,7 +15,7 @@ async function run(nodeName, networkInfo, args) {
     const keyPair = keyring.getPair(alice.publicKey);
     const tx = api.tx.balances.transferKeepAlive(account, deposit);
     await waitForFinalization(tx, keyPair);
-
+    
 }
 
 async function waitForFinalization(tx, keyPair) {
