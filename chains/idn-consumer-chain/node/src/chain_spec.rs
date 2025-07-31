@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use codec::{Decode, Encode};
 use cumulus_primitives_core::ParaId;
 use idn_consumer_runtime as runtime;
 use runtime::{AccountId, AuraId, Signature, EXISTENTIAL_DEPOSIT};
@@ -22,6 +23,7 @@ use sc_service::ChainType;
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
+use std::str::FromStr;
 
 /// Specialized `ChainSpec` for the normal parachain runtime.
 pub type ChainSpec = sc_service::GenericChainSpec<Extensions>;
@@ -56,11 +58,11 @@ impl Extensions {
 
 type AccountPublic = <Signature as Verify>::Signer;
 
-/// Generate collator keys from seed.
+/// Generate collator keys from an account id.
 ///
 /// This function's return type must always match the session keys of the chain in tuple format.
-pub fn get_collator_keys_from_seed(seed: &str) -> AuraId {
-	get_from_seed::<AuraId>(seed)
+pub fn get_collator_keys_from_account(acc: &AccountId) -> AuraId {
+	Decode::decode(&mut acc.encode().as_ref()).unwrap()
 }
 
 /// Helper function to generate an account ID from seed
@@ -81,7 +83,7 @@ pub fn template_session_keys(keys: AuraId) -> runtime::SessionKeys {
 pub fn development_config() -> ChainSpec {
 	// Give your base currency a unit name and decimal places
 	let mut properties = sc_chain_spec::Properties::new();
-	properties.insert("tokenSymbol".into(), "PAS".into());
+	properties.insert("tokenSymbol".into(), "IDNC".into());
 	properties.insert("tokenDecimals".into(), 10.into());
 	properties.insert("ss58Format".into(), 0.into());
 
@@ -90,19 +92,13 @@ pub fn development_config() -> ChainSpec {
 		Extensions { relay_chain: "paseo-local".into(), para_id: 2001 },
 	)
 	.with_name("IDN Consumer Dev")
-	.with_id("dev")
+	.with_id("idnc_dev")
 	.with_chain_type(ChainType::Development)
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
 		vec![
-			(
-				get_account_id_from_seed::<sr25519::Public>("Alice"),
-				get_collator_keys_from_seed("Alice"),
-			),
-			(
-				get_account_id_from_seed::<sr25519::Public>("Bob"),
-				get_collator_keys_from_seed("Bob"),
-			),
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
 		],
 		vec![
 			get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -129,7 +125,7 @@ pub fn development_config() -> ChainSpec {
 pub fn local_testnet_config() -> ChainSpec {
 	// Give your base currency a unit name and decimal places
 	let mut properties = sc_chain_spec::Properties::new();
-	properties.insert("tokenSymbol".into(), "PAS".into());
+	properties.insert("tokenSymbol".into(), "IDNC".into());
 	properties.insert("tokenDecimals".into(), 10.into());
 	properties.insert("ss58Format".into(), 0.into());
 
@@ -139,19 +135,13 @@ pub fn local_testnet_config() -> ChainSpec {
 		Extensions { relay_chain: "paseo-local".into(), para_id: 4594 },
 	)
 	.with_name("IDN Consumer Local")
-	.with_id("local")
+	.with_id("idnc_local")
 	.with_chain_type(ChainType::Local)
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
 		vec![
-			(
-				get_account_id_from_seed::<sr25519::Public>("Alice"),
-				get_collator_keys_from_seed("Alice"),
-			),
-			(
-				get_account_id_from_seed::<sr25519::Public>("Bob"),
-				get_collator_keys_from_seed("Bob"),
-			),
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
 		],
 		vec![
 			get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -178,7 +168,7 @@ pub fn local_testnet_config() -> ChainSpec {
 pub fn testnet_config() -> ChainSpec {
 	// Give your base currency a unit name and decimal places
 	let mut properties = sc_chain_spec::Properties::new();
-	properties.insert("tokenSymbol".into(), "PAS".into());
+	properties.insert("tokenSymbol".into(), "IDNC".into());
 	properties.insert("tokenDecimals".into(), 10.into());
 	properties.insert("ss58Format".into(), 0.into());
 
@@ -188,35 +178,32 @@ pub fn testnet_config() -> ChainSpec {
 		Extensions { relay_chain: "paseo-local".into(), para_id: 4594 },
 	)
 	.with_name("IDN Consumer Testnet")
-	.with_id("testnet")
+	.with_id("idnc_testnet")
 	.with_chain_type(ChainType::Live)
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
 		vec![
-			(
-				get_account_id_from_seed::<sr25519::Public>("Alice"),
-				get_collator_keys_from_seed("Alice"),
-			),
-			(
-				get_account_id_from_seed::<sr25519::Public>("Bob"),
-				get_collator_keys_from_seed("Bob"),
-			),
+			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+				.unwrap()
+				.into(),
+			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+				.unwrap()
+				.into(),
 		],
 		vec![
-			get_account_id_from_seed::<sr25519::Public>("Alice"),
-			get_account_id_from_seed::<sr25519::Public>("Bob"),
-			get_account_id_from_seed::<sr25519::Public>("Charlie"),
-			get_account_id_from_seed::<sr25519::Public>("Dave"),
-			get_account_id_from_seed::<sr25519::Public>("Eve"),
-			get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-			get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-			get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-			get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
-			get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
-			get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
-			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+				.unwrap()
+				.into(),
+			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+				.unwrap()
+				.into(),
+			sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
+				.unwrap()
+				.into(),
 		],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
+			.unwrap()
+			.into(),
 		4594.into(),
 	))
 	.with_protocol_id("idn-consumer-testnet-protocol-id")
@@ -225,7 +212,7 @@ pub fn testnet_config() -> ChainSpec {
 }
 
 fn testnet_genesis(
-	invulnerables: Vec<(AccountId, AuraId)>,
+	invulnerables: Vec<AccountId>,
 	endowed_accounts: Vec<AccountId>,
 	root: AccountId,
 	id: ParaId,
@@ -238,17 +225,18 @@ fn testnet_genesis(
 			"parachainId": id,
 		},
 		"collatorSelection": {
-			"invulnerables": invulnerables.iter().cloned().map(|(acc, _)| acc).collect::<Vec<_>>(),
+			"invulnerables": invulnerables.clone(),
 			"candidacyBond": EXISTENTIAL_DEPOSIT * 16,
 		},
 		"session": {
 			"keys": invulnerables
 				.into_iter()
-				.map(|(acc, aura)| {
+				.map(|acc| {
+					let session_keys = template_session_keys(get_collator_keys_from_account(&acc));
 					(
-						acc.clone(),                 // account id
-						acc,                         // validator id
-						template_session_keys(aura), // session keys
+						acc.clone(),	// account id
+						acc,			// validator id
+						session_keys,
 					)
 				})
 			.collect::<Vec<_>>(),
