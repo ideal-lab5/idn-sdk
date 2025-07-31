@@ -3,18 +3,14 @@ async function run(nodeName, networkInfo, args) {
     const api = await zombie.connect(wsUri, userDefinedTypes);
 
     await zombie.util.cryptoWaitReady();
-    
+
     const keyring = new zombie.Keyring({ type: "sr25519" });
     const alice = keyring.addFromUri("//Alice");
     const sudoPair = keyring.getPair(alice.publicKey);
 
-    const credits = 100;
-    const frequency = 100;
-    const metadata = null;
-    const subId = null;
-    const reqRef = null;
+    const subId = args[0];
 
-    const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoRequestQuote(credits, frequency, metadata, subId, reqRef)).signAndSend(sudoPair, (result)=>{
+    const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoPauseSubscription(subId)).signAndSend(sudoPair, (result)=>{
         if (result.status.isInBlock) {
             console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
           } else if (result.status.isFinalized) {
