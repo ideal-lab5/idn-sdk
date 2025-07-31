@@ -24,5 +24,3 @@ alice: parachain 2001 block height is at least 10 within 6000 seconds
 idn-alice: js-script ./scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,1000000" within 120 seconds
 # Fund Treasury Account
 idn-alice: js-script ./scripts/setup/balance-transfer.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C,1000000" within 120 seconds
-
-idn-consumer-alice: js-script ./scripts/
