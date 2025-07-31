@@ -22,4 +22,4 @@ Current version for development: 1.3.133
 `zombienet -p native spawn zombienet.toml`
 
 #### To run tests
-`zombienet -p native test zombienet-test.zndsl` 
+`zombienet -p native test ./path/to/tests/<your-test-name>.zndsl` 
