@@ -20,7 +20,7 @@ async function run(nodeName, networkInfo, args) {
 
     const unsubscribe = await api.tx.sudo.sudo(api.tx.randBeacon.setBeaconConfig(call)).signAndSend(sudoPair, (result)=>{
         console.log(result);
-        unsubscribe();
+        unsub();
     });
 }
 
