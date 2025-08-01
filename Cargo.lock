@@ -5896,6 +5896,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-collator-selection",
+ "pallet-contracts",
  "pallet-idn-manager",
  "pallet-message-queue",
  "pallet-randomness-beacon",

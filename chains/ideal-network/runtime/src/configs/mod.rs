@@ -17,6 +17,8 @@
 #[path = "xcm.rs"]
 pub(crate) mod xcm_config;
 
+mod contracts;
+
 // Substrate and Polkadot dependencies
 use bp_idn::{
 	impls,
