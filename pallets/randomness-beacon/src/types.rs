@@ -79,6 +79,17 @@ pub struct BeaconConfiguration<P, R> {
 	pub genesis_round: R,
 }
 
+/// Represents a random value for the corresponding block number
+#[derive(
+	Clone, Debug, Decode, DecodeWithMemTracking, PartialEq, Encode, MaxEncodedLen, TypeInfo,
+)]
+pub struct BlocksRand<BlockNumber, Randomness> {
+	/// The block number when this randomness was generated
+	pub block_number: BlockNumber,
+	/// The randomness value
+	pub randomness: Randomness,
+}
+
 #[cfg(test)]
 pub mod test {
 	use super::*;

@@ -74,6 +74,9 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
 
+// Export pallet_balances::Call for use in contracts pallet
+pub use pallet_balances::Call as BalancesCall;
+
 /// The SignedExtension to the basic transaction logic.
 #[docify::export(template_signed_extra)]
 pub type TxExtension = (
@@ -302,6 +305,10 @@ mod runtime {
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
 	#[runtime::pallet_index(41)]
 	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
+
+	// Contracts
+	#[runtime::pallet_index(50)]
+	pub type Contracts = pallet_contracts::Pallet<Runtime>;
 }
 
 cumulus_pallet_parachain_system::register_validate_block! {
