@@ -267,6 +267,8 @@ pub mod pallet {
 		type FeesManager: FeesManager<
 			BalanceOf<Self>,
 			Self::Credits,
+			Self::Credits,
+			Self::Credits,
 			SubscriptionOf<Self>,
 			DispatchError,
 			<Self as frame_system::pallet::Config>::AccountId,
