@@ -85,9 +85,15 @@ pub use pallet::*;
 
 use frame_support::pallet_prelude::*;
 
+use frame_support::traits::Randomness;
+use frame_system::pallet_prelude::BlockNumberFor;
 use sp_consensus_randomness_beacon::types::CanonicalPulse;
+use sp_core::H256;
 use sp_idn_crypto::verifier::SignatureVerifier;
-use sp_idn_traits::pulse::{Dispatcher, Pulse as TPulse};
+use sp_idn_traits::{
+	pulse::{Dispatcher, Pulse as TPulse},
+	Hashable,
+};
 use sp_std::fmt::Debug;
 
 extern crate alloc;
@@ -111,6 +117,9 @@ mod benchmarking;
 const LOG_TARGET: &str = "pallet-randomness-beacon";
 
 const SERIALIZED_SIG_SIZE: usize = 48;
+
+type RandOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Rand;
+type LatestRandomnessOf<T> = BlocksRand<BlockNumberFor<T>, RandOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -164,6 +173,16 @@ pub mod pallet {
 	/// The latest observed round
 	#[pallet::storage]
 	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
+
+	// TODO: review as part of https://github.com/ideal-lab5/idn-sdk/issues/110
+	// should this be a map like this?
+	// ```
+	// pub type StoredRand<T: Config> =
+	// 	StorageMap<_, Blake2_128Concat, BlockNumberFor<T>, RandOf<T>, OptionQuery>;
+	// ```
+	/// The latest randomness
+	#[pallet::storage]
+	pub type LatestRand<T: Config> = StorageValue<_, LatestRandomnessOf<T>, OptionQuery>;
 
 	/// The aggregated signature and aggregated public key (identifier) of all observed pulses
 	#[pallet::storage]
@@ -373,9 +392,16 @@ pub mod pallet {
 
 			// dispatch pulses to subscribers
 			let runtime_pulse = T::Pulse::from(sacc);
-			T::Dispatcher::dispatch(runtime_pulse);
+			T::Dispatcher::dispatch(runtime_pulse.clone());
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
+
+			// Store the latest randomness
+			LatestRand::<T>::set(Some(LatestRandomnessOf::<T> {
+				block_number: frame_system::Pallet::<T>::block_number(),
+				randomness: runtime_pulse.rand(),
+			}));
+
 			// Insert the latest round into the header digest
 			let digest_item: DigestItem = ConsensusLog::LatestRoundNumber(end).into();
 			<frame_system::Pallet<T>>::deposit_log(digest_item);
@@ -411,6 +437,22 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::BeaconConfigSet);
 
 			Ok(Pays::No.into())
+		}
+	}
+}
+
+impl<T: Config> Randomness<H256, BlockNumberFor<T>> for Pallet<T> {
+	fn random(subject: &[u8]) -> (H256, BlockNumberFor<T>) {
+		// TODO: review as part of https://github.com/ideal-lab5/idn-sdk/issues/110
+		match LatestRand::<T>::get() {
+			Some(latest) => (latest.randomness.hash(subject), latest.block_number),
+			None => {
+				log::warn!(
+					target: LOG_TARGET,
+					"Randomness requested but no latest randomness available. Returning default values."
+				);
+				(H256::default(), BlockNumberFor::<T>::default())
+			},
 		}
 	}
 }
