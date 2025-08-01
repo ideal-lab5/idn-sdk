@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-// External crates imports
 #[cfg(feature = "runtime-benchmarks")]
+use crate::benchmarks::*;
+// External crates imports
 use crate::{
-	configs::xcm_config::{
-		FeeAssetId, RelayLocation, ToParentBaseDeliveryFee, ToSiblingBaseDeliveryFee,
-		TransactionByteFee,
-	},
-	XcmpQueue, EXISTENTIAL_DEPOSIT,
+	configs::xcm_config, constants::relay::fee::WeightToFee, OriginCaller, PolkadotXcm,
+	RuntimeEvent,
 };
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
-	weights::Weight,
+	weights::{Weight, WeightToFee as _},
 };
 use pallet_aura::Authorities;
 use pallet_idn_manager::{BalanceOf, SubscriptionOf};
@@ -39,6 +37,15 @@ use sp_runtime::{
 };
 use sp_std::prelude::Vec;
 use sp_version::RuntimeVersion;
+use xcm::{
+	prelude::AssetId, Version as XcmVersion, VersionedAsset, VersionedAssetId, VersionedAssets,
+	VersionedLocation, VersionedXcm,
+};
+use xcm_runtime_apis::{
+	dry_run::{CallDryRunEffects, Error as XcmDryRunApiError, XcmDryRunEffects},
+	fees::Error as XcmPaymentApiError,
+	trusted_query::XcmTrustedQueryResult,
+};
 
 // Local module imports
 use super::{
@@ -46,32 +53,6 @@ use super::{
 	Runtime, RuntimeCall, RuntimeGenesisConfig, SessionKeys, System, TransactionPayment,
 	SLOT_DURATION, VERSION,
 };
-
-#[cfg(feature = "runtime-benchmarks")]
-frame_support::parameter_types! {
-	pub ExistentialDepositAsset: Option<xcm::v5::Asset> = Some((
-		RelayLocation::get(),
-		EXISTENTIAL_DEPOSIT
-	).into());
-	pub const RandomParaId: cumulus_primitives_core::ParaId =
-		cumulus_primitives_core::ParaId::new(43211234);
-}
-
-#[cfg(feature = "runtime-benchmarks")]
-type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
-	FeeAssetId,
-	ToSiblingBaseDeliveryFee,
-	TransactionByteFee,
-	XcmpQueue,
->;
-
-#[cfg(feature = "runtime-benchmarks")]
-type PriceForParentDelivery = polkadot_runtime_common::xcm_sender::ExponentialPrice<
-	FeeAssetId,
-	ToParentBaseDeliveryFee,
-	TransactionByteFee,
-	ParachainSystem,
->;
 
 impl_runtime_apis! {
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
@@ -253,13 +234,6 @@ impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkList>,
 			Vec<frame_support::traits::StorageInfo>,
 		) {
-			use frame_benchmarking::BenchmarkList;
-			use frame_support::traits::StorageInfoTrait;
-			use frame_system_benchmarking::Pallet as SystemBench;
-			use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
-			use pallet_xcm::benchmarking::Pallet as PalletXcmExtrinsiscsBenchmark;
-			use super::*;
-
 			let mut list = Vec::<BenchmarkList>::new();
 			list_benchmarks!(list, extra);
 
@@ -267,76 +241,10 @@ impl_runtime_apis! {
 			(list, storage_info)
 		}
 
-		#[allow(non_local_definitions)]
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, alloc::string::String> {
-			use frame_benchmarking::{BenchmarkError, BenchmarkBatch};
-			use configs::xcm_config::{
-				RelayLocation,
-				XcmConfig,
-			};
-			use xcm::v5::{Location, Parent, Asset, Fungibility::Fungible, AssetId};
-			use super::*;
-
-			use frame_system_benchmarking::Pallet as SystemBench;
-			impl frame_system_benchmarking::Config for Runtime {
-				fn setup_set_code_requirements(code: &Vec<u8>) -> Result<(), BenchmarkError> {
-					ParachainSystem::initialize_for_set_code_benchmark(code.len() as u32);
-					Ok(())
-				}
-
-				fn verify_set_code() {
-					System::assert_last_event(
-						cumulus_pallet_parachain_system::Event::<Runtime>::ValidationFunctionStored.into()
-					);
-				}
-			}
-
-			use cumulus_pallet_session_benchmarking::Pallet as SessionBench;
-			impl cumulus_pallet_session_benchmarking::Config for Runtime {}
-
-			use pallet_xcm::benchmarking::Pallet as PalletXcmExtrinsiscsBenchmark;
-
-			impl pallet_xcm::benchmarking::Config for Runtime {
-				type DeliveryHelper = (
-					cumulus_primitives_utility::ToParentDeliveryHelper<
-						XcmConfig,
-						ExistentialDepositAsset,
-						PriceForParentDelivery,
-					>,
-					polkadot_runtime_common::xcm_sender::ToParachainDeliveryHelper<
-						XcmConfig,
-						ExistentialDepositAsset,
-						PriceForSiblingParachainDelivery,
-						RandomParaId,
-						ParachainSystem,
-					>,
-				);
-				fn reachable_dest() -> Option<Location> {
-					Some(Parent.into())
-				}
-
-				fn teleportable_asset_and_dest() -> Option<(Asset, Location)> {
-					// Relay/native token can be teleported between IDN and Relay.
-					Some((
-						Self::get_asset(),
-						Parent.into(),
-					))
-				}
-
-				fn reserve_transferable_asset_and_dest() -> Option<(Asset, Location)> {
-					None
-				}
-
-				fn get_asset() -> Asset {
-					Asset { id: AssetId(RelayLocation::get()), fun: Fungible(EXISTENTIAL_DEPOSIT) }
-				}
-			}
-
-			use frame_support::traits::WhitelistedStorageKeys;
 			let whitelist = AllPalletsWithSystem::whitelisted_storage_keys();
-
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 			add_benchmarks!(params, batches);
@@ -357,6 +265,89 @@ impl_runtime_apis! {
 
 		fn preset_names() -> Vec<sp_genesis_builder::PresetId> {
 			crate::genesis_config_presets::preset_names()
+		}
+	}
+
+	impl xcm_runtime_apis::fees::XcmPaymentApi<Block> for Runtime {
+		fn query_acceptable_payment_assets(xcm_version: xcm::Version) -> Result<Vec<VersionedAssetId>, XcmPaymentApiError> {
+			let native_token = xcm_config::RelayLocation::get();
+			let acceptable_assets = Vec::from([AssetId(native_token)]);
+			PolkadotXcm::query_acceptable_payment_assets(xcm_version, acceptable_assets)
+		}
+
+		fn query_weight_to_asset_fee(weight: Weight, asset: VersionedAssetId) -> Result<u128, XcmPaymentApiError> {
+			let native_asset = xcm_config::RelayLocation::get();
+			let fee_in_native = WeightToFee::weight_to_fee(&weight);
+			let latest_asset_id: Result<AssetId, ()> = asset.clone().try_into();
+			match latest_asset_id {
+				Ok(asset_id) if asset_id.0 == native_asset => {
+					// For native asset.
+					Ok(fee_in_native)
+				},
+				Ok(asset_id) => {
+					log::trace!(target: "xcm::xcm_runtime_apis", "query_weight_to_asset_fee - unhandled asset_id: {asset_id:?}!");
+					Err(XcmPaymentApiError::AssetNotFound)
+				},
+				Err(_) => {
+					log::trace!(target: "xcm::xcm_runtime_apis", "query_weight_to_asset_fee - failed to convert asset: {asset:?}!");
+					Err(XcmPaymentApiError::VersionedConversionFailed)
+				}
+			}
+		}
+
+		fn query_xcm_weight(message: VersionedXcm<()>) -> Result<Weight, XcmPaymentApiError> {
+			PolkadotXcm::query_xcm_weight(message)
+		}
+
+		fn query_delivery_fees(destination: VersionedLocation, message: VersionedXcm<()>) -> Result<VersionedAssets, XcmPaymentApiError> {
+			PolkadotXcm::query_delivery_fees(destination, message)
+		}
+	}
+
+	impl xcm_runtime_apis::dry_run::DryRunApi<Block, RuntimeCall, RuntimeEvent, OriginCaller> for Runtime {
+		fn dry_run_call(origin: OriginCaller, call: RuntimeCall, result_xcms_version: XcmVersion) -> Result<CallDryRunEffects<RuntimeEvent>, XcmDryRunApiError> {
+			PolkadotXcm::dry_run_call::<Runtime, xcm_config::XcmRouter, OriginCaller, RuntimeCall>(origin, call, result_xcms_version)
+		}
+
+		fn dry_run_xcm(origin_location: VersionedLocation, xcm: VersionedXcm<RuntimeCall>) -> Result<XcmDryRunEffects<RuntimeEvent>, XcmDryRunApiError> {
+			PolkadotXcm::dry_run_xcm::<Runtime, xcm_config::XcmRouter, RuntimeCall, xcm_config::XcmConfig>(origin_location, xcm)
+		}
+	}
+
+	impl xcm_runtime_apis::conversions::LocationToAccountApi<Block, AccountId> for Runtime {
+		fn convert_location(location: VersionedLocation) -> Result<
+			AccountId,
+			xcm_runtime_apis::conversions::Error
+		> {
+			xcm_runtime_apis::conversions::LocationToAccountHelper::<
+				AccountId,
+				xcm_config::LocationToAccountId,
+			>::convert_location(location)
+		}
+	}
+
+	impl xcm_runtime_apis::trusted_query::TrustedQueryApi<Block> for Runtime {
+		fn is_trusted_reserve(asset: VersionedAsset, location: VersionedLocation) -> XcmTrustedQueryResult {
+			PolkadotXcm::is_trusted_reserve(asset, location)
+		}
+
+		fn is_trusted_teleporter(asset: VersionedAsset, location: VersionedLocation) -> XcmTrustedQueryResult {
+			PolkadotXcm::is_trusted_teleporter(asset, location)
+		}
+	}
+
+	impl xcm_runtime_apis::authorized_aliases::AuthorizedAliasersApi<Block> for Runtime {
+		fn authorized_aliasers(target: VersionedLocation) -> Result<
+			Vec<xcm_runtime_apis::authorized_aliases::OriginAliaser>,
+			xcm_runtime_apis::authorized_aliases::Error
+		> {
+			PolkadotXcm::authorized_aliasers(target)
+		}
+		fn is_authorized_alias(origin: VersionedLocation, target: VersionedLocation) -> Result<
+			bool,
+			xcm_runtime_apis::authorized_aliases::Error
+		> {
+			PolkadotXcm::is_authorized_alias(origin, target)
 		}
 	}
 

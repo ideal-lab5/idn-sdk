@@ -29,6 +29,7 @@ serde_json = { workspace = true, default-features = false, features = [
 	"alloc",
 ] }
 xcm.workspace = true
+xcm-executor.workspace = true
 xcm-builder.workspace = true
 # IDN Deps
 bp-idn.workspace = true

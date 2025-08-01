@@ -60,7 +60,8 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CallIndex, CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubscriptionMetadata,
+		CallIndex, CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubInfoResponse,
+		SubscriptionMetadata,
 	},
 	traits::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
@@ -74,7 +75,6 @@ use frame_support::{
 		EnsureOrigin, Hooks, IsType, OptionQuery, StorageMap, StorageValue, ValueQuery, Weight,
 		Zero,
 	},
-	sp_runtime::traits::AccountIdConversion,
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
 		tokens::Precision,
@@ -92,16 +92,11 @@ use sp_idn_traits::{
 use sp_runtime::traits::Saturating;
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use xcm::{
-	v5::{
-		prelude::{
-			ExpectTransactStatus, MaybeErrorCode, OriginKind, Transact, Unlimited, UnpaidExecution,
-			Xcm,
-		},
-		Location,
-	},
+	prelude::{Location, OriginKind, Transact, Unlimited, UnpaidExecution, Xcm},
 	DoubleEncoded, VersionedLocation, VersionedXcm,
 };
 use xcm_builder::SendController;
+use xcm_executor::traits::ConvertLocation;
 
 pub use frame_system::pallet_prelude::BlockNumberFor;
 pub use pallet::*;
@@ -272,6 +267,8 @@ pub mod pallet {
 		type FeesManager: FeesManager<
 			BalanceOf<Self>,
 			Self::Credits,
+			Self::Credits,
+			Self::Credits,
 			SubscriptionOf<Self>,
 			DispatchError,
 			<Self as frame_system::pallet::Config>::AccountId,
@@ -353,6 +350,9 @@ pub mod pallet {
 		/// type SiblingOrigin = pallet_xcm::EnsureXcm<AllowSiblingsOnly>;
 		/// ```
 		type SiblingOrigin: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
+
+		/// A type that converts XCM locations to account identifiers.
+		type XcmLocationToAccountId: ConvertLocation<Self::AccountId>;
 	}
 
 	/// The subscription storage. It maps a subscription ID to a subscription.
@@ -404,8 +404,6 @@ pub mod pallet {
 		NotSubscriber,
 		/// Too many subscriptions in storage
 		TooManySubscriptions,
-		/// An error occurred while sending the XCM message
-		XcmSendError,
 		/// Invalid subscriber
 		InvalidSubscriber,
 		/// Invalid parameters
@@ -470,7 +468,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: CreateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
-			let subscriber = ensure_signed(origin)?;
+			log::trace!(target: LOG_TARGET, "Create subscription request received: {:?}", params);
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			ensure!(params.credits != Zero::zero(), Error::<T>::InvalidParams);
 
@@ -553,7 +552,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
-			let subscriber = ensure_signed(origin)?;
+			log::trace!(target: LOG_TARGET, "Pause subscription request received: {:?}", sub_id);
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
@@ -588,7 +588,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
-			let subscriber = ensure_signed(origin)?;
+			log::trace!(target: LOG_TARGET, "Kill subscription request received: {:?}", sub_id);
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			let sub =
 				Self::get_subscription(&sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -618,7 +619,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: UpdateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
-			let subscriber = ensure_signed(origin)?;
+			log::trace!(target: LOG_TARGET, "Update subscription request received: {:?}", params);
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 
 			Subscriptions::<T>::try_mutate(params.sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -681,7 +683,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
-			let subscriber = ensure_signed(origin)?;
+			log::trace!(target: LOG_TARGET, "Reactivating subscription: {:?}", sub_id);
+			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
@@ -704,15 +707,16 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			params: QuoteSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
+			log::trace!(target: LOG_TARGET, "Quote subscription request received: {:?}", params);
 			// Ensure the origin is a sibling, and get the location
 			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
 
-			let deposit = Self::calculate_storage_deposit_from_create_params(
-				&origin
-					.into_signer()
-					// we know that the origin is a sibling, thus signed, so this should never be
-					// reached
-					.ok_or(DispatchError::from(Error::<T>::InvalidSubscriber))?,
+			let deposit  = Self::calculate_storage_deposit_from_create_params(
+				&T::XcmLocationToAccountId::convert_location(&requester)
+					.ok_or_else(|| {
+						log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
+						Error::<T>::InvalidSubscriber
+					})?,
 				&params.quote_request.create_sub_params,
 			);
 			let fees =
@@ -720,7 +724,7 @@ pub mod pallet {
 
 			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
 
-			Self::xcm_send(&requester, (params.call_index, fees).encode().into())?;
+			Self::xcm_send(&requester, (params.call_index, quote.clone()).encode().into())?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
 
 			Ok(Some(T::WeightInfo::quote_subscription()).into())
@@ -730,18 +734,19 @@ pub mod pallet {
 		/// specified function via XCM.
 		#[pallet::call_index(6)]
 		#[pallet::weight(T::WeightInfo::get_subscription_info())]
-		#[allow(clippy::useless_conversion)]
 		pub fn get_subscription_info(
 			origin: OriginFor<T>,
 			req: SubInfoRequestOf<T>,
 		) -> DispatchResult {
+			log::trace!(target: LOG_TARGET, "Get subscription info request received: {:?}", req);
 			// Ensure the origin is a sibling, and get the location
 			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
 
 			let sub =
 				Self::get_subscription(&req.sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 
-			Self::xcm_send(&requester, (req.call_index, sub).encode().into())?;
+			let response = SubInfoResponse { sub, req_ref: req.req_ref };
+			Self::xcm_send(&requester, (req.call_index, response).encode().into())?;
 			Self::deposit_event(Event::SubscriptionDistributed { sub_id: req.sub_id });
 
 			Ok(())
@@ -811,6 +816,7 @@ impl<T: Config> Pallet<T> {
 		sub: &SubscriptionOf<T>,
 		sub_id: T::SubscriptionId,
 	) -> DispatchResult {
+		log::trace!(target: LOG_TARGET, "Terminating subscription: {:?}", sub_id);
 		// fees left and deposit to refund
 		let fees_diff = T::FeesManager::calculate_diff_fees(&sub.credits_left, &Zero::zero());
 		let sd = T::DepositCalculator::calculate_storage_deposit(sub);
@@ -831,79 +837,89 @@ impl<T: Config> Pallet<T> {
 		T::FeesManager::get_idle_credits(sub)
 	}
 
-	fn pallet_account_id() -> T::AccountId {
-		T::PalletId::get().into_account_truncating()
-	}
-
 	/// Distribute randomness to subscribers
 	/// Returns a weight based on the number of storage reads and writes performed
-	fn distribute(pulse: T::Pulse) -> DispatchResult {
+	fn distribute(pulse: T::Pulse) {
 		// Get the current block number once for comparison
 		let current_block = frame_system::Pallet::<T>::block_number();
 
-		Subscriptions::<T>::iter().try_for_each(
-			|(sub_id, mut sub): (T::SubscriptionId, SubscriptionOf<T>)| -> DispatchResult {
-				// Filter for active subscriptions that are eligible for delivery based on frequency
-				if
-				// Subscription must be active
-				sub.state ==  SubscriptionState::Active   &&
+		for (sub_id, mut sub) in Subscriptions::<T>::iter() {
+			// Filter for active subscriptions that are eligible for delivery based on frequency
+			if
+			// Subscription must be active
+			sub.state ==  SubscriptionState::Active   &&
 					// And either never delivered before, or enough blocks have passed since last delivery
 					(sub.last_delivered.is_none() ||
 					current_block >= sub.last_delivered.unwrap() + sub.frequency)
-				{
-					// Make sure credits are consumed before sending the XCM message
-					let consume_credits = T::FeesManager::get_consume_credits(&sub);
+			{
+				// Make sure credits are consumed before sending the XCM message
+				let consume_credits = T::FeesManager::get_consume_credits(&sub);
 
-					// [SRLabs]: If this line throws an error then the entire set of subscriptions
-					// will fail to be distributed for the pulse. Recommendations on handling this?
-					// Our initial idea is to simply log an event and continue, then pause the
-					// subscription.
-					// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
-					Self::collect_fees(&sub, consume_credits)?;
-
-					// Update subscription with consumed credits and last_delivered block number
-					sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
-					sub.last_delivered = Some(current_block);
-
-					// Send the XCM message
-					// [SRLabs]: If this line throws an error then the entire set of subscriptions
-					// will fail to be distributed for the pulse. Recommendations on handling this?
-					// Our initial idea is to simply log an event and continue, then pause the
-					// subscription.
-					// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
-					Self::xcm_send(
-						&sub.details.target,
-						// Create a tuple of call_index and pulse, encode it using SCALE codec,
-						// then convert to Vec<u8> The encoded data will be used by the
-						// receiving chain to:
-						// 1. Find the target pallet using first byte of call_index
-						// 2. Find the target function using second byte of call_index
-						// 3. Pass the parameters to that function
-						(sub.details.call_index, &pulse, &sub_id).encode().into(),
-					)?;
-
-					Self::deposit_event(Event::RandomnessDistributed { sub_id });
-				} else {
-					let idle_credits = T::FeesManager::get_idle_credits(&sub);
-					// Collect fees for idle block
-					Self::collect_fees(&sub, idle_credits)?;
-					// Update subscription with consumed credits
-					sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
+				if let Err(e) = Self::collect_fees(&sub, consume_credits) {
+					Self::pause_subscription_on_error(sub_id, sub, "Failed to collect fees", e);
+					continue;
 				}
-				// Finalize the subscription if there are not enough credits left
-				if sub.state != SubscriptionState::Finalized &&
-					sub.credits_left < Self::get_min_credits(&sub)
-				{
-					sub.state = SubscriptionState::Finalized;
+
+				// Update subscription with consumed credits and last_delivered block number
+				sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
+				sub.last_delivered = Some(current_block);
+
+				// Send the XCM message
+				if let Err(e) = Self::xcm_send(
+					&sub.details.target,
+					// Create a tuple of call_index and pulse, encode it using SCALE codec,
+					// then convert to Vec<u8> The encoded data will be used by the
+					// receiving chain to:
+					// 1. Find the target pallet using first byte of call_index
+					// 2. Find the target function using second byte of call_index
+					// 3. Pass the parameters to that function
+					(sub.details.call_index, &pulse, &sub_id).encode().into(),
+				) {
+					Self::pause_subscription_on_error(sub_id, sub, "Failed to dispatch XCM", e);
+					continue;
 				}
-				// Store the updated subscription
-				Subscriptions::<T>::insert(sub_id, &sub);
 
-				Ok(())
-			},
-		)?;
+				Self::deposit_event(Event::RandomnessDistributed { sub_id });
+			} else {
+				let idle_credits = T::FeesManager::get_idle_credits(&sub);
+				// Collect fees for idle block
+				if let Err(e) = Self::collect_fees(&sub, idle_credits) {
+					log::warn!(
+						target: LOG_TARGET,
+						"Failed to collect fees for idle subscription id = {:?}: {:?}", sub_id, e);
+				}
+				// Update subscription with consumed credits
+				sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
+			}
+			// Finalize the subscription if there are not enough credits left
+			if sub.state != SubscriptionState::Finalized &&
+				sub.credits_left < Self::get_min_credits(&sub)
+			{
+				sub.state = SubscriptionState::Finalized;
+			}
 
-		Ok(())
+			// Store the updated subscription
+			Subscriptions::<T>::insert(sub_id, &sub);
+		}
+	}
+
+	/// Gracefully handles the pausing of a subscription in the case an error occurs
+	fn pause_subscription_on_error(
+		sub_id: SubscriptionIdOf<T>,
+		mut sub: SubscriptionOf<T>,
+		message: &str,
+		err: DispatchError,
+	) {
+		log::warn!(
+			target: LOG_TARGET,
+			"{}: subscription id = {:?}. Pausing subscription due to: {:?}",
+			message,
+			sub_id,
+			err
+		);
+		sub.state = SubscriptionState::Paused;
+		Subscriptions::<T>::insert(sub_id, &sub);
+		Self::deposit_event(Event::SubscriptionPaused { sub_id });
 	}
 
 	/// Collects fees for a subscription based on credits consumed.
@@ -1013,19 +1029,55 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	/// Dispatches the call to the target
+	/// WARNING: Possible attack vector, as the `Xcm::send` call's origin is different to the
+	/// account that created the subscription that feeds the target and the transact msg.
+	/// Also, this is requesting `UnpaidExecution`, which is expected to be honored by the
+	/// target chain.
+	/// A potential attacker could try to get "almost" free execution (only paying the pulse
+	/// consumption fees) to any target on a chain that honors `UnpaidExecution` requests from IDN.
+	/// Though the attacker would not be able to manipulate the call's parameters.
+	// TODO: Solve this issue https://github.com/ideal-lab5/idn-sdk/issues/290
 	fn xcm_send(target: &Location, call: DoubleEncoded<()>) -> DispatchResult {
 		let msg = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			Transact { origin_kind: OriginKind::Xcm, fallback_max_weight: None, call },
-			ExpectTransactStatus(MaybeErrorCode::Success),
 		]);
-		let versioned_target: Box<VersionedLocation> = Box::new(target.clone().into());
-		let versioned_msg: Box<VersionedXcm<()>> = Box::new(xcm::VersionedXcm::V5(msg.into()));
-		let origin = frame_system::RawOrigin::Signed(Self::pallet_account_id());
-
-		T::Xcm::send(origin.into(), versioned_target, versioned_msg)
-			.map_err(|_err| Error::<T>::XcmSendError)?;
+		let versioned_target: Box<VersionedLocation> =
+			Box::new(VersionedLocation::V5(target.clone()));
+		let versioned_msg: Box<VersionedXcm<()>> = Box::new(VersionedXcm::V5(msg.into()));
+		// TODO: do not use root origin, instead bring down the origin all the way from
+		// `try_submit_asig` to here https://github.com/ideal-lab5/idn-sdk/issues/289
+		let origin = T::RuntimeOrigin::root();
+		let xcm_hash =
+			T::Xcm::send(origin.clone(), versioned_target.clone(), versioned_msg.clone())?;
+		log::trace!(
+			target: LOG_TARGET,
+			"XCM message sent with hash: {:?}. Target: {:?}. Msg: {:?}",
+			xcm_hash,
+			versioned_target,
+			versioned_msg
+		);
 		Ok(())
+	}
+
+	/// Validates the origin as either a signed origin or an XCM sibling origin.
+	///
+	/// # Parameters
+	/// - `origin`: The origin to validate, which can be either a signed origin or an XCM sibling
+	///   origin.
+	///
+	/// # Returns
+	/// - `Ok(T::AccountId)`: The account ID of the signed origin or the account ID derived from the
+	///   XCM sibling origin.
+	/// - `Err(DispatchError)`: An error if the origin is invalid or cannot be converted to an
+	///   account ID.
+	fn ensure_signed_or_xcm_sibling(origin: OriginFor<T>) -> Result<T::AccountId, DispatchError> {
+		match T::SiblingOrigin::ensure_origin(origin.clone()) {
+			Ok(location) => T::XcmLocationToAccountId::convert_location(&location)
+				.ok_or(DispatchError::from(Error::<T>::InvalidSubscriber)),
+			Err(_) => ensure_signed(origin).map_err(|e| e.into()),
+		}
 	}
 
 	/// Return the existential deposit of [`Config::Currency`].
@@ -1036,19 +1088,14 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-impl<T: Config> Dispatcher<T::Pulse, DispatchResult> for Pallet<T> {
+impl<T: Config> Dispatcher<T::Pulse> for Pallet<T> {
 	/// Dispatches a pulse by distributing it to eligible subscriptions.
 	///
 	/// This function serves as the entry point for distributing randomness pulses
 	/// to active subscriptions. It calls the `distribute` function to handle the
 	/// actual distribution logic.
-	// TODO: https://github.com/ideal-lab5/idn-sdk/issues/195
-	fn dispatch(pulse: T::Pulse) -> DispatchResult {
-		if let Err(e) = Pallet::<T>::distribute(pulse) {
-			log::warn!(target: LOG_TARGET, "Distribution of pulse failed: {:?}", e);
-		}
-
-		Ok(())
+	fn dispatch(pulse: T::Pulse) {
+		Pallet::<T>::distribute(pulse);
 	}
 
 	fn dispatch_weight() -> Weight {

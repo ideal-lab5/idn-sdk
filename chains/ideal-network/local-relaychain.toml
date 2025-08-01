@@ -1,0 +1,12 @@
+[relaychain]
+chain = "paseo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+rpc_port = 57731
+validator = true
+
+[[relaychain.nodes]]
+name = "bob"
+rpc_port = 57735
+validator = true

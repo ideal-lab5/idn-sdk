@@ -17,7 +17,7 @@
 mod contracts;
 mod revive;
 #[path = "xcm.rs"]
-mod xcm_config;
+pub(crate) mod xcm_config;
 
 // Substrate and Polkadot dependencies
 use crate::weights::{
@@ -25,6 +25,8 @@ use crate::weights::{
 	CumulusXcmpQueueWeightInfo, IdnConsumerWeightInfo, MessageQueueWeightInfo, SessionWeightInfo,
 	SudoWeightInfo, SystemWeightInfo, TimestampWeightInfo, TransactionPaymentWeightInfo,
 };
+#[cfg(not(feature = "runtime-benchmarks"))]
+use crate::PolkadotXcm;
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
@@ -49,10 +51,7 @@ use polkadot_runtime_common::{
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
-use xcm::{
-	latest::prelude::BodyId,
-	v5::{Junction, Location},
-};
+use xcm::latest::prelude::BodyId;
 
 // Local module imports
 use super::{
@@ -312,13 +311,10 @@ impl pallet_collator_selection::Config for Runtime {
 	type WeightInfo = CollatorSelectionWeightInfo<Self>;
 }
 
-const IDN_PARACHAIN_ID: u32 = 2000; // Example IDN parachain ID
-
 parameter_types! {
-	pub SiblingIdnLocation: Location = Location::new(1, Junction::Parachain(IDN_PARACHAIN_ID));
 	pub IdnConsumerParaId: ParaId = ParachainInfo::parachain_id();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
-	pub const AssetHubFee: u128 = 1_000;
+	pub const MaxIdnXcmFees: u128 = 1_000_000_000_000;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -344,16 +340,18 @@ impl pallet_idn_consumer::Config for Runtime {
 	type PulseConsumer = PulseConsumerImpl;
 	type QuoteConsumer = QuoteConsumerImpl;
 	type SubInfoConsumer = SubInfoConsumerImpl;
-	type SiblingIdnLocation = SiblingIdnLocation;
+	type SiblingIdnLocation = xcm_config::IdnLocation;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type IdnOrigin = EnsureXcm<frame_support::traits::Equals<Self::SiblingIdnLocation>>;
+	type IdnOrigin = EnsureXcm<frame_support::traits::Equals<xcm_config::IdnLocation>>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type IdnOrigin = bench_ensure_origin::BenchEnsureOrigin;
-	// TODO: correctly set the Xcm type https://github.com/ideal-lab5/idn-sdk/issues/186
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type Xcm = PolkadotXcm;
+	#[cfg(feature = "runtime-benchmarks")]
 	type Xcm = ();
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
-	type AssetHubFee = AssetHubFee;
+	type MaxIdnXcmFees = MaxIdnXcmFees;
 	// TODO: run benchmarks against reference hw https://github.com/ideal-lab5/idn-sdk/issues/235
 	type WeightInfo = IdnConsumerWeightInfo<Self>;
 }

@@ -50,6 +50,7 @@ See the [Benchmarking Guide](../../BENCHMARKING.md) for instructions on how to r
 ### Benchmark a new pallet
 
 When adding a new pallet the benchmarks need to be run and the weights added in the runtime configuration:
+
 1. Add the new pallet to `src/benchmarking.rs`
 2. Run the benchmarks using the guide from above
 3. Add the generated weights to `src/weights/mod.rs`
@@ -58,7 +59,7 @@ When adding a new pallet the benchmarks need to be run and the weights added in 
 ## Local Development Chain
 
 1. This project uses [POP](https://onpop.io/) to orchestrate the relaychain and parachain nodes.
-   If you don't have it yet, install the [`pop` CLI tool](https://learn.onpop.io/v/cli/installing-pop-cli) to run the local development chain.
+   If you don't have it yet, install the [`pop` CLI tool](https://onpop.io/cli/) to run the local development chain.
 
 2. Run the following command to start a local development IDN chain, with two relaychain nodes and a single parachain collator:
 
@@ -85,3 +86,7 @@ It should output something like this:
 
 3. Done, you can now interact with the parachain using this link https://polkadot.js.org/apps/?rpc=ws://127.0.0.1:1234#/explorer.
    Bear in mind that you may need to wait a few seconds for the block production to start.
+
+Known issues:
+
+- If the HRMP channels are not created, you need to manually do it as explained [here](https://github.com/paritytech/polkadot-sdk/pull/1616#issuecomment-1727194584).

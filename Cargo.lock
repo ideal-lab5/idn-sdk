@@ -5794,6 +5794,7 @@ dependencies = [
  "pallet-xcm",
  "parachains-common",
  "parity-scale-codec",
+ "polkadot-core-primitives",
  "polkadot-parachain-primitives",
  "polkadot-runtime-common",
  "scale-info",
@@ -5952,6 +5953,7 @@ dependencies = [
  "staging-xcm-builder",
  "staging-xcm-executor",
  "substrate-wasm-builder",
+ "xcm-runtime-apis",
 ]
 
 [[package]]
@@ -6016,6 +6018,7 @@ dependencies = [
  "sp-idn-crypto",
  "staging-xcm",
  "staging-xcm-builder",
+ "staging-xcm-executor",
 ]
 
 [[package]]
@@ -6683,7 +6686,7 @@ dependencies = [
  "libp2p-connection-limits 0.4.0",
  "libp2p-core 0.42.0",
  "libp2p-dns 0.42.0",
- "libp2p-identify",
+ "libp2p-identify 0.45.0",
  "libp2p-identity",
  "libp2p-kad",
  "libp2p-mdns 0.46.0",
@@ -6719,6 +6722,7 @@ dependencies = [
  "libp2p-core 0.43.0",
  "libp2p-dns 0.43.0",
  "libp2p-gossipsub",
+ "libp2p-identify 0.46.0",
  "libp2p-identity",
  "libp2p-mdns 0.47.0",
  "libp2p-metrics 0.16.0",
@@ -6924,6 +6928,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "libp2p-identify"
+version = "0.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8c06862544f02d05d62780ff590cc25a75f5c2b9df38ec7a370dcae8bb873cf"
+dependencies = [
+ "asynchronous-codec 0.7.0",
+ "either",
+ "futures",
+ "futures-bounded",
+ "futures-timer",
+ "libp2p-core 0.43.0",
+ "libp2p-identity",
+ "libp2p-swarm 0.46.0",
+ "quick-protobuf",
+ "quick-protobuf-codec",
+ "smallvec",
+ "thiserror 2.0.12",
+ "tracing",
+]
+
+[[package]]
 name = "libp2p-identity"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7020,7 +7045,7 @@ checksum = "77ebafa94a717c8442d8db8d3ae5d1c6a15e30f2d347e0cd31d057ca72e42566"
 dependencies = [
  "futures 0.3.31",
  "libp2p-core 0.42.0",
- "libp2p-identify",
+ "libp2p-identify 0.45.0",
  "libp2p-identity",
  "libp2p-kad",
  "libp2p-ping 0.45.0",
@@ -7039,6 +7064,7 @@ dependencies = [
  "futures 0.3.31",
  "libp2p-core 0.43.0",
  "libp2p-gossipsub",
+ "libp2p-identify 0.46.0",
  "libp2p-identity",
  "libp2p-ping 0.46.0",
  "libp2p-swarm 0.46.0",
@@ -7235,6 +7261,7 @@ dependencies = [
  "futures-timer",
  "libp2p-core 0.43.0",
  "libp2p-identity",
+ "libp2p-swarm-derive",
  "lru 0.12.5",
  "multistream-select",
  "once_cell",
@@ -8962,9 +8989,9 @@ dependencies = [
 
 [[package]]
 name = "pallet-broker"
-version = "0.19.1"
+version = "0.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f227cf4ee9025e9387547e37300bd00c1c19e786eb23276268af7dc710915ce3"
+checksum = "47c26e061a2b40adc3ef186de6fb619f993bea265643b5ef41e98c578784ed6e"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -9395,6 +9422,7 @@ dependencies = [
  "pallet-balances",
  "pallet-xcm",
  "parity-scale-codec",
+ "proptest",
  "scale-info",
  "sha2 0.10.9",
  "simple-mermaid",
@@ -9407,8 +9435,10 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-version",
+ "sp-weights",
  "staging-xcm",
  "staging-xcm-builder",
+ "staging-xcm-executor",
 ]
 
 [[package]]
@@ -10585,9 +10615,15 @@ dependencies = [
 
 [[package]]
 name = "pallet-xcm"
+<<<<<<< HEAD
 version = "19.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca27d506282f4c9cd2cac6fb0d199edd89d366635f04801319e7145912547a68"
+=======
+version = "19.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2634c61cdfe53073384659adea1ae2c4e0a4c1e35a9f7e7fc0acb68891df4c39"
+>>>>>>> main
 dependencies = [
  "bounded-collections",
  "frame-benchmarking",
@@ -11803,9 +11839,9 @@ dependencies = [
 
 [[package]]
 name = "polkadot-primitives"
-version = "18.1.0"
+version = "18.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d46b3d45e295d975a9be6128212b29e0efd05f26cdde4a45115424a1f6bad0dd"
+checksum = "7eadd5ca22e2ded7a12a484a6e0962ed86c379ce4bb83fbd82843b6459a20cef"
 dependencies = [
  "bitvec",
  "hex-literal",
@@ -11930,9 +11966,9 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-parachains"
-version = "19.1.0"
+version = "19.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0a4c580cf509b6b7d4f2b556e31da04e528c69acfaeec28d5ac7f02b4dc0fa9"
+checksum = "a76fc49c2a9a7d13fbd1d97d448366ad5b7197d7684ec9013271d99c015d13d6"
 dependencies = [
  "bitflags 1.3.2",
  "bitvec",
@@ -12859,17 +12895,17 @@ dependencies = [
 
 [[package]]
 name = "proptest"
-version = "1.6.0"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14cae93065090804185d3b75f0bf93b8eeda30c7a9b4a33d3bdb3988d6229e50"
+checksum = "6fcdab19deb5195a31cf7726a210015ff1496ba1464fd42cb4f537b8b01b471f"
 dependencies = [
  "bit-set",
  "bit-vec",
  "bitflags 2.9.1",
  "lazy_static",
  "num-traits",
- "rand 0.8.5",
- "rand_chacha 0.3.1",
+ "rand 0.9.1",
+ "rand_chacha 0.9.0",
  "rand_xorshift",
  "regex-syntax 0.8.5",
  "rusty-fork",
@@ -13164,11 +13200,11 @@ dependencies = [
 
 [[package]]
 name = "rand_xorshift"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
+checksum = "513962919efc330f829edb2535844d1b912b0fbe2ca165d613e4e8788bb05a5a"
 dependencies = [
- "rand_core 0.6.4",
+ "rand_core 0.9.3",
 ]
 
 [[package]]
@@ -14468,7 +14504,13 @@ dependencies = [
  "sp-runtime",
  "sp-timestamp",
  "substrate-prometheus-endpoint",
+<<<<<<< HEAD
  "tokio 1.45.1",
+=======
+ "tokio",
+ "tracing",
+ "tracing-test",
+>>>>>>> main
 ]
 
 [[package]]
@@ -16614,7 +16656,11 @@ dependencies = [
  "sp-inherents",
  "sp-runtime",
  "sp-std",
+<<<<<<< HEAD
  "tokio 1.45.1",
+=======
+ "tokio",
+>>>>>>> main
 ]
 
 [[package]]
@@ -18269,6 +18315,27 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "tracing-test"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "557b891436fe0d5e0e363427fc7f217abf9ccd510d5136549847bdcbcd011d68"
+dependencies = [
+ "tracing-core",
+ "tracing-subscriber",
+ "tracing-test-macro",
+]
+
+[[package]]
+name = "tracing-test-macro"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04659ddb06c87d233c566112c1c9c5b9e98256d9af50ec3bc9c8327f873a7568"
+dependencies = [
+ "quote",
+ "syn 2.0.101",
 ]
 
 [[package]]

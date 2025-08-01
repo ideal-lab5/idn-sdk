@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//! Substrate Parachain Node Template CLI
+//! Substrate IDN Consumer Collator CLI
 
 #![warn(missing_docs)]
 

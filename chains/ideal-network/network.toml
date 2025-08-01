@@ -5,22 +5,24 @@ default_args = [ "-lparachain=debug" ]
 
 chain = "rococo-local"
 
-  [[relaychain.nodes]]
-  name = "alice"
-  validator = true
+[[relaychain.nodes]]
+name = "alice"
+rpc_port = 8833
+validator = true
 
-  [[relaychain.nodes]]
-  name = "bob"
-  validator = true
+[[relaychain.nodes]]
+name = "bob"
+validator = true
 
 [[parachains]]
-id = 1000
+id = 2000
+chain = "dev"
+default_command = "../../target/release/idn-node"
+default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
 
-  [[parachains.collators]]
-  name = "idn-alice"
-  rpc_port = 9933
-  command = "../../target/release/idn-node"
+[[parachains.collators]]
+name = "idn-alice"
+rpc_port = 9933
 
-  [[parachains.collators]]
-  name = "idn-bob"
-  command = "../../target/release/idn-node"
+[[parachains.collators]]
+name = "idn-bob"

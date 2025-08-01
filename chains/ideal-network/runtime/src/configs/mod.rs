@@ -23,14 +23,12 @@ use bp_idn::{
 	types::{self},
 };
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
-use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
+use cumulus_primitives_core::AggregateMessageOrigin;
 use frame_support::{
 	derive_impl,
 	dispatch::DispatchClass,
 	parameter_types,
-	traits::{
-		ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, TransformOrigin, VariantCountOf,
-	},
+	traits::{ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, VariantCountOf},
 	weights::{ConstantMultiplier, Weight},
 	PalletId,
 };
@@ -42,31 +40,28 @@ use frame_system::{
 use pallet_idn_manager::primitives::AllowSiblingsOnly;
 use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
-use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
-use polkadot_runtime_common::{
-	xcm_sender::NoPriceForMessageDelivery, BlockHashCount, SlowAdjustingFeeUpdate,
-};
+use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
-use xcm::latest::prelude::BodyId;
+use xcm::prelude::BodyId;
 
 // Local module imports
+#[cfg(not(feature = "runtime-benchmarks"))]
+use super::PolkadotXcm;
 use super::{
 	weights::{
 		BalancesWeightInfo, BlockExecutionWeight, CollatorSelectionWeightInfo,
-		CumulusParachainSystemWeightInfo, CumulusXcmpQueueWeightInfo, ExtrinsicBaseWeight,
-		IdnManagerWeightInfo, MessageQueueWeightInfo, RandomnessBeaconWeightInfo, RocksDbWeight,
-		SessionWeightInfo, SudoWeightInfo, SystemWeightInfo, TimestampWeightInfo,
-		TransactionPaymentWeightInfo,
+		CumulusParachainSystemWeightInfo, ExtrinsicBaseWeight, IdnManagerWeightInfo,
+		RandomnessBeaconWeightInfo, RocksDbWeight, SessionWeightInfo, SudoWeightInfo,
+		SystemWeightInfo, TimestampWeightInfo, TransactionPaymentWeightInfo,
 	},
 	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook, Hash,
-	MessageQueue, Nonce, PalletInfo, ParachainSystem, Runtime, RuntimeCall, RuntimeEvent,
-	RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
-	System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS,
-	MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
+	MessageQueue, Nonce, PalletInfo, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason,
+	RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys, System, WeightToFee,
+	XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT,
+	MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
 };
-use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
+use xcm_config::RelayLocation;
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -154,6 +149,7 @@ impl pallet_balances::Config for Runtime {
 	type Balance = Balance;
 	/// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
+	// TODO: use `ResolveTo<TreasuryAccount, Balances>` https://github.com/ideal-lab5/idn-sdk/issues/275
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
@@ -211,51 +207,7 @@ impl cumulus_pallet_parachain_system::Config for Runtime {
 
 impl parachain_info::Config for Runtime {}
 
-parameter_types! {
-	pub MessageQueueServiceWeight: Weight = Perbill::from_percent(35) * RuntimeBlockWeights::get().max_block;
-}
-
-impl pallet_message_queue::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = MessageQueueWeightInfo<Runtime>;
-	#[cfg(feature = "runtime-benchmarks")]
-	type MessageProcessor = pallet_message_queue::mock_helpers::NoopMessageProcessor<
-		cumulus_primitives_core::AggregateMessageOrigin,
-	>;
-	#[cfg(not(feature = "runtime-benchmarks"))]
-	type MessageProcessor = xcm_builder::ProcessXcmMessage<
-		AggregateMessageOrigin,
-		xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
-		RuntimeCall,
-	>;
-	type Size = u32;
-	// The XCMP queue pallet is only ever able to handle the `Sibling(ParaId)` origin:
-	type QueueChangeHandler = NarrowOriginToSibling<XcmpQueue>;
-	type QueuePausedQuery = NarrowOriginToSibling<XcmpQueue>;
-	type HeapSize = sp_core::ConstU32<{ 103 * 1024 }>;
-	type MaxStale = sp_core::ConstU32<8>;
-	type ServiceWeight = MessageQueueServiceWeight;
-	type IdleMaxServiceWeight = ();
-}
-
 impl cumulus_pallet_aura_ext::Config for Runtime {}
-
-impl cumulus_pallet_xcmp_queue::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type ChannelInfo = ParachainSystem;
-	type VersionWrapper = ();
-	// Enqueue XCMP messages from siblings for later processing.
-	type XcmpQueue = TransformOrigin<MessageQueue, AggregateMessageOrigin, ParaId, ParaIdToSibling>;
-	type MaxInboundSuspended = sp_core::ConstU32<1_000>;
-	type ControllerOrigin = EnsureRoot<AccountId>;
-	type ControllerOriginConverter = XcmOriginToTransactDispatchOrigin;
-	type WeightInfo = CumulusXcmpQueueWeightInfo<Runtime>;
-	type PriceForSiblingDelivery = NoPriceForMessageDelivery<ParaId>;
-	// Limit the number of messages and signals a HRML channel can have at most
-	type MaxActiveOutboundChannels = ConstU32<128>;
-	// Limit the number of HRML channels
-	type MaxPageSize = ConstU32<{ 1 << 16 }>;
-}
 
 parameter_types! {
 	pub const Period: u32 = 6 * HOURS;
@@ -318,7 +270,7 @@ impl pallet_collator_selection::Config for Runtime {
 mod bench_ensure_origin {
 	use crate::RuntimeOrigin;
 	use frame_support::pallet_prelude::EnsureOrigin;
-	use xcm::v5::{prelude::Junction, Location};
+	use xcm::prelude::{Junction, Location};
 
 	pub struct BenchEnsureOrigin;
 	impl EnsureOrigin<RuntimeOrigin> for BenchEnsureOrigin {
@@ -342,7 +294,9 @@ impl pallet_idn_manager::Config for Runtime {
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = types::RuntimePulse;
 	type WeightInfo = IdnManagerWeightInfo<Runtime>;
-	// TODO: correctly set the Xcm type https://github.com/ideal-lab5/idn-sdk/issues/186
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type Xcm = PolkadotXcm;
+	#[cfg(feature = "runtime-benchmarks")]
 	type Xcm = ();
 	type MaxMetadataLen = types::MaxMetadataLen;
 	type Credits = types::Credits;
@@ -354,13 +308,18 @@ impl pallet_idn_manager::Config for Runtime {
 	type SiblingOrigin = EnsureXcm<AllowSiblingsOnly>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type SiblingOrigin = bench_ensure_origin::BenchEnsureOrigin;
+	type XcmLocationToAccountId = xcm_config::LocationToAccountId;
+}
+
+parameter_types! {
+	pub const MaxSigsPerBlock: u8 = crate::constants::idn::MAX_QUEUE_SIZE as u8;
 }
 
 impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
-	type MaxSigsPerBlock = ConstU8<30>;
+	type MaxSigsPerBlock = MaxSigsPerBlock;
 	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;
 }

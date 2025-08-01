@@ -23,7 +23,9 @@ use std::{sync::Arc, time::Duration};
 // Local Runtime Types
 use idn_runtime::{
 	apis::RuntimeApi,
-	constants::idn::{PRIMARY, QUICKNET_GOSSIPSUB_TOPIC, SECONDARY},
+	constants::idn::{
+		MAX_QUEUE_SIZE, NO_MESSAGE_TIMEOUT, PRIMARY, QUICKNET_GOSSIPSUB_TOPIC, SECONDARY,
+	},
 	opaque::{Block, Hash},
 };
 
@@ -56,8 +58,8 @@ use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::tracing_unbounded;
 use sp_keystore::KeystorePtr;
 
-use libp2p::{gossipsub::Config as GossipsubConfig, identity::Keypair, Multiaddr};
-use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, GossipsubNetwork};
+use libp2p::Multiaddr;
+use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, RetryableGossipsubRunner};
 
 #[docify::export(wasm_executor)]
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
@@ -67,9 +69,6 @@ type ParachainClient = TFullClient<Block, RuntimeApi, ParachainExecutor>;
 type ParachainBackend = TFullBackend<Block>;
 
 type ParachainBlockImport = TParachainBlockImport<Block, Arc<ParachainClient>, ParachainBackend>;
-
-/// The maximum number of historic pulses the node will retain
-const M: usize = 20;
 
 /// Assembly of PartialComponents (enough to run chain ops subcommands)
 pub type Service = PartialComponents<
@@ -203,7 +202,7 @@ fn start_consensus(
 	collator_key: CollatorPair,
 	overseer_handle: OverseerHandle,
 	announce_block: Arc<dyn Fn(Hash, Option<Vec<u8>>) + Send + Sync>,
-	pulse_receiver: DrandReceiver<M>,
+	pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
 ) -> Result<(), sc_service::Error> {
 	let proposer_factory = sc_basic_authorship::ProposerFactory::with_proof_recording(
 		task_manager.spawn_handle(),
@@ -426,26 +425,28 @@ pub async fn start_parachain_node(
 	})?;
 
 	if validator {
-		// setup a libp2p node for gossipsub
-		let (tx, rx) = tracing_unbounded("drand-notification-channel", 10000);
-		let pulse_receiver = DrandReceiver::new(rx);
+		// tracks incoming protobuf messages from the gossipsub topic
+		let (tx, rx) = tracing_unbounded("drand-notification-channel", 100);
+		// reads raw (protobuf) pulses from rx and puts them into FIFO queue (with limit
+		// MAX_QUEUE_SIZE)
+		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(rx);
 
-		let local_identity: Keypair = Keypair::generate_ed25519();
-		let cfg = GossipsubConfig::default();
-		// [SRLabs] If the gossipsub network fails to construct we consider it a critical failure
-		let mut gossipsub = GossipsubNetwork::new(&local_identity, cfg, tx, None)
-			.expect("The gossipsub network must start.");
 		let primary: Multiaddr =
 			PRIMARY.parse().expect("The string is a well-formatted multiaddress;qed");
 		let secondary: Multiaddr =
 			SECONDARY.parse().expect("The string is a well-formatted multiaddress;qed");
+		let peers = vec![primary, secondary];
 
-		tokio::spawn(async move {
-			if let Err(e) = gossipsub.run(QUICKNET_GOSSIPSUB_TOPIC, vec![primary, secondary]).await
-			{
-				log::error!("Failed to run gossipsub network: {:?}", e);
-			}
-		});
+		if let Err(e) = RetryableGossipsubRunner::<MAX_QUEUE_SIZE, NO_MESSAGE_TIMEOUT>::run(
+			QUICKNET_GOSSIPSUB_TOPIC,
+			peers,
+			tx.clone(),
+			pulse_receiver.clone(),
+		) {
+			// if the retryable gossipsub runner fails we consider it a critical error
+			// and bring down the node
+			panic!("A critical error occurred - bringing down the node: {:?}", e);
+		}
 
 		start_consensus(
 			client.clone(),

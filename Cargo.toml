@@ -56,21 +56,22 @@ default_constructed_unit_structs = { level = "allow", priority = 2 } # stylistic
 
 [workspace.dependencies]
 color-print = "0.3.7"
-serde = { version = "1.0.217", default-features = false }
-serde_json = { version = "1.0.137", default-features = false }
 smallvec = { version = "1.13.2", default-features = false }
 
 # Async, Concurrency, & Networking
+async-std = "1.13.0"
 async-trait = "0.1.86"
 futures = "0.3.31"
 futures-timer = "3.0.3"
 libp2p = { version = "0.55.0", features = [
-    "gossipsub",
-    "noise",
-    "tcp",
-    "ping",
-    "dns",
     "async-std",
+    "dns",
+    "gossipsub",
+    "identify",
+    "macros",
+    "noise",
+    "ping",
+    "tcp",
     "tokio",
     "websocket",
     "quic",
@@ -78,6 +79,11 @@ libp2p = { version = "0.55.0", features = [
 ] }
 thiserror = { version = "1.0.69" }
 tokio = { version = "^1", features = ["full"] }
+tracing = { version = "0.1.41" }
+tracing-test = { version = " 0.2.5" }
+
+# Testing
+proptest = "1.7.0"
 
 # Serialization
 array-bytes = { version = "6.2.2", default-features = false }
@@ -86,6 +92,8 @@ hex-literal = "0.4.1"
 prost = { version = "0.13.4", default-features = false, features = [
     "prost-derive",
 ] }
+serde = { version = "1.0.217", default-features = false }
+serde_json = { version = "1.0.137", default-features = false }
 
 # Polkadot & Substrate
 frame-benchmarking = { version = "40.0.0", default-features = false }
@@ -163,7 +171,7 @@ substrate-build-script-utils = { version = "11.0.0", default-features = false }
 substrate-wasm-builder = "26.0.0"
 
 # Polkadot
-pallet-xcm = { version = "19.1.0", default-features = false }
+pallet-xcm = { version = "19.1.1", default-features = false }
 polkadot-cli = { version = "23.0.0", default-features = false }
 polkadot-parachain-primitives = { version = "16.1.0", default-features = false }
 polkadot-core-primitives = { version = "17.1.0", default-features = false }
@@ -172,6 +180,7 @@ polkadot-runtime-common = { version = "19.1.0", default-features = false }
 xcm = { version = "16.1.0", default-features = false, package = "staging-xcm" }
 xcm-builder = { version = "20.0.0", default-features = false, package = "staging-xcm-builder" }
 xcm-executor = { version = "19.1.0", package = "staging-xcm-executor", default-features = false }
+xcm-runtime-apis = { version = "0.7.1", default-features = false }
 
 # Arkworks & Crypto
 ark-bls12-381 = { version = "0.5.0", features = [

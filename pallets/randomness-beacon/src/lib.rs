@@ -161,7 +161,7 @@ pub mod pallet {
 			+ PartialEq
 			+ From<Accumulation>;
 		/// Something that can dispatch pulses
-		type Dispatcher: Dispatcher<Self::Pulse, DispatchResult>;
+		type Dispatcher: Dispatcher<Self::Pulse>;
 	}
 
 	/// The round when we start consuming pulses
@@ -233,6 +233,15 @@ pub mod pallet {
 						.collect();
 					// sort by ascending round
 					pulses.sort_by_key(|pulse| pulse.round);
+					// if there are too many pulses, drain to ensure correct size
+					let max = T::MaxSigsPerBlock::get() as usize;
+					let remove = pulses.len();
+					if max <= remove {
+						let r = remove.saturating_sub(max);
+						pulses.drain(0..r);
+						log::info!(target: LOG_TARGET, "Drained {:?} extra pulses from storage.", r);
+					}
+
 					// first and last rounds
 					let start = pulses.first().map(|p| p.round);
 					let end = pulses.last().map(|p| p.round);
@@ -395,7 +404,7 @@ pub mod pallet {
 
 			// dispatch pulses to subscribers
 			let runtime_pulse = T::Pulse::from(sacc);
-			T::Dispatcher::dispatch(runtime_pulse)?;
+			T::Dispatcher::dispatch(runtime_pulse);
 
 			for (k, v) in raw_call_data {
 				log::info!("PROCESSING CALL DATA FOR ROUND {:?}, # CALLS = {:?}", k, v.len());

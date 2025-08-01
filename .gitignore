@@ -42,3 +42,4 @@ target*/
 *.profraw
 *chain_spec.json
 __pycache__
+node_files/

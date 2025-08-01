@@ -29,7 +29,7 @@ use frame_support::{
 use frame_system::{Pallet as System, RawOrigin};
 use sp_core::H256;
 use sp_idn_traits::Hashable;
-use xcm::v5::prelude::Junction;
+use xcm::prelude::Junction;
 
 #[benchmarks(
     where
@@ -382,7 +382,7 @@ mod benchmarks {
 
 		#[block]
 		{
-			let _ = IdnManager::<T>::dispatch(pulse);
+			IdnManager::<T>::dispatch(pulse);
 		}
 
 		// Verify the first subscription was updated
