@@ -22,40 +22,50 @@ alice: parachain 2001 block height is at least 10 within 6000 seconds
 
 # Fund Sovereign Account
 idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,1000000" within 120 seconds
-# Pause to allow next transaction to go through
+# Pause to allow next transaction to go through+
 sleep 7 seconds
 # Fund Treasury Account
 idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C,1000000" within 120 seconds
 
 # Quote Subscription
-idn-consumer-alice: js-script ../../scripts/testing/quote-subscription.js within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/quote-subscription.js within 120 seconds
 idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
 idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
 
 # Create Subscription
-idn-consumer-alice: js-script ../../scripts/testing/create-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/create-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
 idn-alice: system event contains "A new subscription was created" within 120 seconds
 idn-alice: system event contains "Fees collected" within 120 seconds
 idn-alice: system event contains "Randomness was successfully distributed" within 120 seconds
 idn-consumer-alice: system event contains "A randomness pulse was successfully consumed" within 120 seconds
+# Verify JSON stored in DB
+idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-db.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39,5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,Active,10000,1020" within 120 seconds
 
 # Request Subscription Info
-idn-consumer-alice: js-script ../../scripts/testing/request-subscription-info.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/request-subscription-info.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
 idn-alice: system event contains "Subscription Distributed" within 120 seconds
 idn-consumer-alice: system event contains "Subscription info was successfully consumed" within 120 seconds
 
 # Pause Subscription
-idn-consumer-alice: js-script ../../scripts/testing/pause-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/pause-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
 idn-alice: system event contains "A subscription was paused" within 120 seconds
+# Verify JSON stored in DB
+idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-db.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39,5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,Paused,10000,1020" within 120 seconds
 
 # Resume Subscription
-idn-consumer-alice: js-script ../../scripts/testing/reactivate-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/reactivate-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
 idn-alice: system event contains "A subscription was reactivated" within 120 seconds
+# Verify JSON stored in DB
+idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-db.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39,5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,Active,10000,1020" within 120 seconds
 
 # Update Subscription
-idn-consumer-alice: js-script ../../scripts/testing/update-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/update-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
 idn-alice: system event contains "A subscription was updated" within 120 seconds
+# Verify JSON stored in DB
+idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-db.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39,5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,Active,12000,200" within 120 seconds
 
 # Kill Subscription
-idn-consumer-alice: js-script ../../scripts/testing/kill-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/kill-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
 idn-alice: system event contains "A subscription has terminated" within 120 seconds
+# Verify JSON stored in DB
+idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-subscription-deleted.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds

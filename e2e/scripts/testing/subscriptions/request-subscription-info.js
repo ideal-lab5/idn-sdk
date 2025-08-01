@@ -9,13 +9,14 @@ async function run(nodeName, networkInfo, args) {
     const sudoPair = keyring.getPair(alice.publicKey);
 
     const subId = args[0];
+    const reqRef = null;
 
-    const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoKillSubscription(subId)).signAndSend(sudoPair, (result)=>{
+    const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoRequestSubInfo(subId, reqRef)).signAndSend(sudoPair, (result)=>{
         if (result.status.isInBlock) {
             console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
           } else if (result.status.isFinalized) {
             console.log(`Transaction finalized at blockHash ${result.status.asFinalized}`);
-            console.log("Subscription Quote request succeeded")
+            console.log("Subscription info request succeeded")
             unsub(); // stop listening
           } else if (result.isError) {
             unsub();

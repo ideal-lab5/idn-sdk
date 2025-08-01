@@ -8,17 +8,14 @@ async function run(nodeName, networkInfo, args) {
     const alice = keyring.addFromUri("//Alice");
     const sudoPair = keyring.getPair(alice.publicKey);
 
-    const credits = 12000;
-    const frequency = 200;
-    const metadata = null;
     const subId = args[0];
 
-    const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoUpdateSubscription(subId, credits, frequency, metadata)).signAndSend(sudoPair, (result)=>{
+    const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoReactivateSubscription(subId)).signAndSend(sudoPair, (result)=>{
         if (result.status.isInBlock) {
             console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
           } else if (result.status.isFinalized) {
             console.log(`Transaction finalized at blockHash ${result.status.asFinalized}`);
-            console.log("Subscription Quote request succeeded")
+            console.log("Reactivate subscription succeeded")
             unsub(); // stop listening
           } else if (result.isError) {
             unsub();

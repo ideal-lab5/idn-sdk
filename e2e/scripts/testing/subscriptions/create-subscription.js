@@ -19,7 +19,7 @@ async function run(nodeName, networkInfo, args) {
             console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
           } else if (result.status.isFinalized) {
             console.log(`Transaction finalized at blockHash ${result.status.asFinalized}`);
-            console.log("Subscription Quote request succeeded")
+            console.log("Subscription created successfully")
             unsub(); // stop listening
           } else if (result.isError) {
             unsub();
