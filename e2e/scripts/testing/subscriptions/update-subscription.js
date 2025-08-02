@@ -9,7 +9,7 @@ async function run(nodeName, networkInfo, args) {
     const sudoPair = keyring.getPair(alice.publicKey);
 
     const credits = 12000;
-    const frequency = 200;
+    const frequency = 1;
     const metadata = null;
     const subId = args[0];
 
@@ -18,7 +18,7 @@ async function run(nodeName, networkInfo, args) {
             console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
           } else if (result.status.isFinalized) {
             console.log(`Transaction finalized at blockHash ${result.status.asFinalized}`);
-            console.log("Subscription updated successfully")
+            console.log("Subscription info request succeeded")
             unsub(); // stop listening
           } else if (result.isError) {
             unsub();

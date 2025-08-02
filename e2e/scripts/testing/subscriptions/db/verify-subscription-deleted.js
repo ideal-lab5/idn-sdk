@@ -12,6 +12,7 @@ async function run(nodeName, networkInfo, args) {
     const subInfoString = subInfo.toString();
 
     if(subInfoString) {
+        console.log(subInfoString)
         throw new Error("Subscription still in DB after subscription deletion");
     }
 }
