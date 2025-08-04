@@ -162,10 +162,10 @@ pub trait FeesManager<
 	/// * `frequency`: The (static) number of blocks to wait between pulse delivery
 	/// * `lifetime`: The desired number of pulses to be delivered during the subscription's lifetime
 	///
-	fn calculate_credits(sub: &Sub, frequency: F, lifetime: P) -> Credits {
+	fn calculate_credits(frequency: F, lifetime: P) -> Credits {
 		lifetime.into().saturating_mul(
-			frequency.into().saturating_mul(Self::get_idle_credits(sub))
-			.saturating_add(Self::get_consume_credits(sub))
+			frequency.into().saturating_mul(Self::get_idle_credits(None))
+			.saturating_add(Self::get_consume_credits(None))
 		).into()
 	}
 
@@ -181,9 +181,9 @@ pub trait FeesManager<
 	/// Distributes collected fees. Returns the fees that were effectively collected.
 	fn collect_fees(fees: &Fees, sub: &Sub) -> Result<Fees, FeesError<Fees, Err>>;
 	/// Returns how many credits this subscription pays for receiving a pulse
-	fn get_consume_credits(sub: &Sub) -> Credits;
+	fn get_consume_credits(sub: Option<&Sub>) -> Credits;
 	/// Returns how many credits this subscription pays for skipping to receive a pulse
-	fn get_idle_credits(sub: &Sub) -> Credits;
+	fn get_idle_credits(sub: Option<&Sub>) -> Credits;
 }
 
 /// Trait for accessing subscription information.

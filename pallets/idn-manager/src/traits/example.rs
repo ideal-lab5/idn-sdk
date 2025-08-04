@@ -76,12 +76,12 @@ mod linear_fee_calculator {
 			Ok(*fees)
 		}
 
-		fn get_consume_credits(_sub: &()) -> u32 {
+		fn get_consume_credits(_sub: Option<&()>) -> u32 {
 			// Consuming a pulse costs 1000 credits
 			1000
 		}
 
-		fn get_idle_credits(_sub: &()) -> u32 {
+		fn get_idle_credits(_sub: Option<&()>) -> u32 {
 			// Skipping a pulse costs 10 credits
 			10
 		}
@@ -152,11 +152,11 @@ mod tiered_fee_calculator {
 			// In this case we are not collecting any fees
 			Ok(*fees)
 		}
-		fn get_consume_credits(_sub: &()) -> u32 {
+		fn get_consume_credits(_sub: Option<&()>) -> u32 {
 			// Consuming a pulse costs 1000 credits
 			1000
 		}
-		fn get_idle_credits(_sub: &()) -> u32 {
+		fn get_idle_credits(_sub: Option<&()>) -> u32 {
 			// Skipping a pulse costs 10 credits
 			10
 		}
