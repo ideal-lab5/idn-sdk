@@ -87,20 +87,22 @@ pub struct Quote<Balance> {
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct QuoteRequest<CreateSubParams> {
+pub struct QuoteRequest<CreateSubParams, PulseIndex> {
 	/// The arbitrary reference for this quote request.
 	pub req_ref: RequestReference,
 	/// It specifies the parameters for the subscription.
 	pub create_sub_params: CreateSubParams,
+	/// The (lifetime) number of pulses to be recieved
+	pub lifetime_pulses: PulseIndex,
 }
 
 /// Contains the parameters for requesting a quote for a subscription.
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct QuoteSubParams<CreateSubParams> {
+pub struct QuoteSubParams<CreateSubParams, PulseIndex> {
 	/// The quote request details.
-	pub quote_request: QuoteRequest<CreateSubParams>,
+	pub quote_request: QuoteRequest<CreateSubParams, PulseIndex>,
 	/// The call index for the dispatchable that handles the generated quote.
 	/// This is the function in the parachain that originated the request that will be called by
 	/// the IDN parachain and receive the [`Quote`].
