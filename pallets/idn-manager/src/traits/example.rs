@@ -50,7 +50,6 @@ const BASE_FEE: u32 = 100;
 mod linear_fee_calculator {
 	use super::*;
 	impl FeesManager<u32, u32, u32, u32, (), (), (), DiffBalanceImpl<u32>> for LinearFeeCalculator {
-
 		fn calculate_subscription_fees(credits: &u32) -> u32 {
 			BASE_FEE.saturating_mul(*credits)
 		}
@@ -94,7 +93,9 @@ pub struct SteppedTieredFeeCalculator;
 #[docify::export_content]
 mod tiered_fee_calculator {
 	use super::*;
-	impl FeesManager<u32, u32, u32, u32, (), (), (), DiffBalanceImpl<u32>> for SteppedTieredFeeCalculator {
+	impl FeesManager<u32, u32, u32, u32, (), (), (), DiffBalanceImpl<u32>>
+		for SteppedTieredFeeCalculator
+	{
 		fn calculate_subscription_fees(credits: &u32) -> u32 {
 			// Define tier boundaries and their respective discount rates (in basis points)
 			const TIERS: [(u32, u32); 5] = [

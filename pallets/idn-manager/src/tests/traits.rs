@@ -88,7 +88,7 @@ proptest! {
 		if n < u32::MAX/(idle*f - consume) && f < u32::MAX/idle {
 			let expected = n * (f * idle + consume);
 			let result = DummyFeesManager::calculate_credits(f, n);
- 
+
 			prop_assert_eq!(result, expected);
 		}
 	}
