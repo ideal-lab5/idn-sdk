@@ -720,7 +720,7 @@ fn test_credits_consumption_and_cleanup() {
 			// Verify credit consumption
 			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
 
-			let consume_credits = <Test as Config>::FeesManager::get_consume_credits(&sub);
+			let consume_credits = <Test as Config>::FeesManager::get_consume_credits(Some(&sub));
 
 			assert_eq!(
 				sub.credits_left,
@@ -958,14 +958,14 @@ fn test_credits_consumption_frequency() {
 				));
 				assert_eq!(
 					sub.credits_left,
-					credits_left - <Test as Config>::FeesManager::get_consume_credits(&sub)
+					credits_left - <Test as Config>::FeesManager::get_consume_credits(Some(&sub))
 				);
 			} else {
 				// Verify events
 				assert!(event_not_emitted(Event::<Test>::RandomnessDistributed { sub_id }));
 				assert_eq!(
 					sub.credits_left,
-					credits_left - <Test as Config>::FeesManager::get_idle_credits(&sub)
+					credits_left - <Test as Config>::FeesManager::get_idle_credits(Some(&sub))
 				);
 			}
 

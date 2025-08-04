@@ -267,6 +267,8 @@ pub mod pallet {
 		type FeesManager: FeesManager<
 			BalanceOf<Self>,
 			Self::Credits,
+			Self::Credits,
+			Self::Credits,
 			SubscriptionOf<Self>,
 			DispatchError,
 			<Self as frame_system::pallet::Config>::AccountId,
@@ -832,7 +834,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn get_min_credits(sub: &SubscriptionOf<T>) -> T::Credits {
-		T::FeesManager::get_idle_credits(sub)
+		T::FeesManager::get_idle_credits(Some(sub))
 	}
 
 	/// Distribute randomness to subscribers
@@ -851,7 +853,7 @@ impl<T: Config> Pallet<T> {
 					current_block >= sub.last_delivered.unwrap() + sub.frequency)
 			{
 				// Make sure credits are consumed before sending the XCM message
-				let consume_credits = T::FeesManager::get_consume_credits(&sub);
+				let consume_credits = T::FeesManager::get_consume_credits(Some(&sub));
 
 				if let Err(e) = Self::collect_fees(&sub, consume_credits) {
 					Self::pause_subscription_on_error(sub_id, sub, "Failed to collect fees", e);
@@ -879,7 +881,7 @@ impl<T: Config> Pallet<T> {
 
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			} else {
-				let idle_credits = T::FeesManager::get_idle_credits(&sub);
+				let idle_credits = T::FeesManager::get_idle_credits(Some(&sub));
 				// Collect fees for idle block
 				if let Err(e) = Self::collect_fees(&sub, idle_credits) {
 					log::warn!(
