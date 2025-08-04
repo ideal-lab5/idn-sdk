@@ -157,14 +157,12 @@ where
 	/// * `lifetime`: The desired number of pulses to be delivered during the subscription's
 	///   lifetime
 	fn calculate_credits(frequency: F, lifetime: P) -> Credits {
-		lifetime
-			.into()
-			.saturating_mul(
-				frequency
-					.into()
-					.saturating_mul(Self::get_idle_credits(None))
-					.saturating_add(Self::get_consume_credits(None)),
-			)
+		lifetime.into().saturating_mul(
+			frequency
+				.into()
+				.saturating_mul(Self::get_idle_credits(None))
+				.saturating_add(Self::get_consume_credits(None)),
+		)
 	}
 
 	/// Calculate the fees for a subscription based on the credits of pulses required.
