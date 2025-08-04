@@ -165,7 +165,6 @@ where
 					.saturating_mul(Self::get_idle_credits(None))
 					.saturating_add(Self::get_consume_credits(None)),
 			)
-			.into()
 	}
 
 	/// Calculate the fees for a subscription based on the credits of pulses required.
