@@ -68,7 +68,7 @@ impl FeesManager<u32, u32, u32, u32, (), (), (), DiffBalanceImpl<u32>> for Dummy
 
 	fn get_consume_credits(_sub: Option<&()>) -> u32 {
 		// Consuming a pulse costs 1000 credits
-		1000
+		100
 	}
 
 	fn get_idle_credits(_sub: Option<&()>) -> u32 {
@@ -85,7 +85,7 @@ proptest! {
 		// this line will overflow if it exceeds u32::MAX: n * (10f + 1000) > 4,294,967,295
 		// so we need to make sure: n <= u32::MAX/(10f - 1000)
 		// we must also have idle*f < u32::MAX, so we need f < u32::MAX/idle to avoid an overflowF
-		if n < u32::MAX/(idle*f - consume) && f < u32::MAX/idle {
+		if f < u32::MAX/(2 * idle) && n < u32::MAX/(idle*f - consume) {
 			let expected = n * (f * idle + consume);
 			let result = DummyFeesManager::calculate_credits(f, n);
 
