@@ -284,8 +284,11 @@ mod benchmarks {
 			metadata,
 			sub_id,
 		};
+
 		let req_ref = [1; 32];
-		let quote_request = QuoteRequest { req_ref, create_sub_params: params.clone() };
+		let lifetime_pulses: BlockNumberFor<T> = 10u32.into();
+
+		let quote_request = QuoteRequest { req_ref, create_sub_params: params.clone(), lifetime_pulses };
 		let quote_sub_params = QuoteSubParams { quote_request, call_index };
 
 		#[extrinsic_call]
@@ -299,7 +302,7 @@ mod benchmarks {
 		System::<T>::assert_last_event(
 			Event::<T>::SubQuoted {
 				requester: Location::new(1, [Junction::Parachain(sibling_para_id)]),
-				quote: Quote { req_ref, fees: 10_000u64.into(), deposit },
+				quote: Quote { req_ref, fees: 1_009_500u64.into(), deposit },
 			}
 			.into(),
 		);
