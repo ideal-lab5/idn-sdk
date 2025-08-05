@@ -140,7 +140,7 @@ let req_ref = IdnConsumer::<T>::request_quote(
 
   This request is internally an XCM call to the IDN parachain. The IDN parachain will process the request and reply with another XCM call to the `consume_quote` dispatchable. [See note 2](#notes)
 
-> Note: A paused subscription still consumes idle credits, so that even though a quote can tell you that with some number of credits you can purchase an amount of pulses, if the subscription is paused some extra credits will be consumed that were not taken into account, making the subscription receive less pulses than estimated
+> Note: A paused subscription still consumes idle credits. Even though a quote informs you of the number of credits you will need given the frequency and number of pulses, if the subscription is paused some extra credits will be consumed that were not taken into account, making the subscription receive less pulses than estimated.
 
 #### Request Subscription Info
 
