@@ -42,6 +42,7 @@ sp-consensus-randomness-beacon.workspace = true
 pallet-balances.workspace = true
 sp-version.workspace = true
 xcm-executor.workspace = true
+proptest.workspace = true
 
 [features]
 default = ["std"]

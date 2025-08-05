@@ -34,6 +34,8 @@
 //! distribution.
 //!
 //! **Methods:**
+//!   - [`calculate_credits`](FeesManager::calculate_credits): Calculates the minimum number of
+//!     credits required to power a subscription given its frequency and desired number of pulses
 //!   - [`calculate_subscription_fees`](FeesManager::calculate_subscription_fees): Determines the
 //!     initial fee for a subscription based on the requested credits.
 //!   - [`calculate_diff_fees`](FeesManager::calculate_diff_fees): Calculates the difference in fees
@@ -137,7 +139,32 @@ pub trait DiffBalance<Balance> {
 #[doc = docify::embed!("./src/traits/example.rs", linear_fee_calculator)]
 /// - Tiered fee calculator: where the fees are calculated based on a tiered function.
 #[doc = docify::embed!("./src/traits/example.rs", tiered_fee_calculator)]
-pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S, Diff: DiffBalance<Fees>> {
+pub trait FeesManager<Fees, Credits, F, P, Sub: Subscription<S>, Err, S, Diff: DiffBalance<Fees>>
+where
+	Credits: sp_runtime::Saturating,
+	P: Into<Credits> + sp_runtime::Saturating,
+	F: Into<Credits> + sp_runtime::Saturating,
+{
+	/// Calculate the minimum number of credits required to power the subscription under the given
+	/// frequency and lifetime credit calculation pertains to subscription frequency and lifetime,
+	/// agnostic of fees or impl. Note: if the subscription is paused during its lifetime,
+	/// additional credits may be required.
+	///
+	/// Credits are calculated as: `lifetime * [(frequency - 1) * idle_credit + execute_credits]`
+	/// where
+	///
+	/// * `frequency`: The (static) number of blocks to wait between pulse delivery
+	/// * `lifetime`: The desired number of pulses to be delivered during the subscription's
+	///   lifetime
+	fn calculate_credits(frequency: F, lifetime: P) -> Credits {
+		lifetime.into().saturating_mul(
+			frequency
+				.into()
+				.saturating_mul(Self::get_idle_credits(None))
+				.saturating_add(Self::get_consume_credits(None)),
+		)
+	}
+
 	/// Calculate the fees for a subscription based on the credits of pulses required.
 	fn calculate_subscription_fees(credits: &Credits) -> Fees;
 	/// Calculate how much fees should be held or release when a subscription changes.
@@ -150,9 +177,9 @@ pub trait FeesManager<Fees, Credits, Sub: Subscription<S>, Err, S, Diff: DiffBal
 	/// Distributes collected fees. Returns the fees that were effectively collected.
 	fn collect_fees(fees: &Fees, sub: &Sub) -> Result<Fees, FeesError<Fees, Err>>;
 	/// Returns how many credits this subscription pays for receiving a pulse
-	fn get_consume_credits(sub: &Sub) -> Credits;
+	fn get_consume_credits(sub: Option<&Sub>) -> Credits;
 	/// Returns how many credits this subscription pays for skipping to receive a pulse
-	fn get_idle_credits(sub: &Sub) -> Credits;
+	fn get_idle_credits(sub: Option<&Sub>) -> Credits;
 }
 
 /// Trait for accessing subscription information.
