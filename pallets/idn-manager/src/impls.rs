@@ -107,8 +107,8 @@ impl<Treasury, Sub, Balances>
 	FeesManager<
 		Balances::Balance,
 		u64,
-		u64,
-		u64,
+		u32,
+		u32,
 		Sub,
 		DispatchError,
 		AccountId32,
