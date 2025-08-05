@@ -47,19 +47,11 @@ fn message(current_round: u64, prev_sig: &[u8]) -> Vec<u8> {
 pub fn compute_round_on_g1(round: u64) -> Result<G1Affine, CryptoError> {
 	let message = message(round, &[]);
 	let hasher = MapToCurveBasedHasher::<
-<<<<<<< HEAD
-			<E as Pairing>::G1,
-			DefaultFieldHasher<Sha256, 128>,
-			WBMap<<Config as Bls12Config>::G1Config>,
-		>::new(QUICKNET_CTX)
-		.map_err(|_| CryptoError::HashToCurveFailure)?;
-=======
 		<E as Pairing>::G1,
 		DefaultFieldHasher<Sha256, 128>,
 		WBMap<<Config as Bls12Config>::G1Config>,
 	>::new(QUICKNET_CTX)
 	.map_err(|_| CryptoError::HashToCurveFailure)?;
->>>>>>> main
 	// H(m) \in G1
 	let message_hash = hasher.hash(&message).map_err(|_| CryptoError::InvalidBuffer)?;
 

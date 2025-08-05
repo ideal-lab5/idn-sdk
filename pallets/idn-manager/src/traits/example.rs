@@ -49,8 +49,7 @@ const BASE_FEE: u32 = 100;
 #[docify::export_content]
 mod linear_fee_calculator {
 	use super::*;
-	impl FeesManager<u32, u32, u32, u32, (), (), (), DiffBalanceImpl<u32>> for LinearFeeCalculator {
-
+	impl FeesManager<u32, u32, (), (), (), DiffBalanceImpl<u32>> for LinearFeeCalculator {
 		fn calculate_subscription_fees(credits: &u32) -> u32 {
 			BASE_FEE.saturating_mul(*credits)
 		}
@@ -75,12 +74,10 @@ mod linear_fee_calculator {
 			// In this case we are not collecting any fees
 			Ok(*fees)
 		}
-
 		fn get_consume_credits(_sub: &()) -> u32 {
 			// Consuming a pulse costs 1000 credits
 			1000
 		}
-
 		fn get_idle_credits(_sub: &()) -> u32 {
 			// Skipping a pulse costs 10 credits
 			10
@@ -94,7 +91,7 @@ pub struct SteppedTieredFeeCalculator;
 #[docify::export_content]
 mod tiered_fee_calculator {
 	use super::*;
-	impl FeesManager<u32, u32, u32, u32, (), (), (), DiffBalanceImpl<u32>> for SteppedTieredFeeCalculator {
+	impl FeesManager<u32, u32, (), (), (), DiffBalanceImpl<u32>> for SteppedTieredFeeCalculator {
 		fn calculate_subscription_fees(credits: &u32) -> u32 {
 			// Define tier boundaries and their respective discount rates (in basis points)
 			const TIERS: [(u32, u32); 5] = [
@@ -152,11 +149,11 @@ mod tiered_fee_calculator {
 			// In this case we are not collecting any fees
 			Ok(*fees)
 		}
-		fn get_consume_credits(_sub: &()) -> u32 {
+		fn get_consume_credits(_sub: Option<&()>) -> u32 {
 			// Consuming a pulse costs 1000 credits
 			1000
 		}
-		fn get_idle_credits(_sub: &()) -> u32 {
+		fn get_idle_credits(_sub: Option<&()>) -> u32 {
 			// Skipping a pulse costs 10 credits
 			10
 		}

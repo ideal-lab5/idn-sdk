@@ -429,20 +429,6 @@ impl GossipsubNetwork {
 				// if we cannot extract a peer id then it is a critical failure
 				return Err(Error::InvalidMultiaddress { who: (*peer).clone() });
 			}
-<<<<<<< HEAD
-			let topic = IdentTopic::new(topic_str);
-			// Ref: https://docs.rs/libpp-gossipsub/0.48.0/src/libp2p_gossipsub/behaviour.rs.html#532
-			// The error can only occur if the subscription filter rejects it, but we specify no
-			// filter.
-			self.swarm
-				.behaviour_mut()
-				.subscribe(&topic)
-				.expect("The libp2p gossipsub behavior has no subscription filter.");
-			self.wait_for_peers(peers.len()).await;
-		}
-
-		self.subscribe().await
-=======
 		}
 
 		// gossipsub sometimes has issues when joining the mesh, causing it to fail to
@@ -450,30 +436,12 @@ impl GossipsubNetwork {
 		// startups)
 
 		self.handle_events().await
->>>>>>> main
 	}
 
 	fn handle_event(&mut self, event: SwarmEvent<ComposedEvent>) {
 		match &event {
 			SwarmEvent::ConnectionEstablished { .. } => {
 				log::info!(target: LOG_TARGET, "📡 connected to new peer!");
-<<<<<<< HEAD
-			}
-		}
-		self.connected_peers = connected_peers as u8;
-	}
-
-	/// Create a subscription to a gossipsub topic.
-	/// It writes new messages to the SharedState whenever they are decodable as Pulses
-	/// and ignores and messages it cannot understand.
-	///
-	/// * `topic_str`: The gossipsub topic to subscribe to.
-	async fn subscribe(&mut self) -> Result<(), Error> {
-
-		loop {
-			match self.swarm.next().await {
-				Some(SwarmEvent::Behaviour(gossipsub::Event::Message { message, .. })) => {
-=======
 			},
 			SwarmEvent::Behaviour(ComposedEvent::Gossipsub(gossipsub::Event::Message {
 				message,
@@ -484,7 +452,6 @@ impl GossipsubNetwork {
 				if !self.allowed_peer_map.contains_key(&propagation_source) {
 					tracing::warn!(target: LOG_TARGET, peer_id = %propagation_source, "{}", TracingEvent::UntrustedPeer.value());
 				} else {
->>>>>>> main
 					match try_handle_pulse(&message.data) {
 						Ok(pulse) => {
 							tracing::info!(target: LOG_TARGET, round = %pulse.round, "{}", TracingEvent::NewPulse.value());

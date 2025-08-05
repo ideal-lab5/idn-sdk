@@ -115,7 +115,7 @@ pub type QuoteOf<T> = Quote<BalanceOf<T>>;
 
 /// The quote request type used in the pallet, containing details about the subscription to be
 /// quoted.
-pub type QuoteSubParamsOf<T> = QuoteSubParams<CreateSubParamsOf<T>>;
+pub type QuoteSubParamsOf<T> = QuoteSubParams<CreateSubParamsOf<T>, BlockNumberFor<T>>;
 
 pub type SubInfoRequestOf<T> = SubInfoRequest<SubscriptionIdOf<T>>;
 
@@ -267,8 +267,8 @@ pub mod pallet {
 		type FeesManager: FeesManager<
 			BalanceOf<Self>,
 			Self::Credits,
-			Self::Credits,
-			Self::Credits,
+			BlockNumberFor<Self>,
+			BlockNumberFor<Self>,
 			SubscriptionOf<Self>,
 			DispatchError,
 			<Self as frame_system::pallet::Config>::AccountId,
@@ -312,7 +312,8 @@ pub mod pallet {
 			+ Debug
 			+ Saturating
 			+ Copy
-			+ PartialOrd;
+			+ PartialOrd
+			+ From<BlockNumberFor<Self>>;
 
 		/// Maximum number of subscriptions allowed
 		///
@@ -626,8 +627,8 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				ensure!(
-					sub.state == SubscriptionState::Active ||
-						sub.state == SubscriptionState::Paused,
+					sub.state == SubscriptionState::Active
+						|| sub.state == SubscriptionState::Paused,
 					Error::<T>::SubscriptionNotUpdatable
 				);
 
@@ -719,8 +720,13 @@ pub mod pallet {
 					})?,
 				&params.quote_request.create_sub_params,
 			);
-			let fees =
-				Self::calculate_subscription_fees(&params.quote_request.create_sub_params.credits);
+
+			let credits = T::FeesManager::calculate_credits(
+				params.quote_request.create_sub_params.frequency,
+				params.quote_request.lifetime_pulses,
+			);
+
+			let fees = Self::calculate_subscription_fees(&credits);
 
 			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
 
@@ -834,7 +840,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn get_min_credits(sub: &SubscriptionOf<T>) -> T::Credits {
-		T::FeesManager::get_idle_credits(sub)
+		T::FeesManager::get_idle_credits(Some(sub))
 	}
 
 	/// Distribute randomness to subscribers
@@ -853,7 +859,7 @@ impl<T: Config> Pallet<T> {
 					current_block >= sub.last_delivered.unwrap() + sub.frequency)
 			{
 				// Make sure credits are consumed before sending the XCM message
-				let consume_credits = T::FeesManager::get_consume_credits(&sub);
+				let consume_credits = T::FeesManager::get_consume_credits(Some(&sub));
 
 				if let Err(e) = Self::collect_fees(&sub, consume_credits) {
 					Self::pause_subscription_on_error(sub_id, sub, "Failed to collect fees", e);
@@ -881,7 +887,7 @@ impl<T: Config> Pallet<T> {
 
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			} else {
-				let idle_credits = T::FeesManager::get_idle_credits(&sub);
+				let idle_credits = T::FeesManager::get_idle_credits(Some(&sub));
 				// Collect fees for idle block
 				if let Err(e) = Self::collect_fees(&sub, idle_credits) {
 					log::warn!(
@@ -892,8 +898,8 @@ impl<T: Config> Pallet<T> {
 				sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
 			}
 			// Finalize the subscription if there are not enough credits left
-			if sub.state != SubscriptionState::Finalized &&
-				sub.credits_left < Self::get_min_credits(&sub)
+			if sub.state != SubscriptionState::Finalized
+				&& sub.credits_left < Self::get_min_credits(&sub)
 			{
 				sub.state = SubscriptionState::Finalized;
 			}

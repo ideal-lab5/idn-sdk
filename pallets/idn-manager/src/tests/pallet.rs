@@ -720,7 +720,7 @@ fn test_credits_consumption_and_cleanup() {
 			// Verify credit consumption
 			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
 
-			let consume_credits = <Test as Config>::FeesManager::get_consume_credits(&sub);
+			let consume_credits = <Test as Config>::FeesManager::get_consume_credits(Some(&sub));
 
 			assert_eq!(
 				sub.credits_left,
@@ -958,14 +958,14 @@ fn test_credits_consumption_frequency() {
 				));
 				assert_eq!(
 					sub.credits_left,
-					credits_left - <Test as Config>::FeesManager::get_consume_credits(&sub)
+					credits_left - <Test as Config>::FeesManager::get_consume_credits(Some(&sub))
 				);
 			} else {
 				// Verify events
 				assert!(event_not_emitted(Event::<Test>::RandomnessDistributed { sub_id }));
 				assert_eq!(
 					sub.credits_left,
-					credits_left - <Test as Config>::FeesManager::get_idle_credits(&sub)
+					credits_left - <Test as Config>::FeesManager::get_idle_credits(Some(&sub))
 				);
 			}
 
@@ -1770,8 +1770,9 @@ fn test_quote_subscription_works() {
 		};
 
 		let req_ref = [1; 32];
+		let lifetime_pulses = 10;
 
-		let quote_request = QuoteRequest { req_ref, create_sub_params };
+		let quote_request = QuoteRequest { req_ref, create_sub_params, lifetime_pulses };
 		let quote_sub_params = QuoteSubParams { quote_request, call_index: quote_callback_index };
 		// Call the function
 		assert_ok!(IdnManager::quote_subscription(origin, quote_sub_params));
@@ -1779,7 +1780,7 @@ fn test_quote_subscription_works() {
 		// Verify the XCM message was sent
 		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubQuoted {
 			requester: Location::new(1, [Junction::Parachain(mock::SIBLING_PARA_ID)]),
-			quote: Quote { req_ref, fees: 5000, deposit: 1130 },
+			quote: Quote { req_ref, fees: 1095000, deposit: 1130 },
 		}));
 	});
 }
@@ -1804,8 +1805,9 @@ fn test_quote_subscription_fails_for_invalid_origin() {
 		};
 
 		let req_ref = [1; 32];
-
-		let quote_request = QuoteRequest { req_ref, create_sub_params };
+		let lifetime_pulses = 10;
+	
+		let quote_request = QuoteRequest { req_ref, create_sub_params, lifetime_pulses };
 		let quote_sub_params = QuoteSubParams { quote_request, call_index: quote_callback_index };
 
 		// Call the function and expect it to fail
