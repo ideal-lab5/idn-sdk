@@ -25,6 +25,7 @@ hex.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
+pallet-scheduler.workspace = true
 sp-idn-crypto.workspace = true
 sp-idn-traits.workspace = true
 sp-consensus-randomness-beacon.workspace = true
@@ -37,6 +38,7 @@ ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 ark-ec.workspace = true
 ark-std.workspace = true
+timelock.workspace = true
 
 # IDN dependencies
 bp-idn.workspace = true
@@ -72,6 +74,8 @@ std = [
 	"sp-idn-traits/std",
 	"sp-std/std",
 	"pallet-balances/std",
+	"pallet-scheduler/std",
+	"timelock/std",
 ]
 runtime-benchmarks = [
 	"bp-idn/runtime-benchmarks",
