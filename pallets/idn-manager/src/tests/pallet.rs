@@ -1806,7 +1806,7 @@ fn test_quote_subscription_fails_for_invalid_origin() {
 
 		let req_ref = [1; 32];
 		let lifetime_pulses = 10;
-	
+
 		let quote_request = QuoteRequest { req_ref, create_sub_params, lifetime_pulses };
 		let quote_sub_params = QuoteSubParams { quote_request, call_index: quote_callback_index };
 

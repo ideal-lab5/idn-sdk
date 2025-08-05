@@ -288,7 +288,8 @@ mod benchmarks {
 		let req_ref = [1; 32];
 		let lifetime_pulses: BlockNumberFor<T> = 10u32.into();
 
-		let quote_request = QuoteRequest { req_ref, create_sub_params: params.clone(), lifetime_pulses };
+		let quote_request =
+			QuoteRequest { req_ref, create_sub_params: params.clone(), lifetime_pulses };
 		let quote_sub_params = QuoteSubParams { quote_request, call_index };
 
 		#[extrinsic_call]
