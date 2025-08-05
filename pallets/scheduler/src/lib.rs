@@ -83,7 +83,7 @@ use frame_support::{
 	dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin},
 	traits::{
 		schedule::{self, MaybeHashed},
-		Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, PrivilegeCmp, QueryPreimage,
+		Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage,
 		StorageVersion, StorePreimage,
 	},
 	weights::{Weight, WeightMeter},
@@ -193,21 +193,13 @@ pub mod pallet {
 			> + GetDispatchInfo
 			+ From<system::Call<Self>>;
 
+		// TODO: remove?
 		/// The maximum weight that may be scheduled per block for any dispatchables.
 		#[pallet::constant]
 		type MaximumWeight: Get<Weight>;
 
 		/// Required origin to schedule or cancel calls.
 		type ScheduleOrigin: EnsureOrigin<<Self as system::Config>::RuntimeOrigin>;
-
-		/// Compare the privileges of origins.
-		///
-		/// This will be used when canceling a task, to ensure that the origin that tries
-		/// to cancel has greater or equal privileges as the origin that created the scheduled task.
-		///
-		/// For simplicity the [`EqualPrivilegeOnly`](frame_support::traits::EqualPrivilegeOnly) can
-		/// be used. This will only check if two given origins are equal.
-		type OriginPrivilegeCmp: PrivilegeCmp<Self::PalletsOrigin>;
 
 		/// The maximum number of scheduled calls in the queue for a single block.
 		///
@@ -231,7 +223,7 @@ pub mod pallet {
 		Twox64Concat,
 		RoundNumber,
 		// TODO: does not need to be an option
-		BoundedVec<Option<ScheduledOf<T>>, T::MaxScheduledPerBlock>,
+		BoundedVec<ScheduledOf<T>, T::MaxScheduledPerBlock>,
 		ValueQuery,
 	>;
 
@@ -248,8 +240,6 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// Scheduled some task.
 		Scheduled { when: RoundNumber, index: u32 },
-		/// Canceled some task.
-		Canceled { when: RoundNumber, index: u32 },
 		/// Dispatched some task.
 		Dispatched { task: TaskAddress<RoundNumber>, id: TaskName, result: DispatchResult },
 		/// The call for the provided hash was not found so the task has been aborted.
@@ -287,24 +277,21 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Helper to migrate scheduler when the pallet origin type has changed.
-	// Q: can we remove this? probably
 	pub fn migrate_origin<OldOrigin: Into<T::PalletsOrigin> + codec::Decode>() {
 		Agenda::<T>::translate::<
-			Vec<Option<Scheduled<TaskName, BoundedCallOf<T>, Ciphertext, OldOrigin, T::AccountId>>>,
+			Vec<Scheduled<TaskName, BoundedCallOf<T>, Ciphertext, OldOrigin, T::AccountId>>,
 			_,
 		>(|_, agenda| {
 			Some(BoundedVec::truncate_from(
 				agenda
 					.into_iter()
-					.map(|schedule| {
-						schedule.map(|schedule| Scheduled {
-							id: schedule.id,
-							priority: schedule.priority,
-							maybe_call: schedule.maybe_call,
-							maybe_ciphertext: None,
-							origin: schedule.origin.into(),
-							_phantom: Default::default(),
-						})
+					.map(|schedule| Scheduled {
+						id: schedule.id,
+						priority: schedule.priority,
+						maybe_call: schedule.maybe_call,
+						maybe_ciphertext: None,
+						origin: schedule.origin.into(),
+						_phantom: Default::default(),
 					})
 					.collect::<Vec<_>>(),
 			))
@@ -332,12 +319,15 @@ impl<T: Config> Pallet<T> {
 		let mut agenda = Agenda::<T>::get(when);
 		let index = if (agenda.len() as u32) < T::MaxScheduledPerBlock::get() {
 			// will always succeed due to the above check.
-			let _ = agenda.try_push(Some(what));
+			let _ = agenda.try_push(what);
 			agenda.len() as u32 - 1
-		} else if let Some(hole_index) = agenda.iter().position(|i| i.is_none()) {
-			agenda[hole_index] = Some(what);
-			hole_index as u32
-		} else {
+		}
+		// since calls cannot be canceled, we should not need to 'fill in' anything
+		// else if let Some(hole_index) = agenda.iter().position(|i| i.is_none()) {
+		// 	agenda[hole_index] = what;
+		// 	hole_index as u32
+		// }
+		else {
 			return Err((DispatchError::Exhausted, what));
 		};
 		Agenda::<T>::insert(when, agenda);
@@ -375,34 +365,37 @@ enum ServiceTaskError {
 use ServiceTaskError::*;
 
 impl<T: Config> Pallet<T> {
+	/// Given a decryption key (signature ) and identity (a message derived from `when`),
+	/// attempt to decrypt ciphertexts locked for the given round number
+	/// where it outputs (bid, call).
+	/// Then perform a 'greedy' SPSBA auction on all incoming bids in order to choose the
+	/// bids that value the service the highest.
 	pub fn service_agenda_decrypt_and_decode(
-		weight: &mut WeightMeter,
+		_weight: &mut WeightMeter,
 		when: RoundNumber,
 		signature: G1Affine,
-		max: u32,
-	) -> Vec<(TaskName, <T as Config>::RuntimeCall)> {
-		let mut recovered_calls = Vec::new();
+	) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
+		let mut recovered_calls: BoundedVec<
+			(TaskName, <T as Config>::RuntimeCall),
+			T::MaxScheduledPerBlock,
+		> = BoundedVec::new();
 
-		let mut agenda = Agenda::<T>::get(when);
-		let mut ordered = agenda
-			.iter()
-			.enumerate()
-			.filter_map(|(index, maybe_item)| {
-				maybe_item.as_ref().map(|item| (index as u32, item.priority))
-			})
-			.collect::<Vec<_>>();
-		ordered.sort_by_key(|k| k.1);
+		let agenda = Agenda::<T>::get(when);
+		// let mut ordered: Vec<(u32, schedule::Priority)> = agenda
+		// 	.iter()
+		// 	.enumerate()
+		// 	.filter_map(|(index, item)| Some((index as u32, item.priority)))
+		// 	.collect::<Vec<_>>();
 
-		let within_limit = weight
-			.try_consume(T::WeightInfo::service_agenda_base(ordered.len() as u32))
-			.is_ok();
-		debug_assert!(within_limit, "weight limit should have been checked in advance");
+		// ordered.sort_by_key(|k| k.1);
 
-		for (agenda_index, _) in ordered.into_iter().take(max as usize) {
-			let task = match agenda[agenda_index as usize].take() {
-				None => continue,
-				Some(t) => t,
-			};
+		// let within_limit = weight
+		// 	.try_consume(T::WeightInfo::service_agenda_base(ordered.len() as u32))
+		// 	.is_ok();
+		// debug_assert!(within_limit, "weight limit should have been checked in advance");
+
+		for task in agenda.into_iter() {
+			// let task = agenda[agenda_index as usize];
 
 			if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
 				if let Ok(ciphertext) =
@@ -412,9 +405,13 @@ impl<T: Config> Pallet<T> {
 						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
 							.unwrap();
 					let call = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()).unwrap();
+
+					// then we need to get the REAL weight of the call
+					// and compute the actual price the caller will pay? right now, it's first come first served
+
 					let _ = T::Preimages::bound(call.clone());
-					// TODO: ids do not need to be Options anymore!
-					recovered_calls.push((task.id, call));
+					// first come first serve => ignore all that don't fit
+					let _ = recovered_calls.try_push((task.id, call));
 				}
 			}
 		}
@@ -428,83 +425,77 @@ impl<T: Config> Pallet<T> {
 		weight: &mut WeightMeter,
 		executed: &mut u32,
 		when: RoundNumber,
-		call_data: Vec<(TaskName, <T as Config>::RuntimeCall)>,
-		// TODO: remove max, replace with bounded vec for call data
-		max: u32,
+		// TODO: rename to MaxScheduledPerRound
+		call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock>,
 	) -> bool {
 		let mut agenda = Agenda::<T>::get(when);
 		// first order by priority and simulatenously fill in call data
 		let mut ordered = agenda
 			.iter_mut()
 			.enumerate()
-			.filter_map(|(index, maybe_item)| {
-				if let Some(item) = maybe_item {
-					// find the right call data based on id
-					// if let Some(id) = item.id {
-					item.maybe_call = call_data
-						.iter()
-						// TODO: just matches based on id, no real verification check
-						.find(|data| data.0.eq(&item.id))
-						.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
-					// }
-				}
-				maybe_item.as_ref().map(|item| (index as u32, item.priority))
+			.filter_map(|(index, item)| {
+				// if let Some(item) = maybe_item {
+				// find the right call data based on id
+				item.maybe_call = call_data
+					.iter()
+					// TODO: just matches based on id, no real verification check
+					.find(|data| data.0.eq(&item.id))
+					.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
+				Some((index as u32, item.priority))
 			})
 			.collect::<Vec<_>>();
 		ordered.sort_by_key(|k| k.1);
 
-		let within_limit = weight
-			.try_consume(T::WeightInfo::service_agenda_base(ordered.len() as u32))
-			.is_ok();
-		debug_assert!(within_limit, "weight limit should have been checked in advance");
+		// let within_limit = weight
+		// 	.try_consume(T::WeightInfo::service_agenda_base(ordered.len() as u32))
+		// 	.is_ok();
+		// debug_assert!(within_limit, "weight limit should have been checked in advance");
 
-		// Items cannot be postponed. Anything that cannot be executed is dropped. 
+		// Items cannot be postponed. Anything that cannot be executed must be dropped.
 		// This is why it will be crucial to allow for time-based exection leasing to provide execution guarantees
 		// Items which we know can be executed and have postponed for execution in a later block.
 		// so we need to invert the metering a bit here
 		// instead of executing things up to a given weight, we need to execute 'leased' transaction slots
-		let mut postponed = (ordered.len() as u32).saturating_sub(max);
+		// let mut postponed = (ordered.len() as u32).saturating_sub(max);
 		// Items which we don't know can ever be executed.
-		let mut dropped = 0;
+		// let mut dropped = 0;
 
-		for (agenda_index, _) in ordered.into_iter().take(max as usize) {
-			let task = match agenda[agenda_index as usize].take() {
-				None => continue,
-				Some(t) => t,
-			};
+		for (agenda_index, _) in ordered.into_iter() {
+			let task = agenda[agenda_index as usize].clone();
 
 			let base_weight = T::WeightInfo::service_task(
 				// we know that maybe_call must be Some at this point
 				task.maybe_call.clone().unwrap().lookup_len().map(|x| x as usize),
 			);
+
 			if !weight.can_consume(base_weight) {
-				postponed += 1;
+				// postponed += 1;
 				break;
 			}
-			let result = Self::service_task(weight, when, agenda_index, *executed == 0, task);
-			agenda[agenda_index as usize] = match result {
-				Err((Unavailable, slot)) => {
-					dropped += 1;
-					slot
-				},
-				Err((Overweight, slot)) => {
-					postponed += 1;
-					slot
-				},
-				Ok(()) => {
-					*executed += 1;
-					None
-				},
-			};
-		}
-		if postponed > 0 || dropped > 0 {
-			// we cannot reschedule them, since that breaks front-running protection, so for now we simply drop them
-			// Agenda::<T>::insert(when, agenda);
-		} else {
-			Agenda::<T>::remove(when);
+
+			// TODO: gracefully handle errors (overweight)
+			let _result = Self::service_task(weight, when, agenda_index, *executed == 0, task);
+
+			// TODO: how should we report failures?
+			// agenda[agenda_index as usize] = match result {
+			// 	Err((Unavailable, slot)) => {
+			// 		dropped += 1;
+			// 		slot
+			// 	},
+			// 	Err((Overweight, slot)) => {
+			// 		dropped += 1;
+			// 		slot
+			// 	},
+			// 	Ok(()) => {
+			// 		// *executed += 1;
+			// 		None
+			// 	},
+			// };
 		}
 
-		postponed == 0
+		Agenda::<T>::remove(when);
+		// TODO return nothing instead
+		true
 	}
 
 	/// Service (i.e. execute) the given task, being careful not to overflow the `weight` counter.
@@ -519,7 +510,7 @@ impl<T: Config> Pallet<T> {
 		agenda_index: u32,
 		is_first: bool,
 		task: ScheduledOf<T>,
-	) -> Result<(), (ServiceTaskError, Option<ScheduledOf<T>>)> {
+	) -> Result<(), (ServiceTaskError, ScheduledOf<T>)> {
 		Lookup::<T>::remove(task.id);
 
 		let (call, lookup_len) = match T::Preimages::peek(&task.maybe_call.clone().unwrap()) {
@@ -530,7 +521,7 @@ impl<T: Config> Pallet<T> {
 					id: task.id,
 				});
 
-				return Err((Unavailable, Some(task)));
+				return Err((Unavailable, task));
 			},
 		};
 
@@ -543,9 +534,9 @@ impl<T: Config> Pallet<T> {
 					task: (when, agenda_index),
 					id: task.id,
 				});
-				Err((Unavailable, Some(task)))
+				Err((Unavailable, task))
 			},
-			Err(()) => Err((Overweight, Some(task))),
+			Err(()) => Err((Overweight, task)),
 			Ok(result) => {
 				Self::deposit_event(Event::Dispatched {
 					task: (when, agenda_index),

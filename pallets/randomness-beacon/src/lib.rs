@@ -262,7 +262,6 @@ pub mod pallet {
 									&mut frame_support::weights::WeightMeter::new(),
 									round,
 									sig.expect("TODO"),
-									2 << 5, // arbitrary
 								);
 								
 								tasks.insert(round, res);
@@ -414,7 +413,6 @@ pub mod pallet {
 					&mut executed,
 					k,
 					v,
-					2 << 5, // arbitrary
 				);
 			}
 
