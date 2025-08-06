@@ -15,11 +15,11 @@ validator = true
 id = 2000
 chain = "dev"
 default_command = "../../target/release/idn-node"
-default_args = [ "-lxcm=trace", "--enable-offchain-indexing=true" ]
+default_args = [ "-lxcm=trace,runtime::contracts=trace,runtime::xcm=trace,runtime::xcmp=info", "--enable-offchain-indexing=true" ]
 
 [[parachains.collators]]
 name = "idn-alice"
-rpc_port = 9933
+rpc_port = 9944
 
 [[parachains.collators]]
 name = "idn-bob"

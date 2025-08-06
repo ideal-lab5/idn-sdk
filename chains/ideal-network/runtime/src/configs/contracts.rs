@@ -20,17 +20,9 @@ use crate::{
 };
 use frame_support::{
 	parameter_types,
-	traits::{ConstBool, ConstU32},
+	traits::{ConstBool, ConstU32, Nothing},
 };
 use frame_system::EnsureSigned;
-
-pub enum AllowBalancesCall {}
-
-impl frame_support::traits::Contains<RuntimeCall> for AllowBalancesCall {
-	fn contains(call: &RuntimeCall) -> bool {
-		matches!(call, RuntimeCall::Balances(BalancesCall::transfer_allow_death { .. }))
-	}
-}
 
 const fn deposit(items: u32, bytes: u32) -> Balance {
 	(items as Balance * UNIT + (bytes as Balance) * (5 * MILLIUNIT / 100)) / 10
@@ -57,46 +49,47 @@ parameter_types! {
 }
 
 impl pallet_contracts::Config for Runtime {
-	type Time = Timestamp;
-	/// Contracts randomness provider is the randomness beacon pallet.
-	type Randomness = RandBeacon;
-	type Currency = Balances;
-	type RuntimeEvent = RuntimeEvent;
-	type RuntimeCall = RuntimeCall;
-	/// The safest default is to allow no calls at all.
-	///
-	/// Runtimes should whitelist dispatchables that are allowed to be called from contracts
-	/// and make sure they are stable. Dispatchables exposed to contracts are not allowed to
-	/// change because that would break already deployed contracts. The `RuntimeCall` structure
-	/// itself is not allowed to change the indices of existing pallets, too.
-	type CallFilter = AllowBalancesCall;
-	type DepositPerItem = DepositPerItem;
-	type DepositPerByte = DepositPerByte;
-	type CallStack = [pallet_contracts::Frame<Self>; 23];
-	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
-	type WeightInfo = ContractsWeightInfo<Runtime>;
-	type ChainExtension = ();
-	type Schedule = Schedule;
 	type AddressGenerator = pallet_contracts::DefaultAddressGenerator;
-	/// The maximum size of the code that can be uploaded to the chain. It should be consistent with
-	/// runtime heap memory limits.
-	type MaxCodeLen = ConstU32<{ 123 * 1024 }>;
+	type ApiVersion = ();
+	// IMPORTANT: only runtime calls through the api are allowed.
+	type CallFilter = Nothing;
+	type CallStack = [pallet_contracts::Frame<Self>; 23];
+	type ChainExtension = ();
+	type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
+	type Currency = Balances;
+	type Debug = ();
 	type DefaultDepositLimit = DefaultDepositLimit;
+	type DepositPerByte = DepositPerByte;
+	type DepositPerItem = DepositPerItem;
+	type Environment = ();
+	type InstantiateOrigin = EnsureSigned<Self::AccountId>;
+	// This node is geared towards development and testing of contracts.
+	// We decided to increase the default allowed contract size for this
+	// reason (the default is `128 * 1024`).
+	//
+	// Our reasoning is that the error code `CodeTooLarge` is thrown
+	// if a too-large contract is uploaded. We noticed that it poses
+	// less friction during development when the requirement here is
+	// just more lax.
+	type MaxCodeLen = ConstU32<{ 256 * 1024 }>;
+	type MaxDebugBufferLen = ConstU32<{ 2 * 1024 * 1024 }>;
+	type MaxDelegateDependencies = ConstU32<32>;
 	type MaxStorageKeyLen = ConstU32<128>;
 	type MaxTransientStorageSize = ConstU32<{ 1024 * 1024 }>;
-	type MaxDebugBufferLen = ConstU32<{ 2 * 1024 * 1024 }>;
-	type UnsafeUnstableInterface = ConstBool<true>;
-	type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
-	type MaxDelegateDependencies = MaxDelegateDependencies;
-	type RuntimeHoldReason = RuntimeHoldReason;
-	type Environment = ();
-	type Debug = ();
-	type ApiVersion = ();
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	type Migrations = ();
 	#[cfg(feature = "runtime-benchmarks")]
 	type Migrations = pallet_contracts::migration::codegen::BenchMigrations;
-	type Xcm = pallet_xcm::Pallet<Self>;
+	/// Contracts randomness provider is the randomness beacon pallet.
+	type Randomness = RandBeacon;
+	type RuntimeCall = RuntimeCall;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type Schedule = Schedule;
+	type Time = Timestamp;
+	type UnsafeUnstableInterface = ConstBool<true>;
 	type UploadOrigin = EnsureSigned<Self::AccountId>;
-	type InstantiateOrigin = EnsureSigned<Self::AccountId>;
+	type WeightInfo = ContractsWeightInfo<Runtime>;
+	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
+	type Xcm = pallet_xcm::Pallet<Self>;
 }
