@@ -71,4 +71,5 @@ idn-alice: count of log lines containing "Randomness distributed" is at least 3 
 idn-consumer-alice: js-script ../../scripts/testing/subscriptions/kill-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
 idn-alice: system event contains "A subscription has terminated" within 120 seconds
 # Verify subscription no longer in DB
+sleep 7 seconds
 idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-subscription-deleted.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds

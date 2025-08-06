@@ -879,7 +879,7 @@ impl<T: Config> Pallet<T> {
 					continue;
 				}
 
-				log::info!("Randomness distributed");
+				log::info!(target: LOG_TARGET, "Randomness distributed");
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			} else {
 				let idle_credits = T::FeesManager::get_idle_credits(Some(&sub));
