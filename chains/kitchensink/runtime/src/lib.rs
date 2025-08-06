@@ -29,10 +29,13 @@ extern crate alloc;
 
 use crate::{
 	interface::AccountId,
+	weights::constants::{BlockExecutionWeight, ExtrinsicBaseWeight},
 	sp_runtime::{traits::TryConvert, AccountId32},
 };
 use alloc::vec::Vec;
 use bp_idn::types::RuntimePulse;
+use frame_support::weights::constants::WEIGHT_REF_TIME_PER_SECOND;
+use frame_system::limits::{BlockLength, BlockWeights};
 use pallet_idn_manager::{
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
@@ -46,8 +49,11 @@ use polkadot_sdk::{
 	},
 	*,
 };
+use sp_runtime::Perbill;
 use xcm::v5::{Junction::Parachain, Location};
 use xcm_executor::traits::ConvertLocation;
+
+pub type Balance = u64;
 
 /// Provides getters for genesis configuration presets.
 pub mod genesis_config_presets {
@@ -95,6 +101,31 @@ pub mod genesis_config_presets {
 		vec![PresetId::from(sp_genesis_builder::DEV_RUNTIME_PRESET)]
 	}
 }
+
+// Unit = the base number of indivisible units for balances
+pub const UNIT: Balance = 1_000_000_000_000;
+pub const CENTIUNIT: Balance = 10_000_000_000;
+pub const MILLIUNIT: Balance = 1_000_000_000;
+pub const MICROUNIT: Balance = 1_000_000;
+
+/// The existential deposit. Set to 1/10 of the Connected Relay Chain.
+pub const EXISTENTIAL_DEPOSIT: Balance = MILLIUNIT;
+
+const fn deposit(items: u32, bytes: u32) -> Balance {
+	items as Balance * CENTIUNIT + bytes as Balance * CENTIUNIT
+}
+
+/// We assume that ~5% of the block weight is consumed by `on_initialize` handlers. This is
+/// used to limit the maximal weight of a single extrinsic.
+const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(5);
+
+/// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used by
+/// `Operational` extrinsics.
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+
+/// We allow for 2 seconds of compute with a 6-second average block.
+const MAXIMUM_BLOCK_WEIGHT: Weight =
+	Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_mul(2), u64::MAX);
 
 /// The runtime version.
 #[runtime_version]
@@ -185,6 +216,12 @@ mod runtime {
 	/// Provides a way to consume randomness.
 	#[runtime::pallet_index(7)]
 	pub type IdnConsumer = pallet_idn_consumer::Pallet<Runtime>;
+
+	#[runtime::pallet_index(8)]
+	pub type Scheduler = pallet_scheduler::Pallet<Runtime>;
+
+	#[runtime::pallet_index(9)]
+	pub type Preimage = pallet_preimage::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -231,6 +268,77 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type MaxSigsPerBlock = ConstU8<30>;
 	type Pulse = RuntimePulse;
 	type Dispatcher = IdnManager;
+}
+
+parameter_types! {
+	// This part is copied from Substrate's `bin/node/runtime/src/lib.rs`.
+	//  The `RuntimeBlockLength` and `RuntimeBlockWeights` exist here because the
+	// `DeletionWeightLimit` and `DeletionQueueDepth` depend on those to parameterize
+	// the lazy contract deletion.
+	pub RuntimeBlockLength: BlockLength =
+		BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+	pub RuntimeBlockWeights: BlockWeights = BlockWeights::builder()
+		.base_block(BlockExecutionWeight::get())
+		.for_class(DispatchClass::all(), |weights| {
+			weights.base_extrinsic = ExtrinsicBaseWeight::get();
+		})
+		.for_class(DispatchClass::Normal, |weights| {
+			weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+		})
+		.for_class(DispatchClass::Operational, |weights| {
+			weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
+			// Operational transactions have some extra reserved space, so that they
+			// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
+			weights.reserved = Some(
+				MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT
+			);
+		})
+		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
+		.build_or_panic();
+	pub const SS58Prefix: u16 = 42;
+}
+
+parameter_types! {
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+		RuntimeBlockWeights::get().max_block;
+}
+
+impl pallet_scheduler::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
+	type PalletsOrigin = crate::OriginCaller;
+	type RuntimeCall = RuntimeCall;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = frame_system::EnsureSigned<AccountId>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type MaxScheduledPerBlock = ConstU32<512>;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type MaxScheduledPerBlock = ConstU32<50>;
+	type WeightInfo = pallet_scheduler::weights::SubstrateWeightInfo<Runtime>;
+	type Preimages = crate::Preimage;
+}
+
+parameter_types! {
+	pub const PreimageHoldReason: RuntimeHoldReason =
+		RuntimeHoldReason::Preimage(pallet_preimage::HoldReason::Preimage);
+}
+
+parameter_types! {
+	pub const DepositPerItem: Balance = deposit(1, 0) as Balance;
+	pub const DepositPerByte: Balance = deposit(0, 1) as Balance;
+}
+
+impl pallet_preimage::Config for Runtime {
+	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Runtime>;
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type ManagerOrigin = EnsureRoot<AccountId>;
+	type Consideration = frame_support::traits::fungible::HoldConsideration<
+		AccountId,
+		Balances,
+		PreimageHoldReason,
+		frame_support::traits::LinearStoragePrice<DepositPerItem, DepositPerByte, Balance>,
+	>;
 }
 
 pub const MOCK_IDN_PARA_ID: u32 = 88;

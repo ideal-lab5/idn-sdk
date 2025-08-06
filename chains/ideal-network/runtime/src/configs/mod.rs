@@ -42,6 +42,7 @@ use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
 use xcm::prelude::BodyId;
 
@@ -58,7 +59,7 @@ use super::{
 	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook, Hash,
 	MessageQueue, Nonce, PalletInfo, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason,
 	RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys, System, WeightToFee,
-	XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT,
+	XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, CENTIUNIT, EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT,
 	MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
 };
 use xcm_config::RelayLocation;
@@ -91,6 +92,10 @@ parameter_types! {
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
 	pub const SS58Prefix: u16 = 42;
+}
+
+const fn deposit(items: u32, bytes: u32) -> Balance {
+	items as Balance * CENTIUNIT + bytes as Balance * CENTIUNIT
 }
 
 /// The default types are being injected by [`derive_impl`](`frame_support::derive_impl`) from
@@ -322,4 +327,47 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type MaxSigsPerBlock = MaxSigsPerBlock;
 	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;
+}
+
+parameter_types! {
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+		RuntimeBlockWeights::get().max_block;
+}
+
+impl pallet_scheduler::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
+	type PalletsOrigin = crate::OriginCaller;
+	type RuntimeCall = RuntimeCall;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = frame_system::EnsureSigned<AccountId>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type MaxScheduledPerBlock = ConstU32<512>;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type MaxScheduledPerBlock = ConstU32<50>;
+	type WeightInfo = pallet_scheduler::weights::SubstrateWeightInfo<Runtime>;
+	type Preimages = crate::Preimage;
+}
+
+parameter_types! {
+	pub const PreimageHoldReason: RuntimeHoldReason =
+		RuntimeHoldReason::Preimage(pallet_preimage::HoldReason::Preimage);
+}
+
+parameter_types! {
+	pub const DepositPerItem: Balance = deposit(1, 0) as Balance;
+	pub const DepositPerByte: Balance = deposit(0, 1) as Balance;
+}
+
+impl pallet_preimage::Config for Runtime {
+	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Runtime>;
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type ManagerOrigin = EnsureRoot<AccountId>;
+	type Consideration = frame_support::traits::fungible::HoldConsideration<
+		AccountId,
+		Balances,
+		PreimageHoldReason,
+		frame_support::traits::LinearStoragePrice<DepositPerItem, DepositPerByte, Balance>,
+	>;
 }

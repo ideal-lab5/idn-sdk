@@ -259,7 +259,8 @@ pub mod pallet {
 		}
 
 		/// Consumes subscription info from the IDN chain.
-		///
+		///SubInfoConsumer
+		
 		/// This function processes subscription information received from the IDN chain. The
 		/// behavior for handling the subscription info is defined in the [`SubInfoConsumer`] trait
 		/// implementation.

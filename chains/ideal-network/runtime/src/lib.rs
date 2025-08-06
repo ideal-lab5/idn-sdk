@@ -302,6 +302,12 @@ mod runtime {
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
 	#[runtime::pallet_index(41)]
 	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
+
+	#[runtime::pallet_index(42)]
+	pub type Preimage = pallet_preimage::Pallet<Runtime>;
+
+	#[runtime::pallet_index(43)]
+	pub type Scheduler = pallet_scheduler::Pallet<Runtime>;
 }
 
 cumulus_pallet_parachain_system::register_validate_block! {

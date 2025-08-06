@@ -83,7 +83,7 @@
 
 pub use pallet::*;
 
-use frame_support::{pallet_prelude::*, traits::Randomness};
+use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::BlockNumberFor;
 
 use alloc::collections::btree_map::BTreeMap;
@@ -125,11 +125,6 @@ pub mod pallet {
 	use sp_consensus_randomness_beacon::{digest::ConsensusLog, types::OpaqueSignature};
 	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
 	use sp_runtime::generic::DigestItem;
-	use timelock::{
-		block_ciphers::{AESGCMBlockCipherProvider, AESOutput},
-		engines::drand::TinyBLS381,
-		tlock::{tld, TLECiphertext},
-	};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -254,7 +249,6 @@ pub mod pallet {
 								let round = pulse.round;
 								let sig =
 									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok();
-								let opaque: [u8; 48] = bytes.as_ref().try_into().unwrap();
 
 								let res = pallet_scheduler::Pallet::<T>::service_agenda_decrypt_and_decode(
 									&mut frame_support::weights::WeightMeter::new(),
@@ -404,7 +398,6 @@ pub mod pallet {
 			T::Dispatcher::dispatch(runtime_pulse);
 
 			for (k, v) in raw_call_data {
-				log::info!("PROCESSING CALL DATA FOR ROUND {:?}, # CALLS = {:?}", k, v.len());
 				let mut executed = 0u32;
 				pallet_scheduler::Pallet::<T>::service_agenda_simple(
 					&mut frame_support::weights::WeightMeter::new(),

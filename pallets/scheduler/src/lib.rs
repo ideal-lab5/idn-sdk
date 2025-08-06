@@ -193,7 +193,6 @@ pub mod pallet {
 			> + GetDispatchInfo
 			+ From<system::Call<Self>>;
 
-		// TODO: remove?
 		/// The maximum weight that may be scheduled per block for any dispatchables.
 		#[pallet::constant]
 		type MaximumWeight: Get<Weight>;
@@ -222,7 +221,6 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		RoundNumber,
-		// TODO: does not need to be an option
 		BoundedVec<ScheduledOf<T>, T::MaxScheduledPerBlock>,
 		ValueQuery,
 	>;
@@ -248,13 +246,11 @@ pub mod pallet {
 		PermanentlyOverweight { task: TaskAddress<RoundNumber>, id: TaskName },
 	}
 
-	#[pallet::error]
-	pub enum Error<T> {
-		/// Failed to schedule a call
-		FailedToSchedule,
-		/// Attempt to use a non-named function on a named task.
-		Named,
-	}
+	// #[pallet::error]
+	// pub enum Error<T> {
+	// 	// / Failed to schedule a call
+	// 	// FailedToSchedule,
+	// }
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -335,6 +331,12 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// schedule sealed tasks
+	///
+	/// * `when`: The drand round number
+	/// * `priority`: The priority of the tasks
+	/// * `origin`: The origin to dispatch the call
+	/// * `ciphertext`: A timelock encrypted ciphertext for the given round number `when`
+	///
 	fn do_schedule_sealed(
 		when: u64, // drand round number
 		priority: schedule::Priority,
@@ -365,7 +367,7 @@ enum ServiceTaskError {
 use ServiceTaskError::*;
 
 impl<T: Config> Pallet<T> {
-	/// Given a decryption key (signature ) and identity (a message derived from `when`),
+	/// Given a decryption key (signature) and identity (a message derived from `when`),
 	/// attempt to decrypt ciphertexts locked for the given round number
 	/// where it outputs (bid, call).
 	/// Then perform a 'greedy' SPSBA auction on all incoming bids in order to choose the

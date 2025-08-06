@@ -723,7 +723,6 @@ pub mod pallet {
 				Self::calculate_subscription_fees(&params.quote_request.create_sub_params.credits);
 
 			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
-
 			Self::xcm_send(&requester, (params.call_index, quote.clone()).encode().into())?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
 
