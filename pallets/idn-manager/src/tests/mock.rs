@@ -21,7 +21,7 @@
 
 use crate::{
 	self as pallet_idn_manager,
-	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
+	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl32 as FeesManagerImpl},
 	primitives,
 	tests::xcm_controller::TestController,
 	BalanceOf, SubscriptionOf,
