@@ -31,6 +31,7 @@ idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5CQE1RtAnMdcd
 idn-consumer-alice: js-script ../../scripts/testing/subscriptions/quote-subscription.js within 120 seconds
 idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
 idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
+idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 10000, deposit: 1020 }" within 120 seconds
 
 # Create Subscription
 idn-consumer-alice: js-script ../../scripts/testing/subscriptions/create-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
@@ -45,6 +46,7 @@ idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-db.js with "0
 idn-consumer-alice: js-script ../../scripts/testing/subscriptions/request-subscription-info.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
 idn-alice: system event contains "Subscription Distributed" within 120 seconds
 idn-consumer-alice: system event contains "Subscription info was successfully consumed" within 120 seconds
+idn-consumer-alice: log line contains "IDN Consumer: Consuming subscription info: SubInfoResponse { req_ref: \[.*\], sub: Subscription { id: \[.*\], details: SubscriptionDetails { subscriber: 7369626cd1070000000000000000000000000000000000000000000000000000 \(\w*\W*\), target: Location { parents: 1, interior: X1\(\[Parachain\(2001\)\]\) }, call_index: \[.*\] }, credits_left: \w*, state: Active, created_at: \w*, updated_at: \w*, credits: 10000, frequency: 1020, metadata: None, last_delivered: Some\(\w*\) } }" within 120 seconds
 
 # Pause Subscription
 idn-consumer-alice: js-script ../../scripts/testing/subscriptions/pause-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
