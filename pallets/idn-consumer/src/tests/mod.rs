@@ -554,14 +554,14 @@ fn test_sudo_reactivate_subscription_success() {
 #[test]
 fn test_sudo_request_quote_success() {
 	ExtBuilder::build().execute_with(|| {
-		let credits = 10;
+		let number_of_pulses = 10;
 		let frequency = 5;
 		let metadata = None;
 		let sub_id = None;
 		let req_ref = None;
 		assert_ok!(crate::Pallet::<Test>::sudo_request_quote(
 			RuntimeOrigin::root(),
-			credits,
+			number_of_pulses,
 			frequency,
 			metadata,
 			sub_id,

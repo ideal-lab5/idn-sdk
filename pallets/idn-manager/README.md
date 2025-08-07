@@ -65,6 +65,10 @@ To reactivate a paused subscription, call the `reactivate_subscription` dispatch
 
 To terminate a subscription, call the `kill_subscription` dispatchable with the subscription ID.
 
+### Quote a Subscription
+
+To receive a quote for a subscription based on its *frequency* and *lifetime*, call the `quote_subscription` dispatchable.
+
 ## Events
 
 The IDN Manager pallet emits the following events:
@@ -75,6 +79,7 @@ The IDN Manager pallet emits the following events:
 - `SubscriptionReactivated`: A subscription has been reactivated.
 - `SubscriptionTerminated`: A subscription has been terminated.
 - `FeesCollected`: Fees have been successfully collected from a subscription.
+- `SubQuoted`: A quote was successfully computed for the given lifetime and frequency of a subscription. 
 
 ## Benchmarking
 
@@ -85,6 +90,7 @@ The IDN Manager pallet includes comprehensive benchmarking to measure and optimi
 - `pause_subscription`
 - `reactivate_subscription`
 - `kill_subscription`
+- `quote_subscription`
 
 ## Security Considerations
 
