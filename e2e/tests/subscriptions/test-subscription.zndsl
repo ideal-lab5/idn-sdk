@@ -1,0 +1,77 @@
+Description: Network test
+Network: ./zombienet.toml
+Creds: config
+
+# Ensure Nodes and Collators are running
+alice: is up
+bob: is up
+idn-alice: is up
+idn-bob: is up
+idn-consumer-alice: is up
+idn-consumer-bob: is up
+
+
+# Force open HRMP work around due to bug https://www.github.com/paritytech/polkadot-sdk/pull/1616#issuecomment-1727194584 
+#alice: ts-script ./typescript/testing-file.ts return is equal to 2 within 120 seconds
+idn-alice: js-script ../../scripts/setup/set-drand-pubkey.js within 120 seconds
+alice: run ../../scripts/setup/open_hrmp.sh within 120 seconds
+
+# Ensure Blocks are being produced, also give enough time to allow for HRMP channels to open
+alice: parachain 2000 block height is at least 10 within 6000 seconds
+alice: parachain 2001 block height is at least 10 within 6000 seconds
+
+# Fund Sovereign Account
+idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,1000000" within 120 seconds
+# Pause to allow next transaction to go through+
+sleep 7 seconds
+# Fund Treasury Account
+idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C,1000000" within 120 seconds
+
+# Quote Subscription
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/quote-subscription.js within 120 seconds
+idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
+idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
+idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 10000, deposit: 1020 }" within 120 seconds
+
+# Create Subscription
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/create-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-alice: system event contains "A new subscription was created" within 120 seconds
+idn-alice: system event contains "Fees collected" within 120 seconds
+idn-alice: system event contains "Randomness was successfully distributed" within 120 seconds
+idn-consumer-alice: system event contains "A randomness pulse was successfully consumed" within 120 seconds
+# Verify JSON stored in DB
+idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-db.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39,5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,Active,10000,1020" within 120 seconds
+
+# Request Subscription Info
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/request-subscription-info.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-alice: system event contains "Subscription Distributed" within 120 seconds
+idn-consumer-alice: system event contains "Subscription info was successfully consumed" within 120 seconds
+idn-consumer-alice: log line contains "IDN Consumer: Consuming subscription info: SubInfoResponse { req_ref: \[.*\], sub: Subscription { id: \[216, 255, 79, 79, 53, 107, 34, 60, 54, 163, 206, 118, 89, 194, 23, 59, 207, 82, 173, 142, 153, 129, 146, 65, 144, 187, 49, 217, 209, 97, 76, 57\], details: SubscriptionDetails { subscriber: 7369626cd1070000000000000000000000000000000000000000000000000000 \(5Eg2fntJ\.\.\.\), target: Location { parents: 1, interior: X1\(\[Parachain\(2001\)\]\) }, call_index: \[40, 0\] }, credits_left: \w*, state: Active, created_at: \w*, updated_at: \w*, credits: 10000, frequency: 1020, metadata: None, last_delivered: Some\(\w*\) } }" within 120 seconds
+
+# Pause Subscription
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/pause-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-alice: system event contains "A subscription was paused" within 120 seconds
+# Verify JSON stored in DB
+idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-db.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39,5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,Paused,10000,1020" within 120 seconds
+
+# Resume Subscription
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/reactivate-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-alice: system event contains "A subscription was reactivated" within 120 seconds
+# Verify JSON stored in DB
+idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-db.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39,5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,Active,10000,1020" within 120 seconds
+
+# Update Subscription
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/update-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-alice: system event contains "A subscription was updated" within 120 seconds
+# Test checks too fast for DB to be updated.
+sleep 7 seconds
+# Verify JSON stored in DB
+idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-db.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39,5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,Active,12000,1" within 120 seconds
+idn-alice: count of log lines containing "Randomness distributed" is at least 3 within 15 seconds
+
+# Kill Subscription
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/kill-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-alice: system event contains "A subscription has terminated" within 120 seconds
+# Verify subscription no longer in DB
+sleep 7 seconds
+idn-alice: js-script ../../scripts/testing/subscriptions/db/verify-subscription-deleted.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds

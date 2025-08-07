@@ -1,7 +1,7 @@
 #### Download zombienet from the releases page:
 https://github.com/paritytech/zombienet/releases
 
-Current version for development: 1.3.128
+Current version for development: 1.3.133
 
 #### If you'd like, move zombienet to include it in your path, ie
 `mv zombienet* /usr/local/bin/zombienet`
@@ -22,4 +22,4 @@ Current version for development: 1.3.128
 `zombienet -p native spawn zombienet.toml`
 
 #### To run tests
-`zombienet -p native test zombienet-test.zndsl` 
+`zombienet -p native test ./path/to/tests/<your-test-name>.zndsl` 
