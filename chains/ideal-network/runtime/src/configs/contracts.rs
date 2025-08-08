@@ -52,8 +52,9 @@ impl ChainExtension<Runtime> for RandExtension {
 		match func_id {
 			1101 => {
 				let mut env = env.buf_in_buf_out();
+				let arg: [u8; 32] = env.read_as()?;
 				let caller = env.ext().caller().clone();
-				let seed = [caller.encode(), env.ext().address().encode()].concat();
+				let seed = [caller.encode(), env.ext().address().encode(), arg.encode()].concat();
 				let (rand_hash, _block_number): (H256, _) = RandBeacon::random(&seed);
 				env.write(&rand_hash.encode(), false, None)
 					.map_err(|_| DispatchError::Other("Failed to write output randomness"))?;
