@@ -18,14 +18,58 @@ use crate::{
 	weights::ContractsWeightInfo, Balance, Balances, Perbill, RandBeacon, Runtime, RuntimeCall,
 	RuntimeEvent, RuntimeHoldReason, Timestamp, MILLIUNIT, UNIT,
 };
+use codec::Encode;
 use frame_support::{
 	parameter_types,
-	traits::{ConstBool, ConstU32, Nothing},
+	traits::{ConstBool, ConstU32, Nothing, Randomness},
 };
 use frame_system::EnsureSigned;
+use pallet_contracts::chain_extension::{
+	ChainExtension, Environment, Ext, InitState, RetVal, SysConfig,
+};
+use sp_core::{crypto::UncheckedFrom, H256};
+use sp_runtime::DispatchError;
+use sp_std::convert::AsRef;
 
 const fn deposit(items: u32, bytes: u32) -> Balance {
 	(items as Balance * UNIT + (bytes as Balance) * (5 * MILLIUNIT / 100)) / 10
+}
+
+#[derive(Default)]
+pub struct RandExtension;
+
+impl ChainExtension<Runtime> for RandExtension {
+	fn call<E: Ext>(&mut self, env: Environment<E, InitState>) -> Result<RetVal, DispatchError>
+	where
+		<E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+	{
+		let func_id = env.func_id();
+		log::trace!(
+			target: "runtime",
+			"[ChainExtension]|call|func_id:{:}",
+			func_id
+		);
+		match func_id {
+			1101 => {
+				let mut env = env.buf_in_buf_out();
+				let caller = env.ext().caller().clone();
+				let seed = [caller.encode(), env.ext().address().encode()].concat();
+				let (rand_hash, _block_number): (H256, _) = RandBeacon::random(&seed);
+				env.write(&rand_hash.encode(), false, None)
+					.map_err(|_| DispatchError::Other("Failed to write output randomness"))?;
+
+				Ok(RetVal::Converging(0))
+			},
+			_ => {
+				log::error!("Called an unregistered `func_id`: {:}", func_id);
+				Err(DispatchError::Other("Unimplemented func_id"))
+			},
+		}
+	}
+
+	fn enabled() -> bool {
+		true
+	}
 }
 
 fn schedule<T: pallet_contracts::Config>() -> pallet_contracts::Schedule<T> {
@@ -54,7 +98,7 @@ impl pallet_contracts::Config for Runtime {
 	// IMPORTANT: only runtime calls through the api are allowed.
 	type CallFilter = Nothing;
 	type CallStack = [pallet_contracts::Frame<Self>; 23];
-	type ChainExtension = ();
+	type ChainExtension = RandExtension;
 	type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
 	type Currency = Balances;
 	type Debug = ();
