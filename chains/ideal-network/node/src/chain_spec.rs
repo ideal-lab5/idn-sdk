@@ -137,7 +137,7 @@ pub fn local_testnet_config() -> ChainSpec {
 	#[allow(deprecated)]
 	ChainSpec::builder(
 		runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
-		Extensions { relay_chain: "paseo-local".into(), para_id: 2000 },
+		Extensions { relay_chain: "paseo-local".into(), para_id: 4502 },
 	)
 	.with_name("IDN Local Testnet")
 	.with_id("idn_local_testnet")
@@ -152,11 +152,33 @@ pub fn local_testnet_config() -> ChainSpec {
 				.unwrap()
 				.into(),
 		],
-		vec![],
+		vec![
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
+			get_account_id_from_seed::<sr25519::Public>("Charlie"),
+			get_account_id_from_seed::<sr25519::Public>("Dave"),
+			get_account_id_from_seed::<sr25519::Public>("Eve"),
+			get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+			get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+			sr25519::Public::from_str("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C") // Treasury Account
+				.unwrap()
+				.into(),
+			sr25519::Public::from_str("5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK") // Sibling 2001 Account (consumer)
+				.unwrap()
+				.into(),
+			sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
+				.unwrap()
+				.into(),
+		],
 		sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
 			.unwrap()
 			.into(),
-		2000.into(),
+		4502.into(),
 	))
 	.with_protocol_id("idn-local-testnet-protocol-id")
 	.with_properties(properties)
