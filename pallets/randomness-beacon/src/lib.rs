@@ -379,7 +379,7 @@ pub mod pallet {
 
 			// dispatch pulses to subscribers
 			let runtime_pulse = T::Pulse::from(sacc);
-			T::Dispatcher::dispatch(runtime_pulse.clone());
+			T::Dispatcher::dispatch(runtime_pulse);
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 
