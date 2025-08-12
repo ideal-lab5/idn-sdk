@@ -32,7 +32,7 @@ use crate::{
 	sp_runtime::{traits::TryConvert, AccountId32},
 };
 use alloc::vec::Vec;
-use bp_idn::types::RuntimePulse;
+use bp_idn::types::{BlockNumber, RuntimePulse};
 use pallet_idn_manager::{
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
@@ -280,7 +280,13 @@ impl ConvertLocation<AccountId32> for MockSiblingConversion {
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager = FeesManagerImpl<TreasuryAccount, SubscriptionOf<Runtime>, Balances>;
+	type FeesManager = FeesManagerImpl<
+		TreasuryAccount,
+		SubscriptionOf<Runtime>,
+		Balances,
+		BlockNumber,
+		BlockNumber,
+	>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;

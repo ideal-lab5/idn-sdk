@@ -141,9 +141,9 @@ pub trait DiffBalance<Balance> {
 #[doc = docify::embed!("./src/traits/example.rs", tiered_fee_calculator)]
 pub trait FeesManager<Fees, Credits, F, P, Sub: Subscription<S>, Err, S, Diff: DiffBalance<Fees>>
 where
-	Credits: sp_runtime::Saturating,
-	P: Into<Credits> + sp_runtime::Saturating,
-	F: Into<Credits> + sp_runtime::Saturating,
+	Credits: sp_runtime::Saturating + From<F> + From<P>,
+	P: sp_runtime::Saturating,
+	F: sp_runtime::Saturating,
 {
 	/// Calculate the minimum number of credits required to power the subscription under the given
 	/// frequency and lifetime credit calculation pertains to subscription frequency and lifetime,
@@ -157,9 +157,8 @@ where
 	/// * `lifetime`: The desired number of pulses to be delivered during the subscription's
 	///   lifetime
 	fn calculate_credits(frequency: F, lifetime: P) -> Credits {
-		lifetime.into().saturating_mul(
-			frequency
-				.into()
+		Credits::from(lifetime).saturating_mul(
+			Credits::from(frequency)
 				.saturating_mul(Self::get_idle_credits(None))
 				.saturating_add(Self::get_consume_credits(None)),
 		)

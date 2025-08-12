@@ -154,11 +154,11 @@ pub type UpdateSubParams = MngUpdateSubParams<SubscriptionId, Credits, BlockNumb
 /// The parameters for quoting a subscription.
 ///
 /// See [`pallet_idn_manager::primitives::QuoteSubParams`] for more details.
-pub type QuoteSubParams = MngQuoteSubParams<CreateSubParams>;
+pub type QuoteSubParams = MngQuoteSubParams<CreateSubParams, BlockNumber>;
 /// The request for a quote, containing the parameters for the describing the subscription.
 ///
 /// See [`pallet_idn_manager::primitives::QuoteRequest`] for more details.
-pub type QuoteRequest = MngQuoteRequest<CreateSubParams>;
+pub type QuoteRequest = MngQuoteRequest<CreateSubParams, BlockNumber>;
 /// The quote for a subscription, containing the deposit and fees.
 ///
 /// See [`pallet_idn_manager::primitives::Quote`] for more details.
