@@ -288,7 +288,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type FeesManager =
-		impls::FeesManagerImpl<types::TreasuryAccount, SubscriptionOf<Runtime>, Balances>;
+		impls::FeesManagerImpl<types::TreasuryAccount, SubscriptionOf<Runtime>, Balances, u32, u32>;
 	type DepositCalculator = impls::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
 	type PalletId = types::IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;

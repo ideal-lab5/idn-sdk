@@ -280,7 +280,8 @@ impl ConvertLocation<AccountId32> for MockSiblingConversion {
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager = FeesManagerImpl<TreasuryAccount, SubscriptionOf<Runtime>, Balances>;
+	type FeesManager =
+		FeesManagerImpl<TreasuryAccount, SubscriptionOf<Runtime>, Balances, u32, u32>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
