@@ -152,7 +152,7 @@ impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type FeesManager =
-		FeesManagerImpl<TreasuryAccount, SubscriptionOf<Test>, Balances, BlockNumber, BlockNumber>;
+		FeesManagerImpl<TreasuryAccount, SubscriptionOf<Test>, Balances, u64, u64>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
