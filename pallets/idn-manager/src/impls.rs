@@ -71,12 +71,8 @@ impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, SubscriptionId>
 ///   details.
 /// * `Balances`: A `Mutate<AccountId32>` implementation that provides the ability to hold and
 ///   release balances.
-pub struct FeesManagerImpl<Treasury, Sub, Balances> {
-	_phantom: PhantomData<(Treasury, Sub, Balances)>,
-}
-
-pub struct FeesManagerImpl32<Treasury, Sub, Balances> {
-	_phantom: PhantomData<(Treasury, Sub, Balances)>,
+pub struct FeesManagerImpl<Treasury, Sub, Balances, Frequency, PulseIndex> {
+	_phantom: PhantomData<(Treasury, Sub, Balances, Frequency, PulseIndex)>,
 }
 
 /// This struct represent movement of balance.
@@ -107,190 +103,27 @@ impl<Balance: Copy> DiffBalance<Balance> for DiffBalanceImpl<Balance> {
 ///
 /// ## Calculate Subscription Fees Test
 #[doc = docify::embed!("./src/tests/pallet.rs", test_calculate_subscription_fees)]
-impl<Treasury, Sub, Balances>
+impl<Treasury, Sub, Balances, Frequency, PulseIndex>
 	FeesManager<
 		Balances::Balance,
 		u64,
-		u64,
-		u64,
+		Frequency,
+		PulseIndex,
 		Sub,
 		DispatchError,
 		AccountId32,
 		DiffBalanceImpl<Balances::Balance>,
-	> for FeesManagerImpl32<Treasury, Sub, Balances>
+	> for FeesManagerImpl<Treasury, Sub, Balances, Frequency, PulseIndex>
 where
 	Treasury: Get<AccountId32>,
 	Sub: SubscriptionTrait<AccountId32>,
 	Balances: HoldMutate<AccountId32> + Mutate<AccountId32> + Inspect<AccountId32>,
 	Balances::Reason: From<HoldReason>,
 	Balances::Balance: From<u64>,
-{
-	/// Calculate the subscription fees based on the number of requested credits.
-	///
-	/// This function implements a tiered pricing model with volume discounts:
-	/// - Tier 1 (1-10_000 credits): 100% of base fee per credit (no discount)
-	/// - Tier 2 (10_001-100_000 credits): 95% of base fee per credit (5% discount)
-	/// - Tier 3 (101-1000 credits): 90% of base fee per credit (10% discount)
-	/// - Tier 4 (1001-10000 credits): 80% of base fee per credit (20% discount)
-	/// - Tier 5 (10001+ credits): 70% of base fee per credit (30% discount)
-	///
-	/// The fee calculation processes each tier sequentially:
-	/// 1. For each tier, calculate how many credits fall within that tier
-	/// 2. Apply the corresponding discount rate to those credits
-	/// 3. Sum up the fees across all tiers
-	fn calculate_subscription_fees(credits: &u64) -> Balances::Balance {
-		// Define tier boundaries and their respective discount rates (in basis points)
-		const TIERS: [(u64, u64); 5] = [
-			(1, 0),           // 1-10_000: 0% discount
-			(10_001, 5),      // 10_001-100_000: 5% discount
-			(100_001, 10),    // 100_001-1_000_000: 10% discount
-			(1_000_001, 20),  // 1_000_001-10_000_000: 20% discount
-			(10_000_001, 30), // 10_000_001+: 30% discount
-		];
-
-		const BASE_FEE: u64 = 100;
-
-		let mut total_fee = 0u64;
-		let mut remaining_credits = *credits;
-
-		for (i, &(current_tier_start, current_tier_discount)) in TIERS.iter().enumerate() {
-			// If no remaining credits exit loop.
-			if remaining_credits == 0 {
-				break;
-			}
-
-			let next_tier_start = TIERS.get(i + 1).map(|&(start, _)| start).unwrap_or(u64::MAX);
-
-			let credits_in_tier =
-				(credits.min(&next_tier_start.saturating_sub(1)) - current_tier_start + 1)
-					.min(remaining_credits);
-
-			let tier_fee = BASE_FEE
-				.saturating_mul(credits_in_tier)
-				.saturating_mul(100 - current_tier_discount)
-				.saturating_div(100);
-
-			total_fee = total_fee.saturating_add(tier_fee);
-			remaining_credits = remaining_credits.saturating_sub(credits_in_tier);
-		}
-
-		total_fee.into()
-	}
-
-	/// Calculate the difference in fees when a subscription changes, determining whether
-	/// additional fees should be collected or excess fees should be released. This is useful for
-	/// subscription updates and kills for holding or releasing fees. Or when collecting fees from a
-	/// subscriber.
-	///
-	/// This function compares the fees required before and after a subscription change,
-	/// then returns:
-	/// - The fee difference amount
-	/// - The direction of the balance transfer (collect from user, release to user, or no change)
-	fn calculate_diff_fees(
-		old_credits: &u64,
-		new_credits: &u64,
-	) -> DiffBalanceImpl<Balances::Balance> {
-		let old_fees = Self::calculate_subscription_fees(old_credits);
-		let new_fees = Self::calculate_subscription_fees(new_credits);
-		let mut direction = BalanceDirection::None;
-		let fees = match new_fees.cmp(&old_fees) {
-			Ordering::Greater => {
-				direction = BalanceDirection::Collect;
-				new_fees - old_fees
-			},
-			Ordering::Less => {
-				direction = BalanceDirection::Release;
-				old_fees - new_fees
-			},
-			Ordering::Equal => Zero::zero(),
-		};
-		DiffBalanceImpl { balance: fees, direction }
-	}
-
-	/// Attempts to collect subscription fees from a subscriber and transfer them to the treasury
-	/// account.
-	///
-	/// This function:
-	/// 1. Transfers the specified fees from the subscriber's held balance to the treasury account
-	/// 2. Verifies that the full fee amount was successfully collected
-	/// 3. Returns the actual amount collected or an appropriate error
-	///
-	/// # Notes
-	/// - This function uses
-	///   [`transfer_on_hold`](frame_support::traits::tokens::fungible::hold::Mutate::transfer_on_hold)
-	///   which transfers from the subscriber's held balance
-	/// - The fees are held under the [`HoldReason::Fees`] reason code
-	/// - The transfer uses [`Precision::BestEffort`] which allows partial transfers if full amount
-	///   isn't available
-	/// - Despite using best effort, this function will return an error if less than the requested
-	///   amount is collected
-	fn collect_fees(
-		fees: &Balances::Balance,
-		sub: &Sub,
-	) -> Result<Balances::Balance, FeesError<Balances::Balance, DispatchError>> {
-		// Ensure the treasury account is set for benchmarking purposes
-		#[cfg(feature = "runtime-benchmarks")]
-		if Balances::balance(&Treasury::get()) < Balances::minimum_balance() {
-			Balances::set_balance(
-				&Treasury::get(),
-				Balances::minimum_balance() - Balances::balance(&Treasury::get()),
-			);
-		}
-
-		// Collect the held fees from the subscriber
-		let collected = Balances::transfer_on_hold(
-			&HoldReason::Fees.into(),
-			sub.subscriber(),
-			&Treasury::get(),
-			*fees,
-			Precision::BestEffort,
-			Restriction::Free,
-			Fortitude::Polite,
-		)
-		.map_err(FeesError::Other)?;
-
-		// Ensure the correct credits were collected.
-		if collected < *fees {
-			return Err(FeesError::NotEnoughBalance { needed: *fees, balance: collected });
-		}
-
-		Ok(collected)
-	}
-
-	/// Get the number of credits consumed by a subscription when this one gets a pulse in a block.
-	fn get_consume_credits(_sub: Option<&Sub>) -> u64 {
-		1000
-	}
-
-	/// Get the number of credits consumed by a subscription when this one is idle in a block.
-	fn get_idle_credits(_sub: Option<&Sub>) -> u64 {
-		10
-	}
-}
-
-/// Implementation of the FeesManager trait for the FeesManagerImpl struct.
-///
-/// # Tests
-///
-/// ## Calculate Subscription Fees Test
-#[doc = docify::embed!("./src/tests/pallet.rs", test_calculate_subscription_fees)]
-impl<Treasury, Sub, Balances>
-	FeesManager<
-		Balances::Balance,
-		u64,
-		u32,
-		u32,
-		Sub,
-		DispatchError,
-		AccountId32,
-		DiffBalanceImpl<Balances::Balance>,
-	> for FeesManagerImpl<Treasury, Sub, Balances>
-where
-	Treasury: Get<AccountId32>,
-	Sub: SubscriptionTrait<AccountId32>,
-	Balances: HoldMutate<AccountId32> + Mutate<AccountId32> + Inspect<AccountId32>,
-	Balances::Reason: From<HoldReason>,
-	Balances::Balance: From<u64>,
+	Frequency: Saturating,
+	PulseIndex: Saturating,
+	u64: From<Frequency>,
+	u64: From<PulseIndex>,
 {
 	/// Calculate the subscription fees based on the number of requested credits.
 	///

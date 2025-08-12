@@ -287,8 +287,13 @@ mod bench_ensure_origin {
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager =
-		impls::FeesManagerImpl<types::TreasuryAccount, SubscriptionOf<Runtime>, Balances>;
+	type FeesManager = impls::FeesManagerImpl<
+		types::TreasuryAccount,
+		SubscriptionOf<Runtime>,
+		Balances,
+		BlockNumber,
+		BlockNumber,
+	>;
 	type DepositCalculator = impls::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
 	type PalletId = types::IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;

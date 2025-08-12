@@ -21,7 +21,7 @@
 
 use crate::{
 	self as pallet_idn_manager,
-	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl32 as FeesManagerImpl},
+	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	primitives,
 	tests::xcm_controller::TestController,
 	BalanceOf, SubscriptionOf,
@@ -151,7 +151,8 @@ impl ConvertLocation<AccountId32> for MockSiblingConversion {
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager = FeesManagerImpl<TreasuryAccount, SubscriptionOf<Test>, Balances>;
+	type FeesManager =
+		FeesManagerImpl<TreasuryAccount, SubscriptionOf<Test>, Balances, BlockNumber, BlockNumber>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
