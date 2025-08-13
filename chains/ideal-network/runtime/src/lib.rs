@@ -309,6 +309,8 @@ mod runtime {
 	// Contracts
 	#[runtime::pallet_index(50)]
 	pub type Contracts = pallet_contracts::Pallet<Runtime>;
+	#[runtime::pallet_index(51)]
+	pub type RandomnessCollectiveFlip = pallet_insecure_randomness_collective_flip::Pallet<Runtime>;
 }
 
 type EventRecord = frame_system::EventRecord<

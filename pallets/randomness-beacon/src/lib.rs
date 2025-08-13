@@ -161,6 +161,8 @@ pub mod pallet {
 			+ From<Accumulation>;
 		/// Something that can dispatch pulses
 		type Dispatcher: Dispatcher<Self::Pulse>;
+		/// The fallback randomness source
+		type FallbackRandomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 	}
 
 	/// The round when we start consuming pulses
@@ -422,20 +424,23 @@ pub mod pallet {
 	}
 }
 
-impl<T: Config> Randomness<H256, BlockNumberFor<T>> for Pallet<T> {
-	fn random(subject: &[u8]) -> (H256, BlockNumberFor<T>) {
+impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T>
+where
+	T::Hash: From<H256>,
+{
+	fn random(subject: &[u8]) -> (T::Hash, BlockNumberFor<T>) {
 		match SparseAccumulation::<T>::get() {
 			Some(accumulation) => {
 				// Hash the aggregated signature directly as suggested by the colleague
-				let randomness_hash = accumulation.signature.hash(subject);
+				let randomness_hash = accumulation.signature.hash(subject).into();
 				(randomness_hash, frame_system::Pallet::<T>::block_number())
 			},
 			None => {
 				log::warn!(
 					target: LOG_TARGET,
-					"Randomness requested but no sparse accumulation available. Returning default values."
+					"Randomness requested but no sparse accumulation available. Returning fallback values."
 				);
-				(H256::default(), BlockNumberFor::<T>::default())
+				T::FallbackRandomness::random(subject)
 			},
 		}
 	}

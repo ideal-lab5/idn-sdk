@@ -30,6 +30,7 @@ serde_json = { workspace = true, default-features = false, features = [
 xcm.workspace = true
 xcm-executor.workspace = true
 xcm-builder.workspace = true
+pallet-insecure-randomness-collective-flip.workspace = true
 # IDN Deps
 bp-idn.workspace = true
 pallet-idn-consumer.workspace = true
@@ -60,6 +61,7 @@ std = [
 	"xcm/std",
 	"xcm-builder/std",
 	"pallet-idn-consumer/std",
+	"pallet-insecure-randomness-collective-flip/std",
 ]
 
 runtime-benchmarks = [
