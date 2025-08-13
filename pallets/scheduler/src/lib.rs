@@ -222,7 +222,6 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		RoundNumber,
-		// TODO: does not need to be an option
 		BoundedVec<ScheduledOf<T>, T::MaxScheduledPerBlock>,
 		ValueQuery,
 	>;
