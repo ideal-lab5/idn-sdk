@@ -174,16 +174,19 @@ mod runtime {
 	#[runtime::pallet_index(4)]
 	pub type TransactionPayment = pallet_transaction_payment::Pallet<Runtime>;
 
-	/// Provides a way to manage randomness pulses.
 	#[runtime::pallet_index(5)]
+	pub type RandomnessCollectiveFlip = pallet_insecure_randomness_collective_flip;
+
+	/// Provides a way to manage randomness pulses.
+	#[runtime::pallet_index(6)]
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
 
 	/// Provides a way to ingest randomness.
-	#[runtime::pallet_index(6)]
+	#[runtime::pallet_index(7)]
 	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
 
 	/// Provides a way to consume randomness.
-	#[runtime::pallet_index(7)]
+	#[runtime::pallet_index(8)]
 	pub type IdnConsumer = pallet_idn_consumer::Pallet<Runtime>;
 }
 
@@ -231,6 +234,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type MaxSigsPerBlock = ConstU8<30>;
 	type Pulse = RuntimePulse;
 	type Dispatcher = IdnManager;
+	type FallbackRandomness = RandomnessCollectiveFlip;
 }
 
 pub const MOCK_IDN_PARA_ID: u32 = 88;
@@ -330,6 +334,8 @@ impl pallet_idn_consumer::Config for Runtime {
 	type MaxIdnXcmFees = MaxIdnXcmFees;
 	type WeightInfo = pallet_idn_consumer::weights::SubstrateWeight<Runtime>;
 }
+
+impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
 
 type Block = frame::runtime::types_common::BlockOf<Runtime, TxExtension>;
 type Header = HeaderFor<Runtime>;

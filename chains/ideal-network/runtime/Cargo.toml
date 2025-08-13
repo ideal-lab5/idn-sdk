@@ -38,6 +38,7 @@ pallet-aura.workspace = true
 pallet-authorship.workspace = true
 pallet-balances.workspace = true
 pallet-contracts.workspace = true
+pallet-insecure-randomness-collective-flip.workspace = true
 pallet-message-queue.workspace = true
 pallet-session.workspace = true
 pallet-sudo.workspace = true
@@ -118,6 +119,7 @@ std = [
   "pallet-balances/std",
   "pallet-collator-selection/std",
   "pallet-contracts/std",
+  "pallet-insecure-randomness-collective-flip/std",
   "pallet-message-queue/std",
   "pallet-randomness-beacon/std",
   "pallet-session/std",
@@ -196,6 +198,7 @@ try-runtime = [
   "pallet-balances/try-runtime",
   "pallet-collator-selection/try-runtime",
   "pallet-contracts/try-runtime",
+  "pallet-insecure-randomness-collective-flip/try-runtime",
   "pallet-message-queue/try-runtime",
   "pallet-session/try-runtime",
   "pallet-sudo/try-runtime",
