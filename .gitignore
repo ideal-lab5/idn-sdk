@@ -44,3 +44,5 @@ target*/
 __pycache__
 node_files/
 **/proptest-regressions/
+.cursorrules
+CLAUDE.md

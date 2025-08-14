@@ -140,8 +140,12 @@ pub fn local_testnet_config() -> ChainSpec {
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
 		vec![
-			get_account_id_from_seed::<sr25519::Public>("Alice"),
-			get_account_id_from_seed::<sr25519::Public>("Bob"),
+			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+				.unwrap()
+				.into(),
+			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+				.unwrap()
+				.into(),
 		],
 		vec![
 			get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -156,8 +160,13 @@ pub fn local_testnet_config() -> ChainSpec {
 			get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
 			get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
 			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+			sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
+				.unwrap()
+				.into(),
 		],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
+			.unwrap()
+			.into(),
 		4594.into(),
 	))
 	.with_protocol_id("idn-consumer-local-testnet-protocol-id")

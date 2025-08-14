@@ -85,9 +85,15 @@ pub use pallet::*;
 
 use frame_support::pallet_prelude::*;
 
+use frame_support::traits::Randomness;
+use frame_system::pallet_prelude::BlockNumberFor;
 use sp_consensus_randomness_beacon::types::CanonicalPulse;
+use sp_core::H256;
 use sp_idn_crypto::verifier::SignatureVerifier;
-use sp_idn_traits::pulse::{Dispatcher, Pulse as TPulse};
+use sp_idn_traits::{
+	pulse::{Dispatcher, Pulse as TPulse},
+	Hashable,
+};
 use sp_std::fmt::Debug;
 
 extern crate alloc;
@@ -155,6 +161,8 @@ pub mod pallet {
 			+ From<Accumulation>;
 		/// Something that can dispatch pulses
 		type Dispatcher: Dispatcher<Self::Pulse>;
+		/// The fallback randomness source
+		type FallbackRandomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 	}
 
 	/// The round when we start consuming pulses
@@ -376,6 +384,7 @@ pub mod pallet {
 			T::Dispatcher::dispatch(runtime_pulse);
 
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
+
 			// Insert the latest round into the header digest
 			let digest_item: DigestItem = ConsensusLog::LatestRoundNumber(end).into();
 			<frame_system::Pallet<T>>::deposit_log(digest_item);
@@ -411,6 +420,28 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::BeaconConfigSet);
 
 			Ok(Pays::No.into())
+		}
+	}
+}
+
+impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T>
+where
+	T::Hash: From<H256>,
+{
+	fn random(subject: &[u8]) -> (T::Hash, BlockNumberFor<T>) {
+		match SparseAccumulation::<T>::get() {
+			Some(accumulation) => {
+				// Hash the aggregated signature directly as suggested by the colleague
+				let randomness_hash = accumulation.signature.hash(subject).into();
+				(randomness_hash, frame_system::Pallet::<T>::block_number())
+			},
+			None => {
+				log::warn!(
+					target: LOG_TARGET,
+					"Randomness requested but no sparse accumulation available. Returning fallback values."
+				);
+				T::FallbackRandomness::random(subject)
+			},
 		}
 	}
 }

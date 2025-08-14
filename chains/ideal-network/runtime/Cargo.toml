@@ -37,6 +37,8 @@ frame-try-runtime = { optional = true, workspace = true }
 pallet-aura.workspace = true
 pallet-authorship.workspace = true
 pallet-balances.workspace = true
+pallet-contracts.workspace = true
+pallet-insecure-randomness-collective-flip.workspace = true
 pallet-message-queue.workspace = true
 pallet-session.workspace = true
 pallet-sudo.workspace = true
@@ -116,6 +118,8 @@ std = [
   "pallet-authorship/std",
   "pallet-balances/std",
   "pallet-collator-selection/std",
+  "pallet-contracts/std",
+  "pallet-insecure-randomness-collective-flip/std",
   "pallet-message-queue/std",
   "pallet-randomness-beacon/std",
   "pallet-session/std",
@@ -165,6 +169,7 @@ runtime-benchmarks = [
   "pallet-idn-manager/runtime-benchmarks",
   "pallet-balances/runtime-benchmarks",
   "pallet-collator-selection/runtime-benchmarks",
+  "pallet-contracts/runtime-benchmarks",
   "pallet-message-queue/runtime-benchmarks",
   "pallet-sudo/runtime-benchmarks",
   "pallet-timestamp/runtime-benchmarks",
@@ -192,6 +197,8 @@ try-runtime = [
   "pallet-authorship/try-runtime",
   "pallet-balances/try-runtime",
   "pallet-collator-selection/try-runtime",
+  "pallet-contracts/try-runtime",
+  "pallet-insecure-randomness-collective-flip/try-runtime",
   "pallet-message-queue/try-runtime",
   "pallet-session/try-runtime",
   "pallet-sudo/try-runtime",
