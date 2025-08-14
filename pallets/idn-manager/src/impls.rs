@@ -259,12 +259,12 @@ where
 
 	/// Get the number of credits consumed by a subscription when this one gets a pulse in a block.
 	fn get_consume_credits(_sub: Option<&Sub>) -> u64 {
-		1000
+		1
 	}
 
 	/// Get the number of credits consumed by a subscription when this one is idle in a block.
 	fn get_idle_credits(_sub: Option<&Sub>) -> u64 {
-		10
+		0
 	}
 }
 

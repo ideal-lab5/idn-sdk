@@ -899,6 +899,7 @@ fn test_credits_consumption_xcm_send_fails() {
 	});
 }
 
+#[cfg(feature = "frequency-aware")]
 #[test]
 fn test_credits_consumption_frequency() {
 	ExtBuilder::build().execute_with(|| {
