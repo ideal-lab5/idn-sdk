@@ -50,7 +50,7 @@ pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId> {
 	pub target: Location,
 	// Call index for XCM message
 	pub call_index: CallIndex,
-	// Distribution interval for pulses
+	// Distribution interval for pulses (ignored unless the `frequency-aware` feature is enabled)
 	pub frequency: Frequency,
 	// Bounded vector for additional data
 	pub metadata: Option<Metadata>,

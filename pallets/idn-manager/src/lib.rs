@@ -507,7 +507,7 @@ pub mod pallet {
 				updated_at: current_block,
 				credits: params.credits,
 				frequency: params.frequency,
-				metadata: params.metadata,
+				metadata: params.metadata, 
 				last_delivered: None,
 			};
 
@@ -850,13 +850,16 @@ impl<T: Config> Pallet<T> {
 		let current_block = frame_system::Pallet::<T>::block_number();
 
 		for (sub_id, mut sub) in Subscriptions::<T>::iter() {
+			#[cfg(feature = "frequency-aware")]
+			let is_ready = current_block >= sub.last_delivered.unwrap() + sub.frequency;
+			#[cfg(not(feature = "frequency-aware"))]
+			let is_ready = current_block >= sub.last_delivered.unwrap();
 			// Filter for active subscriptions that are eligible for delivery based on frequency
 			if
 			// Subscription must be active
 			sub.state ==  SubscriptionState::Active   &&
 					// And either never delivered before, or enough blocks have passed since last delivery
-					(sub.last_delivered.is_none() ||
-					current_block >= sub.last_delivered.unwrap() + sub.frequency)
+					(sub.last_delivered.is_none() || is_ready)
 			{
 				// Make sure credits are consumed before sending the XCM message
 				let consume_credits = T::FeesManager::get_consume_credits(Some(&sub));
