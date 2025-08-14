@@ -122,7 +122,7 @@ IdnConsumer::<T>::kill_subscription(sub_id)?;
 
 ```rust
 let req_ref = IdnConsumer::<T>::request_quote(
-    credits,
+    number_of_pulses,
     frequency,
     metadata,
     sub_id,
@@ -132,15 +132,15 @@ let req_ref = IdnConsumer::<T>::request_quote(
 
 **Parameters**
 
- <!-- TODO: update the following as part of https://github.com/ideal-lab5/idn-sdk/issues/236  -->
-
-- `credits`: The number of credits to get for this subscription. The more credits purchased, the more pulses will be received.
+- `number_of_pulses`: The number of pulses to get for this subscription.
 - `frequency`: The distribution interval for pulses, specified in IDN block numbers. [See note 1](#notes)
 - `metadata`: Optional metadata associated with the subscription, provided as a bounded vector.
 - `sub_id`: An optional subscription ID. If `None`, a new ID will be generated automatically.
 - `req_ref`: An optional request reference. If `None`, a new reference will be generated automatically to track the request.
 
   This request is internally an XCM call to the IDN parachain. The IDN parachain will process the request and reply with another XCM call to the `consume_quote` dispatchable. [See note 2](#notes)
+
+> Note: A paused subscription still consumes idle credits. Even though a quote informs you of the number of credits you will need given the frequency and number of pulses, if the subscription is paused some extra credits will be consumed that were not taken into account, making the subscription receive less pulses than estimated.
 
 #### Request Subscription Info
 

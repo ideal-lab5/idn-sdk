@@ -115,7 +115,7 @@ pub type QuoteOf<T> = Quote<BalanceOf<T>>;
 
 /// The quote request type used in the pallet, containing details about the subscription to be
 /// quoted.
-pub type QuoteSubParamsOf<T> = QuoteSubParams<CreateSubParamsOf<T>>;
+pub type QuoteSubParamsOf<T> = QuoteSubParams<CreateSubParamsOf<T>, BlockNumberFor<T>>;
 
 pub type SubInfoRequestOf<T> = SubInfoRequest<SubscriptionIdOf<T>>;
 
@@ -267,8 +267,8 @@ pub mod pallet {
 		type FeesManager: FeesManager<
 			BalanceOf<Self>,
 			Self::Credits,
-			Self::Credits,
-			Self::Credits,
+			BlockNumberFor<Self>,
+			BlockNumberFor<Self>,
 			SubscriptionOf<Self>,
 			DispatchError,
 			<Self as frame_system::pallet::Config>::AccountId,
@@ -312,7 +312,8 @@ pub mod pallet {
 			+ Debug
 			+ Saturating
 			+ Copy
-			+ PartialOrd;
+			+ PartialOrd
+			+ From<BlockNumberFor<Self>>;
 
 		/// Maximum number of subscriptions allowed
 		///
@@ -719,8 +720,13 @@ pub mod pallet {
 					})?,
 				&params.quote_request.create_sub_params,
 			);
-			let fees =
-				Self::calculate_subscription_fees(&params.quote_request.create_sub_params.credits);
+
+			let credits = T::FeesManager::calculate_credits(
+				params.quote_request.create_sub_params.frequency,
+				params.quote_request.lifetime_pulses,
+			);
+
+			let fees = Self::calculate_subscription_fees(&credits);
 
 			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
 
