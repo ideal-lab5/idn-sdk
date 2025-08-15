@@ -36,17 +36,10 @@ use sp_runtime::{
 	BuildStorage, Perbill,
 	testing::UintAuthorityId
 };
-use sp_consensus_aura::{sr25519::AuthorityId, AuthorityIndex};
+// use sp_consensus_aura::{sr25519::AuthorityId, AuthorityIndex};
 
 use ark_bls12_381::{Fr, G2Affine as G2};
-// use etf_crypto_primitives::{
-// 	proofs::dleq::DLEQProof,
-// 	ibe::fullident::BfIbe,
-// 	client::etf_client::{DecryptionResult, DefaultEtfClient, EtfClient},
-// 	utils::hash_to_g1,
-// };
 
-// use pallet_etf::{TimelockError, TimelockEncryptionProvider};
 use rand_chacha::{
 	ChaCha20Rng,
 	rand_core::SeedableRng,
@@ -57,7 +50,7 @@ use ark_serialize::CanonicalSerialize;
 use ark_std::One as Won;
 type K = ark_bls12_381::G1Affine;
 
-use pallet_aura;
+// use pallet_aura;
 
 // Logger module to track execution.
 #[frame_support::pallet]
@@ -127,8 +120,6 @@ frame_support::construct_runtime!(
 		Scheduler: scheduler::{Pallet, Call, Storage, Event<T>},
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>, HoldReason},
 		RandomnessCollectiveFlip: pallet_insecure_randomness_collective_flip,
-		Aura: pallet_aura,
-		// Etf: pallet_etf,
 	}
 );
 
@@ -234,78 +225,53 @@ impl pallet_preimage::Config for Test {
 	type Consideration = ();
 }
 
-impl pallet_timestamp::Config for Test {
-	/// A timestamp: milliseconds since the unix epoch.
-	type Moment = u64;
-	type OnTimestampSet = Aura;
-	type MinimumPeriod = ConstU64<{ 6000 / 2 }>;
-	type WeightInfo = ();
-}
-
-parameter_types! {
-	static DisabledValidatorTestValue: Vec<AuthorityIndex> = Default::default();
-	pub static AllowMultipleBlocksPerSlot: bool = false;
-}
-
-pub struct MockDisabledValidators;
-
-impl MockDisabledValidators {
-	pub fn disable_validator(index: AuthorityIndex) {
-		DisabledValidatorTestValue::mutate(|v| {
-			if let Err(i) = v.binary_search(&index) {
-				v.insert(i, index);
-			}
-		})
-	}
-}
-
-impl DisabledValidators for MockDisabledValidators {
-	fn is_disabled(index: AuthorityIndex) -> bool {
-		DisabledValidatorTestValue::get().binary_search(&index).is_ok()
-	}
-
-	fn disabled_validators() -> Vec<u32> {
-		DisabledValidatorTestValue::get()
-	}
-}
-
-
-const SLOT_DURATION: u64 = 2;
-
-impl pallet_aura::Config for Test {
-	type AuthorityId = AuthorityId;
-	type DisabledValidators = MockDisabledValidators;
-	type MaxAuthorities = ConstU32<10>;
-	type AllowMultipleBlocksPerSlot = AllowMultipleBlocksPerSlot;
-	type SlotDuration = ConstU64<SLOT_DURATION>;
-}
-
-// fn build_ext(authorities: Vec<u64>) -> sp_io::TestExternalities {
-// 	let mut storage = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
-// 	pallet_aura::GenesisConfig::<Test> {
-// 		authorities: authorities.into_iter().map(|a| UintAuthorityId(a).to_public_key()).collect(),
-// 	}
-// 	.assimilate_storage(&mut storage)
-// 	.unwrap();
-// 	storage.into()
+// impl pallet_timestamp::Config for Test {
+// 	/// A timestamp: milliseconds since the unix epoch.
+// 	type Moment = u64;
+// 	type OnTimestampSet = Aura;
+// 	type MinimumPeriod = ConstU64<{ 6000 / 2 }>;
+// 	type WeightInfo = ();
 // }
 
-// pub fn build_ext_and_execute_test(authorities: Vec<u64>, test: impl FnOnce() -> ()) {
-// 	let mut ext = build_ext(authorities);
-// 	ext.execute_with(|| {
-// 		test();
-// 		Aura::do_try_state().expect("Storage invariants should hold")
-// 	});
+// parameter_types! {
+// 	static DisabledValidatorTestValue: Vec<AuthorityIndex> = Default::default();
+// 	pub static AllowMultipleBlocksPerSlot: bool = false;
+// }
+
+// pub struct MockDisabledValidators;
+
+// impl MockDisabledValidators {
+// 	pub fn disable_validator(index: AuthorityIndex) {
+// 		DisabledValidatorTestValue::mutate(|v| {
+// 			if let Err(i) = v.binary_search(&index) {
+// 				v.insert(i, index);
+// 			}
+// 		})
+// 	}
+// }
+
+// impl DisabledValidators for MockDisabledValidators {
+// 	fn is_disabled(index: AuthorityIndex) -> bool {
+// 		DisabledValidatorTestValue::get().binary_search(&index).is_ok()
+// 	}
+
+// 	fn disabled_validators() -> Vec<u32> {
+// 		DisabledValidatorTestValue::get()
+// 	}
+// }
+
+
+// const SLOT_DURATION: u64 = 2;
+
+// impl pallet_aura::Config for Test {
+// 	type AuthorityId = AuthorityId;
+// 	type DisabledValidators = MockDisabledValidators;
+// 	type MaxAuthorities = ConstU32<10>;
+// 	type AllowMultipleBlocksPerSlot = AllowMultipleBlocksPerSlot;
+// 	type SlotDuration = ConstU64<SLOT_DURATION>;
 // }
 
 impl pallet_insecure_randomness_collective_flip::Config for Test {}
-
-// impl pallet_etf::Config for Test {
-// 	type RuntimeEvent = RuntimeEvent;
-// 	type WeightInfo = pallet_etf::weights::SubstrateWeightInfo<Test>;
-// 	type Randomness = RandomnessCollectiveFlip;
-// 	type SlotSecretProvider = Aura;
-// }
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
@@ -393,51 +359,3 @@ pub fn convert_to_bytes<E: CanonicalSerialize, const N: usize>(k: E) -> [u8;N] {
 pub fn root() -> OriginCaller {
 	system::RawOrigin::Root.into()
 }
-
-// pub struct MockSlotSecretProvider;
-
-
-// impl pallet_aura::SlotSecretProvider for MockSlotSecretProvider {
-// 	fn get() -> Option<OpaqueSecret> {
-// 		let sk = Fr::one();
-// 		let id = 4u64.to_string().as_bytes().to_vec();
-// 		let pk = hash_to_g1(&id);
-// 		let generator: K = K::generator();
-// 		let mut rng = ChaCha20Rng::seed_from_u64(4u64);
-// 		let proof = DLEQProof::new(sk, pk, generator, id, &mut rng);
-// 		let sk = convert_to_bytes::<K, 48>(proof.secret_commitment_g)
-// 			.try_into()
-// 			.expect("The slot secret should be valid; qed;");
-// 		Some(sk.to_vec())
-// 	}
-// }
-
-// pub struct MockTlockProvider;
-
-// impl TimelockEncryptionProvider for MockTlockProvider {
-// 	// decrypts at block number 4
-// 	fn decrypt_current(ciphertext: Ciphertext) -> Result<DecryptionResult, TimelockError> {
-// 		let sk = Fr::one();
-// 		let id = 4u64.to_string().as_bytes().to_vec();
-// 		let pk = hash_to_g1(&id);
-// 		let generator: K = K::generator();
-// 		let mut rng = ChaCha20Rng::seed_from_u64(4u64);
-// 		let proof = DLEQProof::new(sk, pk, generator, id, &mut rng);
-// 		let sk: [u8;48] = convert_to_bytes::<K, 48>(proof.secret_commitment_g)
-// 			.try_into()
-// 			.expect("The slot secret should be valid; qed;");
-
-// 		let ibe_pp_bytes: [u8;96] = convert_to_bytes::<G2, 96>(G2::generator())
-// 			.try_into()
-// 			.expect("The slot secret should be valid; qed;");
-
-// 		let pt = DefaultEtfClient::<BfIbe>::decrypt(
-// 			ibe_pp_bytes.to_vec(),
-// 			ciphertext.ciphertext.to_vec(),
-// 			ciphertext.nonce.to_vec(),
-// 			vec![ciphertext.capsule.to_vec()],
-// 			vec![sk.to_vec()],
-// 		).map_err(|_| TimelockError::DecryptionFailed)?;
-// 		Ok(pt)
-// 	}
-// }

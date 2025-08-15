@@ -65,7 +65,11 @@ std = [
 	"sp-std/std",
 	"sp-weights/std",
 	"pallet-timestamp/std",
-	"timelock/std"
+	"timelock/std",
+	"ark-std/std",
+	"ark-ff/std",
+	"ark-ec/std",
+	"pallet-insecure-randomness-collective-flip/std"
 ]
 try-runtime = [
 	"frame-support/try-runtime",
