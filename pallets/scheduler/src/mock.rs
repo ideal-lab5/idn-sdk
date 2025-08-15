@@ -23,9 +23,9 @@ use crate as scheduler;
 use frame_support::{
 	ord_parameter_types, parameter_types,
 	traits::{
-		ConstU32, ConstU64, ConstBool,
-		Contains, EitherOfDiverse, EqualPrivilegeOnly,
-		OnFinalize, OnInitialize, DisabledValidators
+		ConstU32, ConstU64,
+		Contains, EitherOfDiverse,
+		OnFinalize, OnInitialize
 	},
 	weights::constants::RocksDbWeight,
 };
@@ -33,21 +33,10 @@ use frame_system::{EnsureRoot, EnsureSignedBy};
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage, Perbill,
-	testing::UintAuthorityId
-};
-// use sp_consensus_aura::{sr25519::AuthorityId, AuthorityIndex};
-
-use ark_bls12_381::{Fr, G2Affine as G2};
-
-use rand_chacha::{
-	ChaCha20Rng,
-	rand_core::SeedableRng,
+	BuildStorage, Perbill
 };
 
-use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
-use ark_std::One as Won;
 type K = ark_bls12_381::G1Affine;
 
 // use pallet_aura;
@@ -225,52 +214,6 @@ impl pallet_preimage::Config for Test {
 	type Consideration = ();
 }
 
-// impl pallet_timestamp::Config for Test {
-// 	/// A timestamp: milliseconds since the unix epoch.
-// 	type Moment = u64;
-// 	type OnTimestampSet = Aura;
-// 	type MinimumPeriod = ConstU64<{ 6000 / 2 }>;
-// 	type WeightInfo = ();
-// }
-
-// parameter_types! {
-// 	static DisabledValidatorTestValue: Vec<AuthorityIndex> = Default::default();
-// 	pub static AllowMultipleBlocksPerSlot: bool = false;
-// }
-
-// pub struct MockDisabledValidators;
-
-// impl MockDisabledValidators {
-// 	pub fn disable_validator(index: AuthorityIndex) {
-// 		DisabledValidatorTestValue::mutate(|v| {
-// 			if let Err(i) = v.binary_search(&index) {
-// 				v.insert(i, index);
-// 			}
-// 		})
-// 	}
-// }
-
-// impl DisabledValidators for MockDisabledValidators {
-// 	fn is_disabled(index: AuthorityIndex) -> bool {
-// 		DisabledValidatorTestValue::get().binary_search(&index).is_ok()
-// 	}
-
-// 	fn disabled_validators() -> Vec<u32> {
-// 		DisabledValidatorTestValue::get()
-// 	}
-// }
-
-
-// const SLOT_DURATION: u64 = 2;
-
-// impl pallet_aura::Config for Test {
-// 	type AuthorityId = AuthorityId;
-// 	type DisabledValidators = MockDisabledValidators;
-// 	type MaxAuthorities = ConstU32<10>;
-// 	type AllowMultipleBlocksPerSlot = AllowMultipleBlocksPerSlot;
-// 	type SlotDuration = ConstU64<SLOT_DURATION>;
-// }
-
 impl pallet_insecure_randomness_collective_flip::Config for Test {}
 
 pub struct TestWeightInfo;
@@ -329,9 +272,7 @@ impl Config for Test {
 	type ScheduleOrigin = EitherOfDiverse<EnsureRoot<u64>, EnsureSignedBy<One, u64>>;
 	type MaxScheduledPerBlock = ConstU32<10>;
 	type WeightInfo = TestWeightInfo;
-	// type OriginPrivilegeCmp = EqualPrivilegeOnly;
 	type Preimages = Preimage;
-	// type TlockProvider = MockTlockProvider;
 }
 
 pub type LoggerCall = logger::Call<Test>;

@@ -16,27 +16,66 @@
 
 //! # Scheduler tests.
 
-// use super::*;
-// use crate::mock::{
-// 	logger, new_test_ext, root, run_to_block, LoggerCall, Preimage, RuntimeCall, Scheduler, Test, *,
-// };
-// use frame_support::{
-// 	assert_err, assert_noop, assert_ok,
-// 	traits::{ConstU32, Contains, OnInitialize, QueryPreimage, StorePreimage},
-// 	Hashable,
-// };
-// use sp_runtime::traits::Hash;
-// use substrate_test_utils::assert_eq_uvec;
+use super::*;
+use crate::mock::{
+	logger, new_test_ext, root, run_to_block, LoggerCall, Preimage, RuntimeCall, Scheduler, Test, *,
+};
+use frame_support::{
+	assert_err, assert_noop, assert_ok,
+	traits::{ConstU32, Contains, OnInitialize, QueryPreimage, StorePreimage},
+	Hashable,
+};
+use sp_runtime::traits::Hash;
+use substrate_test_utils::assert_eq_uvec;
 
-// use ark_bls12_381::{Fr, G2Projective as G2};
-// use ark_ec::Group;
-// use ark_std::{ops::Mul, rand::SeedableRng, One};
+use ark_bls12_381::{Fr, G2Projective as G2};
+use ark_std::{ops::Mul, rand::SeedableRng, One};
+use timelock::engines::{drand, EngineBLS};
 // use etf_crypto_primitives::{
 // 	client::etf_client::{DefaultEtfClient, EtfClient},
 // 	ibe::fullident::BfIbe,
 // 	utils::convert_to_bytes,
 // };
 // use rand_chacha::ChaCha20Rng;
+
+
+#[test]
+#[docify::export]
+fn basic_sealed_scheduling_works() {
+    new_test_ext().execute_with(|| {
+
+        let drand_round_num: u64 = 10;
+        let priority: schedule::Priority = 0;
+        let origin: RuntimeOrigin = RuntimeOrigin::root();
+        let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
+
+        assert_ok!(Scheduler::schedule_sealed(
+            origin, 
+            drand_round_num, 
+            priority, 
+            ciphertext
+        ));
+    });
+}
+
+#[test]
+#[docify::export]
+fn execution_fails_bad_origin() {
+    new_test_ext().execute_with(|| {
+        let drand_round_num: u64 = 10;
+        let priority: schedule::Priority = 0;
+        let origin: RuntimeOrigin = RuntimeOrigin::none();
+        let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
+        
+        assert_noop!(Scheduler::schedule_sealed(
+            origin, 
+            drand_round_num, 
+            priority, 
+            ciphertext), 
+            DispatchError::BadOrigin
+        );
+    });
+}
 
 // #[test]
 // #[docify::export]
