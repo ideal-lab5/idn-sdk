@@ -136,6 +136,7 @@ sp-api = { version = "36.0.1", default-features = false }
 sp-blockchain = { version = "39.0.0", default-features = false }
 sp-block-builder = { version = "36.0.0", default-features = false }
 sp-consensus = "0.42.0"
+sp-consensus-grandpa = "23.1.0"
 sp-core = { version = "36.1.0", default-features = false }
 sp-genesis-builder = { version = "0.17.0", default-features = false }
 sp-inherents = { version = "36.0.0", default-features = false }
