@@ -1,10 +1,14 @@
 use crate as pallet_randomness_beacon;
 use crate::*;
 use bp_idn::types::*;
-use frame_support::{derive_impl, traits::ConstU8};
+use frame_support::{
+	derive_impl, ord_parameter_types, parameter_types,
+	traits::{ConstU8, EitherOfDiverse},
+};
+use frame_system::{limits::BlockWeights, EnsureRoot, EnsureSignedBy};
 use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
-use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
+use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage, Perbill};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -14,6 +18,8 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		Balances: pallet_balances,
+		Scheduler: pallet_scheduler,
+		Preimage: pallet_preimage,
 		Drand: pallet_randomness_beacon,
 	}
 );
@@ -89,6 +95,77 @@ impl pallet_randomness_beacon::Config for Test {
 	type MaxSigsPerBlock = ConstU8<3>;
 	type Pulse = MockPulse;
 	type Dispatcher = MockDispatcher;
+}
+
+pub struct TestWeightInfo;
+impl pallet_scheduler::WeightInfo for TestWeightInfo {
+	fn service_agendas_base() -> Weight {
+		Weight::from_parts(0b0000_0001, 0)
+	}
+	fn service_agenda_base(i: u32) -> Weight {
+		Weight::from_parts((i << 8) as u64 + 0b0000_0010, 0)
+	}
+	fn service_task_base() -> Weight {
+		Weight::from_parts(0b0000_0100, 0)
+	}
+	fn service_task_periodic() -> Weight {
+		Weight::from_parts(0b0000_1100, 0)
+	}
+	fn service_task_named() -> Weight {
+		Weight::from_parts(0b0001_0100, 0)
+	}
+	fn service_task_fetched(s: u32) -> Weight {
+		Weight::from_parts((s << 8) as u64 + 0b0010_0100, 0)
+	}
+	fn execute_dispatch_signed() -> Weight {
+		Weight::from_parts(0b0100_0000, 0)
+	}
+	fn execute_dispatch_unsigned() -> Weight {
+		Weight::from_parts(0b1000_0000, 0)
+	}
+	fn schedule(_s: u32) -> Weight {
+		Weight::from_parts(50, 0)
+	}
+	fn cancel(_s: u32) -> Weight {
+		Weight::from_parts(50, 0)
+	}
+	fn schedule_named(_s: u32) -> Weight {
+		Weight::from_parts(50, 0)
+	}
+	fn cancel_named(_s: u32) -> Weight {
+		Weight::from_parts(50, 0)
+	}
+	fn schedule_sealed(s: u32) -> Weight {
+		Weight::from_parts(50, 0)
+	}
+}
+
+parameter_types! {
+	pub MaximumSchedulerWeight: Weight = Weight::from_parts(2_000_000_000_000, u64::MAX);
+}
+
+ord_parameter_types! {
+	pub const One: u64 = 1;
+}
+
+impl pallet_scheduler::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
+	type PalletsOrigin = OriginCaller;
+	type RuntimeCall = RuntimeCall;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = EnsureRoot<u64>;
+	type MaxScheduledPerBlock = ConstU32<10>;
+	type WeightInfo = TestWeightInfo;
+	type Preimages = Preimage;
+}
+
+impl pallet_preimage::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
+	type Currency = ();
+	type ManagerOrigin = EnsureRoot<u64>;
+	type Consideration = ();
 }
 
 // Build genesis storage according to the mock runtime.

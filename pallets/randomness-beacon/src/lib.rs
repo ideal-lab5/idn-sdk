@@ -255,8 +255,11 @@ pub mod pallet {
 									round,
 									sig.expect("TODO"),
 								);
-								
-								tasks.insert(round, res.to_vec());
+
+								if !res.is_empty() {
+									tasks.insert(round, res.to_vec());
+								}
+
 								sig
 							})
 							.collect::<Vec<_>>();
@@ -273,7 +276,6 @@ pub mod pallet {
 						asig.serialize_compressed(&mut asig_bytes)
 							.expect("The signature is well formatted. qed.");
 
-						log::info!("SENDING RAW_CALL_DATA: {:?}", tasks.clone());
 						return Some(Call::try_submit_asig {
 							asig: OpaqueSignature::try_from(asig_bytes)
 								.expect("The signature is well formatted. qed."),
@@ -347,9 +349,10 @@ pub mod pallet {
 			asig: OpaqueSignature,
 			start: RoundNumber,
 			end: RoundNumber,
-			// this will have to be a map
-			// round number -> vec<raw call data>
-			raw_call_data: BTreeMap<RoundNumber, Vec<(TaskName, <T as pallet_scheduler::Config>::RuntimeCall)>>,
+			raw_call_data: BTreeMap<
+				RoundNumber,
+				Vec<(TaskName, <T as pallet_scheduler::Config>::RuntimeCall)>,
+			>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
@@ -387,7 +390,7 @@ pub mod pallet {
 				None,
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
-			LatestRound::<T>::set(Some(end + 1)); 
+			LatestRound::<T>::set(Some(end + 1));
 
 			let sacc = Accumulation::try_from(acc).map_err(|_| Error::<T>::VerificationFailed)?;
 			SparseAccumulation::<T>::set(Some(sacc.clone()));

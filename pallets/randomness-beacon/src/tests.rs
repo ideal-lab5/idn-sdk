@@ -18,6 +18,7 @@ use crate::{
 	mock::*, types::*, weights::WeightInfo, BeaconConfig, Call, DidUpdate, Error, LatestRound,
 	SparseAccumulation,
 };
+use alloc::collections::btree_map::BTreeMap;
 use codec::Encode;
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 use sp_consensus_randomness_beacon::types::{CanonicalPulse, OpaquePublicKey, RoundNumber};
@@ -36,11 +37,18 @@ fn can_construct_pallet_and_set_genesis_params() {
 #[test]
 fn can_fail_write_pulse_when_genesis_round_not_set() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let raw_call_data = BTreeMap::new();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig.try_into().unwrap(), 1000, 1001,),
+			Drand::try_submit_asig(
+				RuntimeOrigin::none(),
+				asig.try_into().unwrap(),
+				1000,
+				1001,
+				raw_call_data
+			),
 			Error::<Test>::BeaconConfigNotSet,
 		);
 	});
@@ -67,6 +75,7 @@ fn can_set_genesis_round_once_as_root() {
 fn can_submit_valid_pulses_under_the_limit() {
 	let (asig, amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
 	let config = get_config(1000);
+	let raw_call_data = BTreeMap::new();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
@@ -77,6 +86,7 @@ fn can_submit_valid_pulses_under_the_limit() {
 			asig.clone().try_into().unwrap(),
 			1000,
 			1001,
+			raw_call_data,
 		));
 
 		let maybe_res = SparseAccumulation::<Test>::get();
@@ -102,7 +112,7 @@ fn can_fail_when_sig_height_is_0() {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 1000),
+			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 1000, BTreeMap::new()),
 			Error::<Test>::ZeroHeightProvided
 		);
 	});
@@ -117,7 +127,7 @@ fn can_fail_when_sig_height_is_exceeds_max() {
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 10000),
+			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 10000, BTreeMap::new()),
 			Error::<Test>::ExcessiveHeightProvided
 		);
 	});
@@ -138,7 +148,8 @@ fn can_submit_valid_sigs_in_sequence() {
 			RuntimeOrigin::none(),
 			asig1.try_into().unwrap(),
 			1000,
-			1001
+			1001,
+			BTreeMap::new()
 		));
 
 		Drand::on_finalize(1);
@@ -149,6 +160,7 @@ fn can_submit_valid_sigs_in_sequence() {
 			asig2.clone().try_into().unwrap(),
 			1002,
 			1003,
+			BTreeMap::new()
 		));
 
 		let maybe_res = SparseAccumulation::<Test>::get();
@@ -178,6 +190,7 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 			asig.clone().try_into().unwrap(),
 			1000,
 			1001,
+			BTreeMap::new()
 		));
 		assert_noop!(
 			Drand::try_submit_asig(
@@ -185,6 +198,7 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 				asig.clone().try_into().unwrap(),
 				1000,
 				1001,
+				BTreeMap::new()
 			),
 			Error::<Test>::SignatureAlreadyVerified,
 		);
@@ -206,6 +220,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 			asig.clone().try_into().unwrap(),
 			1000,
 			1001,
+			BTreeMap::new()
 		));
 
 		Drand::on_finalize(1);
@@ -217,6 +232,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 				asig.clone().try_into().unwrap(),
 				1000,
 				1001,
+				BTreeMap::new()
 			),
 			Error::<Test>::StartExpired,
 		);
@@ -227,6 +243,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 				asig.clone().try_into().unwrap(),
 				1002,
 				1004,
+				BTreeMap::new()
 			),
 			Error::<Test>::VerificationFailed,
 		);
@@ -290,10 +307,11 @@ fn can_create_inherent() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
 		let result = Drand::create_inherent(&inherent_data);
-		if let Some(Call::try_submit_asig { asig, start, end }) = result {
+		if let Some(Call::try_submit_asig { asig, start, end, raw_call_data }) = result {
 			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
 			assert_eq!(start, expected_start, "The sequence should start at 1001");
 			assert_eq!(end, expected_end, "The sequence should end at 1002");
+			assert_eq!(BTreeMap::new(), raw_call_data, "The list of raw call data should be empty");
 		} else {
 			panic!("Expected Some(Call::try_submit_asig), got None");
 		}
@@ -335,10 +353,11 @@ fn can_create_inherent_with_extra_pulses_drained() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
 		let result = Drand::create_inherent(&inherent_data);
-		if let Some(Call::try_submit_asig { asig, start, end }) = result {
+		if let Some(Call::try_submit_asig { asig, start, end, raw_call_data }) = result {
 			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
 			assert_eq!(start, expected_start, "The sequence should start at 1001");
 			assert_eq!(end, expected_end, "The sequence should end at 1002");
+			assert_eq!(BTreeMap::new(), raw_call_data, "The list of raw call data should be empty");
 		} else {
 			panic!("Expected Some(Call::try_submit_asig), got None");
 		}

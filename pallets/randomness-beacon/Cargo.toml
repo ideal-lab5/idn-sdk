@@ -47,6 +47,7 @@ bp-idn.workspace = true
 sp-keystore.workspace = true
 sp-inherents.workspace = true
 pallet-balances.workspace = true
+pallet-preimage.workspace = true
 
 [features]
 default = ["std"]
