@@ -16,21 +16,30 @@
 
 //! # Scheduler tests.
 
+use core::{hash::Hash, ops::Bound};
+
 use super::*;
 use crate::mock::{
 	logger, new_test_ext, root, run_to_block, LoggerCall, Preimage, RuntimeCall, Scheduler, Test, *,
 };
+use ark_ec::{AffineRepr, CurveGroup, PrimeGroup};
+use ark_ff::PrimeField;
+use ark_serialize::{CanonicalSerialize, CanonicalSerializeHashExt};
 use frame_support::{
-	assert_err, assert_noop, assert_ok,
-	traits::{ConstU32, Contains, OnInitialize, QueryPreimage, StorePreimage},
-	Hashable,
+	assert_err, assert_noop, assert_ok, traits::{dynamic_params::IntoKey, ConstU32, Contains, OnInitialize, QueryPreimage, StorePreimage}, Blake2_256, Hashable
 };
-use sp_runtime::traits::Hash;
+use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
+// use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+use sp_core::sha2_256;
+// use sp_runtime::traits::Hash;
 use substrate_test_utils::assert_eq_uvec;
 
-use ark_bls12_381::{Fr, G2Projective as G2};
-use ark_std::{ops::Mul, rand::SeedableRng, One};
-use timelock::engines::{drand, EngineBLS};
+use ark_bls12_381::{Fr, G2Projective as G2, G1Projective as G1};
+use ark_std::{ops::Mul, rand::Rng, One};
+use timelock::{self, block_ciphers::BlockCipherProvider, engines::{drand::TinyBLSDrandQuicknet, EngineBLS}, ibe::fullident::Identity, tlock::OpaqueSecretKey};
+use sp_idn_crypto::drand;
+use ark_std::rand::rngs::OsRng;
+// use sp_idn_crypto::drand as drand_primitive;
 // use etf_crypto_primitives::{
 // 	client::etf_client::{DefaultEtfClient, EtfClient},
 // 	ibe::fullident::BfIbe,
@@ -38,16 +47,17 @@ use timelock::engines::{drand, EngineBLS};
 // };
 // use rand_chacha::ChaCha20Rng;
 
-
+//https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info
+const DRAND_QUICKNET_PK: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 #[test]
 #[docify::export]
 fn basic_sealed_scheduling_works() {
     new_test_ext().execute_with(|| {
-
         let drand_round_num: u64 = 10;
         let priority: schedule::Priority = 0;
         let origin: RuntimeOrigin = RuntimeOrigin::root();
         let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
+        // let c2 = timelock::tlock::tle(p_pub, secret_key, message, id, rng);
 
         assert_ok!(Scheduler::schedule_sealed(
             origin, 
@@ -66,7 +76,6 @@ fn execution_fails_bad_origin() {
         let priority: schedule::Priority = 0;
         let origin: RuntimeOrigin = RuntimeOrigin::none();
         let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
-        
         assert_noop!(Scheduler::schedule_sealed(
             origin, 
             drand_round_num, 
@@ -75,6 +84,56 @@ fn execution_fails_bad_origin() {
             DispatchError::BadOrigin
         );
     });
+}
+
+#[test]
+#[docify::export]
+fn shielded_transactions_are_properly_scheduled() {
+    new_test_ext().execute_with(|| {
+
+        let call = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
+        let encoded_call = call.encode();
+
+        let drand_round_num = 10;
+        let message = drand::compute_round_on_g1(drand_round_num).ok().unwrap();
+
+        let sk = Fr::one();
+        let p_pub = G2::generator().mul(sk);
+        let msk = [1; 32];
+        
+        let mut identity_vec: Vec<u8> = Vec::new();
+        message.serialize_compressed(&mut identity_vec).ok();
+        let identity_vec_vec = vec![identity_vec];
+        let id: Identity = timelock::ibe::fullident::Identity::new(drand::QUICKNET_CTX, identity_vec_vec);
+
+        let signature = id.extract::<TinyBLS381>(sk).0;
+        
+        let ct = timelock::tlock::tle::<TinyBLS381, AESGCMBlockCipherProvider, OsRng>(p_pub, msk, &encoded_call, id, OsRng).unwrap();
+        let mut ct_vec: Vec<u8> = Vec::new();
+        ct.serialize_compressed(&mut ct_vec).ok();
+        let mut ct_bounded_vec: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
+        ct_vec.iter().enumerate().for_each(|(idx, i)| {
+            ct_bounded_vec.try_insert(idx, *i).ok();
+        });
+
+        let priority = 0;
+
+        let origin: RuntimeOrigin = RuntimeOrigin::root();
+        
+        assert_ok!(Scheduler::schedule_sealed(
+            origin, 
+            drand_round_num, 
+            priority, 
+            ct_bounded_vec
+        ));
+
+        let mut weight: WeightMeter = WeightMeter::new();
+
+        assert!(logger::log().is_empty());
+        let result: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(&mut weight, drand_round_num, signature.into());
+        let runtime_call = result.get(0).unwrap().1.clone();
+        assert_eq!(runtime_call, call);
+    })
 }
 
 // #[test]

@@ -37,6 +37,7 @@ ark-ec.workspace = true
 ark-bls12-381.workspace = true
 pallet-insecure-randomness-collective-flip.workspace = true
 rand_chacha.workspace = true
+sp-idn-crypto.workspace = true
 
 [features]
 default = [ "std" ]

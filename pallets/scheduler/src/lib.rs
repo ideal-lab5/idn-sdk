@@ -80,13 +80,11 @@ pub use weights::WeightInfo;
 use ark_bls12_381::G1Affine;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
-	dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin},
-	traits::{
+	debug, dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin}, traits::{
 		schedule::{self, MaybeHashed},
 		Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage,
 		StorageVersion, StorePreimage,
-	},
-	weights::{Weight, WeightMeter},
+	}, weights::{Weight, WeightMeter}
 };
 use frame_system::{self as system};
 pub use pallet::*;
@@ -406,6 +404,7 @@ impl<T: Config> Pallet<T> {
 					let bare =
 						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
 							.unwrap();
+					debug(&bare);
 					let call = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()).unwrap();
 
 					// then we need to get the REAL weight of the call

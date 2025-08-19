@@ -10194,6 +10194,7 @@ dependencies = [
  "scale-info",
  "sp-consensus-randomness-beacon",
  "sp-core",
+ "sp-idn-crypto",
  "sp-io",
  "sp-runtime",
  "sp-std",
