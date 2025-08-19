@@ -91,7 +91,6 @@ fn execution_fails_bad_origin() {
 fn shielded_transactions_are_properly_scheduled() {
     new_test_ext().execute_with(|| {
 
-        let mut rng = ark_std::test_rng();
         let call = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
         let encoded_call = call.encode();
 
@@ -127,10 +126,17 @@ fn shielded_transactions_are_properly_scheduled() {
 
         let mut weight: WeightMeter = WeightMeter::new();
 
-        assert!(logger::log().is_empty());
+        let empty_result_early: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(&mut weight, 9, signature.into());
+        let empty_result_early_call = empty_result_early.get(0);
+        assert_eq!(empty_result_early_call, None);
+        
         let result: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(&mut weight, drand_round_num, signature.into());
         let runtime_call = result.get(0).unwrap().1.clone();
         assert_eq!(runtime_call, call);
+
+        let empty_result_late: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(&mut weight, 11, signature.into());
+        let empty_result_late_call = empty_result_late.get(0);
+        assert_eq!(empty_result_late_call, None);
     })
 }
 
