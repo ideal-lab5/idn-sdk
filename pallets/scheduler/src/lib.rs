@@ -404,7 +404,6 @@ impl<T: Config> Pallet<T> {
 					let bare =
 						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
 							.unwrap();
-					debug(&bare);
 					let call = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()).unwrap();
 
 					// then we need to get the REAL weight of the call
