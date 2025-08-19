@@ -28,14 +28,14 @@ use ark_serialize::{CanonicalSerialize, CanonicalSerializeHashExt};
 use frame_support::{
 	assert_err, assert_noop, assert_ok, traits::{dynamic_params::IntoKey, ConstU32, Contains, OnInitialize, QueryPreimage, StorePreimage}, Blake2_256, Hashable
 };
-use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
+use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng, ChaCha20Rng, ChaChaRng};
 // use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use sp_core::sha2_256;
 // use sp_runtime::traits::Hash;
 use substrate_test_utils::assert_eq_uvec;
 
 use ark_bls12_381::{Fr, G2Projective as G2, G1Projective as G1};
-use ark_std::{ops::Mul, rand::Rng, One};
+use ark_std::{ops::Mul, rand::{CryptoRng, Rng, RngCore}, One};
 use timelock::{self, block_ciphers::BlockCipherProvider, engines::{drand::TinyBLSDrandQuicknet, EngineBLS}, ibe::fullident::Identity, tlock::OpaqueSecretKey};
 use sp_idn_crypto::drand;
 use ark_std::rand::rngs::OsRng;
@@ -91,6 +91,7 @@ fn execution_fails_bad_origin() {
 fn shielded_transactions_are_properly_scheduled() {
     new_test_ext().execute_with(|| {
 
+        let mut rng = ark_std::test_rng();
         let call = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
         let encoded_call = call.encode();
 
@@ -111,10 +112,7 @@ fn shielded_transactions_are_properly_scheduled() {
         let ct = timelock::tlock::tle::<TinyBLS381, AESGCMBlockCipherProvider, OsRng>(p_pub, msk, &encoded_call, id, OsRng).unwrap();
         let mut ct_vec: Vec<u8> = Vec::new();
         ct.serialize_compressed(&mut ct_vec).ok();
-        let mut ct_bounded_vec: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
-        ct_vec.iter().enumerate().for_each(|(idx, i)| {
-            ct_bounded_vec.try_insert(idx, *i).ok();
-        });
+        let ct_bounded_vec: BoundedVec<u8,  ConstU32<4048>> = BoundedVec::truncate_from(ct_vec);
 
         let priority = 0;
 
