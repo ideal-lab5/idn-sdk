@@ -264,12 +264,7 @@ where
 
 	/// Get the number of credits consumed by a subscription when this one is idle in a block.
 	fn get_idle_credits(_sub: Option<&Sub>) -> u64 {
-		// do not charge idle credits unless frequency-aware is enabled
-		if cfg!(feature = "frequency-aware") {
-			return 1;
-		}
-
-		0
+		1
 	}
 }
 

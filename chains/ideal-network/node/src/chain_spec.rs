@@ -88,7 +88,7 @@ pub fn dev_config() -> ChainSpec {
 
 	ChainSpec::builder(
 		runtime::WASM_BINARY.expect("WASM binary was not built, please build it!"),
-		Extensions { relay_chain: "paseo-local".into(), para_id: 4205 },
+		Extensions { relay_chain: "paseo-local".into(), para_id: 4502 },
 	)
 	.with_name("IDN Dev")
 	.with_id("dev")

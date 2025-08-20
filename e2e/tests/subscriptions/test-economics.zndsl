@@ -17,12 +17,12 @@ idn-alice: js-script ../../scripts/setup/set-drand-pubkey.js within 120 seconds
 alice: run ../../scripts/setup/open_hrmp.sh within 120 seconds
 
 # Ensure Blocks are being produced, also give enough time to allow for HRMP channels to open
-alice: parachain 2000 block height is at least 10 within 6000 seconds
 alice: parachain 2001 block height is at least 10 within 6000 seconds
+alice: parachain 4502 block height is at least 10 within 6000 seconds
 
 # Fund Sovereign Account
 idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,1000000" within 120 seconds
-# Pause to allow next transaction to go through+
+# Pause to allow next transaction to go through
 sleep 7 seconds
 # Fund Treasury Account
 idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C,1000000" within 120 seconds
@@ -41,15 +41,26 @@ idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5CQE1RtAnMdcd
 #   (5) cleanup/reset for next test
 
 # Quote Subscription
-idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-quote-subscription.js with "1000" within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-quote-subscription.js with "10" within 120 seconds
 idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
 idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
 # lifetime = 1000 => 1000 credits => 100000 fees
-idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 100000, deposit: 1130 }" within 120 seconds
+# 10 => 1000 fees
+idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 1000, deposit: 1020 }" within 120 seconds
 
 # Create Subscription
-#idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-create-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
-#idn-alice: system event contains "A new subscription was created" within 120 seconds
-#idn-alice: system event contains "Fees collected" within 120 seconds
-#idn-alice: system event contains "Randomness was successfully distributed" within 120 seconds
-#idn-consumer-alice: system event contains "A randomness pulse was successfully consumed" within 120 seconds
+#idn-consumer-alice: js-script ../../scripts/testing/subscriptions/create-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-create-subscription.js with "10" within 120 seconds
+idn-alice: system event contains "A new subscription was created" within 120 seconds
+idn-alice: system event contains "Fees collected" within 120 seconds
+# make sure the connection is established
+idn-alice: system event contains "Randomness was successfully distributed" within 120 seconds
+idn-consumer-alice: system event contains "A randomness pulse was successfully consumed" within 120 seconds
+# 10 credits => 10 blocks => 60 seconds = 1 min
+idn-alice: system event contains "A subscription has terminated" within 70 seconds
+# now we want to check the balance of the treasury account
+# funded with 1000000 
+# add 1000 from the consumer
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1001000" within 120 secs
+
+# wait for the subscription to timeout: 1000 credits => 1000 blocks => 6000 seconds (1.66 hours) 

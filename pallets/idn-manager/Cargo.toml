@@ -76,5 +76,3 @@ runtime-benchmarks = [
 	"pallet-xcm/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
-
-frequency-aware = []

@@ -627,8 +627,8 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				ensure!(
-					sub.state == SubscriptionState::Active ||
-						sub.state == SubscriptionState::Paused,
+					sub.state == SubscriptionState::Active
+						|| sub.state == SubscriptionState::Paused,
 					Error::<T>::SubscriptionNotUpdatable
 				);
 
@@ -850,17 +850,14 @@ impl<T: Config> Pallet<T> {
 		let current_block = frame_system::Pallet::<T>::block_number();
 
 		for (sub_id, mut sub) in Subscriptions::<T>::iter() {
-			#[cfg(feature = "frequency-aware")]
-			// And either never delivered before, or enough blocks have passed since last delivery
-			let is_ready = sub.last_delivered.is_none() ||
-				current_block >= sub.last_delivered.unwrap() + sub.frequency;
-			#[cfg(not(feature = "frequency-aware"))]
-			// without frequency awareness, all subscriptions are dispatched with *every* block
-			let is_ready = true;
 			// Filter for active subscriptions that are eligible for delivery based on frequency
 			if
 			// Subscription must be active
-			sub.state == SubscriptionState::Active && is_ready {
+			sub.state ==  SubscriptionState::Active   &&
+					// And either never delivered before, or enough blocks have passed since last delivery
+					(sub.last_delivered.is_none() ||
+					current_block >= sub.last_delivered.unwrap() + sub.frequency)
+			{
 				// Make sure credits are consumed before sending the XCM message
 				let consume_credits = T::FeesManager::get_consume_credits(Some(&sub));
 
@@ -891,10 +888,6 @@ impl<T: Config> Pallet<T> {
 				log::info!(target: LOG_TARGET, "Randomness distributed");
 				Self::deposit_event(Event::RandomnessDistributed { sub_id });
 			} else {
-				if !cfg!(feature = "frequency-aware") {
-					continue;
-				}
-
 				let idle_credits = T::FeesManager::get_idle_credits(Some(&sub));
 				// Collect fees for idle block
 				if let Err(e) = Self::collect_fees(&sub, idle_credits) {
@@ -905,15 +898,11 @@ impl<T: Config> Pallet<T> {
 				// Update subscription with consumed credits
 				sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
 			}
-			#[cfg(feature = "frequency-aware")]
-			// with frequency awareness, we meter based on idle credits
-			let under_funded = sub.credits_left < Self::get_min_credits(&sub);
-			#[cfg(not(feature = "frequency-aware"))]
-			// without frequency awareness, idle fees are not collected and the min credits can be
-			// zero
-			let under_funded = sub.credits_left == Self::get_min_credits(&sub);
+
 			// Finalize the subscription if there are not enough credits left
-			if sub.state != SubscriptionState::Finalized && under_funded {
+			if sub.state != SubscriptionState::Finalized
+				&& sub.credits_left < Self::get_min_credits(&sub)
+			{
 				sub.state = SubscriptionState::Finalized;
 			}
 

@@ -8,9 +8,8 @@ async function run(nodeName, networkInfo, args) {
     const alice = keyring.addFromUri("//Alice");
     const sudoPair = keyring.getPair(alice.publicKey);
 
-    const credits = 1000;
-    // not frequency-aware 
-    const frequency = 0;
+    const credits = args[0];
+    const frequency = 1;
     const metadata = null;
     const subId = null;
     const reqRef = null;
