@@ -28,7 +28,7 @@ name = "idn-consumer-chain"
     command = "../target/release/idn-consumer-node"
 
 [[parachains]]
-id = 2000
+id = 4502
 chain = "idn-dev"
 name = "ideal-network"
 

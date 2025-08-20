@@ -30,7 +30,7 @@ function open_hrmp_channels() {
 open_hrmp_channels \
     "ws://127.0.0.1:8833" \
     "//Alice" \
-    2000 \
+    4502 \
     2001 \
     8 \
     1024
@@ -38,6 +38,6 @@ open_hrmp_channels \
     "ws://127.0.0.1:8833" \
     "//Alice" \
     2001 \
-    2000 \
+    4502 \
     8 \
     1024
