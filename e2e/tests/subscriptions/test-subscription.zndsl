@@ -17,7 +17,7 @@ idn-alice: js-script ../../scripts/setup/set-drand-pubkey.js within 120 seconds
 alice: run ../../scripts/setup/open_hrmp.sh within 120 seconds
 
 # Ensure Blocks are being produced, also give enough time to allow for HRMP channels to open
-alice: parachain 2000 block height is at least 10 within 6000 seconds
+alice: parachain 4502 block height is at least 10 within 6000 seconds
 alice: parachain 2001 block height is at least 10 within 6000 seconds
 
 # Fund Sovereign Account
@@ -31,7 +31,7 @@ idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5CQE1RtAnMdcd
 idn-consumer-alice: js-script ../../scripts/testing/subscriptions/quote-subscription.js within 120 seconds
 idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
 idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
-idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 10000, deposit: 1020 }" within 120 seconds
+idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 18550000, deposit: 1020 }" within 120 seconds
 
 # Create Subscription
 idn-consumer-alice: js-script ../../scripts/testing/subscriptions/create-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
