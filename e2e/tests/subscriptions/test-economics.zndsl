@@ -1,0 +1,55 @@
+Description: Economic Test
+Network: ./zombienet.toml
+Creds: config
+
+# Ensure Nodes and Collators are running
+alice: is up
+bob: is up
+idn-alice: is up
+idn-bob: is up
+idn-consumer-alice: is up
+idn-consumer-bob: is up
+
+
+# Force open HRMP work around due to bug https://www.github.com/paritytech/polkadot-sdk/pull/1616#issuecomment-1727194584 
+#alice: ts-script ./typescript/testing-file.ts return is equal to 2 within 120 seconds
+idn-alice: js-script ../../scripts/setup/set-drand-pubkey.js within 120 seconds
+alice: run ../../scripts/setup/open_hrmp.sh within 120 seconds
+
+# Ensure Blocks are being produced, also give enough time to allow for HRMP channels to open
+alice: parachain 2000 block height is at least 10 within 6000 seconds
+alice: parachain 2001 block height is at least 10 within 6000 seconds
+
+# Fund Sovereign Account
+idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,1000000" within 120 seconds
+# Pause to allow next transaction to go through+
+sleep 7 seconds
+# Fund Treasury Account
+idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C,1000000" within 120 seconds
+
+# Economic Testing Approach
+# The goal is to gather real metrics on how much subscriptions pay for their subscriptions under a simplified 
+# "every block dispatch" model. Here, we ignore frequency completely (and ignore idle fees). 
+# The general idea is to test many different subscriptions with various lifetimes, then determine how much 
+# each only actually paid to the IDN Treasury during its lifetime.
+# The flow will be: 
+# For i in range(N) 
+#   (1) quote the number of credits required for a subscription given N (N*credit_dispatch_rate)
+#   (2) create a subscription with lifetime N
+#   (3) run the subscription down until it is finalized (we precompute how much time this takes)
+#   (4) check the treasury account, verify how much was paid through the subscription's lifetime
+#   (5) cleanup/reset for next test
+
+# Quote Subscription
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-quote-subscription.js with "1000" within 120 seconds
+idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
+idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
+# lifetime = 1000 => 1000 credits => 100000 fees
+idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 100000, deposit: 1130 }" within 120 seconds
+
+# Create Subscription
+#idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-create-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+#idn-alice: system event contains "A new subscription was created" within 120 seconds
+#idn-alice: system event contains "Fees collected" within 120 seconds
+#idn-alice: system event contains "Randomness was successfully distributed" within 120 seconds
+#idn-consumer-alice: system event contains "A randomness pulse was successfully consumed" within 120 seconds

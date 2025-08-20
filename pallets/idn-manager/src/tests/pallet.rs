@@ -1826,13 +1826,11 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 	});
 }
 
-// #[cfg(feature = "frequency-aware")]
 #[test]
 fn test_quote_subscription_works() {
 	ExtBuilder::build().execute_with(|| {
-		// let credits: u64 = 50;
 		// f*C_idle + C_dispatch
-		let lifetime_pulses = 100;
+		let lifetime_pulses = 1000;
 		let pulse_callback_index = [1, 2];
 		let quote_callback_index = [1, 3];
 		let frequency = 10u64;
