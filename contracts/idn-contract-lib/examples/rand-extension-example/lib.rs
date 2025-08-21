@@ -1,54 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-use ink::env::Environment;
+use idn_contract_lib::ext::{IDNEnvironment, RandomReadErr};
 
-/// Here we define the operations to interact with the Substrate runtime.
-#[ink::chain_extension(extension = 666)]
-pub trait RandExtension {
-	type ErrorCode = RandomReadErr;
-
-	/// Note: this gives the operation a corresponding `func_id` (1101 in this case),
-	/// and the chain-side chain extension will get the `func_id` to do further
-	/// operations.
-	#[ink(function = 1101)]
-	fn fetch_random(subject: [u8; 32]) -> [u8; 32];
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[ink::scale_derive(Encode, Decode, TypeInfo)]
-pub enum RandomReadErr {
-	FailGetRandomSource,
-}
-
-impl ink::env::chain_extension::FromStatusCode for RandomReadErr {
-	fn from_status_code(status_code: u32) -> Result<(), Self> {
-		match status_code {
-			0 => Ok(()),
-			1 => Err(Self::FailGetRandomSource),
-			_ => panic!("encountered unknown status code"),
-		}
-	}
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[ink::scale_derive(TypeInfo)]
-pub enum CustomEnvironment {}
-
-impl Environment for CustomEnvironment {
-	const MAX_EVENT_TOPICS: usize = <ink::env::DefaultEnvironment as Environment>::MAX_EVENT_TOPICS;
-
-	type AccountId = <ink::env::DefaultEnvironment as Environment>::AccountId;
-	type Balance = <ink::env::DefaultEnvironment as Environment>::Balance;
-	type Hash = <ink::env::DefaultEnvironment as Environment>::Hash;
-	type BlockNumber = <ink::env::DefaultEnvironment as Environment>::BlockNumber;
-	type Timestamp = <ink::env::DefaultEnvironment as Environment>::Timestamp;
-
-	type ChainExtension = RandExtension;
-}
-
-#[ink::contract(env = crate::CustomEnvironment)]
+#[ink::contract(env = IDNEnvironment)]
 mod rand_extension {
-	use super::RandomReadErr;
+	use super::{IDNEnvironment, RandomReadErr};
 
 	/// Defines the storage of our contract.
 	///
@@ -121,7 +77,7 @@ mod rand_extension {
 			impl ink::env::test::ChainExtension for MockedRandExtension {
 				/// The static function id of the chain extension.
 				fn ext_id(&self) -> u16 {
-					666
+					42
 				}
 
 				/// The chain extension is called with the given input.
