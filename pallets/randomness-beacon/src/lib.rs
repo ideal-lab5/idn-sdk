@@ -251,7 +251,6 @@ pub mod pallet {
 									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok();
 
 								let res = pallet_scheduler::Pallet::<T>::service_agenda_decrypt_and_decode(
-									&mut frame_support::weights::WeightMeter::new(),
 									round,
 									sig.expect("TODO"),
 								);
@@ -404,7 +403,6 @@ pub mod pallet {
 				let mut executed = 0u32;
 				pallet_scheduler::Pallet::<T>::service_agenda_simple(
 					&mut frame_support::weights::WeightMeter::new(),
-					&mut executed,
 					k,
 					BoundedVec::truncate_from(v),
 				);

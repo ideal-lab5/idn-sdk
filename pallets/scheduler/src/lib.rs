@@ -80,11 +80,14 @@ pub use weights::WeightInfo;
 use ark_bls12_381::G1Affine;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
-	debug, dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin}, traits::{
+	debug,
+	dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin},
+	traits::{
 		schedule::{self, MaybeHashed},
 		Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage,
 		StorageVersion, StorePreimage,
-	}, weights::{Weight, WeightMeter}
+	},
+	weights::{Weight, WeightMeter},
 };
 use frame_system::{self as system};
 pub use pallet::*;
@@ -238,8 +241,8 @@ pub mod pallet {
 		Scheduled { when: RoundNumber, index: u32 },
 		/// Dispatched some task.
 		Dispatched { task: TaskAddress<RoundNumber>, id: TaskName, result: DispatchResult },
-		/// The call for the provided hash was not found so the task has been aborted.
-		CallUnavailable { task: TaskAddress<RoundNumber>, id: TaskName },
+		/// Something went wrong and the task could not be decrypted
+		CallUnavailable { id: TaskName },
 		/// The given task can never be executed since it is overweight.
 		PermanentlyOverweight { task: TaskAddress<RoundNumber>, id: TaskName },
 	}
@@ -367,15 +370,15 @@ use ServiceTaskError::*;
 impl<T: Config> Pallet<T> {
 	/// Given a decryption key (signature) and identity (a message derived from `when`),
 	/// attempt to decrypt ciphertexts locked for the given round number
-	/// where it outputs (bid, call).
-	/// Then perform a 'greedy' SPSBA auction on all incoming bids in order to choose the
-	/// bids that value the service the highest.
+	///
+	/// For now, it acts as a FIFO queue for decryption
+	///
 	pub fn service_agenda_decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
-	) -> BoundedVec<(TaskName, T::PalletsOrigin, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
+	) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
 		let mut recovered_calls: BoundedVec<
-			(TaskName, T::PalletsOrigin, <T as Config>::RuntimeCall),
+			(TaskName, <T as Config>::RuntimeCall),
 			T::MaxScheduledPerBlock,
 		> = BoundedVec::new();
 		// Retrieve all scheduled calls
@@ -383,7 +386,6 @@ impl<T: Config> Pallet<T> {
 
 		// Collect and decrypt all scheduled calls.
 		for task in agenda.into_iter() {
-
 			if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
 				if let Ok(ciphertext) =
 					TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
@@ -395,7 +397,7 @@ impl<T: Config> Pallet<T> {
 
 					// This should never panic
 					// Collects all scheduled calls, even those that won't be made if we exceed the max weight
-					recovered_calls.try_push((task.id, task.origin, call)).ok();
+					recovered_calls.try_push((task.id, call)).ok();
 				}
 			}
 		}
@@ -408,71 +410,41 @@ impl<T: Config> Pallet<T> {
 		weight: &mut WeightMeter,
 		when: RoundNumber,
 		// TODO: rename to MaxScheduledPerRound
-		call_data: BoundedVec<(TaskName, T::PalletsOrigin, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock>,
-	) -> bool {
-		// let mut agenda = Agenda::<T>::get(when);
-		// // first order by priority and simulatenously fill in call data
-		// let mut ordered = agenda
-		// 	.iter_mut()
-		// 	.enumerate()
-		// 	.filter_map(|(index, item)| {
-		// 		// if let Some(item) = maybe_item {
-		// 		// find the right call data based on id
-		// 		item.maybe_call = call_data
-		// 			.iter()
-		// 			// TODO: just matches based on id, no real verification check
-		// 			.find(|data| data.0.eq(&item.id))
-		// 			.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
-		// 		Some((index as u32, item.priority))
-		// 	})
-		// 	.collect::<Vec<_>>();
+		call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock>,
+	) {
+		let mut agenda = Agenda::<T>::get(when);
+		// first order by priority and simulatenously fill in call data
+		let mut ordered = agenda
+			.iter_mut()
+			.enumerate()
+			.filter_map(|(index, item)| {
+				// if let Some(item) = maybe_item {
+				// find the right call data based on id
+				item.maybe_call = call_data
+					.iter()
+					// TODO: just matches based on id, no real verification check
+					.find(|data| data.0.eq(&item.id))
+					.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
+				Some((index as u32, item.priority))
+			})
+			.collect::<Vec<_>>();
 
 		let mut meter = WeightMeter::with_limit(T::MaximumWeight::get());
 
 		let mut serviced_all = true;
-		for (id, origin, call) in call_data {
-			// let id = TaskName::decode();
-
-			let call_weight = call.get_dispatch_info().total_weight();
-			// let base_weigth = T::Preimages::bound(call).ok();
-
-			// T::WeightInfo::service_task(base_weigth.unwrap().lookup_len().map(|x| x as usize));
-
-			// T::WeightInfo::service_task(Some(call.encoded_size()));
-
-			if !meter.can_consume(call_weight) {
-				serviced_all = false;
-				break
+		for (agenda_index, _) in ordered.into_iter() {
+			let task = agenda[agenda_index as usize].clone();
+			let base_weight = T::WeightInfo::service_task(
+				// we know that maybe_call must be Some at this point
+				task.maybe_call.clone().unwrap().lookup_len().map(|x| x as usize),
+			);
+			if !weight.can_consume(base_weight) {
+				// TODO: how to report?
+				break;
 			}
 
-			let _result = Self::service_task_v2(&mut meter, when, id, origin, call);
+			let _result = Self::service_task(&mut meter, when, agenda_index, task);
 		}
-
-		// 	if !weight.can_consume(base_weight) {
-		// 		break;
-		// 	}
-
-		// 	// let _result = Self::service_task(weight, when, )
-		// 	let _result = Self::service_task_v2(weight, when, call);
-
-		// }
-
-
-		// for (agenda_index, _) in ordered.into_iter() {
-		// 	let task = agenda[agenda_index as usize].clone();
-
-		// 	let base_weight = T::WeightInfo::service_task(
-		// 		// we know that maybe_call must be Some at this point
-		// 		task.maybe_call.clone().unwrap().lookup_len().map(|x| x as usize),
-		// 	);
-		// 	if !weight.can_consume(base_weight) {
-		// 		// postponed += 1;
-		// 		break;
-		// 	}
-
-		// 	// TODO: gracefully handle errors (overweight)
-			// let _result = Self::service_task(weight, when, agenda_index, *executed == 0, task);
-
 		// 	// TODO: how should we report failures?
 		// 	// agenda[agenda_index as usize] = match result {
 		// 	// 	Err((Unavailable, slot)) => {
@@ -491,8 +463,6 @@ impl<T: Config> Pallet<T> {
 		// }
 
 		Agenda::<T>::remove(when);
-		// TODO return nothing instead
-		serviced_all
 	}
 
 	/// Service (i.e. execute) the given task, being careful not to overflow the `weight` counter.
@@ -505,56 +475,58 @@ impl<T: Config> Pallet<T> {
 		weight: &mut WeightMeter,
 		when: RoundNumber,
 		agenda_index: u32,
-		is_first: bool,
 		task: ScheduledOf<T>,
 	) -> Result<(), (ServiceTaskError, ScheduledOf<T>)> {
-		Lookup::<T>::remove(task.id);
+		if let Some(ref call) = task.maybe_call {
+			Lookup::<T>::remove(task.id);
+			let (call, lookup_len) = match T::Preimages::peek(&call) {
+				Ok(c) => c,
+				Err(_) => {
+					Self::deposit_event(Event::CallUnavailable {
+						// task: (when, agenda_index),
+						id: task.id,
+					});
 
-		let (call, lookup_len) = match T::Preimages::peek(&task.maybe_call.clone().unwrap()) {
-			Ok(c) => c,
-			Err(_) => {
-				Self::deposit_event(Event::CallUnavailable {
-					task: (when, agenda_index),
-					id: task.id,
-				});
+					// It was not available when we needed it, so we don't need to have requested it
+					// anymore.
+					T::Preimages::drop(&call);
 
-				return Err((Unavailable, task));
-			},
+					// We don't know why `peek` failed, thus we most account here for the "full weight".
+					let _ = weight.try_consume(T::WeightInfo::service_task(
+						call.lookup_len().map(|x| x as usize),
+					));
+
+					return Err((Unavailable, task));
+				},
+			};
+
+			// let l: usize = lookup_len as usize;
+			let _ = weight.try_consume(T::WeightInfo::service_task(lookup_len.map(|x| x as usize)));
+
+			return match Self::execute_dispatch(weight, task.origin.clone(), call) {
+				Err(()) => Err((Overweight, task)),
+				Ok(result) => {
+					Self::deposit_event(Event::Dispatched {
+						task: (when, agenda_index),
+						id: task.id,
+						result,
+					});
+
+					return Ok(());
+				},
+			}?;
 		};
 
-		let _ = weight.try_consume(T::WeightInfo::service_task(lookup_len.map(|x| x as usize)));
-
-		match Self::execute_dispatch(weight, task.origin.clone(), call) {
-			Err(()) if is_first => {
-				T::Preimages::drop(&task.maybe_call.clone().unwrap());
-				Self::deposit_event(Event::PermanentlyOverweight {
-					task: (when, agenda_index),
-					id: task.id,
-				});
-				Err((Unavailable, task))
-			},
-			Err(()) => Err((Overweight, task)),
-			Ok(result) => {
-				Self::deposit_event(Event::Dispatched {
-					task: (when, agenda_index),
-					id: task.id,
-					result,
-				});
-
-				T::Preimages::drop(&task.maybe_call.clone().unwrap());
-
-				Ok(())
-			},
-		}
+		Ok(())
 	}
 
-#[allow(clippy::result_large_err)]
+	#[allow(clippy::result_large_err)]
 	fn service_task_v2(
 		weight: &mut WeightMeter,
 		when: RoundNumber,
 		id: TaskName,
 		origin: T::PalletsOrigin,
-		call: <T as Config>::RuntimeCall
+		call: <T as Config>::RuntimeCall,
 	) -> Result<(), ServiceTaskError> {
 		Lookup::<T>::remove(id);
 
@@ -565,11 +537,7 @@ impl<T: Config> Pallet<T> {
 		match Self::execute_dispatch(weight, origin, call) {
 			Err(()) => Err(Overweight),
 			Ok(result) => {
-				Self::deposit_event(Event::Dispatched {
-					task: (when, 0),
-					id: id,
-					result,
-				});
+				Self::deposit_event(Event::Dispatched { task: (when, 0), id, result });
 				Ok(())
 			},
 		}
