@@ -453,7 +453,7 @@ pub mod pallet {
 		///
 		/// # Parameters
 		/// - `origin`: Must be the root (sudo) origin.
-		/// - `credits`: Number of random values to receive.
+		/// - `number_of_pulses`: Number of random values to receive.
 		/// - `frequency`: Distribution interval for pulses.
 		/// - `metadata`: Optional additional data for the subscription.
 		/// - `sub_id`: Optional subscription ID.
@@ -474,14 +474,14 @@ pub mod pallet {
 		#[allow(clippy::useless_conversion)]
 		pub fn sudo_request_quote(
 			origin: OriginFor<T>,
-			credits: Credits,
+			number_of_pulses: IdnBlockNumber,
 			frequency: IdnBlockNumber,
 			metadata: Option<Metadata>,
 			sub_id: Option<SubscriptionId>,
 			req_ref: Option<RequestReference>,
 		) -> DispatchResultWithPostInfo {
 			ensure_root(origin.clone())?;
-			Self::request_quote(origin, credits, frequency, metadata, sub_id, req_ref)?;
+			Self::request_quote(origin, number_of_pulses, frequency, metadata, sub_id, req_ref)?;
 			Ok(Pays::No.into())
 		}
 
@@ -616,7 +616,7 @@ impl<T: Config> Pallet<T> {
 		// Origin of the call, must be accetable by the IDN XCM barrier
 		origin: OriginFor<T>,
 		// Number of random values to receive
-		credits: Credits,
+		number_of_pulses: IdnBlockNumber,
 		// Distribution interval for pulses
 		frequency: IdnBlockNumber,
 		// Bounded vector for additional data
@@ -627,7 +627,7 @@ impl<T: Config> Pallet<T> {
 		req_ref: Option<RequestReference>,
 	) -> Result<RequestReference, Error<T>> {
 		let create_sub_params = CreateSubParams {
-			credits,
+			credits: 0,
 			target: Self::self_para_sibling_location()?,
 			// the `0` on the second element is the call index for the `consume` call
 			call_index: Self::pulse_callback_index()?,
@@ -645,7 +645,8 @@ impl<T: Config> Pallet<T> {
 			},
 		};
 
-		let quote_request = QuoteRequest { req_ref, create_sub_params };
+		let quote_request =
+			QuoteRequest { req_ref, create_sub_params, lifetime_pulses: number_of_pulses };
 
 		let params = QuoteSubParams { quote_request, call_index: Self::quote_callback_index()? };
 

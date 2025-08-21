@@ -282,7 +282,7 @@ mod benchmarks {
 	fn sudo_request_quote() {
 		let sub_id = None;
 		let req_ref = None;
-		let credits = 10;
+		let number_of_pulses = 10;
 		let frequency = 5;
 		let metadata = None;
 		let origin = RawOrigin::Root;
@@ -291,7 +291,7 @@ mod benchmarks {
 		{
 			IdnConsumer::<T>::sudo_request_quote(
 				origin.into(),
-				credits,
+				number_of_pulses,
 				frequency,
 				metadata,
 				sub_id,

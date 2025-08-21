@@ -127,6 +127,7 @@ frame_benchmarking::define_benchmarks!(
 	[pallet_balances, Balances]
 	[pallet_sudo, Sudo]
 	[pallet_collator_selection, CollatorSelection]
+	[pallet_contracts, Contracts]
 	[pallet_session, SessionBench::<Runtime>]
 	[cumulus_pallet_xcmp_queue, XcmpQueue]
 	[pallet_message_queue, MessageQueue]

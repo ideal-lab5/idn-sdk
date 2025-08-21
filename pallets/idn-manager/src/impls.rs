@@ -71,8 +71,8 @@ impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, SubscriptionId>
 ///   details.
 /// * `Balances`: A `Mutate<AccountId32>` implementation that provides the ability to hold and
 ///   release balances.
-pub struct FeesManagerImpl<Treasury, Sub, Balances> {
-	_phantom: PhantomData<(Treasury, Sub, Balances)>,
+pub struct FeesManagerImpl<Treasury, Sub, Balances, Frequency, PulseIndex> {
+	_phantom: PhantomData<(Treasury, Sub, Balances, Frequency, PulseIndex)>,
 }
 
 /// This struct represent movement of balance.
@@ -103,23 +103,27 @@ impl<Balance: Copy> DiffBalance<Balance> for DiffBalanceImpl<Balance> {
 ///
 /// ## Calculate Subscription Fees Test
 #[doc = docify::embed!("./src/tests/pallet.rs", test_calculate_subscription_fees)]
-impl<Treasury, Sub, Balances>
+impl<Treasury, Sub, Balances, Frequency, PulseIndex>
 	FeesManager<
 		Balances::Balance,
 		u64,
-		u64,
-		u64,
+		Frequency,
+		PulseIndex,
 		Sub,
 		DispatchError,
 		AccountId32,
 		DiffBalanceImpl<Balances::Balance>,
-	> for FeesManagerImpl<Treasury, Sub, Balances>
+	> for FeesManagerImpl<Treasury, Sub, Balances, Frequency, PulseIndex>
 where
 	Treasury: Get<AccountId32>,
 	Sub: SubscriptionTrait<AccountId32>,
 	Balances: HoldMutate<AccountId32> + Mutate<AccountId32> + Inspect<AccountId32>,
 	Balances::Reason: From<HoldReason>,
 	Balances::Balance: From<u64>,
+	Frequency: Saturating,
+	PulseIndex: Saturating,
+	u64: From<Frequency>,
+	u64: From<PulseIndex>,
 {
 	/// Calculate the subscription fees based on the number of requested credits.
 	///

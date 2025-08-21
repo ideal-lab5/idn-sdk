@@ -17,6 +17,8 @@
 #[path = "xcm.rs"]
 pub(crate) mod xcm_config;
 
+mod contracts;
+
 // Substrate and Polkadot dependencies
 use bp_idn::{
 	impls,
@@ -57,10 +59,10 @@ use super::{
 		SystemWeightInfo, TimestampWeightInfo, TransactionPaymentWeightInfo,
 	},
 	AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook, Hash,
-	MessageQueue, Nonce, PalletInfo, Runtime, RuntimeCall, RuntimeEvent, RuntimeFreezeReason,
-	RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys, System, WeightToFee,
-	XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, CENTIUNIT, EXISTENTIAL_DEPOSIT, HOURS, MAXIMUM_BLOCK_WEIGHT,
-	MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
+	MessageQueue, Nonce, PalletInfo, RandomnessCollectiveFlip, Runtime, RuntimeCall, RuntimeEvent,
+	RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
+	System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, CENTIUNIT, EXISTENTIAL_DEPOSIT, HOURS,
+	MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
 };
 use xcm_config::RelayLocation;
 
@@ -292,8 +294,13 @@ mod bench_ensure_origin {
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager =
-		impls::FeesManagerImpl<types::TreasuryAccount, SubscriptionOf<Runtime>, Balances>;
+	type FeesManager = impls::FeesManagerImpl<
+		types::TreasuryAccount,
+		SubscriptionOf<Runtime>,
+		Balances,
+		BlockNumber,
+		BlockNumber,
+	>;
 	type DepositCalculator = impls::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
 	type PalletId = types::IdnManagerPalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
@@ -327,6 +334,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type MaxSigsPerBlock = MaxSigsPerBlock;
 	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;
+	type FallbackRandomness = RandomnessCollectiveFlip;
 }
 
 parameter_types! {
@@ -371,3 +379,4 @@ impl pallet_preimage::Config for Runtime {
 		frame_support::traits::LinearStoragePrice<DepositPerItem, DepositPerByte, Balance>,
 	>;
 }
+impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

@@ -74,6 +74,9 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
 
+// Export pallet_balances::Call for use in contracts pallet
+pub use pallet_balances::Call as BalancesCall;
+
 /// The SignedExtension to the basic transaction logic.
 #[docify::export(template_signed_extra)]
 pub type TxExtension = (
@@ -308,7 +311,22 @@ mod runtime {
 
 	#[runtime::pallet_index(43)]
 	pub type Scheduler = pallet_scheduler::Pallet<Runtime>;
+	// Contracts
+	#[runtime::pallet_index(50)]
+	pub type Contracts = pallet_contracts::Pallet<Runtime>;
+	#[runtime::pallet_index(51)]
+	pub type RandomnessCollectiveFlip = pallet_insecure_randomness_collective_flip::Pallet<Runtime>;
 }
+
+type EventRecord = frame_system::EventRecord<
+	<Runtime as frame_system::Config>::RuntimeEvent,
+	<Runtime as frame_system::Config>::Hash,
+>;
+
+// Defines debug output of the `revive` pallet to stdout if the node is
+// started with `-lruntime::revive=trace` or `-lruntime::contracts=debug`.
+const CONTRACTS_DEBUG_OUTPUT: pallet_contracts::DebugInfo = pallet_contracts::DebugInfo::Skip;
+const CONTRACTS_EVENTS: pallet_contracts::CollectEvents = pallet_contracts::CollectEvents::Skip;
 
 cumulus_pallet_parachain_system::register_validate_block! {
 	Runtime = Runtime,

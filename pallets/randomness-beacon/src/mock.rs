@@ -88,6 +88,13 @@ impl sp_idn_traits::pulse::Dispatcher<MockPulse> for MockDispatcher {
 	}
 }
 
+pub struct MockFallbackRandomness;
+impl frame_support::traits::Randomness<H256, BlockNumberFor<Test>> for MockFallbackRandomness {
+	fn random(_subject: &[u8]) -> (H256, BlockNumberFor<Test>) {
+		(H256::default(), BlockNumberFor::<Test>::default())
+	}
+}
+
 impl pallet_randomness_beacon::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
@@ -95,6 +102,7 @@ impl pallet_randomness_beacon::Config for Test {
 	type MaxSigsPerBlock = ConstU8<3>;
 	type Pulse = MockPulse;
 	type Dispatcher = MockDispatcher;
+	type FallbackRandomness = MockFallbackRandomness;
 }
 
 pub struct TestWeightInfo;

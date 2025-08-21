@@ -18,4 +18,4 @@
 
 pub(crate) mod relay;
 
-pub const IDN_PARACHAIN_ID: u32 = 2000; // Example IDN parachain ID
+pub const IDN_PARACHAIN_ID: u32 = 4502;
