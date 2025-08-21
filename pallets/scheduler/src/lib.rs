@@ -371,31 +371,18 @@ impl<T: Config> Pallet<T> {
 	/// Then perform a 'greedy' SPSBA auction on all incoming bids in order to choose the
 	/// bids that value the service the highest.
 	pub fn service_agenda_decrypt_and_decode(
-		_weight: &mut WeightMeter,
 		when: RoundNumber,
 		signature: G1Affine,
-	) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
+	) -> BoundedVec<(TaskName, T::PalletsOrigin, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
 		let mut recovered_calls: BoundedVec<
-			(TaskName, <T as Config>::RuntimeCall),
+			(TaskName, T::PalletsOrigin, <T as Config>::RuntimeCall),
 			T::MaxScheduledPerBlock,
 		> = BoundedVec::new();
-
+		// Retrieve all scheduled calls
 		let agenda = Agenda::<T>::get(when);
-		// let mut ordered: Vec<(u32, schedule::Priority)> = agenda
-		// 	.iter()
-		// 	.enumerate()
-		// 	.filter_map(|(index, item)| Some((index as u32, item.priority)))
-		// 	.collect::<Vec<_>>();
 
-		// ordered.sort_by_key(|k| k.1);
-
-		// let within_limit = weight
-		// 	.try_consume(T::WeightInfo::service_agenda_base(ordered.len() as u32))
-		// 	.is_ok();
-		// debug_assert!(within_limit, "weight limit should have been checked in advance");
-
+		// Collect and decrypt all scheduled calls.
 		for task in agenda.into_iter() {
-			// let task = agenda[agenda_index as usize];
 
 			if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
 				if let Ok(ciphertext) =
@@ -406,16 +393,12 @@ impl<T: Config> Pallet<T> {
 							.unwrap();
 					let call = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()).unwrap();
 
-					// then we need to get the REAL weight of the call
-					// and compute the actual price the caller will pay? right now, it's first come first served
-
-					let _ = T::Preimages::bound(call.clone());
-					// first come first serve => ignore all that don't fit
-					let _ = recovered_calls.try_push((task.id, call));
+					// This should never panic
+					// Collects all scheduled calls, even those that won't be made if we exceed the max weight
+					recovered_calls.try_push((task.id, task.origin, call)).ok();
 				}
 			}
 		}
-
 		recovered_calls
 	}
 
@@ -423,79 +406,93 @@ impl<T: Config> Pallet<T> {
 	/// later block.
 	pub fn service_agenda_simple(
 		weight: &mut WeightMeter,
-		executed: &mut u32,
 		when: RoundNumber,
 		// TODO: rename to MaxScheduledPerRound
-		call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock>,
+		call_data: BoundedVec<(TaskName, T::PalletsOrigin, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock>,
 	) -> bool {
-		let mut agenda = Agenda::<T>::get(when);
-		// first order by priority and simulatenously fill in call data
-		let mut ordered = agenda
-			.iter_mut()
-			.enumerate()
-			.filter_map(|(index, item)| {
-				// if let Some(item) = maybe_item {
-				// find the right call data based on id
-				item.maybe_call = call_data
-					.iter()
-					// TODO: just matches based on id, no real verification check
-					.find(|data| data.0.eq(&item.id))
-					.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
-				Some((index as u32, item.priority))
-			})
-			.collect::<Vec<_>>();
-		ordered.sort_by_key(|k| k.1);
+		// let mut agenda = Agenda::<T>::get(when);
+		// // first order by priority and simulatenously fill in call data
+		// let mut ordered = agenda
+		// 	.iter_mut()
+		// 	.enumerate()
+		// 	.filter_map(|(index, item)| {
+		// 		// if let Some(item) = maybe_item {
+		// 		// find the right call data based on id
+		// 		item.maybe_call = call_data
+		// 			.iter()
+		// 			// TODO: just matches based on id, no real verification check
+		// 			.find(|data| data.0.eq(&item.id))
+		// 			.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
+		// 		Some((index as u32, item.priority))
+		// 	})
+		// 	.collect::<Vec<_>>();
 
-		// let within_limit = weight
-		// 	.try_consume(T::WeightInfo::service_agenda_base(ordered.len() as u32))
-		// 	.is_ok();
-		// debug_assert!(within_limit, "weight limit should have been checked in advance");
+		let mut meter = WeightMeter::with_limit(T::MaximumWeight::get());
 
-		// Items cannot be postponed. Anything that cannot be executed must be dropped.
-		// This is why it will be crucial to allow for time-based exection leasing to provide execution guarantees
-		// Items which we know can be executed and have postponed for execution in a later block.
-		// so we need to invert the metering a bit here
-		// instead of executing things up to a given weight, we need to execute 'leased' transaction slots
-		// let mut postponed = (ordered.len() as u32).saturating_sub(max);
-		// Items which we don't know can ever be executed.
-		// let mut dropped = 0;
+		let mut serviced_all = true;
+		for (id, origin, call) in call_data {
+			// let id = TaskName::decode();
 
-		for (agenda_index, _) in ordered.into_iter() {
-			let task = agenda[agenda_index as usize].clone();
+			let call_weight = call.get_dispatch_info().total_weight();
+			// let base_weigth = T::Preimages::bound(call).ok();
 
-			let base_weight = T::WeightInfo::service_task(
-				// we know that maybe_call must be Some at this point
-				task.maybe_call.clone().unwrap().lookup_len().map(|x| x as usize),
-			);
+			// T::WeightInfo::service_task(base_weigth.unwrap().lookup_len().map(|x| x as usize));
 
-			if !weight.can_consume(base_weight) {
-				// postponed += 1;
-				break;
+			// T::WeightInfo::service_task(Some(call.encoded_size()));
+
+			if !meter.can_consume(call_weight) {
+				serviced_all = false;
+				break
 			}
 
-			// TODO: gracefully handle errors (overweight)
-			let _result = Self::service_task(weight, when, agenda_index, *executed == 0, task);
-
-			// TODO: how should we report failures?
-			// agenda[agenda_index as usize] = match result {
-			// 	Err((Unavailable, slot)) => {
-			// 		dropped += 1;
-			// 		slot
-			// 	},
-			// 	Err((Overweight, slot)) => {
-			// 		dropped += 1;
-			// 		slot
-			// 	},
-			// 	Ok(()) => {
-			// 		// *executed += 1;
-			// 		None
-			// 	},
-			// };
+			let _result = Self::service_task_v2(&mut meter, when, id, origin, call);
 		}
+
+		// 	if !weight.can_consume(base_weight) {
+		// 		break;
+		// 	}
+
+		// 	// let _result = Self::service_task(weight, when, )
+		// 	let _result = Self::service_task_v2(weight, when, call);
+
+		// }
+
+
+		// for (agenda_index, _) in ordered.into_iter() {
+		// 	let task = agenda[agenda_index as usize].clone();
+
+		// 	let base_weight = T::WeightInfo::service_task(
+		// 		// we know that maybe_call must be Some at this point
+		// 		task.maybe_call.clone().unwrap().lookup_len().map(|x| x as usize),
+		// 	);
+		// 	if !weight.can_consume(base_weight) {
+		// 		// postponed += 1;
+		// 		break;
+		// 	}
+
+		// 	// TODO: gracefully handle errors (overweight)
+			// let _result = Self::service_task(weight, when, agenda_index, *executed == 0, task);
+
+		// 	// TODO: how should we report failures?
+		// 	// agenda[agenda_index as usize] = match result {
+		// 	// 	Err((Unavailable, slot)) => {
+		// 	// 		dropped += 1;
+		// 	// 		slot
+		// 	// 	},
+		// 	// 	Err((Overweight, slot)) => {
+		// 	// 		dropped += 1;
+		// 	// 		slot
+		// 	// 	},
+		// 	// 	Ok(()) => {
+		// 	// 		// *executed += 1;
+		// 	// 		None
+		// 	// 	},
+		// 	// };
+		// }
 
 		Agenda::<T>::remove(when);
 		// TODO return nothing instead
-		true
+		serviced_all
 	}
 
 	/// Service (i.e. execute) the given task, being careful not to overflow the `weight` counter.
@@ -546,6 +543,33 @@ impl<T: Config> Pallet<T> {
 
 				T::Preimages::drop(&task.maybe_call.clone().unwrap());
 
+				Ok(())
+			},
+		}
+	}
+
+#[allow(clippy::result_large_err)]
+	fn service_task_v2(
+		weight: &mut WeightMeter,
+		when: RoundNumber,
+		id: TaskName,
+		origin: T::PalletsOrigin,
+		call: <T as Config>::RuntimeCall
+	) -> Result<(), ServiceTaskError> {
+		Lookup::<T>::remove(id);
+
+		let call_weight = call.get_dispatch_info().total_weight();
+
+		let _ = weight.try_consume(call_weight);
+
+		match Self::execute_dispatch(weight, origin, call) {
+			Err(()) => Err(Overweight),
+			Ok(result) => {
+				Self::deposit_event(Event::Dispatched {
+					task: (when, 0),
+					id: id,
+					result,
+				});
 				Ok(())
 			},
 		}

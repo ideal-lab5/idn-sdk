@@ -259,8 +259,9 @@ impl WeightInfo for TestWeightInfo {
 	}
 }
 parameter_types! {
-	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
-		BlockWeights::get().max_block;
+	// pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+	// 	BlockWeights::get().max_block;
+	pub MaximumSchedulerWeight: Weight = Weight::from_parts(10, 100);
 }
 
 impl Config for Test {

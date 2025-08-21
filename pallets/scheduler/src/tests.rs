@@ -23,10 +23,10 @@ use crate::mock::{
 	logger, new_test_ext, root, run_to_block, LoggerCall, Preimage, RuntimeCall, Scheduler, Test, *,
 };
 use ark_ec::{AffineRepr, CurveGroup, PrimeGroup};
-use ark_ff::PrimeField;
+use ark_ff::{Fp, MontBackend, PrimeField};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeHashExt};
 use frame_support::{
-	assert_err, assert_noop, assert_ok, traits::{dynamic_params::IntoKey, ConstU32, Contains, OnInitialize, QueryPreimage, StorePreimage}, Blake2_256, Hashable
+	assert_err, assert_noop, assert_ok, parameter_types, traits::{dynamic_params::IntoKey, ConstU32, Contains, OnInitialize, QueryPreimage, StorePreimage}, Blake2_256, Hashable
 };
 use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng, ChaCha20Rng, ChaChaRng};
 // use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
@@ -34,7 +34,7 @@ use sp_core::sha2_256;
 // use sp_runtime::traits::Hash;
 use substrate_test_utils::assert_eq_uvec;
 
-use ark_bls12_381::{Fr, G2Projective as G2, G1Projective as G1};
+use ark_bls12_381::{Fr, FrConfig, G1Projective as G1, G2Projective as G2};
 use ark_std::{ops::Mul, rand::{CryptoRng, Rng, RngCore}, One};
 use timelock::{self, block_ciphers::BlockCipherProvider, engines::{drand::TinyBLSDrandQuicknet, EngineBLS}, ibe::fullident::Identity, tlock::OpaqueSecretKey};
 use sp_idn_crypto::drand;
@@ -49,6 +49,30 @@ use ark_std::rand::rngs::OsRng;
 
 //https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info
 const DRAND_QUICKNET_PK: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+
+fn make_ciphertext(call: RuntimeCall, round_number: u64, sk: Fp<MontBackend<FrConfig, 4>, 4>) -> (Identity, BoundedVec<u8,  ConstU32<4048>>){
+
+    let encoded_call = call.encode();
+
+        
+    let message = drand::compute_round_on_g1(round_number).ok().unwrap();
+    let p_pub = G2::generator().mul(sk);
+    let msk = [1; 32];
+    
+    let mut identity_vec: Vec<u8> = Vec::new();
+    message.serialize_compressed(&mut identity_vec).ok();
+    let identity_vec_vec = vec![identity_vec];
+    let id: Identity = timelock::ibe::fullident::Identity::new(drand::QUICKNET_CTX, identity_vec_vec);
+    
+    let ct = timelock::tlock::tle::<TinyBLS381, AESGCMBlockCipherProvider, OsRng>(p_pub, msk, &encoded_call, id.clone(), OsRng).unwrap();
+    let mut ct_vec: Vec<u8> = Vec::new();
+    ct.serialize_compressed(&mut ct_vec).ok();
+    let ct_bounded_vec: BoundedVec<u8,  ConstU32<4048>> = BoundedVec::truncate_from(ct_vec);
+
+    (id, ct_bounded_vec)
+
+
+}
 #[test]
 #[docify::export]
 fn basic_sealed_scheduling_works() {
@@ -91,31 +115,19 @@ fn execution_fails_bad_origin() {
 fn shielded_transactions_are_properly_scheduled() {
     new_test_ext().execute_with(|| {
 
-        let call = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
-        let encoded_call = call.encode();
+        let mut call = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
 
         let drand_round_num = 10;
-        let message = drand::compute_round_on_g1(drand_round_num).ok().unwrap();
 
-        let sk = Fr::one();
-        let p_pub = G2::generator().mul(sk);
-        let msk = [1; 32];
-        
-        let mut identity_vec: Vec<u8> = Vec::new();
-        message.serialize_compressed(&mut identity_vec).ok();
-        let identity_vec_vec = vec![identity_vec];
-        let id: Identity = timelock::ibe::fullident::Identity::new(drand::QUICKNET_CTX, identity_vec_vec);
+        let sk= Fr::one();
 
-        let signature = id.extract::<TinyBLS381>(sk).0;
-        
-        let ct = timelock::tlock::tle::<TinyBLS381, AESGCMBlockCipherProvider, OsRng>(p_pub, msk, &encoded_call, id, OsRng).unwrap();
-        let mut ct_vec: Vec<u8> = Vec::new();
-        ct.serialize_compressed(&mut ct_vec).ok();
-        let ct_bounded_vec: BoundedVec<u8,  ConstU32<4048>> = BoundedVec::truncate_from(ct_vec);
+        let (id, ct_bounded_vec) = make_ciphertext(call.clone(), drand_round_num, sk);
 
         let priority = 0;
 
         let origin: RuntimeOrigin = RuntimeOrigin::root();
+
+        let signature = id.extract::<TinyBLS381>(sk).0;
         
         assert_ok!(Scheduler::schedule_sealed(
             origin, 
@@ -124,19 +136,64 @@ fn shielded_transactions_are_properly_scheduled() {
             ct_bounded_vec
         ));
 
-        let mut weight: WeightMeter = WeightMeter::new();
-
-        let empty_result_early: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(&mut weight, 9, signature.into());
+        let empty_result_early: BoundedVec<([u8; 32], OriginCaller, RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(9, signature.into());
         let empty_result_early_call = empty_result_early.get(0);
         assert_eq!(empty_result_early_call, None);
         
-        let result: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(&mut weight, drand_round_num, signature.into());
-        let runtime_call = result.get(0).unwrap().1.clone();
+        let result: BoundedVec<([u8; 32], OriginCaller, RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(drand_round_num, signature.into());
+        let runtime_call = result.get(0).unwrap().2.clone();
         assert_eq!(runtime_call, call);
 
-        let empty_result_late: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(&mut weight, 11, signature.into());
+        let empty_result_late: BoundedVec<([u8; 32], OriginCaller, RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(11, signature.into());
         let empty_result_late_call = empty_result_late.get(0);
         assert_eq!(empty_result_late_call, None);
+    })
+}
+
+#[test]
+#[docify::export]
+fn schedule_simple_only_returns_earliest() {
+    new_test_ext().execute_with(|| {
+
+        let call_1 = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
+        let call_2 = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 200) });
+
+        let drand_round_num = 10;
+
+        let sk= Fr::one();
+
+        let (id, ct_bounded_vec) = make_ciphertext(call_1.clone(), drand_round_num, sk);
+
+        let signature = id.extract::<TinyBLS381>(sk).0;
+
+        let priority = 0;
+
+        let origin: RuntimeOrigin = RuntimeOrigin::root();
+        assert_ok!(Scheduler::schedule_sealed(
+            origin.clone(), 
+            drand_round_num, 
+            priority, 
+            ct_bounded_vec
+        ));
+
+        let (_, ct_bounded_vec) = make_ciphertext(call_2.clone(), drand_round_num, sk);
+
+        assert_ok!(Scheduler::schedule_sealed(
+            origin.clone(), 
+            drand_round_num, 
+            priority, 
+            ct_bounded_vec
+        ));
+
+        let calls: BoundedVec<([u8; 32], OriginCaller, RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(drand_round_num, signature.into());
+
+        let mut meter = WeightMeter::new();
+        let result = Scheduler::service_agenda_simple(&mut meter, drand_round_num, calls);
+
+        assert_eq!(result, false);
+
+        // let serviced_tasks = Scheduler::service_task_v2(weight, when, task);
+
     })
 }
 
