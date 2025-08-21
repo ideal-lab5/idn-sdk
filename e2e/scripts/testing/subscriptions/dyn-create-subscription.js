@@ -12,11 +12,8 @@ async function run(nodeName, networkInfo, args) {
   const credits = BigInt(args[0]);
   const frequency = 1;
   const metadata = null;
-  // Create a new Uint32Array with a specified length (e.g., 10 elements)
+  // random subId
   const subId = new Uint8Array(33);
-  // Fill the array with cryptographically strong random values
-  // The crypto.getRandomValues() method fills the provided typed array with random numbers.
-  // Math.floor(Math.random() * max);
   crypto.getRandomValues(subId);
 
   const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoCreateSubscription(credits, frequency, metadata, subId))

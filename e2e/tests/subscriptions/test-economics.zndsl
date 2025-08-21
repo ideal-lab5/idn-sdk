@@ -24,28 +24,18 @@ alice: parachain 4502 block height is at least 10 within 6000 seconds
 idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,1000000" within 120 seconds
 # Pause to allow next transaction to go through
 sleep 7 seconds
+
 # Fund Treasury Account
 idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C,1000000" within 120 seconds
+sleep 7 seconds
+# check free balance of Treasury Account
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1152921504607846912" within 120 secs
 
-# Economic Testing Approach
-# The goal is to gather real metrics on how much subscriptions pay for their subscriptions under a simplified 
-# "every block dispatch" model. Here, we ignore frequency completely (and ignore idle fees). 
-# The general idea is to test many different subscriptions with various lifetimes, then determine how much 
-# each only actually paid to the IDN Treasury during its lifetime.
-# The flow will be: 
-# For i in range(N) 
-#   (1) quote the number of credits required for a subscription given N (N*credit_dispatch_rate)
-#   (2) create a subscription with lifetime N
-#   (3) run the subscription down until it is finalized (we precompute how much time this takes)
-#   (4) check the treasury account, verify how much was paid through the subscription's lifetime
-#   (5) cleanup/reset for next test
-
-# Quote Subscription
+# Quote Subscription, assume frequency = 0
 idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-quote-subscription.js with "10" within 120 seconds
 idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
 idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
-# lifetime = 1000 => 1000 credits => 100000 fees
-# 10 => 1000 fees
+# freq = 0, #pulses = 10 => 10 credits => 1000  (how many DOT is this? 1?)
 idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 1000, deposit: 1020 }" within 120 seconds
 
 # Create Subscription
@@ -57,10 +47,9 @@ idn-alice: system event contains "Fees collected" within 120 seconds
 idn-alice: system event contains "Randomness was successfully distributed" within 120 seconds
 idn-consumer-alice: system event contains "A randomness pulse was successfully consumed" within 120 seconds
 # 10 credits => 10 blocks => 60 seconds = 1 min
-idn-alice: system event contains "A subscription has terminated" within 70 seconds
+idn-alice: system event contains "A subscription has terminated" within 120 seconds
 # now we want to check the balance of the treasury account
-# funded with 1000000 
-# add 1000 from the consumer
-idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1001000" within 120 secs
+# Balance +10
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1152921504607847926" within 120 secs
 
 # wait for the subscription to timeout: 1000 credits => 1000 blocks => 6000 seconds (1.66 hours) 

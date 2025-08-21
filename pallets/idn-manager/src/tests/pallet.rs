@@ -1776,7 +1776,6 @@ fn test_quote_subscription_works() {
 			.saturating_add(dispatch)
 			.saturating_mul(lifetime_pulses);
 		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(&credits);
-		// let credits = lifetime_pulses * fees;
 
 		let origin = RuntimeOrigin::signed(mock::SIBLING_PARA_ACCOUNT);
 
