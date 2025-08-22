@@ -1,5 +1,5 @@
 [package]
-name = "pallet-scheduler"
+name = "pallet-timelock-transactions"
 version = "4.0.0-dev"
 authors.workspace = true
 edition.workspace = true

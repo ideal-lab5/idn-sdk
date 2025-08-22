@@ -88,7 +88,7 @@ parachain-info.workspace = true
 bp-idn = { workspace = true, default-features = false }
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
-pallet-scheduler.workspace = true
+pallet-timelock-transactions.workspace = true
 sp-consensus-randomness-beacon.workspace = true
 sp-idn-crypto.workspace = true
 
@@ -125,7 +125,7 @@ std = [
   "pallet-message-queue/std",
   "pallet-preimage/std",
   "pallet-randomness-beacon/std",
-  "pallet-scheduler/std",
+  "pallet-timelock-transactions/std",
   "pallet-session/std",
   "pallet-sudo/std",
   "pallet-timestamp/std",
@@ -180,7 +180,7 @@ runtime-benchmarks = [
   "pallet-timestamp/runtime-benchmarks",
   "pallet-xcm/runtime-benchmarks",
   "pallet-randomness-beacon/runtime-benchmarks",
-  "pallet-scheduler/runtime-benchmarks",
+  "pallet-timelock-transactions/runtime-benchmarks",
   "parachains-common/runtime-benchmarks",
   "polkadot-parachain-primitives/runtime-benchmarks",
   "polkadot-runtime-common/runtime-benchmarks",

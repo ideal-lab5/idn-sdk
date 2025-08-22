@@ -18,7 +18,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		Balances: pallet_balances,
-		Scheduler: pallet_scheduler,
+		Scheduler: pallet_timelock_transactions,
 		Preimage: pallet_preimage,
 		Drand: pallet_randomness_beacon,
 	}
@@ -106,7 +106,7 @@ impl pallet_randomness_beacon::Config for Test {
 }
 
 pub struct TestWeightInfo;
-impl pallet_scheduler::WeightInfo for TestWeightInfo {
+impl pallet_timelock_transactions::WeightInfo for TestWeightInfo {
 	fn service_agendas_base() -> Weight {
 		Weight::from_parts(0b0000_0001, 0)
 	}
@@ -156,7 +156,7 @@ ord_parameter_types! {
 	pub const One: u64 = 1;
 }
 
-impl pallet_scheduler::Config for Test {
+impl pallet_timelock_transactions::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeOrigin = RuntimeOrigin;
 	type PalletsOrigin = OriginCaller;

@@ -5398,9 +5398,9 @@ dependencies = [
  "pallet-message-queue",
  "pallet-preimage",
  "pallet-randomness-beacon",
- "pallet-scheduler 4.0.0-dev",
  "pallet-session",
  "pallet-sudo",
+ "pallet-timelock-transactions",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -8845,7 +8845,7 @@ dependencies = [
  "log",
  "pallet-balances",
  "pallet-preimage",
- "pallet-scheduler 4.0.0-dev",
+ "pallet-timelock-transactions",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -9020,37 +9020,6 @@ dependencies = [
 
 [[package]]
 name = "pallet-scheduler"
-version = "4.0.0-dev"
-dependencies = [
- "ark-bls12-381 0.5.0",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
- "ark-serialize 0.5.0",
- "ark-std 0.5.0",
- "docify",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "pallet-insecure-randomness-collective-flip",
- "pallet-preimage",
- "pallet-timestamp",
- "parity-scale-codec",
- "rand_chacha 0.9.0",
- "scale-info",
- "sp-consensus-randomness-beacon",
- "sp-core",
- "sp-idn-crypto",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "sp-weights",
- "substrate-test-utils",
- "timelock",
-]
-
-[[package]]
-name = "pallet-scheduler"
 version = "41.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7de58764e1499f570f180c81ba1fff24a1a3d5c9bfdcf76b6a384a985dcdd39"
@@ -9199,6 +9168,37 @@ dependencies = [
  "scale-info",
  "sp-io",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-timelock-transactions"
+version = "4.0.0-dev"
+dependencies = [
+ "ark-bls12-381 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "docify",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-insecure-randomness-collective-flip",
+ "pallet-preimage",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "rand_chacha 0.9.0",
+ "scale-info",
+ "sp-consensus-randomness-beacon",
+ "sp-core",
+ "sp-idn-crypto",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-weights",
+ "substrate-test-utils",
+ "timelock",
 ]
 
 [[package]]
@@ -11973,7 +11973,7 @@ dependencies = [
  "pallet-recovery",
  "pallet-referenda",
  "pallet-root-testing",
- "pallet-scheduler 41.0.0",
+ "pallet-scheduler",
  "pallet-session",
  "pallet-society",
  "pallet-staking",
@@ -17593,7 +17593,7 @@ dependencies = [
  "pallet-recovery",
  "pallet-referenda",
  "pallet-root-testing",
- "pallet-scheduler 41.0.0",
+ "pallet-scheduler",
  "pallet-session",
  "pallet-session-benchmarking",
  "pallet-society",

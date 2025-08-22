@@ -342,7 +342,7 @@ parameter_types! {
 		RuntimeBlockWeights::get().max_block;
 }
 
-impl pallet_scheduler::Config for Runtime {
+impl pallet_timelock_transactions::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeOrigin = RuntimeOrigin;
 	type PalletsOrigin = crate::OriginCaller;
@@ -353,7 +353,7 @@ impl pallet_scheduler::Config for Runtime {
 	type MaxScheduledPerBlock = ConstU32<512>;
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	type MaxScheduledPerBlock = ConstU32<50>;
-	type WeightInfo = pallet_scheduler::weights::SubstrateWeightInfo<Runtime>;
+	type WeightInfo = pallet_timelock_transactions::weights::SubstrateWeightInfo<Runtime>;
 	type Preimages = crate::Preimage;
 }
 

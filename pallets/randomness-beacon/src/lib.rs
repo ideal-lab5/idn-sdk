@@ -140,7 +140,7 @@ pub mod pallet {
 	pub(crate) type BeaconConfigurationOf<T> = BeaconConfiguration<PubkeyOf<T>, RoundNumber>;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_scheduler::Config {
+	pub trait Config: frame_system::Config + pallet_timelock_transactions::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
@@ -257,7 +257,7 @@ pub mod pallet {
 								let sig =
 									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok();
 
-								let res = pallet_scheduler::Pallet::<T>::service_agenda_decrypt_and_decode(
+								let res = pallet_timelock_transactions::Pallet::<T>::service_agenda_decrypt_and_decode(
 									round,
 									sig.expect("TODO"),
 								);
@@ -357,7 +357,7 @@ pub mod pallet {
 			end: RoundNumber,
 			raw_call_data: BTreeMap<
 				RoundNumber,
-				Vec<(TaskName, <T as pallet_scheduler::Config>::RuntimeCall)>,
+				Vec<(TaskName, <T as pallet_timelock_transactions::Config>::RuntimeCall)>,
 			>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
@@ -408,7 +408,7 @@ pub mod pallet {
 
 			for (k, v) in raw_call_data {
 				let mut executed = 0u32;
-				pallet_scheduler::Pallet::<T>::service_agenda_simple(
+				pallet_timelock_transactions::Pallet::<T>::service_agenda_simple(
 					&mut frame_support::weights::WeightMeter::new(),
 					k,
 					BoundedVec::truncate_from(v),
