@@ -514,6 +514,8 @@ pub mod pallet {
 			// Calculate and hold the subscription fees
 			let fees = Self::calculate_subscription_fees(&params.credits);
 
+			// panic!("{:?}", fees);
+
 			Self::hold_fees(&subscriber, fees)?;
 
 			Self::hold_deposit(

@@ -9,8 +9,8 @@ async function run(nodeName, networkInfo, args) {
   const sudoPair = keyring.getPair(alice.publicKey);
 
   // given X credits, we aim to verify the amount of DOT paid over the sub's lifetime
-  const credits = BigInt(args[0]);
-  const frequency = 1;
+  const frequency = args[0];
+  const credits = BigInt(args[1]);
   const metadata = null;
   // random subId
   const subId = new Uint8Array(33);

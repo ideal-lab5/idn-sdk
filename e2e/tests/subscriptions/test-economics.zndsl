@@ -10,7 +10,6 @@ idn-bob: is up
 idn-consumer-alice: is up
 idn-consumer-bob: is up
 
-
 # Force open HRMP work around due to bug https://www.github.com/paritytech/polkadot-sdk/pull/1616#issuecomment-1727194584 
 #alice: ts-script ./typescript/testing-file.ts return is equal to 2 within 120 seconds
 idn-alice: js-script ../../scripts/setup/set-drand-pubkey.js within 120 seconds
@@ -25,31 +24,98 @@ idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46
 # Pause to allow next transaction to go through
 sleep 7 seconds
 
-# Fund Treasury Account
-idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C,1000000" within 120 seconds
-sleep 7 seconds
-# check free balance of Treasury Account
-idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1152921504607846912" within 120 secs
-
-# Quote Subscription, assume frequency = 0
-idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-quote-subscription.js with "10" within 120 seconds
+###############################################################
+# Test #1: "One-Off subscription" (frequency = 0, #pulses = 1)
+# expected credits: 1
+# expected fees: 900_000
+# expected deposit: 1020
+# expected subscription duration: 1 block = 6 secs
+###############################################################
+# SETUP
+########################################################
+# zero-out the treasury balance
+idn-alice: js-script ../../scripts/testing/utils/reset-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C" within 120 secs
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1000000" within 120 secs
+########################################################
+## Quote Subscription (frequency = 0, # pulses = 1) 
+########################################################
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-quote-subscription.js with "0,1" within 120 seconds
 idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
 idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
-# freq = 0, #pulses = 10 => 10 credits => 1000  (how many DOT is this? 1?)
-idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 1000, deposit: 1020 }" within 120 seconds
-
-# Create Subscription
+# freq = 0, #pulses = 1 => 1 credits => 900_000 
+idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 900000, deposit: 1020 }" within 120 seconds
+###############################################################################
+## Create Subscription (frequency = 0, # pulses = 1) => expect 900_000 in fees 
+###############################################################################
 #idn-consumer-alice: js-script ../../scripts/testing/subscriptions/create-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
-idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-create-subscription.js with "10" within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-create-subscription.js with "0,1" within 120 seconds
 idn-alice: system event contains "A new subscription was created" within 120 seconds
 idn-alice: system event contains "Fees collected" within 120 seconds
-# make sure the connection is established
+# the subscription only gets 1 pulse
+#idn-alice: system event contains "Randomness was successfully distributed" within 120 seconds
+#idn-consumer-alice: system event contains "A randomness pulse was successfully consumed" within 120 seconds
+# 1 credits => 1 blocks => 6 secs
+idn-alice: system event contains "A subscription has terminated" within 12 seconds
+# now we want to check the balance of the treasury account is 1_000_000 + 900_000 = 1_900_000 
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1900000" within 120 secs
+
+#####################################################
+# Test #2: (frequency = 0, #pulses = 10)
+# expected credits: 10
+# expected fees: 9_000_000
+# expected deposit: 1020
+# expected duration: 10 *(0 (waiting) + 1 (dispatch)) = 10 blocks = 60 secs
+######################################################
+# SETUP
+########################################################
+# zero-out the treasury balance
+idn-alice: js-script ../../scripts/testing/utils/reset-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C" within 120 secs
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1000000" within 120 secs
+########################################################
+## Quote Subscription (frequency = 0, # pulses = 10) 
+########################################################
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-quote-subscription.js with "0,10" within 120 seconds
+idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
+idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
+# freq = 0, #pulses = 10 => 10 credits => 9_000_000 fee 
+idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 9000000, deposit: 1020 }" within 120 seconds
+###############################################################################
+## Create Subscription (frequency = 0, # pulses = 10) => expect 9_000_000 in fees 
+###############################################################################
+#idn-consumer-alice: js-script ../../scripts/testing/subscriptions/create-subscription.js with "0xd8ff4f4f356b223c36a3ce7659c2173bcf52ad8e9981924190bb31d9d1614c39" within 120 seconds
+idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-create-subscription.js with "0,10" within 120 seconds
+idn-alice: system event contains "A new subscription was created" within 120 seconds
+idn-alice: system event contains "Fees collected" within 120 seconds
+# the subscription receives one pulse
 idn-alice: system event contains "Randomness was successfully distributed" within 120 seconds
 idn-consumer-alice: system event contains "A randomness pulse was successfully consumed" within 120 seconds
-# 10 credits => 10 blocks => 60 seconds = 1 min
-idn-alice: system event contains "A subscription has terminated" within 120 seconds
+# 1 credits => 1 blocks => 6 secs
 # now we want to check the balance of the treasury account
-# Balance +10
-idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1152921504607847926" within 120 secs
+# 1_000_000 + 9_000_000_000 = 19_000_000_000
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 19000000000" within 120 secs
 
-# wait for the subscription to timeout: 1000 credits => 1000 blocks => 6000 seconds (1.66 hours) 
+
+#####################################################
+# Test #3: (frequency = 1, #pulses = 10)
+# expected credits: 20
+# expected fees: 18_000_000
+# expected deposit: 1020
+# expected duration: 10 *(1 (waiting) + 1 (dispatch)) = 20 blocks = 120 secs
+######################################################
+
+#####################################################
+# Test #4: (frequency = 0, #pulses = 100)
+# expected credits: 20
+# expected fees: 18_000_000
+# expected deposit: 1020
+
+# expected duration: 10 *(1 (waiting) + 1 (dispatch)) = 20 blocks = 120 secs
+######################################################
+
+#####################################################
+# Test #4: (frequency = 1, #pulses = 150)
+# expected credits: 300
+# expected fees: 270_000_00
+# expected deposit: 1020
+# expected duration: 150 *(1 (waiting) + 1 (dispatch)) = 300 blocks = 1800 secs = 30 mins
+######################################################

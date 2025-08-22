@@ -8,13 +8,19 @@ async function run(nodeName, networkInfo, args) {
     const alice = keyring.addFromUri("//Alice");
     const sudoPair = keyring.getPair(alice.publicKey);
 
-    const credits = args[0];
-    const frequency = 1;
+    const frequency = Number(args[0]);
+    const numPulses = Number(args[1]);
     const metadata = null;
     const subId = null;
     const reqRef = null;
 
-    const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoRequestQuote(credits, frequency, metadata, subId, reqRef)).signAndSend(sudoPair, (result)=>{
+    const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoRequestQuote(
+      numPulses, 
+      frequency, 
+      metadata, 
+      subId,
+      reqRef
+    )).signAndSend(sudoPair, (result)=>{
         if (result.status.isInBlock) {
             console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
           } else if (result.status.isFinalized) {
