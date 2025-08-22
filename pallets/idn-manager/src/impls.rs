@@ -93,8 +93,7 @@ impl<Balance: Copy> DiffBalance<Balance> for DiffBalanceImpl<Balance> {
 ///   details.
 /// * `Balances`: A `Mutate<AccountId32>` implementation that provides the ability to hold and
 ///   release balances.
-pub struct FeesManagerImpl<Treasury, Sub, Balances, Frequency, PulseIndex, Fee>
-{
+pub struct FeesManagerImpl<Treasury, Sub, Balances, Frequency, PulseIndex, Fee> {
 	_phantom: PhantomData<(Treasury, Sub, Balances, Frequency, PulseIndex, Fee)>,
 }
 

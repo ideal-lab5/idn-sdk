@@ -346,7 +346,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let initial_balance = 2* u32::MAX as u64;
+		let initial_balance = 2 * u32::MAX as u64;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
