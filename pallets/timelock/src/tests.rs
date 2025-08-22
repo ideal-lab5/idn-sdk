@@ -116,8 +116,11 @@ fn shielded_transactions_are_properly_scheduled() {
     new_test_ext().execute_with(|| {
 
         let call = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
+        let call_2 = RuntimeCall::Logger(LoggerCall::log { i: 2, weight: Weight::from_parts(1, 0) });
+
 
         let drand_round_num = 10;
+        let drand_round_num_2 = 12;
 
         let sk= Fr::one();
 
@@ -130,10 +133,19 @@ fn shielded_transactions_are_properly_scheduled() {
         let signature = id.extract::<TinyBLS381>(sk).0;
         
         assert_ok!(Scheduler::schedule_sealed(
-            origin, 
+            origin.clone(), 
             drand_round_num, 
             priority, 
             ct_bounded_vec
+        ));
+
+        let (id_2, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_round_num_2, sk);
+
+        assert_ok!(Scheduler::schedule_sealed(
+            origin.clone(), 
+            drand_round_num_2, 
+            priority, 
+            ct_bounded_vec_2
         ));
 
         let empty_result_early: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(9, signature.into());
@@ -147,6 +159,13 @@ fn shielded_transactions_are_properly_scheduled() {
         let empty_result_late: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(11, signature.into());
         let empty_result_late_call = empty_result_late.get(0);
         assert_eq!(empty_result_late_call, None);
+
+        let signature_2 = id_2.extract::<TinyBLS381>(sk).0;
+
+        let result_2: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(drand_round_num_2, signature_2.into());
+        let runtime_call_2 = result_2.get(0).unwrap().1.clone();
+        assert_eq!(runtime_call_2, call_2);
+
     })
 }
 
