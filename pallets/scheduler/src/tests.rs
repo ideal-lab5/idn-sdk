@@ -115,7 +115,7 @@ fn execution_fails_bad_origin() {
 fn shielded_transactions_are_properly_scheduled() {
     new_test_ext().execute_with(|| {
 
-        let mut call = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
+        let call = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
 
         let drand_round_num = 10;
 
@@ -136,15 +136,15 @@ fn shielded_transactions_are_properly_scheduled() {
             ct_bounded_vec
         ));
 
-        let empty_result_early: BoundedVec<([u8; 32], OriginCaller, RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(9, signature.into());
+        let empty_result_early: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(9, signature.into());
         let empty_result_early_call = empty_result_early.get(0);
         assert_eq!(empty_result_early_call, None);
         
-        let result: BoundedVec<([u8; 32], OriginCaller, RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(drand_round_num, signature.into());
-        let runtime_call = result.get(0).unwrap().2.clone();
+        let result: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(drand_round_num, signature.into());
+        let runtime_call = result.get(0).unwrap().1.clone();
         assert_eq!(runtime_call, call);
 
-        let empty_result_late: BoundedVec<([u8; 32], OriginCaller, RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(11, signature.into());
+        let empty_result_late: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>>  = Scheduler::service_agenda_decrypt_and_decode(11, signature.into());
         let empty_result_late_call = empty_result_late.get(0);
         assert_eq!(empty_result_late_call, None);
     })
@@ -152,17 +152,19 @@ fn shielded_transactions_are_properly_scheduled() {
 
 #[test]
 #[docify::export]
-fn schedule_simple_only_returns_earliest() {
+fn schedule_simple_executes_fifo() {
     new_test_ext().execute_with(|| {
 
-        let call_1 = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
-        let call_2 = RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 200) });
+        let call_1 = RuntimeCall::Logger(LoggerCall::log { i: 1, weight: Weight::from_parts(1, 0) });
+        let call_2 = RuntimeCall::Logger(LoggerCall::log { i: 2, weight: Weight::from_parts(1, 0) });
+
+        assert!(!<Test as frame_system::Config>::BaseCallFilter::contains(&call_1));
 
         let drand_round_num = 10;
 
         let sk= Fr::one();
 
-        let (id, ct_bounded_vec) = make_ciphertext(call_1.clone(), drand_round_num, sk);
+        let (id, ct_bounded_vec_1) = make_ciphertext(call_1.clone(), drand_round_num, sk);
 
         let signature = id.extract::<TinyBLS381>(sk).0;
 
@@ -173,27 +175,87 @@ fn schedule_simple_only_returns_earliest() {
             origin.clone(), 
             drand_round_num, 
             priority, 
-            ct_bounded_vec
+            ct_bounded_vec_1
         ));
 
-        let (_, ct_bounded_vec) = make_ciphertext(call_2.clone(), drand_round_num, sk);
+        let (_, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_round_num, sk);
 
         assert_ok!(Scheduler::schedule_sealed(
             origin.clone(), 
             drand_round_num, 
             priority, 
-            ct_bounded_vec
+            ct_bounded_vec_2
         ));
 
-        let calls: BoundedVec<([u8; 32], OriginCaller, RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(drand_round_num, signature.into());
+        let calls: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(drand_round_num, signature.into());
 
-        let mut meter = WeightMeter::new();
-        let result = Scheduler::service_agenda_simple(&mut meter, drand_round_num, calls);
+		Scheduler::service_agenda_simple(
+			&mut frame_support::weights::WeightMeter::new(),
+			drand_round_num,
+			calls,
+		);
 
-        assert_eq!(result, false);
+        println!("{:?}", logger::log());
+        assert_eq!(logger::log(), vec![(root(), 1u32), (root(), 2u32)]);
+    })
+}
 
-        // let serviced_tasks = Scheduler::service_task_v2(weight, when, task);
+#[test]
+#[docify::export]
+fn schedule_simple_skips_overweight_call_and_continues() {
+    new_test_ext().execute_with(|| {
 
+        let call_1 = RuntimeCall::Logger(LoggerCall::log { i: 1, weight: Weight::from_parts(1, 0) });
+        let call_2 = RuntimeCall::Logger(LoggerCall::log { i: 2, weight: Weight::from_parts(1000, 1000) });
+        let call_3 = RuntimeCall::Logger(LoggerCall::log { i: 3, weight: Weight::from_parts(1, 0) });
+
+        assert!(!<Test as frame_system::Config>::BaseCallFilter::contains(&call_1));
+
+        let drand_round_num = 10;
+
+        let sk= Fr::one();
+
+        let (id, ct_bounded_vec_1) = make_ciphertext(call_1.clone(), drand_round_num, sk);
+
+        let signature = id.extract::<TinyBLS381>(sk).0;
+
+        
+        // use different priorities for now to ensure that they do not effect
+        // execution order
+        let origin: RuntimeOrigin = RuntimeOrigin::root();
+        assert_ok!(Scheduler::schedule_sealed(
+            origin.clone(), 
+            drand_round_num, 
+            3, 
+            ct_bounded_vec_1
+        ));
+
+        let (_, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_round_num, sk);
+
+        assert_ok!(Scheduler::schedule_sealed(
+            origin.clone(), 
+            drand_round_num, 
+            2, 
+            ct_bounded_vec_2
+        ));
+
+        let (_, ct_bounded_vec_3) = make_ciphertext(call_3.clone(), drand_round_num, sk);
+
+        assert_ok!(Scheduler::schedule_sealed(
+            origin.clone(), 
+            drand_round_num, 
+            1, 
+            ct_bounded_vec_3
+        ));
+
+        let calls: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Scheduler::service_agenda_decrypt_and_decode(drand_round_num, signature.into());
+
+		Scheduler::service_agenda_simple(
+			&mut frame_support::weights::WeightMeter::new(),
+			drand_round_num,
+			calls,
+		);
+        assert_eq!(logger::log(), vec![(root(), 1u32), (root(), 3u32)]);
     })
 }
 

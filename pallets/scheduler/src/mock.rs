@@ -80,6 +80,7 @@ pub mod logger {
 		#[pallet::call_index(0)]
 		#[pallet::weight(*weight)]
 		pub fn log(origin: OriginFor<T>, i: u32, weight: Weight) -> DispatchResult {
+			println!("GOT IT");
 			Self::deposit_event(Event::Logged(i, weight));
 			Log::mutate(|log| {
 				log.push((origin.caller().clone(), i));
@@ -261,7 +262,7 @@ impl WeightInfo for TestWeightInfo {
 parameter_types! {
 	// pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
 	// 	BlockWeights::get().max_block;
-	pub MaximumSchedulerWeight: Weight = Weight::from_parts(10, 100);
+	pub MaximumSchedulerWeight: Weight = Weight::from_parts(1000, 1000);
 }
 
 impl Config for Test {

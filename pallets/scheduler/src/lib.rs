@@ -414,7 +414,7 @@ impl<T: Config> Pallet<T> {
 	) {
 		let mut agenda = Agenda::<T>::get(when);
 		// first order by priority and simulatenously fill in call data
-		let mut ordered = agenda
+		let ordered = agenda
 			.iter_mut()
 			.enumerate()
 			.filter_map(|(index, item)| {
@@ -431,7 +431,6 @@ impl<T: Config> Pallet<T> {
 
 		let mut meter = WeightMeter::with_limit(T::MaximumWeight::get());
 
-		let mut serviced_all = true;
 		for (agenda_index, _) in ordered.into_iter() {
 			let task = agenda[agenda_index as usize].clone();
 			let base_weight = T::WeightInfo::service_task(
