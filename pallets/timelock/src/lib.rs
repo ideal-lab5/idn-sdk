@@ -519,29 +519,6 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	#[allow(clippy::result_large_err)]
-	fn service_task_v2(
-		weight: &mut WeightMeter,
-		when: RoundNumber,
-		id: TaskName,
-		origin: T::PalletsOrigin,
-		call: <T as Config>::RuntimeCall,
-	) -> Result<(), ServiceTaskError> {
-		Lookup::<T>::remove(id);
-
-		let call_weight = call.get_dispatch_info().total_weight();
-
-		let _ = weight.try_consume(call_weight);
-
-		match Self::execute_dispatch(weight, origin, call) {
-			Err(()) => Err(Overweight),
-			Ok(result) => {
-				Self::deposit_event(Event::Dispatched { task: (when, 0), id, result });
-				Ok(())
-			},
-		}
-	}
-
 	/// Make a dispatch to the given `call` from the given `origin`, ensuring that the `weight`
 	/// counter does not exceed its limit and that it is counted accurately (e.g. accounted using
 	/// post info if available).
