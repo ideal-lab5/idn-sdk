@@ -21,22 +21,26 @@ use crate::pallet::Pallet as Scheduler;
 use frame_benchmarking::v2::*;
 use frame_support::{
 	ensure,
-	traits::{schedule::Priority, BoundedInline, ConstU32,  schedule::DispatchTime},
+	traits::{
+		schedule::{DispatchTime, Priority},
+		BoundedInline, ConstU32,
+	},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use sp_std::{prelude::*, vec};
 
+use ark_bls12_381::{Fr, FrConfig, G1Projective as G1, G2Projective as G2};
 use ark_ec::{AffineRepr, CurveGroup, PrimeGroup};
 use ark_ff::{Fp, MontBackend, PrimeField};
-use ark_bls12_381::{Fr, FrConfig, G1Projective as G1, G2Projective as G2};
-use ark_std::{ops::Mul, rand::{CryptoRng, Rng, RngCore, rngs::OsRng}, One};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeHashExt};
-
-use timelock::ibe::fullident::Identity;
-use sp_runtime::{
-	traits:: Dispatchable,
-	BoundedVec, DispatchError, RuntimeDebug,
+use ark_std::{
+	ops::Mul,
+	rand::{rngs::OsRng, CryptoRng, Rng, RngCore},
+	One,
 };
+
+use sp_runtime::{traits::Dispatchable, BoundedVec, DispatchError, RuntimeDebug};
+use timelock::ibe::fullident::Identity;
 
 use sp_idn_crypto::drand;
 
@@ -71,27 +75,36 @@ const BLOCK_NUMBER: u32 = 2;
 // 	Ok(())
 // }
 
-fn make_ciphertext<T: Config>(call: <T as Config>::RuntimeCall, round_number: u64, sk: Fp<MontBackend<FrConfig, 4>, 4>) -> (Identity, BoundedVec<u8,  ConstU32<4048>>){
+fn make_ciphertext<T: Config>(
+	call: <T as Config>::RuntimeCall,
+	round_number: u64,
+	sk: Fp<MontBackend<FrConfig, 4>, 4>,
+) -> (Identity, BoundedVec<u8, ConstU32<4048>>) {
+	let encoded_call = call.encode();
 
-    let encoded_call = call.encode();
+	let message = drand::compute_round_on_g1(round_number).ok().unwrap();
+	let p_pub = G2::generator().mul(sk);
+	let msk = [1; 32];
 
-    let message = drand::compute_round_on_g1(round_number).ok().unwrap();
-    let p_pub = G2::generator().mul(sk);
-    let msk = [1; 32];
-    
-    let mut identity_vec: Vec<u8> = Vec::new();
-    message.serialize_compressed(&mut identity_vec).ok();
-    let identity_vec_vec = vec![identity_vec];
-    let id: Identity = timelock::ibe::fullident::Identity::new(drand::QUICKNET_CTX, identity_vec_vec);
-    
-    let ct = timelock::tlock::tle::<TinyBLS381, AESGCMBlockCipherProvider, OsRng>(p_pub, msk, &encoded_call, id.clone(), OsRng).unwrap();
-    let mut ct_vec: Vec<u8> = Vec::new();
-    ct.serialize_compressed(&mut ct_vec).ok();
-    let ct_bounded_vec: BoundedVec<u8,  ConstU32<4048>> = BoundedVec::truncate_from(ct_vec);
+	let mut identity_vec: Vec<u8> = Vec::new();
+	message.serialize_compressed(&mut identity_vec).ok();
+	let identity_vec_vec = vec![identity_vec];
+	let id: Identity =
+		timelock::ibe::fullident::Identity::new(drand::QUICKNET_CTX, identity_vec_vec);
 
-    (id, ct_bounded_vec)
+	let ct = timelock::tlock::tle::<TinyBLS381, AESGCMBlockCipherProvider, OsRng>(
+		p_pub,
+		msk,
+		&encoded_call,
+		id.clone(),
+		OsRng,
+	)
+	.unwrap();
+	let mut ct_vec: Vec<u8> = Vec::new();
+	ct.serialize_compressed(&mut ct_vec).ok();
+	let ct_bounded_vec: BoundedVec<u8, ConstU32<4048>> = BoundedVec::truncate_from(ct_vec);
 
-
+	(id, ct_bounded_vec)
 }
 
 // fn fill_schedule_signed<T: Config>(
@@ -135,7 +148,7 @@ fn make_task<T: Config>(
 	let id = u32_to_name(123);
 	let origin = make_origin::<T>(signed);
 	Scheduled {
-		id: id,
+		id,
 		priority,
 		maybe_ciphertext: None,
 		maybe_call: Some(call),
@@ -188,31 +201,29 @@ fn make_origin<T: Config>(signed: bool) -> <T as Config>::PalletsOrigin {
 }
 
 #[benchmarks]
-mod benchmarks{
+mod benchmarks {
 
 	use super::*;
 
-	// service_agenda_simple when no work is done
+	// service_agenda when no work is done
 	#[benchmark]
-	fn service_agenda_simple_base() {
-
+	fn service_agenda_base() {
 		let when = 10;
 
 		let mut weightMeter = WeightMeter::new();
 
-		let call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> = BoundedVec::new();
+		let call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> =
+			BoundedVec::new();
 
 		#[block]
 		{
-			Scheduler::<T>::service_agenda_simple(&mut weightMeter, when, call_data);
+			Scheduler::<T>::service_agenda(&mut weightMeter, when, call_data);
 		}
-		
+
 		assert_eq!(Agenda::<T>::get(when).len() as u32, 0);
 
 		Ok(())
-
 	}
-
 
 	// schedule_sealed {
 	// 	let s in 0 .. (T::MaxScheduledPerBlock::get() - 1);

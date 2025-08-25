@@ -21,8 +21,9 @@
 //!
 //! ## Overview
 //!
-//! This Pallet exposes capabilities for scheduling runtime calls to occur at a specified round number output from a randomness beacon.
-//! These scheduled calls each contain a timelocked ciphertext and round number when they unlock.
+//! This Pallet exposes capabilities for scheduling runtime calls to occur at a specified round
+//! number output from a randomness beacon. These scheduled calls each contain a timelocked
+//! ciphertext and round number when they unlock.
 //!
 //! __NOTE:__ Instead of using the filter contained in the origin to call `fn schedule`, scheduled
 //! runtime calls will be dispatched with the default filter for the origin: namely
@@ -82,7 +83,6 @@ pub use weights::WeightInfo;
 use ark_bls12_381::G1Affine;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
-	debug,
 	dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin},
 	traits::{
 		schedule::{self, MaybeHashed},
@@ -339,7 +339,6 @@ impl<T: Config> Pallet<T> {
 	/// * `priority`: The priority of the tasks
 	/// * `origin`: The origin to dispatch the call
 	/// * `ciphertext`: A timelock encrypted ciphertext for the given round number `when`
-	///
 	fn do_schedule_sealed(
 		when: u64, // drand round number
 		priority: schedule::Priority,
@@ -374,8 +373,7 @@ impl<T: Config> Pallet<T> {
 	/// attempt to decrypt ciphertexts locked for the given round number
 	///
 	/// For now, it acts as a FIFO queue for decryption
-	///
-	pub fn service_agenda_decrypt_and_decode(
+	pub fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
 	) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
@@ -398,7 +396,8 @@ impl<T: Config> Pallet<T> {
 					let call = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()).unwrap();
 
 					// This should never panic
-					// Collects all scheduled calls, even those that won't be made if we exceed the max weight
+					// Collects all scheduled calls, even those that won't be made if we exceed the
+					// max weight
 					recovered_calls.try_push((task.id, call)).ok();
 				}
 			}
@@ -408,7 +407,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Returns `true` if the agenda was fully completed, `false` if it should be revisited at a
 	/// later block.
-	pub fn service_agenda_simple(
+	pub fn service_agenda(
 		weight: &mut WeightMeter,
 		when: RoundNumber,
 		// TODO: rename to MaxScheduledPerRound
@@ -492,7 +491,8 @@ impl<T: Config> Pallet<T> {
 					// anymore.
 					T::Preimages::drop(&call);
 
-					// We don't know why `peek` failed, thus we most account here for the "full weight".
+					// We don't know why `peek` failed, thus we most account here for the "full
+					// weight".
 					let _ = weight.try_consume(T::WeightInfo::service_task(
 						call.lookup_len().map(|x| x as usize),
 					));
@@ -549,13 +549,48 @@ impl<T: Config> Pallet<T> {
 		let dispatch_origin = origin.into();
 		let (maybe_actual_call_weight, result) = match call.dispatch(dispatch_origin) {
 			Ok(post_info) => (post_info.actual_weight, Ok(())),
-			Err(error_and_info) => {
-				(error_and_info.post_info.actual_weight, Err(error_and_info.error))
-			},
+			Err(error_and_info) =>
+				(error_and_info.post_info.actual_weight, Err(error_and_info.error)),
 		};
 		let call_weight = maybe_actual_call_weight.unwrap_or(call_weight);
 		let _ = weight.try_consume(base_weight);
 		let _ = weight.try_consume(call_weight);
 		Ok(result)
+	}
+}
+
+/// A trait for providing timelock transaction capabilities to other pallets.
+pub trait TlockTxProvider<RuntimeCall, MaxScheduledPerBlock> {
+	fn decrypt_and_decode(
+		when: RoundNumber,
+		signature: G1Affine,
+	) -> BoundedVec<(TaskName, RuntimeCall), MaxScheduledPerBlock>;
+
+	fn service_agenda(
+		weight: &mut WeightMeter,
+		when: RoundNumber,
+		call_data: BoundedVec<(TaskName, RuntimeCall), MaxScheduledPerBlock>,
+	);
+}
+
+impl<T: Config> TlockTxProvider<<T as pallet::Config>::RuntimeCall, T::MaxScheduledPerBlock>
+	for Pallet<T>
+{
+	fn decrypt_and_decode(
+		when: RoundNumber,
+		signature: G1Affine,
+	) -> BoundedVec<(TaskName, <T as pallet::Config>::RuntimeCall), T::MaxScheduledPerBlock> {
+		Self::decrypt_and_decode(when, signature)
+	}
+
+	fn service_agenda(
+		weight: &mut WeightMeter,
+		when: RoundNumber,
+		call_data: BoundedVec<
+			(TaskName, <T as pallet::Config>::RuntimeCall),
+			T::MaxScheduledPerBlock,
+		>,
+	) {
+		Self::service_agenda(weight, when, call_data)
 	}
 }

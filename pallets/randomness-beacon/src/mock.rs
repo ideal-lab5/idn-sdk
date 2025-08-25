@@ -1,14 +1,11 @@
 use crate as pallet_randomness_beacon;
 use crate::*;
 use bp_idn::types::*;
-use frame_support::{
-	derive_impl, ord_parameter_types, parameter_types,
-	traits::{ConstU8, EitherOfDiverse},
-};
-use frame_system::{limits::BlockWeights, EnsureRoot, EnsureSignedBy};
+use frame_support::{derive_impl, ord_parameter_types, parameter_types, traits::ConstU8};
+use frame_system::EnsureRoot;
 use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
-use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage, Perbill};
+use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
@@ -18,7 +15,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		Balances: pallet_balances,
-		Scheduler: pallet_timelock_transactions,
+		Tlock: pallet_timelock_transactions,
 		Preimage: pallet_preimage,
 		Drand: pallet_randomness_beacon,
 	}
@@ -103,6 +100,8 @@ impl pallet_randomness_beacon::Config for Test {
 	type Pulse = MockPulse;
 	type Dispatcher = MockDispatcher;
 	type FallbackRandomness = MockFallbackRandomness;
+	type Tlock = Test;
+	type TlockTxProvider = Tlock;
 }
 
 pub struct TestWeightInfo;
@@ -143,7 +142,7 @@ impl pallet_timelock_transactions::WeightInfo for TestWeightInfo {
 	fn cancel_named(_s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
-	fn schedule_sealed(s: u32) -> Weight {
+	fn schedule_sealed(_s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
 }

@@ -83,14 +83,16 @@
 
 pub use pallet::*;
 
-use frame_support::pallet_prelude::*;
-use frame_system::pallet_prelude::BlockNumberFor;
-
-use alloc::collections::btree_map::BTreeMap;
+extern crate alloc;
+use alloc::{collections::btree_map::BTreeMap, vec, vec::Vec};
 use ark_bls12_381::G1Affine;
-use frame_support::traits::schedule::v3::TaskName;
+use frame_support::{
+	pallet_prelude::*,
+	traits::{schedule::v3::TaskName, Randomness},
+};
+use frame_system::pallet_prelude::BlockNumberFor;
+use pallet_timelock_transactions::{Config as TlockConfig, TlockTxProvider};
 use sp_consensus_randomness_beacon::types::{CanonicalPulse, RoundNumber};
-use frame_support::traits::Randomness;
 use sp_core::H256;
 use sp_idn_crypto::verifier::SignatureVerifier;
 use sp_idn_traits::{
@@ -98,9 +100,6 @@ use sp_idn_traits::{
 	Hashable,
 };
 use sp_std::fmt::Debug;
-
-extern crate alloc;
-use alloc::{vec, vec::Vec};
 
 pub mod types;
 pub mod weights;
@@ -140,7 +139,7 @@ pub mod pallet {
 	pub(crate) type BeaconConfigurationOf<T> = BeaconConfiguration<PubkeyOf<T>, RoundNumber>;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_timelock_transactions::Config {
+	pub trait Config: frame_system::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
@@ -162,6 +161,13 @@ pub mod pallet {
 		type Dispatcher: Dispatcher<Self::Pulse>;
 		/// The fallback randomness source
 		type FallbackRandomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
+		/// The timelock transaction configuration
+		type Tlock: TlockConfig;
+		/// Something that provides timelock transaction capabilities
+		type TlockTxProvider: TlockTxProvider<
+			<Self::Tlock as TlockConfig>::RuntimeCall,
+			<Self::Tlock as TlockConfig>::MaxScheduledPerBlock,
+		>;
 	}
 
 	/// The round when we start consuming pulses
@@ -253,17 +259,15 @@ pub mod pallet {
 							.into_iter()
 							.filter_map(|pulse| {
 								let bytes = pulse.signature;
-								let round = pulse.round;
 								let sig =
 									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok();
-
-								let res = pallet_timelock_transactions::Pallet::<T>::service_agenda_decrypt_and_decode(
+								let round = pulse.round;
+								let calls = T::TlockTxProvider::decrypt_and_decode(
 									round,
 									sig.expect("TODO"),
 								);
-
-								if !res.is_empty() {
-									tasks.insert(round, res.to_vec());
+								if !calls.is_empty() {
+									tasks.insert(round, calls.into_inner());
 								}
 
 								sig
@@ -357,7 +361,7 @@ pub mod pallet {
 			end: RoundNumber,
 			raw_call_data: BTreeMap<
 				RoundNumber,
-				Vec<(TaskName, <T as pallet_timelock_transactions::Config>::RuntimeCall)>,
+				Vec<(TaskName, <T::Tlock as TlockConfig>::RuntimeCall)>,
 			>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
@@ -405,10 +409,9 @@ pub mod pallet {
 			// dispatch pulses to subscribers
 			let runtime_pulse = T::Pulse::from(sacc);
 			T::Dispatcher::dispatch(runtime_pulse);
-
+			// dispatch timelock transactions
 			for (k, v) in raw_call_data {
-				let mut executed = 0u32;
-				pallet_timelock_transactions::Pallet::<T>::service_agenda_simple(
+				T::TlockTxProvider::service_agenda(
 					&mut frame_support::weights::WeightMeter::new(),
 					k,
 					BoundedVec::truncate_from(v),

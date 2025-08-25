@@ -22,18 +22,14 @@ use super::*;
 use crate as scheduler;
 use frame_support::{
 	ord_parameter_types, parameter_types,
-	traits::{
-		ConstU32, ConstU64,
-		Contains, EitherOfDiverse,
-		OnFinalize, OnInitialize
-	},
+	traits::{ConstU32, ConstU64, Contains, EitherOfDiverse, OnFinalize, OnInitialize},
 	weights::constants::RocksDbWeight,
 };
 use frame_system::{EnsureRoot, EnsureSignedBy};
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage, Perbill
+	BuildStorage, Perbill,
 };
 
 use ark_serialize::CanonicalSerialize;
@@ -255,7 +251,7 @@ impl WeightInfo for TestWeightInfo {
 	fn cancel_named(_s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
-	fn schedule_sealed(s: u32, ) -> Weight {
+	fn schedule_sealed(s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
 }
@@ -292,10 +288,10 @@ pub fn run_to_block(n: u64) {
 	}
 }
 
-pub fn convert_to_bytes<E: CanonicalSerialize, const N: usize>(k: E) -> [u8;N] {
+pub fn convert_to_bytes<E: CanonicalSerialize, const N: usize>(k: E) -> [u8; N] {
 	let mut out = Vec::with_capacity(k.compressed_size());
 	k.serialize_compressed(&mut out).unwrap_or(());
-	let o: [u8; N] = out.try_into().unwrap_or([0;N]);
+	let o: [u8; N] = out.try_into().unwrap_or([0; N]);
 	o
 }
 
