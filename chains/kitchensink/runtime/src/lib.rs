@@ -281,6 +281,10 @@ impl ConvertLocation<AccountId32> for MockSiblingConversion {
 	}
 }
 
+parameter_types! {
+	pub const BaseFee: u64 = 100;
+}
+
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -290,6 +294,7 @@ impl pallet_idn_manager::Config for Runtime {
 		Balances,
 		BlockNumber,
 		BlockNumber,
+		BaseFee,
 	>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;

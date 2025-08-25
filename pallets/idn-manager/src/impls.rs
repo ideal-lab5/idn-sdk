@@ -59,22 +59,6 @@ impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, SubscriptionId>
 	}
 }
 
-/// A FeesManager implementation that holds a dynamic treasury account.
-///
-/// This implementation uses a dynamic treasury account specified in the `Config`
-/// to manage fees. It provides functions for calculating subscription fees,
-/// calculating the difference in fees, and collecting fees from subscribers.
-///
-/// # Type Parameters:
-/// * `Treasury`: A `Get<AccountId32>` implementation that provides the treasury account ID.
-/// * `Sub`: A `SubscriptionTrait<AccountId32>` implementation that provides access to subscription
-///   details.
-/// * `Balances`: A `Mutate<AccountId32>` implementation that provides the ability to hold and
-///   release balances.
-pub struct FeesManagerImpl<Treasury, Sub, Balances, Frequency, PulseIndex> {
-	_phantom: PhantomData<(Treasury, Sub, Balances, Frequency, PulseIndex)>,
-}
-
 /// This struct represent movement of balance.
 ///
 /// * `balance` - how much balance being moved.
@@ -97,13 +81,29 @@ impl<Balance: Copy> DiffBalance<Balance> for DiffBalanceImpl<Balance> {
 	}
 }
 
+/// A FeesManager implementation that holds a dynamic treasury account.
+///
+/// This implementation uses a dynamic treasury account specified in the `Config`
+/// to manage fees. It provides functions for calculating subscription fees,
+/// calculating the difference in fees, and collecting fees from subscribers.
+///
+/// # Type Parameters:
+/// * `Treasury`: A `Get<AccountId32>` implementation that provides the treasury account ID.
+/// * `Sub`: A `SubscriptionTrait<AccountId32>` implementation that provides access to subscription
+///   details.
+/// * `Balances`: A `Mutate<AccountId32>` implementation that provides the ability to hold and
+///   release balances.
+pub struct FeesManagerImpl<Treasury, Sub, Balances, Frequency, PulseIndex, Fee> {
+	_phantom: PhantomData<(Treasury, Sub, Balances, Frequency, PulseIndex, Fee)>,
+}
+
 /// Implementation of the FeesManager trait for the FeesManagerImpl struct.
 ///
 /// # Tests
 ///
 /// ## Calculate Subscription Fees Test
 #[doc = docify::embed!("./src/tests/pallet.rs", test_calculate_subscription_fees)]
-impl<Treasury, Sub, Balances, Frequency, PulseIndex>
+impl<Treasury, Sub, Balances, Frequency, PulseIndex, Fee>
 	FeesManager<
 		Balances::Balance,
 		u64,
@@ -113,13 +113,14 @@ impl<Treasury, Sub, Balances, Frequency, PulseIndex>
 		DispatchError,
 		AccountId32,
 		DiffBalanceImpl<Balances::Balance>,
-	> for FeesManagerImpl<Treasury, Sub, Balances, Frequency, PulseIndex>
+	> for FeesManagerImpl<Treasury, Sub, Balances, Frequency, PulseIndex, Fee>
 where
 	Treasury: Get<AccountId32>,
 	Sub: SubscriptionTrait<AccountId32>,
 	Balances: HoldMutate<AccountId32> + Mutate<AccountId32> + Inspect<AccountId32>,
 	Balances::Reason: From<HoldReason>,
 	Balances::Balance: From<u64>,
+	Fee: Get<u64>,
 	Frequency: Saturating,
 	PulseIndex: Saturating,
 	u64: From<Frequency>,
@@ -148,8 +149,6 @@ where
 			(10_000_001, 30), // 10_000_001+: 30% discount
 		];
 
-		const BASE_FEE: u64 = 100;
-
 		let mut total_fee = 0u64;
 		let mut remaining_credits = *credits;
 
@@ -165,7 +164,7 @@ where
 				(credits.min(&next_tier_start.saturating_sub(1)) - current_tier_start + 1)
 					.min(remaining_credits);
 
-			let tier_fee = BASE_FEE
+			let tier_fee = Fee::get()
 				.saturating_mul(credits_in_tier)
 				.saturating_mul(100 - current_tier_discount)
 				.saturating_div(100);
@@ -259,12 +258,12 @@ where
 
 	/// Get the number of credits consumed by a subscription when this one gets a pulse in a block.
 	fn get_consume_credits(_sub: Option<&Sub>) -> u64 {
-		1000
+		1
 	}
 
 	/// Get the number of credits consumed by a subscription when this one is idle in a block.
 	fn get_idle_credits(_sub: Option<&Sub>) -> u64 {
-		10
+		1
 	}
 }
 

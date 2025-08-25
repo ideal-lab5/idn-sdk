@@ -303,7 +303,7 @@ mod benchmarks {
 		System::<T>::assert_last_event(
 			Event::<T>::SubQuoted {
 				requester: Location::new(1, [Junction::Parachain(sibling_para_id)]),
-				quote: Quote { req_ref, fees: 1_009_500u64.into(), deposit },
+				quote: Quote { req_ref, fees: 2000u64.into(), deposit },
 			}
 			.into(),
 		);
