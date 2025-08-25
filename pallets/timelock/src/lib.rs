@@ -68,8 +68,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use ark_serialize::CanonicalDeserialize;
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
