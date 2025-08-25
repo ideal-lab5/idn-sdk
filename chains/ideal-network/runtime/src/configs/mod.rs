@@ -335,6 +335,8 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;
 	type FallbackRandomness = RandomnessCollectiveFlip;
+	type Tlock = Runtime;
+	type TlockTxProvider = pallet_timelock_transactions::Pallet<Runtime>;
 }
 
 parameter_types! {
