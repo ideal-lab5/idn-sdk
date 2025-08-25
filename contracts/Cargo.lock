@@ -2958,6 +2958,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "idn-contract-lib"
+version = "0.1.0"
+dependencies = [
+ "ink",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+]
+
+[[package]]
 name = "idn-example-consumer-contract"
 version = "0.1.0"
 dependencies = [
@@ -4973,6 +4983,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand-extension-example"
+version = "0.1.0"
+dependencies = [
+ "idn-contract-lib",
+ "ink",
+]
+
+[[package]]
 name = "rand_chacha"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4995,13 +5013,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom 0.2.16",
-]
-
-[[package]]
-name = "rand_extension"
-version = "5.1.1"
-dependencies = [
- "ink",
 ]
 
 [[package]]
