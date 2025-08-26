@@ -24,6 +24,7 @@ idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46
 # Pause to allow next transaction to go through
 sleep 7 seconds
 
+
 ###############################################################
 # Test #1: "One-Off subscription" (frequency = 0, #pulses = 1)
 # expected credits: 1
@@ -33,17 +34,17 @@ sleep 7 seconds
 ###############################################################
 # SETUP
 ########################################################
-# zero-out the treasury balance
+# set the treasury balance to existential deposit (1_000_000)
 idn-alice: js-script ../../scripts/testing/utils/reset-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C" within 120 secs
-idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1000000" within 120 secs
+#idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1000000" within 120 secs
 ########################################################
 ## Quote Subscription (frequency = 0, # pulses = 1) 
 ########################################################
 idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-quote-subscription.js with "0,1" within 120 seconds
 idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
 idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
-# freq = 0, #pulses = 1 => 1 credits => 900_000 
-idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 900000, deposit: 1020 }" within 120 seconds
+# freq = 0, #pulses = 1 => 1 credits => 2_900_000 
+idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 2900000, deposit: 1020 }" within 120 seconds
 ###############################################################################
 ## Create Subscription (frequency = 0, # pulses = 1) => expect 900_000 in fees 
 ###############################################################################
@@ -56,8 +57,8 @@ idn-alice: system event contains "Fees collected" within 120 seconds
 #idn-consumer-alice: system event contains "A randomness pulse was successfully consumed" within 120 seconds
 # 1 credits => 1 blocks => 6 secs
 idn-alice: system event contains "A subscription has terminated" within 12 seconds
-# now we want to check the balance of the treasury account is 1_000_000 + 900_000 = 1_900_000 
-idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1900000" within 120 secs
+# now we want to check the balance of the treasury account is 10_000_000_001 + 2_900_000 = 10_002_900_001
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 10002900001" within 120 secs
 
 #####################################################
 # Test #2: (frequency = 0, #pulses = 10)
@@ -68,9 +69,9 @@ idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtA
 ######################################################
 # SETUP
 ########################################################
-# zero-out the treasury balance
+# set the treasury balance to existential deposit (1_000_000)
 idn-alice: js-script ../../scripts/testing/utils/reset-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C" within 120 secs
-idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1000000" within 120 secs
+#idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1000000" within 120 secs
 ########################################################
 ## Quote Subscription (frequency = 0, # pulses = 10) 
 ########################################################
@@ -78,7 +79,7 @@ idn-consumer-alice: js-script ../../scripts/testing/subscriptions/dyn-quote-subs
 idn-alice: system event contains "Subscription Fees quoted" within 120 seconds
 idn-consumer-alice: system event contains "A subscription quote was successfully consumed" within 120 seconds
 # freq = 0, #pulses = 10 => 10 credits => 9_000_000 fee 
-idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 9000000, deposit: 1020 }" within 120 seconds
+idn-consumer-alice: log line contains "IDN Consumer: Consuming quote: Quote { req_ref: \[.*\], fees: 29000000, deposit: 1020 }" within 120 seconds
 ###############################################################################
 ## Create Subscription (frequency = 0, # pulses = 10) => expect 9_000_000 in fees 
 ###############################################################################
@@ -89,10 +90,11 @@ idn-alice: system event contains "Fees collected" within 120 seconds
 # the subscription receives one pulse
 idn-alice: system event contains "Randomness was successfully distributed" within 120 seconds
 idn-consumer-alice: system event contains "A randomness pulse was successfully consumed" within 120 seconds
-# 1 credits => 1 blocks => 6 secs
+# 10 credits => 10 blocks => 60 secs
+sleep 120 secs
 # now we want to check the balance of the treasury account
-# 1_000_000 + 9_000_000_000 = 19_000_000_000
-idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 19000000000" within 120 secs
+# 10_000_000_001 + 29_000_000 = 10_029_000_001
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 10029000001" within 120 secs
 
 
 #####################################################

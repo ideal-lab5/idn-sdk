@@ -514,8 +514,6 @@ pub mod pallet {
 			// Calculate and hold the subscription fees
 			let fees = Self::calculate_subscription_fees(&params.credits);
 
-			// panic!("{:?}", fees);
-
 			Self::hold_fees(&subscriber, fees)?;
 
 			Self::hold_deposit(
@@ -629,8 +627,8 @@ pub mod pallet {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
 				ensure!(
-					sub.state == SubscriptionState::Active ||
-						sub.state == SubscriptionState::Paused,
+					sub.state == SubscriptionState::Active
+						|| sub.state == SubscriptionState::Paused,
 					Error::<T>::SubscriptionNotUpdatable
 				);
 
@@ -902,8 +900,8 @@ impl<T: Config> Pallet<T> {
 			}
 
 			// Finalize the subscription if there are not enough credits left
-			if sub.state != SubscriptionState::Finalized &&
-				sub.credits_left < Self::get_min_credits(&sub)
+			if sub.state != SubscriptionState::Finalized
+				&& sub.credits_left < Self::get_min_credits(&sub)
 			{
 				sub.state = SubscriptionState::Finalized;
 			}

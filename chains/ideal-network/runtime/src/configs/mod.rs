@@ -287,7 +287,7 @@ mod bench_ensure_origin {
 }
 
 parameter_types! {
-	pub const BaseFee: u64 = 900_000u64;
+	pub const BaseFee: u64 = 2_900_000u64;
 }
 
 impl pallet_idn_manager::Config for Runtime {
