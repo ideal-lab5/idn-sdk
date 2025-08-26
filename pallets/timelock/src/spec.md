@@ -87,3 +87,8 @@ Now, when a collator prepares a block, they first decrypt each bid for the round
 
 What if they refuse to do so?
 > slashing, etc.
+
+### Security
+
+So now that we've discussed how to properly price transactions and to make the timelocked transaction pool competitive, we now describe how to ensure that collators include the transactions that won the auction. If they misbehave, the block should be rejected and they should be slashed.
+

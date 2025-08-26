@@ -310,7 +310,7 @@ mod runtime {
 	pub type Preimage = pallet_preimage::Pallet<Runtime>;
 
 	#[runtime::pallet_index(43)]
-	pub type Scheduler = pallet_timelock_transactions::Pallet<Runtime>;
+	pub type Timelock = pallet_timelock_transactions::Pallet<Runtime>;
 	// Contracts
 	#[runtime::pallet_index(50)]
 	pub type Contracts = pallet_contracts::Pallet<Runtime>;

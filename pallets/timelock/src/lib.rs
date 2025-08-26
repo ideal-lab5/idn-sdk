@@ -394,7 +394,6 @@ impl<T: Config> Pallet<T> {
 						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
 							.unwrap();
 					let call = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()).unwrap();
-
 					// This should never panic
 					// Collects all scheduled calls, even those that won't be made if we exceed the
 					// max weight
