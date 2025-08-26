@@ -30,7 +30,7 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use sp_std::{prelude::*, vec};
 
 use ark_bls12_381::{Fr, FrConfig, G1Projective as G1, G2Projective as G2};
-use ark_ec::{AffineRepr, CurveGroup, PrimeGroup};
+use ark_ec::{AffineRepr, CurveGroup, PrimeGroup, short_weierstrass::Projective};
 use ark_ff::{Fp, MontBackend, PrimeField};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeHashExt};
 use ark_std::{
@@ -82,15 +82,9 @@ fn make_ciphertext<T: Config>(
 ) -> (Identity, BoundedVec<u8, ConstU32<4048>>) {
 	let encoded_call = call.encode();
 
-	let message = drand::compute_round_on_g1(round_number).ok().unwrap();
-	let p_pub = G2::generator().mul(sk);
+	let (id, p_pub) = get_ibe(round_number, sk);
+	
 	let msk = [1; 32];
-
-	let mut identity_vec: Vec<u8> = Vec::new();
-	message.serialize_compressed(&mut identity_vec).ok();
-	let identity_vec_vec = vec![identity_vec];
-	let id: Identity =
-		timelock::ibe::fullident::Identity::new(drand::QUICKNET_CTX, identity_vec_vec);
 
 	let ct = timelock::tlock::tle::<TinyBLS381, AESGCMBlockCipherProvider, OsRng>(
 		p_pub,
@@ -107,43 +101,46 @@ fn make_ciphertext<T: Config>(
 	(id, ct_bounded_vec)
 }
 
-// fn fill_schedule_signed<T: Config>(
-// 	when: frame_system::pallet_prelude::BlockNumberFor<T>,
-// 	n: u32,
-// ) -> Result<(), &'static str> {
-// 	let t = DispatchTime::At(when);
-// 	let origin: <T as Config>::PalletsOrigin =
-// 		frame_system::RawOrigin::Signed(account("origin", 0, SEED)).into();
-// 	for i in 0..n {
-// 		let call = make_call::<T>(None);
-// 		let period = Some(((i + 100).into(), 100));
-// 		let name = u32_to_name(i);
-// 		Scheduler::<T>::do_schedule_sealed(name, t, period, 0, origin.clone(), call)?;
-// 	}
-// 	ensure!(Agenda::<T>::get(when).len() == n as usize, "didn't fill schedule");
-// 	Ok(())
-// }
+fn get_ibe(round_number: u64, sk: Fp<MontBackend<FrConfig, 4>, 4>) -> (Identity, Projective<ark_bls12_381::g2::Config>) {
+
+	let message = drand::compute_round_on_g1(round_number).ok().unwrap();
+	let p_pub: Projective<ark_bls12_381::g2::Config> = G2::generator().mul(sk);
+	
+	let mut identity_vec: Vec<u8> = Vec::new();
+	message.serialize_compressed(&mut identity_vec).ok();
+	let identity_vec_vec = vec![identity_vec];
+	
+	(timelock::ibe::fullident::Identity::new(drand::QUICKNET_CTX, identity_vec_vec), p_pub)
+
+}
+
+fn fill_schedule<T: Config>(
+	when: u64,
+	n: u32,
+	sk: Fp<MontBackend<FrConfig, 4>, 4>
+) -> Result<(), &'static str> {
+	let origin: <T as frame_system::Config>::RuntimeOrigin = <T as frame_system::Config>::RuntimeOrigin::root();
+	for _ in 0..n {
+		let call = make_large_call::<T>();
+		let ct = make_ciphertext::<T>(call, when, sk);
+		// Scheduler::<T>::do_schedule_sealed(name, t, period, 0, origin.clone(), call)?;\
+		Scheduler::<T>::schedule_sealed(origin.clone(), when, 0, ct.1);
+	}
+	
+	ensure!(Agenda::<T>::get(when).len() == n as usize, "didn't fill schedule");
+	Ok(())
+}
 
 fn u32_to_name(i: u32) -> TaskName {
 	i.using_encoded(blake2_256)
 }
 
 fn make_task<T: Config>(
-	periodic: bool,
-	named: bool,
 	signed: bool,
 	maybe_lookup_len: Option<u32>,
 	priority: Priority,
 ) -> ScheduledOf<T> {
 	let call = make_call::<T>(maybe_lookup_len);
-	// let maybe_periodic = match periodic {
-	// 	true => Some((100u32.into(), 100)),
-	// 	false => None,
-	// };
-	// let maybe_id = match named {
-	// 	true => u32_to_name(0),
-	// 	false => None,
-	// };
 
 	let id = u32_to_name(123);
 	let origin = make_origin::<T>(signed);
@@ -161,6 +158,12 @@ fn bounded<T: Config>(len: u32) -> Option<BoundedCallOf<T>> {
 	let call =
 		<<T as Config>::RuntimeCall>::from(SystemCall::remark { remark: vec![0; len as usize] });
 	T::Preimages::bound(call).ok()
+}
+
+fn make_large_call<T: Config>() -> <T as Config>::RuntimeCall {
+	let bound = BoundedInline::bound() as u32;
+	let len = bound - 3;
+	<<T as Config>::RuntimeCall>::from(SystemCall::remark { remark: vec![u8::MAX; len as usize] })
 }
 
 fn make_call<T: Config>(maybe_lookup_len: Option<u32>) -> BoundedCallOf<T> {
@@ -205,15 +208,29 @@ mod benchmarks {
 
 	use super::*;
 
-	// service_agenda when no work is done
+	// service_agenda under heavy load
 	#[benchmark]
-	fn service_agenda_base() {
+	fn service_agenda(s: Linear<0, { T::MaxScheduledPerBlock::get() }>) {
+
 		let when = 10;
 
 		let mut weightMeter = WeightMeter::new();
 
-		let call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> =
-			BoundedVec::new();
+		// let call = make_call::<T>(Some(u32::MAX));
+
+		let sk = Fr::one();
+		// let ct = make_ciphertext::<T>(call, 1, sk);
+
+		// println!("{:?}", s);
+		fill_schedule::<T>(1, s, sk).unwrap();
+
+		let identity = get_ibe(when, sk).0;
+		let signature = identity.extract::<TinyBLS381>(sk).0;
+
+		let call_data = Scheduler::<T>::decrypt_and_decode(when, signature.into());
+
+		// let call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> =
+		// 	BoundedVec::new();
 
 		#[block]
 		{
@@ -222,7 +239,6 @@ mod benchmarks {
 
 		assert_eq!(Agenda::<T>::get(when).len() as u32, 0);
 
-		Ok(())
 	}
 
 	// schedule_sealed {
