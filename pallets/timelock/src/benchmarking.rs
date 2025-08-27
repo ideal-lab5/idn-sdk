@@ -119,7 +119,7 @@ fn fill_schedule<T: Config>(
 	n: u32,
 	sk: Fp<MontBackend<FrConfig, 4>, 4>
 ) -> Result<(), &'static str> {
-	let origin: <T as frame_system::Config>::RuntimeOrigin = <T as frame_system::Config>::RuntimeOrigin::root();
+	let origin: <T as frame_system::Config>::RuntimeOrigin = make_origin::<T>();
 	for _ in 0..n {
 		let call = make_large_call::<T>();
 		let ct = make_ciphertext::<T>(call, when, sk);
@@ -135,24 +135,24 @@ fn u32_to_name(i: u32) -> TaskName {
 	i.using_encoded(blake2_256)
 }
 
-fn make_task<T: Config>(
-	signed: bool,
-	maybe_lookup_len: Option<u32>,
-	priority: Priority,
-) -> ScheduledOf<T> {
-	let call = make_call::<T>(maybe_lookup_len);
+// fn make_task<T: Config>(
+// 	signed: bool,
+// 	maybe_lookup_len: Option<u32>,
+// 	priority: Priority,
+// ) -> ScheduledOf<T> {
+// 	let call = make_call::<T>(maybe_lookup_len);
 
-	let id = u32_to_name(123);
-	let origin = make_origin::<T>(signed);
-	Scheduled {
-		id,
-		priority,
-		maybe_ciphertext: None,
-		maybe_call: Some(call),
-		origin,
-		_phantom: PhantomData,
-	}
-}
+// 	let id = u32_to_name(123);
+// 	let origin = make_origin::<T>(signed);
+// 	Scheduled {
+// 		id,
+// 		priority,
+// 		maybe_ciphertext: None,
+// 		maybe_call: Some(call),
+// 		origin,
+// 		_phantom: PhantomData,
+// 	}
+// }
 
 fn bounded<T: Config>(len: u32) -> Option<BoundedCallOf<T>> {
 	let call =
@@ -196,11 +196,9 @@ fn make_call<T: Config>(maybe_lookup_len: Option<u32>) -> BoundedCallOf<T> {
 	}
 }
 
-fn make_origin<T: Config>(signed: bool) -> <T as Config>::PalletsOrigin {
-	match signed {
-		true => frame_system::RawOrigin::Signed(account("origin", 0, SEED)).into(),
-		false => frame_system::RawOrigin::Root.into(),
-	}
+fn make_origin<T: Config>() -> <T as frame_system::Config>::RuntimeOrigin {
+	let origin: <T as frame_system::Config>::RuntimeOrigin = <T as frame_system::Config>::RuntimeOrigin::root();
+	origin
 }
 
 #[benchmarks]
@@ -208,33 +206,67 @@ mod benchmarks {
 
 	use super::*;
 
+	#[benchmark]
+	fn schedule_sealed() {
+		let origin = make_origin::<T>();
+		let when = u64::MAX;
+		let priority = u8::MAX;
+		let sk = Fr::one();
+
+		let call = make_large_call::<T>();
+
+		let (id, ct) = make_ciphertext::<T>(call.clone(), when, sk);
+		let sig = id.extract::<TinyBLS381>(sk).0;
+
+		#[extrinsic_call]
+		_(origin, when, priority, ct);
+
+		let call_data = Scheduler::<T>::decrypt_and_decode(when, sig.into());
+
+		let decrypted_call =call_data.get(0).unwrap().1.clone();
+		assert_eq!(decrypted_call, call);
+	}
+
+	#[benchmark]
+	fn decrypt_and_decode(s: Linear<0, { T::MaxScheduledPerBlock::get() }>) {
+		let when = u64::MAX;
+		let sk = Fr::one();
+		fill_schedule::<T>(when, s, sk).unwrap();
+
+		let identity = get_ibe(when, sk).0;
+		let sig = identity.extract::<TinyBLS381>(sk).0;
+		let mut bounded_vec = BoundedVec::new();
+
+		#[block] 
+		{
+			bounded_vec = Scheduler::<T>::decrypt_and_decode(when, sig.into());
+		}
+
+		assert_eq!(bounded_vec.len(), s as usize);
+
+	}
+
 	// service_agenda under heavy load
 	#[benchmark]
 	fn service_agenda(s: Linear<0, { T::MaxScheduledPerBlock::get() }>) {
 
-		let when = 10;
+		let when = u64::MAX;
 
-		let mut weightMeter = WeightMeter::new();
-
-		// let call = make_call::<T>(Some(u32::MAX));
+		let mut weight_meter = WeightMeter::new();
 
 		let sk = Fr::one();
-		// let ct = make_ciphertext::<T>(call, 1, sk);
 
-		// println!("{:?}", s);
-		fill_schedule::<T>(1, s, sk).unwrap();
+		fill_schedule::<T>(when, s, sk).unwrap();
 
 		let identity = get_ibe(when, sk).0;
 		let signature = identity.extract::<TinyBLS381>(sk).0;
 
 		let call_data = Scheduler::<T>::decrypt_and_decode(when, signature.into());
 
-		// let call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> =
-		// 	BoundedVec::new();
 
 		#[block]
 		{
-			Scheduler::<T>::service_agenda(&mut weightMeter, when, call_data);
+			Scheduler::<T>::service_agenda(&mut weight_meter, when, call_data);
 		}
 
 		assert_eq!(Agenda::<T>::get(when).len() as u32, 0);
