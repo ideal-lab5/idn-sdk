@@ -36,7 +36,6 @@ sleep 7 seconds
 ########################################################
 # set the treasury balance to existential deposit (1_000_000)
 idn-alice: js-script ../../scripts/testing/utils/reset-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C" within 120 secs
-#idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1000000" within 120 secs
 ########################################################
 ## Quote Subscription (frequency = 0, # pulses = 1) 
 ########################################################
@@ -71,7 +70,6 @@ idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtA
 ########################################################
 # set the treasury balance to existential deposit (1_000_000)
 idn-alice: js-script ../../scripts/testing/utils/reset-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C" within 120 secs
-#idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 1000000" within 120 secs
 ########################################################
 ## Quote Subscription (frequency = 0, # pulses = 10) 
 ########################################################
@@ -96,7 +94,7 @@ sleep 120 secs
 # 10_000_000_001 + 29_000_000 = 10_029_000_001
 idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 10029000001" within 120 secs
 
-
+# additional test parameters for longer tests if desired
 #####################################################
 # Test #3: (frequency = 1, #pulses = 10)
 # expected credits: 20
