@@ -1,0 +1,29 @@
+[package]
+name = "idn-contract-lib"
+version = "0.1.0"
+authors = ["Ideal Network Contributors <hello@idealabs.network>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://ideal.network"
+repository = "https://github.com/ideal-lab5/idn-sdk"
+edition = "2021"
+readme = "README.md"
+description = "A contract library for Ideal Network services"
+
+[dependencies]
+ink = { version = "5.1.1", default-features = false }
+parity-scale-codec = { version = "3.7.4", default-features = false, features = ["derive"] }
+scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+serde = { version = "1.0", optional = false }
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "parity-scale-codec/std",
+    "scale-info/std",
+]

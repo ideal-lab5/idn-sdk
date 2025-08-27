@@ -92,3 +92,41 @@ What if they refuse to do so?
 
 So now that we've discussed how to properly price transactions and to make the timelocked transaction pool competitive, we now describe how to ensure that collators include the transactions that won the auction. If they misbehave, the block should be rejected and they should be slashed.
 
+Assume during any block $b$ that the IDN has consumed pulses $p_k, p_{k+1}$, and there are two sets of ciphertexts:
+- $P = \{P_i\}$ are participants who locked their ciphertexts to $p_k$
+- $Q = \{Q_i\}$ are participants who locked their ciphertexts to $p_j$
+
+After decryption, we can treat the plaintexts as the same kind of data. However, beforehand,  we need to decide which ones to even decrypt in the first place! For example, say there are 100 ciphertexts in total, 50 for each pulse, but we can only handle 30 max? The easiest way to choose is by just randomly sampling from the plaintexts.
+
+Q: how many ciphertexts can we decrypt in a second? about 300.
+-> is there any way to batch decrypt? Yeah but it's experimental.
+
+##### Commitments
+
+For each call $call$ encrypted for a deadline $d$, a user:
+1. samples a random $r \xleftarrow{R} \mathbb{Z}_p$
+2. computes a commitment $C = H(call || r)$ (e.g. sha256)
+3. encrypts $ct \xleftarrow{R} TLE(\{call, r\}, ID(d))$
+4. submits the call $timelock.scheduleSealed(ct, d)$
+
+When the block producing collator receives the signature $\sigma_d$ for the round $d$, it attempts to decrypt the ciphertext by:
+1. Assume each ciphertext has an associated $id$.
+2. recover the plaintext $\{pt, r\} \leftarrow TLD(ct, \sigma_d)$
+3. if there are more ciphertexts than decryptable, we randomly sample up to a threshold
+   1. for example, say out limit is 100 ciphertexts but there are 120. We can't drop any of them based on the bids
+   since they're still encrypted. So we need to randomly prune 20 of them.
+   2. We will need to be careful to not a allow for oversubscription.
+4. the collator inserts the decrypted transactions into the block by calling the try_submit_asig function
+
+The runtime must verify that the calls match actual data by recomputing the hashes. 
+For each (id, call, r) pair, the runtime:
+1. fetches the commitment associated with the id: $C_{id}$
+2. computes $C = H(call || r)$
+3. if $C == C_{id}$ then it executes the call, otherwise it rejects it.
+
+#### Let's think bigger:
+Okay.. well what about this. Insteads of using PoA, we could transition to PoS by implementing a post-finality gadget instead of using `create_inherent`.
+
+Here, at least $t$ randomly selected workers would:
+1. Agree on the next aggregated pulse
+2. Agree on the next set of timelocked txs to execute

@@ -260,17 +260,14 @@ pub mod pallet {
 							.filter_map(|pulse| {
 								let bytes = pulse.signature;
 								let sig =
-									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok();
-								let round = pulse.round;
-								let calls = T::TlockTxProvider::decrypt_and_decode(
-									round,
-									sig.expect("TODO"),
-								);
+									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()?;
+								let calls =
+									T::TlockTxProvider::decrypt_and_decode(pulse.round, sig);
 								if !calls.is_empty() {
 									tasks.insert(round, calls.into_inner());
 								}
 
-								sig
+								Some(sig)
 							})
 							.collect::<Vec<_>>();
 
