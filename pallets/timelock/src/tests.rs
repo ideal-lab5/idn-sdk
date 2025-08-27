@@ -16,41 +16,33 @@
 
 //! # Scheduler tests.
 
-use core::{hash::Hash, ops::Bound};
 
 use super::*;
 use crate::mock::{
-	logger, new_test_ext, root, run_to_block, LoggerCall, Preimage, RuntimeCall, Scheduler, Test, *,
+	logger, new_test_ext, root, LoggerCall, RuntimeCall, Scheduler, Test, *,
 };
-use ark_bls12_381::{Fr, FrConfig, G1Projective as G1, G2Projective as G2};
-use ark_ec::{AffineRepr, CurveGroup, PrimeGroup};
-use ark_ff::{Fp, MontBackend, PrimeField};
-use ark_serialize::{CanonicalSerialize, CanonicalSerializeHashExt};
+use ark_bls12_381::{Fr, FrConfig, G2Projective as G2};
+use ark_ec::{AffineRepr, PrimeGroup};
+use ark_ff::{Fp, MontBackend};
+use ark_serialize::CanonicalSerialize;
 use ark_std::{
 	ops::Mul,
-	rand::{rngs::OsRng, CryptoRng, Rng, RngCore},
+	rand::rngs::OsRng,
 	One,
 };
 use frame_support::{
-	assert_err, assert_noop, assert_ok, parameter_types,
+	assert_noop, assert_ok,
 	traits::{
-		dynamic_params::IntoKey, ConstU32, Contains, OnInitialize, QueryPreimage, StorePreimage,
+		ConstU32, Contains, QueryPreimage,
 	},
-	Blake2_256, Hashable,
 };
-use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng, ChaCha20Rng, ChaChaRng};
 // use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
-use sp_core::sha2_256;
 // use sp_runtime::traits::Hash;
-use substrate_test_utils::assert_eq_uvec;
 
 use sp_idn_crypto::drand;
 use timelock::{
 	self,
-	block_ciphers::BlockCipherProvider,
-	engines::{drand::TinyBLSDrandQuicknet, EngineBLS},
 	ibe::fullident::Identity,
-	tlock::OpaqueSecretKey,
 };
 // use sp_idn_crypto::drand as drand_primitive;
 // use etf_crypto_primitives::{
@@ -163,12 +155,12 @@ fn shielded_transactions_are_properly_scheduled() {
 
 		let empty_result_early: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
 			Scheduler::decrypt_and_decode(9, signature.into());
-		let empty_result_early_call = empty_result_early.get(0);
+		let empty_result_early_call = empty_result_early.first();
 		assert_eq!(empty_result_early_call, None);
 
 		let result: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
 			Scheduler::decrypt_and_decode(drand_round_num, signature.into());
-		let runtime_call = result.get(0).unwrap().1.clone();
+		let runtime_call = result.first().unwrap().1.clone();
 		assert_eq!(runtime_call, call);
 
 		Scheduler::service_agenda(&mut WeightMeter::new(), drand_round_num, result);
@@ -177,14 +169,14 @@ fn shielded_transactions_are_properly_scheduled() {
 
 		let empty_result_late: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
 			Scheduler::decrypt_and_decode(11, signature.into());
-		let empty_result_late_call = empty_result_late.get(0);
+		let empty_result_late_call = empty_result_late.first();
 		assert_eq!(empty_result_late_call, None);
 
 		let signature_2 = id_2.extract::<TinyBLS381>(sk).0;
 
 		let result_2: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
 			Scheduler::decrypt_and_decode(drand_round_num_2, signature_2.into());
-		let runtime_call_2 = result_2.get(0).unwrap().1.clone();
+		let runtime_call_2 = result_2.first().unwrap().1.clone();
 		assert_eq!(runtime_call_2, call_2);
 
 		Scheduler::service_agenda(&mut WeightMeter::new(), drand_round_num_2, result_2);

@@ -438,19 +438,16 @@ impl<T: Config> Pallet<T> {
 		for (agenda_index, _) in ordered.into_iter() {
 			let task = agenda[agenda_index as usize].clone();
 			// If call data was found, then proceed as normal, otherwise do nothing and continue other executions
-			match task.maybe_call {
-				Some(ref maybe_call) => {
-					let base_weight = T::WeightInfo::service_task(
-				maybe_call.lookup_len().map(|x| x as usize),
-					);
-					if !weight.can_consume(base_weight) {
-						// TODO: how to report?
-						break;
-					}
-					let _result = Self::service_task(&mut meter, when, agenda_index, task);
-				},
-				None => {}
-			}
+			if let Some(ref maybe_call) = task.maybe_call {
+   					let base_weight = T::WeightInfo::service_task(
+   				maybe_call.lookup_len().map(|x| x as usize),
+   					);
+   					if !weight.can_consume(base_weight) {
+   						// TODO: how to report?
+   						break;
+   					}
+   					let _result = Self::service_task(&mut meter, when, agenda_index, task);
+   				}
 
 		}
 		// 	// TODO: how should we report failures?
@@ -487,7 +484,7 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(), (ServiceTaskError, ScheduledOf<T>)> {
 		if let Some(ref call) = task.maybe_call {
 			Lookup::<T>::remove(task.id);
-			let (call, lookup_len) = match T::Preimages::peek(&call) {
+			let (call, lookup_len) = match T::Preimages::peek(call) {
 				Ok(c) => c,
 				Err(_) => {
 					Self::deposit_event(Event::CallUnavailable {
@@ -497,7 +494,7 @@ impl<T: Config> Pallet<T> {
 
 					// It was not available when we needed it, so we don't need to have requested it
 					// anymore.
-					T::Preimages::drop(&call);
+					T::Preimages::drop(call);
 
 					// We don't know why `peek` failed, thus we most account here for the "full
 					// weight".

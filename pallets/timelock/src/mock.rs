@@ -29,7 +29,7 @@ use frame_system::{EnsureRoot, EnsureSignedBy};
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage, Perbill,
+	BuildStorage,
 };
 
 use ark_serialize::CanonicalSerialize;
