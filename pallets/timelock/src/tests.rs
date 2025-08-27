@@ -128,7 +128,7 @@ fn execution_fails_bad_origin() {
 fn shielded_transactions_are_properly_scheduled() {
 	new_test_ext().execute_with(|| {
 		let call =
-			RuntimeCall::Logger(LoggerCall::log { i: 42, weight: Weight::from_parts(10, 0) });
+			RuntimeCall::Logger(LoggerCall::log { i: 1, weight: Weight::from_parts(10, 0) });
 		let call_2 =
 			RuntimeCall::Logger(LoggerCall::log { i: 2, weight: Weight::from_parts(1, 0) });
 
@@ -171,6 +171,10 @@ fn shielded_transactions_are_properly_scheduled() {
 		let runtime_call = result.get(0).unwrap().1.clone();
 		assert_eq!(runtime_call, call);
 
+		Scheduler::service_agenda(&mut WeightMeter::new(), drand_round_num, result);
+
+		assert_eq!(logger::log(), vec![(root(), 1u32)]);
+
 		let empty_result_late: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
 			Scheduler::decrypt_and_decode(11, signature.into());
 		let empty_result_late_call = empty_result_late.get(0);
@@ -182,6 +186,9 @@ fn shielded_transactions_are_properly_scheduled() {
 			Scheduler::decrypt_and_decode(drand_round_num_2, signature_2.into());
 		let runtime_call_2 = result_2.get(0).unwrap().1.clone();
 		assert_eq!(runtime_call_2, call_2);
+
+		Scheduler::service_agenda(&mut WeightMeter::new(), drand_round_num_2, result_2);
+		assert_eq!(logger::log(), vec![(root(), 1u32), (root(), 2u32)]);	
 	})
 }
 
