@@ -78,7 +78,7 @@ fn make_ciphertext(
 	message.serialize_compressed(&mut identity_vec).ok();
 	let identity_vec_vec = vec![identity_vec];
 	let id: Identity =
-		timelock::ibe::fullident::Identity::new(drand::QUICKNET_CTX, identity_vec_vec);
+		timelock::ibe::fullident::Identity::new(b"", identity_vec_vec);
 
 	let ct = timelock::tlock::tle::<TinyBLS381, AESGCMBlockCipherProvider, OsRng>(
 		p_pub,
@@ -295,6 +295,138 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 			calls,
 		);
 		assert_eq!(logger::log(), vec![(root(), 1u32), (root(), 3u32)]);
+	})
+}
+
+#[test]
+#[docify::export]
+fn agenda_is_cleared_even_if_all_decrypts_fail() {
+	new_test_ext().execute_with(|| {
+		let call_1 =
+				RuntimeCall::Logger(LoggerCall::log { i: 1, weight: Weight::from_parts(1, 0) });
+		let call_2 =
+				RuntimeCall::Logger(LoggerCall::log { i: 2, weight: Weight::from_parts(1, 0) });
+
+		let drand_round_num = 10;
+		
+
+		let sk = Fr::one();
+
+		// encrypt calls for some drand round
+		let (_, ct_bounded_vec_1) = make_ciphertext(call_1.clone(), drand_round_num, sk);
+		let (_, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_round_num, sk);
+
+		let origin: RuntimeOrigin = RuntimeOrigin::root();
+
+		let drand_bad_round = 9;
+
+		// schedule calls to be executed on incorrect round
+		assert_ok!(Scheduler::schedule_sealed(
+				origin.clone(),
+				drand_bad_round,
+				3,
+				ct_bounded_vec_1
+			));
+		assert_ok!(Scheduler::schedule_sealed(
+				origin.clone(),
+				drand_bad_round,
+				3,
+				ct_bounded_vec_2
+		));
+
+		// verify that the agenda is holding both of the CT
+		assert_eq!(Agenda::<Test>::get(drand_bad_round).len(), 2);
+
+		// create id that would be used to decrypt round 9 encrypted CT
+		let (round_9_id, _) = make_ciphertext(RuntimeCall::Logger(LoggerCall::log { i: 1, weight: Weight::from_parts(1, 0) }), drand_bad_round, sk);
+
+		let signature = round_9_id.extract::<TinyBLS381>(sk).0;
+
+		// Decrypt and Decode for round 9
+		let call_data: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
+				Scheduler::decrypt_and_decode(drand_bad_round, signature.into());
+
+		// Call service agenda with empty call data
+		Scheduler::service_agenda(
+			&mut WeightMeter::new(),
+			drand_bad_round,
+			call_data
+		);
+
+		// Verify that the agenda was cleared
+		assert_eq!(Agenda::<Test>::get(drand_bad_round).len(), 0);
+	})
+}
+
+
+#[test]
+#[docify::export]
+fn agenda_executes_valid_calls_and_drops_others() {
+	new_test_ext().execute_with(|| {
+		let call_1 =
+				RuntimeCall::Logger(LoggerCall::log { i: 1, weight: Weight::from_parts(1, 0) });
+		let call_2 =
+				RuntimeCall::Logger(LoggerCall::log { i: 2, weight: Weight::from_parts(1, 0) });
+		let call_3 =
+				RuntimeCall::Logger(LoggerCall::log { i: 3, weight: Weight::from_parts(1, 0) });
+
+		let drand_round_num = 10;
+		
+
+		let sk = Fr::one();
+
+		// encrypt calls for some drand round
+		let (_, ct_bounded_vec_1) = make_ciphertext(call_1.clone(), drand_round_num, sk);
+		let (_, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_round_num, sk);
+
+		let origin: RuntimeOrigin = RuntimeOrigin::root();
+
+		let drand_bad_round = 9;
+
+		let(round_9_id, ct_bounded_vec_3) = make_ciphertext(call_3.clone(), drand_bad_round, sk);
+
+		// schedule calls to be executed on incorrect round
+		assert_ok!(Scheduler::schedule_sealed(
+				origin.clone(),
+				drand_bad_round,
+				3,
+				ct_bounded_vec_1
+		));
+		assert_ok!(Scheduler::schedule_sealed(
+				origin.clone(),
+				drand_bad_round,
+				3,
+				ct_bounded_vec_2
+		));
+
+		assert_ok!(Scheduler::schedule_sealed(
+				origin.clone(),
+				drand_bad_round,
+				3,
+				ct_bounded_vec_3
+		));
+
+		// verify that the agenda is holding all 3 CT
+		assert_eq!(Agenda::<Test>::get(drand_bad_round).len(), 3);
+
+		let signature = round_9_id.extract::<TinyBLS381>(sk).0;
+
+		// Decrypt and Decode for round 9
+		let call_data: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
+				Scheduler::decrypt_and_decode(drand_bad_round, signature.into());
+
+		// Call service agenda with empty call data
+		Scheduler::service_agenda(
+			&mut WeightMeter::new(),
+			drand_bad_round,
+			call_data
+		);
+
+		// Verify that the agenda was cleared
+		assert_eq!(Agenda::<Test>::get(drand_bad_round).len(), 0);
+
+		assert_eq!(logger::log(), vec![(root(), 3u32)]);
+
 	})
 }
 

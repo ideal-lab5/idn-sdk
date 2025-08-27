@@ -76,7 +76,6 @@ pub mod logger {
 		#[pallet::call_index(0)]
 		#[pallet::weight(*weight)]
 		pub fn log(origin: OriginFor<T>, i: u32, weight: Weight) -> DispatchResult {
-			println!("GOT IT");
 			Self::deposit_event(Event::Logged(i, weight));
 			Log::mutate(|log| {
 				log.push((origin.caller().clone(), i));
