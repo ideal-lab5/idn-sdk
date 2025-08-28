@@ -376,33 +376,36 @@ impl<T: Config> Pallet<T> {
 	pub fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
+		remaining_decrypts: &mut u16
 	) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
 		let mut recovered_calls: BoundedVec<
 			(TaskName, <T as Config>::RuntimeCall),
 			T::MaxScheduledPerBlock,
 		> = BoundedVec::new();
-		// Retrieve all scheduled calls
-		let agenda = Agenda::<T>::get(when);
-
-		// Collect and decrypt all scheduled calls.
-		for task in agenda.into_iter() {
-			if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
-				if let Ok(ciphertext) =
-					TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
-				{
-					if let Ok(bare) =
-						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
-					{
-						if let Ok(call) = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()) {
-							// This should never panic (famous last words)
-							// Collects all scheduled calls, even those that won't be made if we
-							// exceed the max weight
-							recovered_calls.try_push((task.id, call)).ok();
+			// Retrieve all scheduled calls
+			let agenda = Agenda::<T>::get(when);
+			// Collect and decrypt all scheduled calls.
+			for task in agenda.into_iter() {
+				if *remaining_decrypts > 0 {
+					if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
+						if let Ok(ciphertext) =
+							TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
+						{
+							if let Ok(bare) =
+								tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
+							{
+								*remaining_decrypts -= 1;
+								if let Ok(call) = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()) {
+									// This should never panic (famous last words)
+									// Collects all scheduled calls, even those that won't be made if we
+									// exceed the max weight
+									recovered_calls.try_push((task.id, call)).ok();
+								}
+							}
 						}
 					}
 				}
 			}
-		}
 		recovered_calls
 	}
 
@@ -566,6 +569,7 @@ pub trait TlockTxProvider<RuntimeCall, MaxScheduledPerBlock> {
 	fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
+		remaining_decrypts: &mut u16
 	) -> BoundedVec<(TaskName, RuntimeCall), MaxScheduledPerBlock>;
 
 	fn service_agenda(
@@ -581,8 +585,9 @@ impl<T: Config> TlockTxProvider<<T as pallet::Config>::RuntimeCall, T::MaxSchedu
 	fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
+		remaining_decrypts: &mut u16
 	) -> BoundedVec<(TaskName, <T as pallet::Config>::RuntimeCall), T::MaxScheduledPerBlock> {
-		Self::decrypt_and_decode(when, signature)
+		Self::decrypt_and_decode(when, signature, remaining_decrypts)
 	}
 
 	fn service_agenda(

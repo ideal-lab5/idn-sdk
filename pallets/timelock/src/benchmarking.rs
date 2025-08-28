@@ -50,6 +50,8 @@ const SEED: u32 = 0;
 
 const BLOCK_NUMBER: u32 = 2;
 
+const MAX_DECS_PER_BLOCK: u16 = 100;
+
 // type SystemOrigin<T> = <T as frame_system::Config>::RuntimeOrigin;
 
 /// Add `n` items to the schedule.
@@ -219,18 +221,19 @@ mod benchmarks {
 
 		let (id, ct) = make_ciphertext::<T>(call.clone(), when, sk);
 		let sig = id.extract::<TinyBLS381>(sk).0;
+		let remaining_decrypts = MAX_DECS_PER_BLOCK;
 
 		#[extrinsic_call]
 		_(origin, when, priority, ct);
 
-		let call_data = Scheduler::<T>::decrypt_and_decode(when, sig.into());
+		let call_data = Scheduler::<T>::decrypt_and_decode(when, sig.into(), remaining_decrypts);
 
 		let decrypted_call = call_data.get(0).unwrap().1.clone();
 		assert_eq!(decrypted_call, call);
 	}
 
 	#[benchmark]
-	fn decrypt_and_decode(s: Linear<0, { T::MaxScheduledPerBlock::get() }>) {
+	fn decrypt_and_decode(s: Linear<0, { T::MaxScheduledPerBlock::get() }>, t: Linear<0, {MAX_DECS_PER_BLOCK as u32}>) {
 		let when = u64::MAX;
 		let sk = Fr::one();
 		fill_schedule::<T>(when, s, sk).unwrap();
@@ -238,10 +241,11 @@ mod benchmarks {
 		let identity = get_ibe(when, sk).0;
 		let sig = identity.extract::<TinyBLS381>(sk).0;
 		let mut bounded_vec = BoundedVec::new();
+		let remaining_decrypts = t as u16;
 
 		#[block]
 		{
-			bounded_vec = Scheduler::<T>::decrypt_and_decode(when, sig.into());
+			bounded_vec = Scheduler::<T>::decrypt_and_decode(when, sig.into(), remaining_decrypts);
 		}
 
 		assert_eq!(bounded_vec.len(), s as usize);
@@ -260,8 +264,9 @@ mod benchmarks {
 
 		let identity = get_ibe(when, sk).0;
 		let signature = identity.extract::<TinyBLS381>(sk).0;
+		let remaining_decrypts = MAX_DECS_PER_BLOCK;
 
-		let call_data = Scheduler::<T>::decrypt_and_decode(when, signature.into());
+		let call_data = Scheduler::<T>::decrypt_and_decode(when, signature.into(), remaining_decrypts);
 
 		#[block]
 		{

@@ -44,6 +44,7 @@ use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_core::ConstU16;
 use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
 use xcm::prelude::BodyId;

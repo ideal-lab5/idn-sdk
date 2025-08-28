@@ -255,6 +255,7 @@ pub mod pallet {
 					let end = pulses.last().map(|p| p.round);
 					// data needs to be a map since we will have multiple pulses to consider
 					let mut tasks = BTreeMap::new();
+					let mut remaining_decrypts = T::MaxDecryptionsPerBlock::get();
 
 					if let (Some(start), Some(end)) = (start, end) {
 						let filtered = pulses
@@ -266,7 +267,7 @@ pub mod pallet {
 									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()?;
 
 								let calls =
-									T::TlockTxProvider::decrypt_and_decode(pulse.round, sig);
+									T::TlockTxProvider::decrypt_and_decode(pulse.round, sig, &mut remaining_decrypts);
 
 								if !calls.is_empty() {
 									tasks.insert(round, calls.into_inner());
