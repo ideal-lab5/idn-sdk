@@ -324,13 +324,16 @@ impl pallet_idn_manager::Config for Runtime {
 }
 
 parameter_types! {
+	pub const MaxDecryptionsPerBlock: u16 = crate::constants::idn::MAX_DECS_PER_BLOCK as u16;
 	pub const MaxSigsPerBlock: u8 = crate::constants::idn::MAX_QUEUE_SIZE as u8;
+
 }
 
 impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
+	type MaxDecryptionsPerBlock = ConstU16<100>;
 	type MaxSigsPerBlock = MaxSigsPerBlock;
 	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;

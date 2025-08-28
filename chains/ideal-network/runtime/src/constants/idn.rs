@@ -25,6 +25,8 @@ pub const PRIMARY: &str =
 /// A secondary (redundant) peer who subscribes and publishes to the topic
 pub const SECONDARY: &str =
 	"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y";
+/// The maximum number of ciphertexts that a collator can decrypt within `create_inherent`
+pub const MAX_DECS_PER_BLOCK: usize = 200;
 /// The maximum queue size for the mpsc channel that stores raw pulse data (protobuf)
 pub const MAX_QUEUE_SIZE: usize = 6;
 /// The number of seconds the node waits without a new message until it restarts the swarm

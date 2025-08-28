@@ -146,6 +146,8 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 		/// something that knows how to aggregate and verify beacon pulses.
 		type SignatureVerifier: SignatureVerifier;
+		/// The maximum number of ciphertexts that can be decrypted per block
+		type MaxDecryptionsPerBlock: Get<u16>;
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;
 		/// The pulse type
@@ -259,10 +261,13 @@ pub mod pallet {
 							.into_iter()
 							.filter_map(|pulse| {
 								let bytes = pulse.signature;
+
 								let sig =
 									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()?;
+
 								let calls =
 									T::TlockTxProvider::decrypt_and_decode(pulse.round, sig);
+
 								if !calls.is_empty() {
 									tasks.insert(round, calls.into_inner());
 								}

@@ -1,7 +1,10 @@
 use crate as pallet_randomness_beacon;
 use crate::*;
 use bp_idn::types::*;
-use frame_support::{derive_impl, ord_parameter_types, parameter_types, traits::ConstU8};
+use frame_support::{
+	derive_impl, ord_parameter_types, parameter_types,
+	traits::{ConstU16, ConstU8},
+};
 use frame_system::EnsureRoot;
 use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
@@ -96,6 +99,7 @@ impl pallet_randomness_beacon::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type SignatureVerifier = QuicknetVerifier;
+	type MaxDecryptionsPerBlock = ConstU16<100>;
 	type MaxSigsPerBlock = ConstU8<3>;
 	type Pulse = MockPulse;
 	type Dispatcher = MockDispatcher;

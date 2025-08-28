@@ -390,15 +390,13 @@ impl<T: Config> Pallet<T> {
 				if let Ok(ciphertext) =
 					TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
 				{
-					if let Ok(bare) = 
-						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into()) 
+					if let Ok(bare) =
+						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
 					{
-						if let Ok(call) = 
-							<T as Config>::RuntimeCall::decode(&mut bare.as_slice())
-						{
-						// This should never panic (famous last words)
-						// Collects all scheduled calls, even those that won't be made if we exceed the
-						// max weight
+						if let Ok(call) = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()) {
+							// This should never panic (famous last words)
+							// Collects all scheduled calls, even those that won't be made if we
+							// exceed the max weight
 							recovered_calls.try_push((task.id, call)).ok();
 						}
 					}
@@ -437,18 +435,17 @@ impl<T: Config> Pallet<T> {
 
 		for (agenda_index, _) in ordered.into_iter() {
 			let task = agenda[agenda_index as usize].clone();
-			// If call data was found, then proceed as normal, otherwise do nothing and continue other executions
+			// If call data was found, then proceed as normal, otherwise do nothing and continue
+			// other executions
 			if let Some(ref maybe_call) = task.maybe_call {
-   					let base_weight = T::WeightInfo::service_task(
-   				maybe_call.lookup_len().map(|x| x as usize),
-   					);
-   					if !weight.can_consume(base_weight) {
-   						// TODO: how to report?
-   						break;
-   					}
-   					let _result = Self::service_task(&mut meter, when, agenda_index, task);
-   				}
-
+				let base_weight =
+					T::WeightInfo::service_task(maybe_call.lookup_len().map(|x| x as usize));
+				if !weight.can_consume(base_weight) {
+					// TODO: how to report?
+					break;
+				}
+				let _result = Self::service_task(&mut meter, when, agenda_index, task);
+			}
 		}
 		// 	// TODO: how should we report failures?
 		// 	// agenda[agenda_index as usize] = match result {
