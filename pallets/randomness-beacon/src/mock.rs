@@ -32,13 +32,14 @@ impl pallet_balances::Config for Test {
 
 #[derive(Encode, Decode, Debug, Clone, TypeInfo, PartialEq, DecodeWithMemTracking)]
 pub struct MockPulse {
-	message: OpaqueSignature,
 	signature: OpaqueSignature,
+	start: u64,
+	end: u64,
 }
 
 impl From<Accumulation> for MockPulse {
 	fn from(acc: Accumulation) -> Self {
-		MockPulse { signature: acc.signature, message: acc.message_hash }
+		MockPulse { signature: acc.signature, start: 0, end: 100 }
 	}
 }
 
@@ -46,13 +47,22 @@ impl sp_idn_traits::pulse::Pulse for MockPulse {
 	type Rand = [u8; 32];
 	type Sig = OpaqueSignature;
 	type Pubkey = OpaquePublicKey;
+	type RoundNumber = u64;
 
 	fn rand(&self) -> Self::Rand {
 		[0u8; 32]
 	}
 
+	fn start(&self) -> Self::RoundNumber {
+		0
+	}
+
+	fn end(&self) -> Self::RoundNumber {
+		0
+	}
+
 	fn message(&self) -> Self::Sig {
-		self.message
+		[0u8;48]
 	}
 
 	fn sig(&self) -> Self::Sig {
@@ -64,7 +74,6 @@ impl sp_idn_traits::pulse::Pulse for MockPulse {
 			pubkey.as_ref().to_vec(),
 			self.sig().as_ref().to_vec(),
 			self.message().as_ref().to_vec(),
-			None,
 		) {
 			return true;
 		}

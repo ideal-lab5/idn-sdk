@@ -156,7 +156,7 @@ impl WeightToFeePolynomial for WeightToFee {
 	}
 }
 
-/// Dummy implementation of the ['PulseConsumer'] trait.
+/// Dummy implementation of the ['PulseConsumer'] trait with verification logic
 pub struct PulseConsumerImpl;
 impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
 	fn consume_pulse(pulse: Pulse, sub_id: SubscriptionId) -> Result<(), ()> {

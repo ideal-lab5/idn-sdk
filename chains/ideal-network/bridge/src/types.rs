@@ -15,6 +15,7 @@
  */
 
 //! Types of IDN runtime
+use ark_serialize::CanonicalSerialize;
 use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::{parameter_types, PalletId};
 use pallet_idn_manager::{
@@ -29,7 +30,11 @@ use pallet_idn_manager::{
 use scale_info::TypeInfo;
 use sha2::{Digest, Sha256};
 use sp_core::crypto::Ss58Codec;
-use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
+use sp_idn_crypto::{
+	bls12_381::zero_on_g1,
+	drand::compute_round_on_g1,
+	verifier::{QuicknetVerifier, SignatureVerifier},
+};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	MultiSignature,
@@ -48,25 +53,27 @@ pub use sp_consensus_randomness_beacon::types::*;
 /// output from Drand's Quicknet
 #[derive(Encode, Decode, Debug, Clone, TypeInfo, PartialEq, DecodeWithMemTracking)]
 pub struct RuntimePulse {
-	message: OpaqueSignature,
 	signature: OpaqueSignature,
+	start: RoundNumber,
+	end: RoundNumber,
 }
 
 impl Default for RuntimePulse {
 	fn default() -> Self {
-		Self { message: [0; 48], signature: [0; 48] }
+		Self { signature: [0; 48], start: 0, end: 0 }
 	}
 }
 
 impl RuntimePulse {
 	/// A contructor, usually reserved for testing
-	pub fn new(message: OpaqueSignature, signature: OpaqueSignature) -> Self {
-		Self { message, signature }
+	pub fn new(signature: OpaqueSignature, start: RoundNumber, end: RoundNumber) -> Self {
+		Self { signature, start, end }
 	}
 }
 
 impl sp_idn_traits::pulse::Pulse for RuntimePulse {
 	type Rand = Randomness;
+	type RoundNumber = RoundNumber;
 	type Sig = OpaqueSignature;
 	type Pubkey = OpaquePublicKey;
 
@@ -77,7 +84,20 @@ impl sp_idn_traits::pulse::Pulse for RuntimePulse {
 	}
 
 	fn message(&self) -> Self::Sig {
-		self.message
+		let msg = (self.start..self.end)
+			.map(|r| compute_round_on_g1(r).expect("it should be a valid integer"))
+			.fold(zero_on_g1(), |amsg, val| (amsg + val).into());
+		let mut bytes = Vec::new();
+		msg.serialize_compressed(&mut bytes).expect("The message should be well formed.");
+		bytes.try_into().unwrap_or([0u8;48])
+	}
+
+	fn start(&self) -> Self::RoundNumber {
+		self.start
+	}
+
+	fn end(&self) -> Self::RoundNumber {
+		self.end
 	}
 
 	fn sig(&self) -> Self::Sig {
@@ -89,7 +109,6 @@ impl sp_idn_traits::pulse::Pulse for RuntimePulse {
 			pubkey.as_ref().to_vec(),
 			self.sig().as_ref().to_vec(),
 			self.message().as_ref().to_vec(),
-			None,
 		)
 		.is_ok()
 	}

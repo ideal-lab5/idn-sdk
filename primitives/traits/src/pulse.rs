@@ -124,10 +124,25 @@ pub trait Pulse {
 		+ EncodeLike
 		+ AsRef<[u8]>;
 
+	/// The type of the round numbers output by the randomness beacon
+	///
+	/// This is typically a u64
+	type RoundNumber: Decode
+		+ TypeInfo
+		+ MaxEncodedLen
+		+ Debug
+		+ PartialEq
+		+ Clone
+		+ EncodeLike;
+
 	/// Get the random value from this pulse
 	///
 	/// Returns the random value contained in this pulse.
 	fn rand(&self) -> Self::Rand;
+
+	fn start(&self) -> Self::RoundNumber;
+
+	fn end(&self) -> Self::RoundNumber;
 
 	/// Get the aggregated message
 	///

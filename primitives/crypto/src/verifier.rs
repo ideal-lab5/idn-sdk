@@ -19,19 +19,9 @@
 extern crate alloc;
 use crate::bls12_381::*;
 use ark_ec::AffineRepr;
-use ark_serialize::CanonicalSerialize;
 use sp_std::vec::Vec;
 
 use ark_bls12_381::G2Affine;
-
-/// An opaque type to represent a serialized signature and message combination
-#[derive(Debug, PartialEq)]
-pub struct OpaqueAccumulation {
-	/// A signature (e.g. output from the randomness beacon) in G1
-	pub signature: Vec<u8>,
-	/// The message signed by the signature, hashed to G1
-	pub message_hash: Vec<u8>,
-}
 
 /// Something that can verify beacon pulses
 pub trait SignatureVerifier {
@@ -42,83 +32,40 @@ pub trait SignatureVerifier {
 	/// * `start`: The earliest round for which next_sig_bytes has a signature
 	/// * `prev_sig_and_msg`: An optional previous signature and message to aggregate for
 	///   verification
-	fn verify(
-		beacon_pk_bytes: Vec<u8>,
-		serialized_sig_bytes: Vec<u8>,
-		serialized_messages_bytes: Vec<u8>,
-		accumulation: Option<OpaqueAccumulation>,
-	) -> Result<OpaqueAccumulation, CryptoError>;
+	fn verify(pubkey: Vec<u8>, sig: Vec<u8>, msg: Vec<u8>) -> Result<(), CryptoError>;
 }
 
-/// A verifier to check values received from Drand quicknet. It outputs true if valid, false
-/// otherwise
+/// An optimized BLS12-381 signature verifier.
 ///
-/// [Quicknet](https://drand.love/blog/quicknet-is-live-on-the-league-of-entropy-mainnet) operates in an unchained mode,
-/// so messages contain only the round number. in addition, public keys are in G2 and signatures are
-/// in G1.
+/// Given a signature $sig = d*H(m)$ where $d$ is the secret key, $H$ is a hash to G1 function, and $m \in \{0, 1\}^*$ is a message,
 ///
-/// Values are valid if the pairing equality holds: $e(sig, g_2) == e(msg_on_curve, pk)$
+/// The signature's validity is checked using the pairing equality:
+///
+///   $e(sig, g_2) == e(msg_on_curve, pk)$
+///
 /// where $sig \in \mathbb{G}_1$ is the signature
 ///       $g_2 \in \mathbb{G}_2$ is a generator
-///       $msg_on_curve \in \mathbb{G}_1$ is a hash of the message that drand signed,
-/// (hash(round_number))        $pk \in \mathbb{G}_2$ is the public key, read from the input public
-/// parameters
+///       $H(m) =: msg_on_curve \in \mathbb{G}_1$ is a hash of the message in $\mathbb{G}_1$
 ///
-/// The implementation is responsible for construcing the public key that is required to verify the
-/// signature. In order to avoid long-running aggregations, the function allows an optional
-/// 'checkpoint' aggregated sig and public key that can be used to 'start' from. The function is
-/// intended to efficiently verify that:
-/// 1) New signatures are correct
-/// 2) The new signatures follow a monotonically increasing sequence and are an extension of
-///    previous a monotonically increasing sequences that I have observed.
-///
-/// More explicitly, it is intended to allow for the runtime to 'follow' a long-running,
-/// aggregated signature and public key that allows it to efficiently prove it has observed all
-/// pulses from the randomness beacon within some given range of round numbers.
 pub struct QuicknetVerifier;
-
 impl SignatureVerifier for QuicknetVerifier {
 	fn verify(
 		beacon_pk_bytes: Vec<u8>,
 		serialized_sig_bytes: Vec<u8>,
 		serialized_messages_bytes: Vec<u8>,
-		accumulation: Option<OpaqueAccumulation>,
-	) -> Result<OpaqueAccumulation, CryptoError> {
+	) -> Result<(), CryptoError> {
 		let beacon_pk = decode_g2(&beacon_pk_bytes)?;
 
 		// aggregate signatures
-		let mut asig = decode_g1(&serialized_sig_bytes)?;
-		let mut amsg = decode_g1(&serialized_messages_bytes)?;
-
-		// if a previous signature and pubkey were provided
-		// then we start there
-		if let Some(acc) = accumulation {
-			let prev_asig = decode_g1(&acc.signature)?;
-			let prev_amsg = decode_g1(&acc.message_hash)?;
-			asig = (asig + prev_asig).into();
-			amsg = (amsg + prev_amsg).into();
-		}
+		let asig = decode_g1(&serialized_sig_bytes)?;
+		let amsg = decode_g1(&serialized_messages_bytes)?;
 
 		let g2 = G2Affine::generator();
-		let validity = fast_pairing_opt(asig, g2, amsg, beacon_pk);
-
-		if !validity {
+		if !fast_pairing_opt(asig, g2, amsg, beacon_pk) {
 			return Err(CryptoError::InvalidSignature);
 		}
 
-		// convert to bytes
-		let mut sig_bytes = Vec::new();
-		// note: this line is untestable
-		// [SRLabs]: can we use an .expect here instead?
-		asig.serialize_compressed(&mut sig_bytes)
-			.map_err(|_| CryptoError::SerializeG1Failure)?;
-
-		let mut amsg_bytes = Vec::new();
-		// note: this line is untestable
-		amsg.serialize_compressed(&mut amsg_bytes)
-			.map_err(|_| CryptoError::SerializeG2Failure)?;
-
-		Ok(OpaqueAccumulation { signature: sig_bytes, message_hash: amsg_bytes })
+		Ok(())
 	}
 }
 
@@ -136,59 +83,32 @@ pub mod tests {
 	// d = sk * Q(1000)
 	// in the case of no aggregation, it outputs the input if valid
 	#[test]
-	fn can_verify_single_pulse_with_quicknet_style_verifier_no_prev() {
+	fn test_verifier_works_with_drand_quicknet_values() {
 		let beacon_pk_bytes = get_beacon_pk();
 		let (asig, amsg, _pulses) = get(vec![PULSE1000]);
 
-		let aggr = QuicknetVerifier::verify(
+		let res = QuicknetVerifier::verify(
 			beacon_pk_bytes.try_into().unwrap(),
 			asig.clone(),
 			amsg.clone(),
-			None,
-		)
-		.unwrap();
+		);
 
-		assert_eq!(asig, aggr.signature);
-		assert_eq!(amsg, aggr.message_hash);
+		assert!(res.is_ok());
 	}
 
-	// d1 = sk * Q(1000), d2 = sk * Q(1001) => verify d = d1 + d2
 	#[test]
-	fn can_verify_aggregated_sigs_no_prev() {
+	fn test_verifier_returns_errors_if_verification_fails() {
 		let beacon_pk_bytes = get_beacon_pk();
-		let (asig, amsg, _pulses) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
+		let (asig, _amsg, _pulses) = get(vec![PULSE1000]);
+		let (_asig, amsg, _pulses) = get(vec![PULSE1001]);
 
-		let aggr = QuicknetVerifier::verify(
+		let res = QuicknetVerifier::verify(
 			beacon_pk_bytes.try_into().unwrap(),
 			asig.clone(),
 			amsg.clone(),
-			None,
-		)
-		.unwrap();
-
-		assert_eq!(asig, aggr.signature);
-		assert_eq!(amsg, aggr.message_hash);
-	}
-
-	// d1 = sk * Q(1000), d2 = sk * Q(1001) => verify d = d1 + d2
-	#[test]
-	fn can_verify_sigs_with_aggregation() {
-		let beacon_pk_bytes = get_beacon_pk();
-		let (prev_asig, prev_amsg, _prev_sigs) = get(vec![PULSE1000]);
-		let (next_sig, next_amsg, _next_pulses) = get(vec![PULSE1001, PULSE1002]);
-
-		let (expected_asig, expected_amsg, _sigs) = get(vec![PULSE1000, PULSE1001, PULSE1002]);
-
-		let aggr = QuicknetVerifier::verify(
-			beacon_pk_bytes.try_into().unwrap(),
-			next_sig,
-			next_amsg,
-			Some(OpaqueAccumulation { signature: prev_asig, message_hash: prev_amsg }),
-		)
-		.unwrap();
-
-		assert_eq!(aggr.signature, expected_asig);
-		assert_eq!(aggr.message_hash, expected_amsg);
+		);
+		assert!(res.is_err());
+		assert!(matches!(res, Err(CryptoError::InvalidSignature)));
 	}
 
 	#[test]
@@ -197,8 +117,63 @@ pub mod tests {
 		let (asig, _ignore_amsg, _pulses) = get(vec![PULSE1000]);
 		let (_ignore_asig, amsg, _ignore_pulses) = get(vec![PULSE1001]);
 
-		let res = QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), asig, amsg, None);
+		let res =
+			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), asig, amsg);
 		assert!(res.is_err());
-		assert_eq!(Err(CryptoError::InvalidSignature), res);
+		assert!(matches!(res, Err(CryptoError::InvalidSignature)));
+	}
+
+	#[test]
+	fn test_verifier_handles_invalid_public_key() {
+		let invalid_pk = vec![0u8; 10]; // Too short
+		let (asig, amsg, _) = get(vec![PULSE1000]);
+
+		let result = QuicknetVerifier::verify(invalid_pk, asig, amsg);
+		assert!(result.is_err());
+		assert!(matches!(result, Err(CryptoError::DeserializeG2Failure)));
+	}
+
+	#[test]
+	fn test_verifier_handles_invalid_signature() {
+		let beacon_pk_bytes = get_beacon_pk();
+		let invalid_sig = vec![0u8; 10]; // Invalid signature data
+		let (_, amsg, _) = get(vec![PULSE1000]);
+
+		let result = QuicknetVerifier::verify(beacon_pk_bytes, invalid_sig, amsg);
+		assert!(result.is_err());
+		assert!(matches!(result, Err(CryptoError::DeserializeG1Failure)));
+	}
+
+	#[test]
+	fn test_verifier_handles_invalid_message() {
+		let beacon_pk_bytes = get_beacon_pk();
+		let (asig, _, _) = get(vec![PULSE1000]);
+		let invalid_msg = vec![0u8; 10]; // Invalid message data
+
+		let result = QuicknetVerifier::verify(beacon_pk_bytes, asig, invalid_msg);
+		assert!(result.is_err());
+		assert!(matches!(result, Err(CryptoError::DeserializeG1Failure)));
+	}
+
+	#[test]
+	fn test_verifier_with_empty_inputs() {
+		let result = QuicknetVerifier::verify(vec![], vec![], vec![]);
+		assert!(result.is_err());
+		assert!(matches!(result, Err(CryptoError::DeserializeG2Failure)));
+	}
+
+	#[test]
+	fn test_verifier_with_corrupted_signature() {
+		let beacon_pk_bytes = get_beacon_pk();
+		let (mut asig, amsg, _) = get(vec![PULSE1000]);
+
+		// Corrupt the signature by flipping a bit
+		if !asig.is_empty() {
+			asig[0] ^= 0x01;
+		}
+
+		let res = QuicknetVerifier::verify(beacon_pk_bytes, asig, amsg);
+		assert!(res.is_err());
+		assert!(matches!(res, Err(CryptoError::DeserializeG1Failure)));
 	}
 }
