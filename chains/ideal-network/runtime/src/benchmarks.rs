@@ -135,4 +135,5 @@ frame_benchmarking::define_benchmarks!(
 	[pallet_idn_manager, IdnManager]
 	[pallet_transaction_payment, TransactionPayment]
 	[pallet_xcm, PalletXcmExtrinsicsBenchmark::<Runtime>]
+	[pallet_timelock_transactions, Scheduler]
 );
