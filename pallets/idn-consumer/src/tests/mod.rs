@@ -357,7 +357,7 @@ fn test_consume_quote_bubbles_up_consumer_trait_failure() {
 fn test_consume_pulse_success() {
 	ExtBuilder::build().execute_with(|| {
 		// Mock inputs
-		let pulse = Pulse::new([0u8; 48], [1u8; 48]);
+		let pulse = Pulse::new([0u8; 48], 1, 2);
 		let sub_id = [1; 32];
 
 		// Call the function and assert success
@@ -376,7 +376,7 @@ fn test_consume_pulse_success() {
 fn test_consume_pulse_fails_wrong_origin() {
 	ExtBuilder::build().execute_with(|| {
 		// Mock inputs
-		let pulse = Pulse::new([0u8; 48], [1u8; 48]);
+		let pulse = Pulse::new([0u8; 48], 1, 2);
 		let sub_id = [1; 32];
 
 		// Call the function and assert failure
@@ -393,7 +393,7 @@ fn test_consume_pulse_fails_wrong_origin() {
 fn test_consume_pulse_bubbles_up_consumer_trait_failure() {
 	ExtBuilder::build().execute_with(|| {
 		// Mock inputs
-		let pulse = Pulse::new([0u8; 48], [1u8; 48]);
+		let pulse = Pulse::new([0u8; 48], 1, 2);
 		let sub_id = [123; 32]; // This sub_id triggers a failure in the consumer
 
 		// Call the function and assert failure

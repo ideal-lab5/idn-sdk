@@ -5740,6 +5740,8 @@ dependencies = [
 name = "idn-consumer-runtime"
 version = "0.1.0"
 dependencies = [
+ "ark-serialize 0.4.2",
+ "bp-idn",
  "cumulus-pallet-aura-ext",
  "cumulus-pallet-parachain-system",
  "cumulus-pallet-session-benchmarking",
@@ -9405,6 +9407,7 @@ dependencies = [
  "sp-arithmetic",
  "sp-consensus-randomness-beacon",
  "sp-core",
+ "sp-idn-crypto",
  "sp-idn-traits",
  "sp-io",
  "sp-runtime",

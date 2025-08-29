@@ -37,7 +37,7 @@ use sp_idn_crypto::{
 };
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
-	MultiSignature,
+	MultiSignature, Vec,
 };
 
 pub use pallet_idn_manager::{
@@ -51,10 +51,22 @@ pub use sp_consensus_randomness_beacon::types::*;
 /// in which subscribers recieve, consume, and verify on-chain randomness
 /// More specifically, it represents an aggregation of pulses and associated messages
 /// output from Drand's Quicknet
+///
+/// The aggregated signature is the sum of the aggregated signatures output from 
+/// a randomness beacon for monotonically increasing rounds `[start, ..., end]`.
+/// Explicitly, for valid runtime pulses:
+/// ```latex
+///     $sig = \sum_{i \in [n]} \sum_{j \in [m]} sk_i * H(r_j)$
+/// ```
+/// where `$sk_i$` is the secret key of the `$i^ th$` worker and `$r_j$` is the `$j^{th}$`
+///
 #[derive(Encode, Decode, Debug, Clone, TypeInfo, PartialEq, DecodeWithMemTracking)]
 pub struct RuntimePulse {
+	/// The aggregated signature
 	signature: OpaqueSignature,
+	/// The first round from which round numbers begin
 	start: RoundNumber,
+	/// The round when round numbers cease
 	end: RoundNumber,
 }
 
@@ -65,7 +77,7 @@ impl Default for RuntimePulse {
 }
 
 impl RuntimePulse {
-	/// A contructor, usually reserved for testing
+	/// Construct a new RuntimePulse
 	pub fn new(signature: OpaqueSignature, start: RoundNumber, end: RoundNumber) -> Self {
 		Self { signature, start, end }
 	}
@@ -88,8 +100,9 @@ impl sp_idn_traits::pulse::Pulse for RuntimePulse {
 			.map(|r| compute_round_on_g1(r).expect("it should be a valid integer"))
 			.fold(zero_on_g1(), |amsg, val| (amsg + val).into());
 		let mut bytes = Vec::new();
-		msg.serialize_compressed(&mut bytes).expect("The message should be well formed.");
-		bytes.try_into().unwrap_or([0u8;48])
+		msg.serialize_compressed(&mut bytes)
+			.expect("The message should be well formed.");
+		bytes.try_into().unwrap_or([0u8; 48])
 	}
 
 	fn start(&self) -> Self::RoundNumber {

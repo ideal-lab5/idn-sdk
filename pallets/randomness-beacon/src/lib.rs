@@ -370,7 +370,8 @@ pub mod pallet {
 				config.public_key.as_ref().to_vec(),
 				asig.clone().as_ref().to_vec(),
 				amsg_bytes,
-			).map_err(|_| Error::<T>::VerificationFailed)?;
+			)
+			.map_err(|_| Error::<T>::VerificationFailed)?;
 
 			LatestRound::<T>::set(Some(end + 1));
 

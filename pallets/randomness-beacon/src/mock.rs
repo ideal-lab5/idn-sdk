@@ -62,7 +62,7 @@ impl sp_idn_traits::pulse::Pulse for MockPulse {
 	}
 
 	fn message(&self) -> Self::Sig {
-		[0u8;48]
+		[0u8; 48]
 	}
 
 	fn sig(&self) -> Self::Sig {

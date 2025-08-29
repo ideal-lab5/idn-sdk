@@ -72,19 +72,24 @@ pub trait Dispatcher<P: Pulse> {
 ///     rand: [u8;3],
 ///     message: [u8;8],
 ///     signature: [u8;8],
+///     start: u64,
+///     end: u64,
 /// }
 /// impl Pulse for MyPulse {
 ///     type Rand = [u8;3];
 ///     type Sig = [u8;8];
 ///     type Pubkey = [u8;8];
+///     type RoundNumber = u64;
 ///
 ///     fn rand(&self) -> Self::Rand { self.rand }
+///     fn start(&self) -> Self::RoundNumber { self.start }
+///     fn end(&self) -> Self::RoundNumber { self.end }
 ///     fn message(&self) -> Self::Sig { self.message }
 ///     fn sig(&self) -> Self::Sig { self.signature }
 ///     fn authenticate(&self, pubkey: Self::Pubkey) -> bool { true }
 /// }
 ///
-/// let my_pulse = MyPulse { rand: [1, 2, 3], message: [5, 4, 3, 2, 1, 2, 3, 4], signature: [1, 2, 3, 4, 5, 6, 7, 8] };
+/// let my_pulse = MyPulse { rand: [1, 2, 3], message: [5, 4, 3, 2, 1, 2, 3, 4], signature: [1, 2, 3, 4, 5, 6, 7, 8], start: 0, end: 0 };
 pub trait Pulse {
 	/// The type of the random value contained in this pulse
 	///
@@ -127,21 +132,21 @@ pub trait Pulse {
 	/// The type of the round numbers output by the randomness beacon
 	///
 	/// This is typically a u64
-	type RoundNumber: Decode
-		+ TypeInfo
-		+ MaxEncodedLen
-		+ Debug
-		+ PartialEq
-		+ Clone
-		+ EncodeLike;
+	type RoundNumber: Decode + TypeInfo + MaxEncodedLen + Debug + PartialEq + Clone + EncodeLike;
 
 	/// Get the random value from this pulse
 	///
 	/// Returns the random value contained in this pulse.
 	fn rand(&self) -> Self::Rand;
 
+	/// Get the first round for which beacon output was gathered
+	///
+	/// Returns a round number
 	fn start(&self) -> Self::RoundNumber;
 
+	/// Get the last for which beacon output was gathered
+	///
+	/// Returns a round number 
 	fn end(&self) -> Self::RoundNumber;
 
 	/// Get the aggregated message

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// use bp_idn::types::RuntimePulse;
+use bp_idn::types::RuntimePulse;
 use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::pallet_prelude::*;
 use serde::{Deserialize, Serialize};
@@ -39,11 +39,11 @@ impl Accumulation {
 	}
 }
 
-// impl From<Accumulation> for RuntimePulse {
-// 	fn from(acc: Accumulation) -> Self {
-// 		RuntimePulse::new(acc.rounds, acc.signature)
-// 	}
-// }
+impl From<Accumulation> for RuntimePulse {
+	fn from(acc: Accumulation) -> Self {
+		RuntimePulse::new(acc.signature, acc.start, acc.end)
+	}
+}
 
 /// A drand chain configuration
 #[derive(

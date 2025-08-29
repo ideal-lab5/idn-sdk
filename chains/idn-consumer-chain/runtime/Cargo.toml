@@ -24,6 +24,7 @@ scale-info.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true
 docify.workspace = true
+ark-serialize.workspace = true
 
 # Substrate
 frame-benchmarking = { optional = true, workspace = true }
@@ -87,10 +88,15 @@ parachain-info.workspace = true
 
 # Ideal Network
 pallet-idn-consumer.workspace = true
+bp-idn.workspace = true
+# sp-idn-crypto.workspace = true
+# sp-idn-traits.workspace = true
 
 [features]
 default = ["std"]
 std = [
+  "ark-serialize/std",
+  "bp-idn/std",
   "codec/std",
   "cumulus-pallet-aura-ext/std",
   "cumulus-pallet-parachain-system/std",

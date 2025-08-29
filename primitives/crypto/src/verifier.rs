@@ -37,7 +37,8 @@ pub trait SignatureVerifier {
 
 /// An optimized BLS12-381 signature verifier.
 ///
-/// Given a signature $sig = d*H(m)$ where $d$ is the secret key, $H$ is a hash to G1 function, and $m \in \{0, 1\}^*$ is a message,
+/// Given a signature $sig = d*H(m)$ where $d$ is the secret key, $H$ is a hash to G1 function, and
+/// $m \in \{0, 1\}^*$ is a message,
 ///
 /// The signature's validity is checked using the pairing equality:
 ///
@@ -46,7 +47,6 @@ pub trait SignatureVerifier {
 /// where $sig \in \mathbb{G}_1$ is the signature
 ///       $g_2 \in \mathbb{G}_2$ is a generator
 ///       $H(m) =: msg_on_curve \in \mathbb{G}_1$ is a hash of the message in $\mathbb{G}_1$
-///
 pub struct QuicknetVerifier;
 impl SignatureVerifier for QuicknetVerifier {
 	fn verify(
@@ -117,8 +117,7 @@ pub mod tests {
 		let (asig, _ignore_amsg, _pulses) = get(vec![PULSE1000]);
 		let (_ignore_asig, amsg, _ignore_pulses) = get(vec![PULSE1001]);
 
-		let res =
-			QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), asig, amsg);
+		let res = QuicknetVerifier::verify(beacon_pk_bytes.try_into().unwrap(), asig, amsg);
 		assert!(res.is_err());
 		assert!(matches!(res, Err(CryptoError::InvalidSignature)));
 	}

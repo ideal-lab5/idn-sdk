@@ -32,11 +32,14 @@ mod weights;
 
 extern crate alloc;
 
+use ark_serialize::CanonicalSerialize;
 use pallet_idn_consumer::{
 	traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer},
 	Pulse, Quote, SubInfoResponse, SubscriptionId,
 };
 use smallvec::smallvec;
+
+use bp_idn::{CryptoPrelude::*, TPulse};
 use sp_runtime::{
 	generic, impl_opaque_keys,
 	traits::{BlakeTwo256, IdentifyAccount, Verify},
@@ -156,12 +159,26 @@ impl WeightToFeePolynomial for WeightToFee {
 	}
 }
 
+/// the drand quicknet public key
+pub const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+
 /// Dummy implementation of the ['PulseConsumer'] trait with verification logic
 pub struct PulseConsumerImpl;
 impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
 	fn consume_pulse(pulse: Pulse, sub_id: SubscriptionId) -> Result<(), ()> {
-		// Randomness consumption logic goes here.
-		log::info!("IDN Consumer: Consuming pulse: {:?} with sub id: {:?}", pulse, sub_id);
+		if pulse
+			.authenticate(BEACON_PUBKEY.try_into().expect("The public key is well-defined; qed."))
+		{
+			// Randomness consumption logic goes here.
+			log::info!("IDN Consumer: Verified pulse: {:?} with sub id: {:?}", pulse, sub_id);
+		} else {
+			log::error!(
+				"IDN Consumer: Unverified pulse ingested: {:?} with sub id: {:?}",
+				pulse,
+				sub_id
+			);
+		}
+
 		Ok(())
 	}
 }
