@@ -158,10 +158,15 @@ impl ConvertLocation<AccountId32> for MockSiblingConversion {
 	}
 }
 
+parameter_types! {
+	pub const BaseFee : u64 = 100;
+}
+
 impl pallet_idn_manager::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FeesManager = FeesManagerImpl<TreasuryAccount, SubscriptionOf<Test>, Balances, u64, u64>;
+	type FeesManager =
+		FeesManagerImpl<TreasuryAccount, SubscriptionOf<Test>, Balances, u64, u64, BaseFee>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
 	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;

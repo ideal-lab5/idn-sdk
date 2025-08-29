@@ -8,11 +8,13 @@ async function run(nodeName, networkInfo, args) {
   const alice = keyring.addFromUri("//Alice");
   const sudoPair = keyring.getPair(alice.publicKey);
 
-  // Credits and Frequency pulled from sudoQuoteSubscription using credits = 100, frequency = 100
-  const credits = 10000;
-  const frequency = 1020;
+  // given X credits, we aim to verify the amount of DOT paid over the sub's lifetime
+  const frequency = args[0];
+  const credits = BigInt(args[1]);
   const metadata = null;
-  const subId = args[0];
+  // random subId
+  const subId = new Uint8Array(33);
+  crypto.getRandomValues(subId);
 
   const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoCreateSubscription(credits, frequency, metadata, subId))
     .signAndSend(sudoPair, (result) => {
