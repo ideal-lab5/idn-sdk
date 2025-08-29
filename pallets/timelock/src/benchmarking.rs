@@ -221,12 +221,12 @@ mod benchmarks {
 
 		let (id, ct) = make_ciphertext::<T>(call.clone(), when, sk);
 		let sig = id.extract::<TinyBLS381>(sk).0;
-		let remaining_decrypts = MAX_DECS_PER_BLOCK;
+		let mut remaining_decrypts = MAX_DECS_PER_BLOCK;
 
 		#[extrinsic_call]
 		_(origin, when, priority, ct);
 
-		let call_data = Scheduler::<T>::decrypt_and_decode(when, sig.into(), remaining_decrypts);
+		let call_data = Scheduler::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
 
 		let decrypted_call = call_data.get(0).unwrap().1.clone();
 		assert_eq!(decrypted_call, call);
@@ -241,11 +241,11 @@ mod benchmarks {
 		let identity = get_ibe(when, sk).0;
 		let sig = identity.extract::<TinyBLS381>(sk).0;
 		let mut bounded_vec = BoundedVec::new();
-		let remaining_decrypts = t as u16;
+		let mut remaining_decrypts = t as u16;
 
 		#[block]
 		{
-			bounded_vec = Scheduler::<T>::decrypt_and_decode(when, sig.into(), remaining_decrypts);
+			bounded_vec = Scheduler::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
 		}
 
 		assert_eq!(bounded_vec.len(), s as usize);
@@ -264,9 +264,9 @@ mod benchmarks {
 
 		let identity = get_ibe(when, sk).0;
 		let signature = identity.extract::<TinyBLS381>(sk).0;
-		let remaining_decrypts = MAX_DECS_PER_BLOCK;
+		let mut remaining_decrypts = MAX_DECS_PER_BLOCK;
 
-		let call_data = Scheduler::<T>::decrypt_and_decode(when, signature.into(), remaining_decrypts);
+		let call_data = Scheduler::<T>::decrypt_and_decode(when, signature.into(), &mut remaining_decrypts);
 
 		#[block]
 		{
