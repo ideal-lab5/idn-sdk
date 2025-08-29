@@ -146,7 +146,7 @@ pub trait Pulse {
 
 	/// Get the last for which beacon output was gathered
 	///
-	/// Returns a round number 
+	/// Returns a round number
 	fn end(&self) -> Self::RoundNumber;
 
 	/// Get the aggregated message

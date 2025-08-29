@@ -52,14 +52,13 @@ pub use sp_consensus_randomness_beacon::types::*;
 /// More specifically, it represents an aggregation of pulses and associated messages
 /// output from Drand's Quicknet
 ///
-/// The aggregated signature is the sum of the aggregated signatures output from 
+/// The aggregated signature is the sum of the aggregated signatures output from
 /// a randomness beacon for monotonically increasing rounds `[start, ..., end]`.
 /// Explicitly, for valid runtime pulses:
 /// ```latex
 ///     $sig = \sum_{i \in [n]} \sum_{j \in [m]} sk_i * H(r_j)$
 /// ```
 /// where `$sk_i$` is the secret key of the `$i^ th$` worker and `$r_j$` is the `$j^{th}$`
-///
 #[derive(Encode, Decode, Debug, Clone, TypeInfo, PartialEq, DecodeWithMemTracking)]
 pub struct RuntimePulse {
 	/// The aggregated signature
