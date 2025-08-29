@@ -56,7 +56,7 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(sibling_account.clone());
 		let sub_id = [1u8; 32];
 
-		let pulse: Pulse = Pulse::new([0u8; 48], [1u8; 48]);
+		let pulse: Pulse = Pulse::new([0u8; 48], 0, 1);
 		#[extrinsic_call]
 		_(origin, pulse, sub_id);
 

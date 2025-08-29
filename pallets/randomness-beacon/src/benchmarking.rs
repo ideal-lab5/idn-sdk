@@ -91,7 +91,8 @@ mod benchmarks {
 			SparseAccumulation::<T>::get(),
 			Some(Accumulation {
 				signature: asig_bytes.try_into().unwrap(),
-				message_hash: amsg_bytes.try_into().unwrap(),
+				start: 0,
+				end: r as u64,
 			}),
 		);
 

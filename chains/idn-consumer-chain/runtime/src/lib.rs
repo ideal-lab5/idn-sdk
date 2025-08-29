@@ -32,14 +32,12 @@ mod weights;
 
 extern crate alloc;
 
-use ark_serialize::CanonicalSerialize;
 use pallet_idn_consumer::{
 	traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer},
 	Pulse, Quote, SubInfoResponse, SubscriptionId,
 };
 use smallvec::smallvec;
-
-use bp_idn::{CryptoPrelude::*, TPulse};
+use sp_idn_traits::pulse::Pulse as TPulse;
 use sp_runtime::{
 	generic, impl_opaque_keys,
 	traits::{BlakeTwo256, IdentifyAccount, Verify},
