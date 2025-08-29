@@ -88,7 +88,7 @@ fn local_testnet_genesis() -> Value {
 		],
 		Sr25519Keyring::well_known().map(|k| k.to_account_id()).collect(),
 		Sr25519Keyring::Alice.to_account_id(),
-		2000.into(),
+		4502.into(),
 	)
 }
 
@@ -101,7 +101,7 @@ fn development_config_genesis() -> Value {
 		],
 		Sr25519Keyring::well_known().map(|k| k.to_account_id()).collect(),
 		Sr25519Keyring::Alice.public().into(),
-		2000.into(),
+		4502.into(),
 	)
 }
 

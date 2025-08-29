@@ -898,6 +898,7 @@ impl<T: Config> Pallet<T> {
 				// Update subscription with consumed credits
 				sub.credits_left = sub.credits_left.saturating_sub(idle_credits);
 			}
+
 			// Finalize the subscription if there are not enough credits left
 			if sub.state != SubscriptionState::Finalized &&
 				sub.credits_left < Self::get_min_credits(&sub)
