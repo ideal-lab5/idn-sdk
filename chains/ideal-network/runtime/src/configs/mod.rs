@@ -286,6 +286,10 @@ mod bench_ensure_origin {
 	}
 }
 
+parameter_types! {
+	pub const BaseFee: u64 = 2_900_000u64;
+}
+
 impl pallet_idn_manager::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
@@ -295,6 +299,7 @@ impl pallet_idn_manager::Config for Runtime {
 		Balances,
 		BlockNumber,
 		BlockNumber,
+		BaseFee,
 	>;
 	type DepositCalculator = impls::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
 	type PalletId = types::IdnManagerPalletId;
