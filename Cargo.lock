@@ -5789,7 +5789,6 @@ dependencies = [
  "sp-consensus-aura",
  "sp-core",
  "sp-genesis-builder",
- "sp-idn-traits",
  "sp-inherents",
  "sp-keyring",
  "sp-offchain",
