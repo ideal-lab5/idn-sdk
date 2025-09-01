@@ -1,4 +1,3 @@
-use bp_idn::{CryptoPrelude::*, TPulse};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_idn_traits::pulse::Pulse;

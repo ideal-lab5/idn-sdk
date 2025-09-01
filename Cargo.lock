@@ -5740,7 +5740,6 @@ dependencies = [
 name = "idn-consumer-runtime"
 version = "0.1.0"
 dependencies = [
- "bp-idn",
  "cumulus-pallet-aura-ext",
  "cumulus-pallet-parachain-system",
  "cumulus-pallet-session-benchmarking",
@@ -5789,6 +5788,7 @@ dependencies = [
  "sp-consensus-aura",
  "sp-core",
  "sp-genesis-builder",
+ "sp-idn-traits",
  "sp-inherents",
  "sp-keyring",
  "sp-offchain",

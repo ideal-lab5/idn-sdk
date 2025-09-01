@@ -87,7 +87,7 @@ parachain-info.workspace = true
 
 # Ideal Network
 pallet-idn-consumer.workspace = true
-bp-idn.workspace = true
+sp-idn-traits.workspace = true
 
 [features]
 default = ["std"]
@@ -135,6 +135,7 @@ std = [
   "sp-consensus-aura/std",
   "sp-core/std",
   "sp-genesis-builder/std",
+  "sp-idn-traits/std",
   "sp-inherents/std",
   "sp-keyring/std",
   "sp-offchain/std",

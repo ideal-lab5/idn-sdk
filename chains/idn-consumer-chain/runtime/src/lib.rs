@@ -32,12 +32,12 @@ mod weights;
 
 extern crate alloc;
 
-use bp_idn::TPulse;
 use pallet_idn_consumer::{
 	traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer},
 	Pulse, Quote, SubInfoResponse, SubscriptionId,
 };
 use smallvec::smallvec;
+use sp_idn_traits::pulse::Pulse as TPulse;
 use sp_runtime::{
 	generic, impl_opaque_keys,
 	traits::{BlakeTwo256, IdentifyAccount, Verify},

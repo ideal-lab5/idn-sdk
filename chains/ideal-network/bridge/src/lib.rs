@@ -24,9 +24,6 @@ pub mod types;
 use frame_support::pallet_prelude::{Decode, Encode, TypeInfo};
 use types::{CreateSubParams, QuoteSubParams, SubInfoRequest, SubscriptionId, UpdateSubParams};
 
-pub use sp_idn_crypto::prelude as CryptoPrelude;
-pub use sp_idn_traits::pulse::Pulse as TPulse;
-
 /// A minimized version of `pallet-idn-manager::Call` that can be used without a runtime.
 #[derive(Encode, Decode, Debug, PartialEq, Clone, TypeInfo)]
 #[allow(non_camel_case_types)]

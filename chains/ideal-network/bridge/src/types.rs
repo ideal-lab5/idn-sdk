@@ -30,11 +30,8 @@ use pallet_idn_manager::{
 use scale_info::TypeInfo;
 use sha2::{Digest, Sha256};
 use sp_core::crypto::Ss58Codec;
-use sp_idn_crypto::{
-	bls12_381::zero_on_g1,
-	drand::compute_round_on_g1,
-	verifier::{QuicknetVerifier, SignatureVerifier},
-};
+use sp_idn_crypto::prelude::*;
+use sp_idn_traits::pulse::Pulse as TPulse;
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	MultiSignature, Vec,
@@ -82,7 +79,7 @@ impl RuntimePulse {
 	}
 }
 
-impl sp_idn_traits::pulse::Pulse for RuntimePulse {
+impl TPulse for RuntimePulse {
 	type Rand = Randomness;
 	type RoundNumber = RoundNumber;
 	type Sig = OpaqueSignature;
