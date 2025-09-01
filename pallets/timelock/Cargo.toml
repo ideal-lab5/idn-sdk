@@ -25,10 +25,10 @@ sp-std.workspace = true
 sp-weights.workspace = true
 docify.workspace = true
 timelock.workspace = true
-ark-std = {workspace = true, optional = true}
-ark-ff = {workspace = true, optional = true}
-ark-ec = {workspace = true, optional = true}
-sp-idn-crypto = {workspace = true, optional = true}
+ark-std.workspace = true
+ark-ff.workspace = true
+ark-ec.workspace = true
+sp-idn-crypto.workspace = true
 
 [dev-dependencies]
 pallet-preimage.workspace = true
@@ -52,10 +52,6 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
-	"ark-std/std",
-	"ark-ff/std",
-	"ark-ec/std",
-	"sp-idn-crypto",
 ]
 std = [
 	"ark-serialize/std",
@@ -78,6 +74,7 @@ std = [
 	"ark-std/std",
 	"ark-ff/std",
 	"ark-ec/std",
+	"sp-idn-crypto/std",
 	"pallet-insecure-randomness-collective-flip/std"
 ]
 try-runtime = [
