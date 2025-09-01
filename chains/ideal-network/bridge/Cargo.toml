@@ -13,6 +13,7 @@ publish = false
 codec.workspace = true
 scale-info.workspace = true
 sha2.workspace = true
+ark-serialize.workspace = true
 
 # Substrate
 frame-support.workspace = true
@@ -31,6 +32,7 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"sha2/std",
+	"ark-serialize/std",
 	"frame-support/std",
 	"pallet-idn-manager/std",
 	"sp-consensus-randomness-beacon/std",

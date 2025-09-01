@@ -18,8 +18,7 @@ use bp_idn::types::RuntimePulse;
 use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::pallet_prelude::*;
 use serde::{Deserialize, Serialize};
-use sp_consensus_randomness_beacon::types::OpaqueSignature;
-use sp_idn_crypto::verifier::OpaqueAccumulation;
+use sp_consensus_randomness_beacon::types::{OpaqueSignature, RoundNumber};
 
 /// Represents an aggregated signature and aggregated public key pair
 #[derive(
@@ -28,33 +27,21 @@ use sp_idn_crypto::verifier::OpaqueAccumulation;
 pub struct Accumulation {
 	/// A signature (e.g. output from the randomness beacon) in G1
 	pub signature: OpaqueSignature,
-	/// The message signed by the signature, hashed to G1
-	pub message_hash: OpaqueSignature,
+	/// The first message signed
+	pub start: RoundNumber,
+	/// The first message signed
+	pub end: RoundNumber,
 }
 
-impl TryFrom<OpaqueAccumulation> for Accumulation {
-	type Error = ();
-
-	fn try_from(opaque: OpaqueAccumulation) -> Result<Self, Self::Error> {
-		let signature: OpaqueSignature = opaque.signature.try_into().map_err(|_| ())?;
-		let message_hash: OpaqueSignature = opaque.message_hash.try_into().map_err(|_| ())?;
-
-		Ok(Self { signature, message_hash })
+impl Accumulation {
+	pub fn new(signature: OpaqueSignature, start: RoundNumber, end: RoundNumber) -> Self {
+		Self { signature, start, end }
 	}
 }
 
 impl From<Accumulation> for RuntimePulse {
 	fn from(acc: Accumulation) -> Self {
-		RuntimePulse::new(acc.message_hash, acc.signature)
-	}
-}
-
-impl From<Accumulation> for OpaqueAccumulation {
-	fn from(val: Accumulation) -> Self {
-		OpaqueAccumulation {
-			signature: val.signature.as_slice().to_vec(),
-			message_hash: val.message_hash.as_slice().to_vec(),
-		}
+		RuntimePulse::new(acc.signature, acc.start, acc.end)
 	}
 }
 
@@ -91,10 +78,10 @@ pub mod test {
 
 		// Get the max encoded lengths of its individual fields
 		let signature_max_len = OpaqueSignature::max_encoded_len();
-		let message_hash_max_len = OpaqueSignature::max_encoded_len();
+		let round_number_max_len = u64::max_encoded_len();
 
 		// The maximum encoded length of Accumulation should be the sum of the lengths of its fields
-		let expected_max_len = signature_max_len + message_hash_max_len;
+		let expected_max_len = signature_max_len + 2 * round_number_max_len;
 
 		// Assert that the max encoded length matches
 		assert_eq!(max_len, expected_max_len);
@@ -111,15 +98,5 @@ pub mod test {
 		// Optionally, check the type name to ensure the correct type is used
 		let type_name = core::any::type_name::<Accumulation>();
 		assert_eq!(type_name, "pallet_randomness_beacon::types::Accumulation");
-	}
-
-	#[test]
-	fn test_opaque_acc_to_and_from_acc() {
-		let expected = Accumulation { signature: [1; 48], message_hash: [2; 48] };
-
-		let opaque: OpaqueAccumulation = expected.clone().into();
-		// now convert back
-		let actual: Accumulation = Accumulation::try_from(opaque).unwrap();
-		assert!(actual == expected);
 	}
 }

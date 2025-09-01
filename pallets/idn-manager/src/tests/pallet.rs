@@ -674,7 +674,7 @@ fn test_credits_consumption_and_cleanup() {
 		let initial_balance = 10_000_000_000;
 		let initial_treasury_balance = IdnManager::min_balance();
 		let mut treasury_balance = initial_treasury_balance;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -798,7 +798,7 @@ fn test_credits_consumption_not_enough_balance() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -856,7 +856,7 @@ fn test_credits_consumption_xcm_send_fails() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -917,7 +917,7 @@ fn test_credits_consumption_frequency() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let initial_balance = 10_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -999,7 +999,7 @@ fn test_sub_state_is_finalized_when_credits_left_goes_low() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 3; // ignored
 		let initial_balance = 10_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
