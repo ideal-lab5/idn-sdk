@@ -52,6 +52,10 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
+	"ark-std",
+	"ark-ff",
+	"ark-ec",
+	"sp-idn-crypto"
 ]
 std = [
 	"sp-idn-crypto",

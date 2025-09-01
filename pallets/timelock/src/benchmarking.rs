@@ -15,9 +15,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Scheduler pallet benchmarking.
+//! Timelock pallet benchmarking.
 use super::*;
-use crate::pallet::Pallet as Scheduler;
+use crate::pallet::Pallet as Timelock;
 use frame_benchmarking::v2::*;
 use frame_support::{
 	ensure,
@@ -26,7 +26,6 @@ use frame_support::{
 		BoundedInline, ConstU32,
 	},
 };
-use frame_system::pallet_prelude::BlockNumberFor;
 use sp_std::{prelude::*, vec};
 
 use ark_bls12_381::{Fr, FrConfig, G1Projective as G1, G2Projective as G2};
@@ -35,7 +34,7 @@ use ark_ff::{Fp, MontBackend, PrimeField};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeHashExt};
 use ark_std::{
 	ops::Mul,
-	rand::{rngs::OsRng, CryptoRng, Rng, RngCore},
+	rand::{rngs::StdRng, SeedableRng},
 	One,
 };
 
@@ -88,12 +87,14 @@ fn make_ciphertext<T: Config>(
 
 	let msk = [1; 32];
 
-	let ct = timelock::tlock::tle::<TinyBLS381, AESGCMBlockCipherProvider, OsRng>(
+	let rng = StdRng::from_seed([1; 32]);
+
+	let ct = timelock::tlock::tle::<TinyBLS381, AESGCMBlockCipherProvider, StdRng>(
 		p_pub,
 		msk,
 		&encoded_call,
 		id.clone(),
-		OsRng,
+		rng,
 	)
 	.unwrap();
 	let mut ct_vec: Vec<u8> = Vec::new();
@@ -126,8 +127,7 @@ fn fill_schedule<T: Config>(
 	for _ in 0..n {
 		let call = make_large_call::<T>();
 		let ct = make_ciphertext::<T>(call, when, sk);
-		// Scheduler::<T>::do_schedule_sealed(name, t, period, 0, origin.clone(), call)?;\
-		Scheduler::<T>::schedule_sealed(origin.clone(), when, 0, ct.1);
+		Timelock::<T>::schedule_sealed(origin.clone(), when, 0, ct.1).unwrap();
 	}
 
 	ensure!(Agenda::<T>::get(when).len() == n as usize, "didn't fill schedule");
@@ -226,7 +226,7 @@ mod benchmarks {
 		#[extrinsic_call]
 		_(origin, when, priority, ct);
 
-		let call_data = Scheduler::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
+		let call_data = Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
 
 		let decrypted_call = call_data.get(0).unwrap().1.clone();
 		assert_eq!(decrypted_call, call);
@@ -245,10 +245,17 @@ mod benchmarks {
 
 		#[block]
 		{
-			bounded_vec = Scheduler::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
+			bounded_vec = Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
 		}
 
-		assert_eq!(bounded_vec.len(), s as usize);
+		// There is a possibility that we can have more calls in a schedule than can be executed in a block
+		// Therefore we will decrypt and decode min(s,t) number of calls.
+		if s <= t {
+			assert_eq!(bounded_vec.len(), s as usize);
+		} else {
+			assert_eq!(bounded_vec.len(), t as usize);
+		}
+		
 	}
 
 	// service_agenda under heavy load
@@ -266,11 +273,11 @@ mod benchmarks {
 		let signature = identity.extract::<TinyBLS381>(sk).0;
 		let mut remaining_decrypts = MAX_DECS_PER_BLOCK;
 
-		let call_data = Scheduler::<T>::decrypt_and_decode(when, signature.into(), &mut remaining_decrypts);
+		let call_data = Timelock::<T>::decrypt_and_decode(when, signature.into(), &mut remaining_decrypts);
 
 		#[block]
 		{
-			Scheduler::<T>::service_agenda(&mut weight_meter, when, call_data);
+			Timelock::<T>::service_agenda(&mut weight_meter, when, call_data);
 		}
 
 		assert_eq!(Agenda::<T>::get(when).len() as u32, 0);
