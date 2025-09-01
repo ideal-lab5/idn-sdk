@@ -65,6 +65,12 @@ mod benchmarks {
 		let mut asig = G1Affine::zero();
 		let mut amsg = G1Affine::zero();
 
+		// TEMP
+		let runtime_calls:BTreeMap<
+				RoundNumber,
+				Vec<(TaskName, <T::Tlock as TlockConfig>::RuntimeCall)>,
+			> = BTreeMap::new();
+
 		(0..r + 1).for_each(|i| {
 			let msg = compute_round_on_g1(i.into()).unwrap();
 			amsg = (amsg + msg).into();
@@ -85,7 +91,7 @@ mod benchmarks {
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
 
 		#[extrinsic_call]
-		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), 0u64, r.into());
+		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), 0u64, r.into(), runtime_calls);
 
 		assert_eq!(
 			SparseAccumulation::<T>::get(),
