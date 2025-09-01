@@ -2,7 +2,8 @@
 resolver = "2"
 
 members = [
+    "idn-contract-lib",
     "idn-client-contract-lib",
-    "idn-example-consumer-contract",
-    "rand-extension-example",
+    "examples/idn-contract-lib/rand-extension-example",
+    "examples/idn-client-contract-lib/idn-example-consumer-contract"
 ]
