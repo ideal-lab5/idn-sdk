@@ -15,6 +15,9 @@
  */
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
+mod types;
+
+use bp_idn::types::{CreateSubParams, RuntimePulse as Pulse, SubscriptionId, UpdateSubParams};
 use ink::{
 	env::Error as EnvError,
 	prelude::{vec, vec::Vec},
@@ -22,11 +25,7 @@ use ink::{
 };
 use parity_scale_codec::{Decode, Encode};
 use sp_idn_traits::Hashable;
-
-mod types;
-pub use bp_idn::types::{BlockNumber, CreateSubParams, Metadata, SubscriptionId, UpdateSubParams};
-pub use sp_idn_traits::pulse::Pulse;
-pub use types::ContractPulse;
+pub use types::{PalletIndex, ParaId};
 
 /// Call index for the create_subscription function in the IDN Manager pallet
 pub const IDN_MANAGER_CREATE_SUB_INDEX: u8 = 0;
@@ -61,6 +60,8 @@ pub enum Error {
 	SubscriptionNotFound,
 	/// The requested subscription is inactive
 	SubscriptionInactive,
+	/// Invalid Subscription Id
+	SubscriptionIdInvalid,
 	/// Randomness generation failed
 	RandomnessGenerationFailed,
 	/// The system has reached its maximum subscription capacity
@@ -203,7 +204,7 @@ pub trait RandomnessReceiver {
 	/// * `Result<()>` - Success or error
 	fn on_randomness_received(
 		&mut self,
-		pulse: ContractPulse,
+		pulse: Pulse,
 		subscription_id: SubscriptionId,
 	) -> Result<()>;
 }
@@ -213,9 +214,9 @@ pub trait RandomnessReceiver {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
 pub struct IdnClientImpl {
 	/// Pallet index for the IDN Manager pallet
-	pub idn_manager_pallet_index: u8,
+	pub idn_manager_pallet_index: PalletIndex,
 	/// Parachain ID of the IDN network
-	pub ideal_network_para_id: u32,
+	pub ideal_network_para_id: ParaId,
 }
 
 impl IdnClientImpl {
@@ -225,17 +226,17 @@ impl IdnClientImpl {
 	///
 	/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet
 	/// * `ideal_network_para_id` - The parachain ID of the IDN network
-	pub fn new(idn_manager_pallet_index: u8, ideal_network_para_id: u32) -> Self {
+	pub fn new(idn_manager_pallet_index: PalletIndex, ideal_network_para_id: ParaId) -> Self {
 		Self { idn_manager_pallet_index, ideal_network_para_id }
 	}
 
 	/// Gets the pallet index for the IDN Manager pallet
-	pub fn get_idn_manager_pallet_index(&self) -> u8 {
+	pub fn get_idn_manager_pallet_index(&self) -> PalletIndex {
 		self.idn_manager_pallet_index
 	}
 
 	/// Gets the parachain ID of the IDN network
-	pub fn get_ideal_network_para_id(&self) -> u32 {
+	pub fn get_ideal_network_para_id(&self) -> ParaId {
 		self.ideal_network_para_id
 	}
 
@@ -251,8 +252,8 @@ impl IdnClientImpl {
 	///
 	/// * A MultiLocation targeting the contract via XCM
 	pub fn create_contracts_target_location(
-		destination_para_id: u32,
-		contracts_pallet_index: u8,
+		destination_para_id: ParaId,
+		contracts_pallet_index: PalletIndex,
 		contract_account_id: &[u8; 32],
 	) -> Location {
 		Location {
@@ -371,8 +372,8 @@ impl IdnClient for IdnClientImpl {
 			&VersionedXcm::V4(message),
 		)?;
 
-		// Return the subscription ID (should always be Some now)
-		Ok(params.sub_id.unwrap())
+		// Return the subscription ID (should always be Some at this point)
+		params.sub_id.ok_or(Error::SubscriptionIdInvalid)
 	}
 
 	fn pause_subscription(&mut self, subscription_id: SubscriptionId) -> Result<()> {
@@ -462,7 +463,7 @@ mod tests {
 
 	/// Default pallet index for the IDN Manager pallet
 	/// This can be overridden during implementation with specific values
-	pub const TEST_IDN_MANAGER_PALLET_INDEX: u8 = 42;
+	pub const TEST_IDN_MANAGER_PALLET_INDEX: PalletIndex = 42;
 
 	#[test]
 	fn test_constructing_xcm_messages() {
@@ -662,8 +663,8 @@ mod tests {
 
 	#[test]
 	fn test_contract_pulse_trait_methods() {
-		use crate::ContractPulse;
-		let pulse = ContractPulse { round: 42, rand: [7u8; 32], sig: [2u8; 48] };
+		use crate::Pulse;
+		let pulse = Pulse { round: 42, rand: [7u8; 32], sig: [2u8; 48] };
 		assert_eq!(pulse.round(), 42);
 		assert_eq!(pulse.rand(), [7u8; 32]);
 		assert_eq!(pulse.sig(), [2u8; 48]);
@@ -673,10 +674,10 @@ mod tests {
 
 	#[test]
 	fn test_contract_pulse_encode_decode() {
-		use crate::ContractPulse;
-		let pulse = ContractPulse { round: 1, rand: [3u8; 32], sig: [4u8; 48] };
+		use crate::Pulse;
+		let pulse = Pulse { round: 1, rand: [3u8; 32], sig: [4u8; 48] };
 		let encoded = pulse.encode();
-		let decoded = ContractPulse::decode(&mut &encoded[..]).unwrap();
+		let decoded = Pulse::decode(&mut &encoded[..]).unwrap();
 		assert_eq!(pulse, decoded);
 	}
 }
