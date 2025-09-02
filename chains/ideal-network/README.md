@@ -286,9 +286,9 @@ _Wait for the parachain to be onboarded and start finalizing blocks._
 
 **Option 2: POP CLI**
 
-````sh
+```sh
 pop call chain --url ws://localhost:57731
-````
+```
 ```sh
 ◇  What would you like to do?
 │  Register a parachain ID with genesis state and code

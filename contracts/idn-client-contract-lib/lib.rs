@@ -19,7 +19,7 @@ mod types;
 
 use ink::{
 	env::Error as EnvError,
-	prelude::{vec, vec::Vec},
+	prelude::vec,
 	xcm::{
 		lts::{
 			prelude::{OriginKind, Transact, Weight, Xcm},
@@ -31,28 +31,14 @@ use ink::{
 use parity_scale_codec::{Decode, Encode};
 use sp_idn_traits::Hashable;
 
-pub use bp_idn::types::{
-	xcm as IdnXcm, CreateSubParams, RuntimePulse as Pulse, SubscriptionId, UpdateSubParams,
+pub use bp_idn::{
+	types::{
+		xcm as IdnXcm, CallIndex, CreateSubParams, RuntimePulse as Pulse, SubscriptionId,
+		UpdateSubParams,
+	},
+	Call as RuntimeCall, IdnManagerCall,
 };
 pub use types::{PalletIndex, ParaId};
-
-/// Call index for the create_subscription function in the IDN Manager pallet
-pub const IDN_MANAGER_CREATE_SUB_INDEX: u8 = 0;
-
-/// Call index for the pause_subscription function in the IDN Manager pallet
-pub const IDN_MANAGER_PAUSE_SUB_INDEX: u8 = 1;
-
-/// Call index for the reactivate_subscription function in the IDN Manager pallet
-pub const IDN_MANAGER_REACTIVATE_SUB_INDEX: u8 = 2;
-
-/// Call index for the update_subscription function in the IDN Manager pallet
-pub const IDN_MANAGER_UPDATE_SUB_INDEX: u8 = 3;
-
-/// Call index for the kill_subscription function in the IDN Manager pallet
-pub const IDN_MANAGER_KILL_SUB_INDEX: u8 = 4;
-
-/// Call index is a pair of [pallet_index, call_index]
-pub type CallIndex = [u8; 2];
 
 /// Represents possible errors that can occur when interacting with the IDN network
 #[allow(clippy::cast_possible_truncation)]
@@ -107,36 +93,6 @@ pub enum SubscriptionState {
 	/// The subscription is finalized and cannot be resumed.
 	Finalized,
 }
-
-// /// Parameters for creating a new subscription
-// #[derive(Debug, Clone, PartialEq, Eq)]
-// #[ink::scale_derive(Encode, Decode, TypeInfo)]
-// pub struct CreateSubParams {
-// 	/// Number of random values to receive
-// 	pub credits: u32,
-// 	/// XCM multilocation for random value delivery
-// 	pub target: Location,
-// 	/// Call index for XCM message
-// 	pub call_index: CallIndex,
-// 	/// Distribution interval for random values
-// 	pub frequency: BlockNumber,
-// 	/// Optional metadata for the subscription
-// 	pub metadata: Option<Metadata>,
-// 	/// Optional subscription ID, if None, a new one will be generated
-// 	pub sub_id: Option<SubscriptionId>,
-// }
-
-// /// Parameters for updating an existing subscription
-// #[derive(Debug, Clone, PartialEq, Eq)]
-// #[ink::scale_derive(Encode, Decode, TypeInfo)]
-// pub struct UpdateSubParams {
-// 	/// ID of the subscription to update
-// 	pub sub_id: SubscriptionId,
-// 	/// New number of credits
-// 	pub credits: u32,
-// 	/// New distribution interval
-// 	pub frequency: BlockNumber,
-// }
 
 /// Client trait for interacting with the IDN Manager pallet
 pub trait IdnClient {
@@ -302,64 +258,55 @@ impl IdnClientImpl {
 	/// # Returns
 	///
 	/// * An XCM message that will execute the specified function call
-	fn construct_xcm_for_idn_manager(&self, call_index: u8, encoded_params: Vec<u8>) -> Xcm<()> {
-		// Create the XCM program to call the specified function
-		let call_data = [self.idn_manager_pallet_index, call_index]
-			.into_iter()
-			.chain(encoded_params)
-			.collect::<Vec<_>>();
-
+	fn construct_xcm_for_idn_manager(&self, call: RuntimeCall) -> Xcm<()> {
 		// Build the XCM message
 		Xcm(vec![Transact {
 			origin_kind: OriginKind::SovereignAccount,
 			require_weight_at_most: Weight::from_parts(1_000_000_000, 1_000_000),
-			call: call_data.into(),
+			call: call.encode().into(),
 		}])
 	}
 
 	/// Constructs an XCM message for creating a subscription
 	fn construct_create_subscription_xcm(&self, params: &CreateSubParams) -> Xcm<()> {
-		// Encode the parameters for create_subscription call
-		let encoded_params = params.encode();
+		let call =
+			RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params: params.clone() });
 
 		// Use the helper function to construct the XCM message
-		self.construct_xcm_for_idn_manager(IDN_MANAGER_CREATE_SUB_INDEX, encoded_params)
+		self.construct_xcm_for_idn_manager(call)
 	}
 
 	/// Constructs an XCM message for pausing a subscription
 	fn construct_pause_subscription_xcm(&self, sub_id: SubscriptionId) -> Xcm<()> {
-		// Encode the parameters for pause_subscription call
-		let encoded_params = sub_id.encode();
+		let call = RuntimeCall::IdnManager(IdnManagerCall::pause_subscription { sub_id });
 
 		// Use the helper function to construct the XCM message
-		self.construct_xcm_for_idn_manager(IDN_MANAGER_PAUSE_SUB_INDEX, encoded_params)
+		self.construct_xcm_for_idn_manager(call)
 	}
 
 	/// Constructs an XCM message for reactivating a subscription
 	fn construct_reactivate_subscription_xcm(&self, sub_id: SubscriptionId) -> Xcm<()> {
-		// Encode the parameters for reactivate_subscription call
-		let encoded_params = sub_id.encode();
+		let call = RuntimeCall::IdnManager(IdnManagerCall::reactivate_subscription { sub_id });
 
 		// Use the helper function to construct the XCM message
-		self.construct_xcm_for_idn_manager(IDN_MANAGER_REACTIVATE_SUB_INDEX, encoded_params)
+		self.construct_xcm_for_idn_manager(call)
 	}
 
 	/// Constructs an XCM message for updating a subscription
 	fn construct_update_subscription_xcm(&self, params: &UpdateSubParams) -> Xcm<()> {
-		// Encode the parameters for update_subscription call
-		let encoded_params = params.encode();
+		let call =
+			RuntimeCall::IdnManager(IdnManagerCall::update_subscription { params: params.clone() });
 
 		// Use the helper function to construct the XCM message
-		self.construct_xcm_for_idn_manager(IDN_MANAGER_UPDATE_SUB_INDEX, encoded_params)
+		self.construct_xcm_for_idn_manager(call)
 	}
 
 	/// Constructs an XCM message for canceling a subscription
 	fn construct_kill_subscription_xcm(&self, sub_id: SubscriptionId) -> Xcm<()> {
-		// Encode the parameters for kill_subscription call
-		let encoded_params = sub_id.encode();
+		let call = RuntimeCall::IdnManager(IdnManagerCall::kill_subscription { sub_id });
 
 		// Use the helper function to construct the XCM message
-		self.construct_xcm_for_idn_manager(IDN_MANAGER_KILL_SUB_INDEX, encoded_params)
+		self.construct_xcm_for_idn_manager(call)
 	}
 }
 

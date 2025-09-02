@@ -152,7 +152,6 @@ pub fn create_subscription(
 
     // Create subscription through IDN client
     let subscription_id = self.idn_client.create_subscription(params)?;
-
     self.subscription_id = Some(subscription_id);
     Ok(())
 }
@@ -214,12 +213,12 @@ The IDN Client library allows configuring the following parameters at instantiat
    ```rust
    // Example value, use the correct value for your network
    let idn_manager_pallet_index: u8 = 42;
-````
+    ```
 
 2. **Ideal Network Parachain ID**: The parachain ID of the Ideal Network
    ```rust
    let ideal_network_para_id: u32 = 2000; // Example value
-   ```
+````
 
 These parameters can be configured when creating an IdnClientImpl instance:
 

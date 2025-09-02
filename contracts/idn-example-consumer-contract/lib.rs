@@ -24,7 +24,7 @@ mod example_consumer {
 		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, IdnConsumer, Pulse, Result,
 		SubscriptionId, UpdateSubParams,
 	};
-	use ink::prelude::vec::Vec;
+	use ink::{prelude::vec::Vec, selector_id};
 	use sha2::{Digest, Sha256};
 	use sp_idn_traits::pulse::Pulse as TPulse;
 
@@ -92,11 +92,11 @@ mod example_consumer {
 			destination_para_id: u32,
 			contracts_pallet_index: u8,
 		) -> Self {
+			let consume_pulse_id = (selector_id!("consume_pulse") >> 24) as u8;
 			// The call index for delivering randomness to this contract
 			// First byte: The pallet index of the contracts pallet on the destination chain (e.g.,
-			// 50) Second byte: The first byte of the fixed selector (0x01) for our
-			// receive_randomness function
-			let randomness_call_index: CallIndex = [contracts_pallet_index, 0x01]; // Contracts pallet index may vary by chain
+			// 50) Second byte: The first byte of the consume_pulse selector id
+			let randomness_call_index: CallIndex = [contracts_pallet_index, consume_pulse_id]; // Contracts pallet index may vary by chain
 
 			Self {
 				last_randomness: None,
@@ -353,20 +353,8 @@ mod example_consumer {
 			self.simulate_pulse_received(pulse)
 		}
 
-		// /// Public entry point for receiving randomness via XCM
-		// /// This function is called by the IDN Network when delivering randomness
-		// #[ink(message, selector = 0x01000000)]
-		// pub fn receive_randomness(
-		// 	&mut self,
-		// 	pulse: Pulse,
-		// 	subscription_id: SubscriptionId,
-		// ) -> core::result::Result<(), ContractError> {
-		// 	self.consume_pulse(pulse, subscription_id)
-		// 		.map_err(ContractError::IdnClientError)
-		// }
-
 		fn ensure_authorized(&self) -> core::result::Result<(), ContractError> {
-			// TO DO: implement authorization logic
+			// TODO: implement authorization logic
 			Ok(())
 		}
 
