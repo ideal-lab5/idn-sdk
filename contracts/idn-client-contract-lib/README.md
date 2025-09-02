@@ -153,9 +153,12 @@ pub fn create_subscription(
     // Create subscription through IDN client
     let subscription_id = self.idn_client.create_subscription(params)?;
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 >>>>>>> cbeefe6 (refactor example contract)
+=======
+>>>>>>> b267b1e (remove hardcoded runtime calls)
     self.subscription_id = Some(subscription_id);
     Ok(())
 }
@@ -222,7 +225,11 @@ The IDN Client library allows configuring the following parameters at instantiat
 2. **Ideal Network Parachain ID**: The parachain ID of the Ideal Network
    ```rust
    let ideal_network_para_id: u32 = 2000; // Example value
+<<<<<<< HEAD
     ```
+=======
+````
+>>>>>>> b267b1e (remove hardcoded runtime calls)
 
 These parameters can be configured when creating an IdnClientImpl instance:
 
