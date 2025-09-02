@@ -95,6 +95,7 @@ use frame_system::{self as system};
 pub use pallet::*;
 use scale_info::TypeInfo;
 use schedule::v3::TaskName;
+use sp_consensus_randomness_beacon::types::RoundNumber;
 use sp_io::hashing::blake2_256;
 use sp_runtime::{
 	traits::{ConstU32, Dispatchable},
@@ -109,14 +110,10 @@ use timelock::{
 
 /// The location of a scheduled task that can be used to remove it.
 pub type TaskAddress<BlockNumber> = (BlockNumber, u32);
-
-pub type CallOrHashOf<T> =
-	MaybeHashed<<T as Config>::RuntimeCall, <T as frame_system::Config>::Hash>;
-
+/// A bounded call representation
 pub type BoundedCallOf<T> =
 	Bounded<<T as Config>::RuntimeCall, <T as frame_system::Config>::Hashing>;
-
-// TODO: ciphertexts can't exceed 4048 (arbitratily)
+// TODO: ciphertexts can't exceed 4048 (arbitrarily)
 // we need to determine a better upper bound for this
 pub type Ciphertext = BoundedVec<u8, ConstU32<4048>>;
 
@@ -156,8 +153,6 @@ pub(crate) trait MarginalWeightInfo: WeightInfo {
 	}
 }
 impl<T: WeightInfo> MarginalWeightInfo for T {}
-
-pub type RoundNumber = u64;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -263,12 +258,11 @@ pub mod pallet {
 		pub fn schedule_sealed(
 			origin: OriginFor<T>,
 			when: u64, // round number
-			priority: schedule::Priority,
 			ciphertext: Ciphertext,
 		) -> DispatchResult {
 			T::ScheduleOrigin::ensure_origin(origin.clone())?;
 			let origin = <T as Config>::RuntimeOrigin::from(origin);
-			Self::do_schedule_sealed(when, priority, origin.caller().clone(), ciphertext)?;
+			Self::do_schedule_sealed(when, origin.caller().clone(), ciphertext)?;
 			Ok(())
 		}
 	}
@@ -320,15 +314,10 @@ impl<T: Config> Pallet<T> {
 			// will always succeed due to the above check.
 			let _ = agenda.try_push(what);
 			agenda.len() as u32 - 1
-		}
-		// since calls cannot be canceled, we should not need to 'fill in' anything
-		// else if let Some(hole_index) = agenda.iter().position(|i| i.is_none()) {
-		// 	agenda[hole_index] = what;
-		// 	hole_index as u32
-		// }
-		else {
+		} else {
 			return Err((DispatchError::Exhausted, what));
 		};
+
 		Agenda::<T>::insert(when, agenda);
 		Ok(index)
 	}
@@ -340,12 +329,14 @@ impl<T: Config> Pallet<T> {
 	/// * `origin`: The origin to dispatch the call
 	/// * `ciphertext`: A timelock encrypted ciphertext for the given round number `when`
 	fn do_schedule_sealed(
-		when: u64, // drand round number
-		priority: schedule::Priority,
+		when: RoundNumber, // drand round number
 		origin: T::PalletsOrigin,
 		ciphertext: Ciphertext, // timelock encrypted ciphertext
 	) -> Result<TaskAddress<RoundNumber>, DispatchError> {
 		let id = blake2_256(&ciphertext[..]);
+
+		// to enforce FIFO execution, we set the priority here
+		let priority = (Agenda::<T>::get(when).len() + 1) as u8; 
 
 		let task = Scheduled {
 			id,

@@ -127,7 +127,7 @@ fn fill_schedule<T: Config>(
 	for _ in 0..n {
 		let call = make_large_call::<T>();
 		let ct = make_ciphertext::<T>(call, when, sk);
-		Timelock::<T>::schedule_sealed(origin.clone(), when, 0, ct.1).unwrap();
+		Timelock::<T>::schedule_sealed(origin.clone(), when, ct.1).unwrap();
 	}
 
 	ensure!(Agenda::<T>::get(when).len() == n as usize, "didn't fill schedule");

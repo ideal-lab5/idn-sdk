@@ -32,13 +32,6 @@ use frame_support::{
 
 use sp_idn_crypto::drand;
 use timelock::{self, ibe::fullident::Identity};
-// use sp_idn_crypto::drand as drand_primitive;
-// use etf_crypto_primitives::{
-// 	client::etf_client::{DefaultEtfClient, EtfClient},
-// 	ibe::fullident::BfIbe,
-// 	utils::convert_to_bytes,
-// };
-// use rand_chacha::ChaCha20Rng;
 
 //https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/info
 const DRAND_QUICKNET_PK: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
@@ -78,12 +71,9 @@ fn make_ciphertext(
 fn basic_sealed_scheduling_works() {
 	new_test_ext().execute_with(|| {
 		let drand_round_num: u64 = 10;
-		let priority: schedule::Priority = 0;
 		let origin: RuntimeOrigin = RuntimeOrigin::root();
 		let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
-		// let c2 = timelock::tlock::tle(p_pub, secret_key, message, id, rng);
-
-		assert_ok!(Scheduler::schedule_sealed(origin, drand_round_num, priority, ciphertext));
+		assert_ok!(Scheduler::schedule_sealed(origin, drand_round_num, ciphertext));
 	});
 }
 
@@ -92,11 +82,10 @@ fn basic_sealed_scheduling_works() {
 fn execution_fails_bad_origin() {
 	new_test_ext().execute_with(|| {
 		let drand_round_num: u64 = 10;
-		let priority: schedule::Priority = 0;
 		let origin: RuntimeOrigin = RuntimeOrigin::none();
 		let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
 		assert_noop!(
-			Scheduler::schedule_sealed(origin, drand_round_num, priority, ciphertext),
+			Scheduler::schedule_sealed(origin, drand_round_num, ciphertext),
 			DispatchError::BadOrigin
 		);
 	});
@@ -119,8 +108,6 @@ fn shielded_transactions_are_properly_scheduled() {
 
 		let (id, ct_bounded_vec) = make_ciphertext(call.clone(), drand_round_num, sk);
 
-		let priority = 0;
-
 		let origin: RuntimeOrigin = RuntimeOrigin::root();
 
 		let signature = id.extract::<TinyBLS381>(sk).0;
@@ -128,7 +115,6 @@ fn shielded_transactions_are_properly_scheduled() {
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num,
-			priority,
 			ct_bounded_vec
 		));
 
@@ -137,7 +123,6 @@ fn shielded_transactions_are_properly_scheduled() {
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num_2,
-			priority,
 			ct_bounded_vec_2
 		));
 
@@ -197,13 +182,10 @@ fn schedule_simple_executes_fifo() {
 
 		let signature = id.extract::<TinyBLS381>(sk).0;
 
-		let priority = 0;
-
 		let origin: RuntimeOrigin = RuntimeOrigin::root();
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num,
-			priority,
 			ct_bounded_vec_1
 		));
 
@@ -212,7 +194,6 @@ fn schedule_simple_executes_fifo() {
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num,
-			priority,
 			ct_bounded_vec_2
 		));
 
@@ -259,7 +240,6 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num,
-			3,
 			ct_bounded_vec_1
 		));
 
@@ -268,7 +248,6 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num,
-			2,
 			ct_bounded_vec_2
 		));
 
@@ -277,7 +256,6 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num,
-			1,
 			ct_bounded_vec_3
 		));
 
@@ -321,13 +299,11 @@ fn agenda_is_cleared_even_if_all_decrypts_fail() {
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_bad_round,
-			3,
 			ct_bounded_vec_1
 		));
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_bad_round,
-			3,
 			ct_bounded_vec_2
 		));
 
@@ -386,20 +362,17 @@ fn agenda_executes_valid_calls_and_drops_others() {
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_targeted_round,
-			3,
 			ct_bounded_vec_1
 		));
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_targeted_round,
-			3,
 			ct_bounded_vec_2
 		));
 
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_targeted_round,
-			3,
 			ct_bounded_vec_3
 		));
 
@@ -449,13 +422,11 @@ fn decrypt_and_decode_decrements_counter_on_good_decrypt_not_on_bad_decrypt() {
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num,
-			3,
 			ct_bounded_vec_1
 		));
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num,
-			3,
 			ct_bounded_vec_2
 		));
 
@@ -494,13 +465,11 @@ fn decrypt_and_decode_only_decrypts_the_max_number_specified() {
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num,
-			3,
 			ct_bounded_vec_1
 		));
 		assert_ok!(Scheduler::schedule_sealed(
 			origin.clone(),
 			drand_round_num,
-			3,
 			ct_bounded_vec_2
 		));
 
