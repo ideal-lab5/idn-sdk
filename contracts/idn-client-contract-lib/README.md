@@ -43,7 +43,7 @@ std = [
 
 In your contract's `lib.rs`, use the IDN Client as follows:
 
-```rust
+````rust
 use idn_client_contract_lib::{
     CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, ContractPulse,
     IdnConsumer, Result, SubscriptionId, UpdateSubParams
@@ -152,6 +152,10 @@ pub fn create_subscription(
 
     // Create subscription through IDN client
     let subscription_id = self.idn_client.create_subscription(params)?;
+<<<<<<< HEAD
+=======
+
+>>>>>>> cbeefe6 (refactor example contract)
     self.subscription_id = Some(subscription_id);
     Ok(())
 }
