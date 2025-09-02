@@ -85,8 +85,7 @@ use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin},
 	traits::{
-		schedule::{self, MaybeHashed},
-		Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage,
+		schedule, Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage,
 		StorageVersion, StorePreimage,
 	},
 	weights::{Weight, WeightMeter},
@@ -252,12 +251,16 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Anonymously schedule a timelocked task.
+		/// Schedule a timelocked task.
+		///
+		/// * `origin`: The calling origin
+		/// * `when`: The drand round number when the ciphertext will execute
+		/// * `ciphertext`: The timelock encrypted ciphertext
 		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::schedule_sealed(T::MaxScheduledPerBlock::get()))]
 		pub fn schedule_sealed(
 			origin: OriginFor<T>,
-			when: u64, // round number
+			when: RoundNumber,
 			ciphertext: Ciphertext,
 		) -> DispatchResult {
 			T::ScheduleOrigin::ensure_origin(origin.clone())?;
@@ -293,7 +296,7 @@ impl<T: Config> Pallet<T> {
 
 	#[allow(clippy::result_large_err)]
 	fn place_task(
-		when: u64,
+		when: RoundNumber,
 		what: ScheduledOf<T>,
 	) -> Result<TaskAddress<u64>, (DispatchError, ScheduledOf<T>)> {
 		let name = what.id;
@@ -310,8 +313,8 @@ impl<T: Config> Pallet<T> {
 		what: ScheduledOf<T>,
 	) -> Result<u32, (DispatchError, ScheduledOf<T>)> {
 		let mut agenda = Agenda::<T>::get(when);
+		// error if agenda would become overfilled
 		let index = if (agenda.len() as u32) < T::MaxScheduledPerBlock::get() {
-			// will always succeed due to the above check.
 			let _ = agenda.try_push(what);
 			agenda.len() as u32 - 1
 		} else {
@@ -325,18 +328,16 @@ impl<T: Config> Pallet<T> {
 	/// schedule sealed tasks
 	///
 	/// * `when`: The drand round number
-	/// * `priority`: The priority of the tasks
 	/// * `origin`: The origin to dispatch the call
 	/// * `ciphertext`: A timelock encrypted ciphertext for the given round number `when`
 	fn do_schedule_sealed(
-		when: RoundNumber, // drand round number
+		when: RoundNumber,
 		origin: T::PalletsOrigin,
-		ciphertext: Ciphertext, // timelock encrypted ciphertext
+		ciphertext: Ciphertext,
 	) -> Result<TaskAddress<RoundNumber>, DispatchError> {
 		let id = blake2_256(&ciphertext[..]);
-
 		// to enforce FIFO execution, we set the priority here
-		let priority = (Agenda::<T>::get(when).len() + 1) as u8; 
+		let priority = (Agenda::<T>::get(when).len() + 1) as u8;
 
 		let task = Scheduled {
 			id,
@@ -351,6 +352,7 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
+/// Errors that may occur while servicing tasks
 enum ServiceTaskError {
 	/// Could not be executed due to missing preimage.
 	Unavailable,
@@ -361,76 +363,85 @@ use ServiceTaskError::*;
 
 impl<T: Config> Pallet<T> {
 	/// Given a decryption key (signature) and identity (a message derived from `when`),
-	/// attempt to decrypt ciphertexts locked for the given round number
+	/// attempt to decrypt ciphertexts locked for the given round number.
+	/// For now, it acts as a FIFO queue for decryption.
 	///
-	/// For now, it acts as a FIFO queue for decryption
+	/// * `when`: The round number for when ciphertexts should be fetched
+	/// * `signature`: The decryption key (BLS sig) output by a randomness beacon
+	/// * `remaining_decrypts`: A `fail-safe` counter to limit the number of decryption operations
+	///   this fucntion performs before stopping.
 	pub fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
-		remaining_decrypts: &mut u16
+		remaining_decrypts: &mut u16,
 	) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
 		let mut recovered_calls: BoundedVec<
 			(TaskName, <T as Config>::RuntimeCall),
 			T::MaxScheduledPerBlock,
 		> = BoundedVec::new();
-			// Retrieve all scheduled calls
-			let agenda = Agenda::<T>::get(when);
-			// Collect and decrypt all scheduled calls.
-			for task in agenda.into_iter() {
-				if *remaining_decrypts > 0 {
-					if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
-						if let Ok(ciphertext) =
-							TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
-						{
-							if let Ok(bare) =
-								tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
+		let agenda = Agenda::<T>::get(when);
+		// Collect and decrypt all scheduled calls.
+		for task in agenda.into_iter() {
+			if *remaining_decrypts > 0 {
+				if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
+					if let Ok(ciphertext) = TLECiphertext::<TinyBLS381>::deserialize_compressed(
+						ciphertext_bytes.as_slice(),
+					) {
+						if let Ok(bare) = tld::<TinyBLS381, AESGCMBlockCipherProvider>(
+							ciphertext,
+							signature.into(),
+						) {
+							*remaining_decrypts -= 1;
+							if let Ok(call) =
+								<T as Config>::RuntimeCall::decode(&mut bare.as_slice())
 							{
-								*remaining_decrypts -= 1;
-								if let Ok(call) = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()) {
-									// This should never panic (famous last words)
-									// Collects all scheduled calls, even those that won't be made if we
-									// exceed the max weight
-									recovered_calls.try_push((task.id, call)).ok();
-								}
+								recovered_calls.try_push((task.id, call)).ok();
 							}
+						} else {
+							panic!("I see");
 						}
 					}
 				}
 			}
+		}
+
 		recovered_calls
 	}
 
-	/// Returns `true` if the agenda was fully completed, `false` if it should be revisited at a
-	/// later block.
+	/// Services the agenda by executing the call_data as a FIFO queue
+	/// by first matching it up with its associated entry in the Agenda,
+	/// ensuring priority ordering by list index order.
+	///
+	/// For now, it is a 'fail-silent' approach, silently dropping transactions that would make
+	/// the block overweight or for which we couldn't actually decrypt for any reason (bad
+	/// ciphertext, oversubscribed)
 	pub fn service_agenda(
 		weight: &mut WeightMeter,
 		when: RoundNumber,
-		// TODO: rename to MaxScheduledPerRound
 		call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock>,
 	) {
 		let mut agenda = Agenda::<T>::get(when);
-		// first order by priority and simulatenously fill in call data
-		let ordered = agenda
+		let mut ordered: Vec<(u32, _)> = agenda
 			.iter_mut()
 			.enumerate()
-			.filter_map(|(index, item)| {
-				// if let Some(item) = maybe_item {
-				// find the right call data based on id
+			.map(|(index, item)| {
+				// Find matching call data by id and bind preimage
 				item.maybe_call = call_data
 					.iter()
-					// TODO: just matches based on id, no real verification check
-					.find(|data| data.0.eq(&item.id))
+					.find(|data| data.0 == item.id)
 					.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
-				Some((index as u32, item.priority))
+
+				(index as u32, item.priority)
 			})
-			.collect::<Vec<_>>();
+			.collect();
+		ordered.sort_by_key(|k| k.1);
 
 		let mut meter = WeightMeter::with_limit(T::MaximumWeight::get());
 
 		for (agenda_index, _) in ordered.into_iter() {
 			let task = agenda[agenda_index as usize].clone();
 			// If call data was found, then proceed as normal, otherwise do nothing and continue
-			// other executions
+			// to other executions
 			if let Some(ref maybe_call) = task.maybe_call {
 				let base_weight =
 					T::WeightInfo::service_task(maybe_call.lookup_len().map(|x| x as usize));
@@ -441,22 +452,6 @@ impl<T: Config> Pallet<T> {
 				let _result = Self::service_task(&mut meter, when, agenda_index, task);
 			}
 		}
-		// 	// TODO: how should we report failures?
-		// 	// agenda[agenda_index as usize] = match result {
-		// 	// 	Err((Unavailable, slot)) => {
-		// 	// 		dropped += 1;
-		// 	// 		slot
-		// 	// 	},
-		// 	// 	Err((Overweight, slot)) => {
-		// 	// 		dropped += 1;
-		// 	// 		slot
-		// 	// 	},
-		// 	// 	Ok(()) => {
-		// 	// 		// *executed += 1;
-		// 	// 		None
-		// 	// 	},
-		// 	// };
-		// }
 
 		Agenda::<T>::remove(when);
 	}
@@ -478,15 +473,10 @@ impl<T: Config> Pallet<T> {
 			let (call, lookup_len) = match T::Preimages::peek(call) {
 				Ok(c) => c,
 				Err(_) => {
-					Self::deposit_event(Event::CallUnavailable {
-						// task: (when, agenda_index),
-						id: task.id,
-					});
-
+					Self::deposit_event(Event::CallUnavailable { id: task.id });
 					// It was not available when we needed it, so we don't need to have requested it
 					// anymore.
 					T::Preimages::drop(call);
-
 					// We don't know why `peek` failed, thus we most account here for the "full
 					// weight".
 					let _ = weight.try_consume(T::WeightInfo::service_task(
@@ -497,7 +487,6 @@ impl<T: Config> Pallet<T> {
 				},
 			};
 
-			// let l: usize = lookup_len as usize;
 			let _ = weight.try_consume(T::WeightInfo::service_task(lookup_len.map(|x| x as usize)));
 
 			return match Self::execute_dispatch(weight, task.origin.clone(), call) {
@@ -560,7 +549,7 @@ pub trait TlockTxProvider<RuntimeCall, MaxScheduledPerBlock> {
 	fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
-		remaining_decrypts: &mut u16
+		remaining_decrypts: &mut u16,
 	) -> BoundedVec<(TaskName, RuntimeCall), MaxScheduledPerBlock>;
 
 	fn service_agenda(
@@ -576,7 +565,7 @@ impl<T: Config> TlockTxProvider<<T as pallet::Config>::RuntimeCall, T::MaxSchedu
 	fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
-		remaining_decrypts: &mut u16
+		remaining_decrypts: &mut u16,
 	) -> BoundedVec<(TaskName, <T as pallet::Config>::RuntimeCall), T::MaxScheduledPerBlock> {
 		Self::decrypt_and_decode(when, signature, remaining_decrypts)
 	}

@@ -12,13 +12,15 @@ use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
+pub type SystemCall = frame_system::Call<Test>;
+
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
 	pub enum Test
 	{
 		System: frame_system,
 		Balances: pallet_balances,
-		Tlock: pallet_timelock_transactions,
+		Timelock: pallet_timelock_transactions,
 		Preimage: pallet_preimage,
 		Drand: pallet_randomness_beacon,
 	}
@@ -105,7 +107,7 @@ impl pallet_randomness_beacon::Config for Test {
 	type Dispatcher = MockDispatcher;
 	type FallbackRandomness = MockFallbackRandomness;
 	type Tlock = Test;
-	type TlockTxProvider = Tlock;
+	type TlockTxProvider = Timelock;
 }
 
 pub struct TestWeightInfo;
@@ -166,7 +168,7 @@ impl pallet_timelock_transactions::Config for Test {
 	type RuntimeCall = RuntimeCall;
 	type MaximumWeight = MaximumSchedulerWeight;
 	type ScheduleOrigin = EnsureRoot<u64>;
-	type MaxScheduledPerBlock = ConstU32<10>;
+	type MaxScheduledPerBlock = ConstU32<100>;
 	type WeightInfo = TestWeightInfo;
 	type Preimages = Preimage;
 }

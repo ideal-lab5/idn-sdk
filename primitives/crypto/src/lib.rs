@@ -15,7 +15,6 @@
  */
 
 //! Crypto used in the ideal network
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod bls12_381;

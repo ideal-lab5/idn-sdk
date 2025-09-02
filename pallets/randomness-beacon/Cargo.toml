@@ -25,10 +25,6 @@ hex.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
-pallet-timelock-transactions.workspace = true
-sp-idn-crypto.workspace = true
-sp-idn-traits.workspace = true
-sp-consensus-randomness-beacon.workspace = true
 sp-core.workspace = true
 sp-io.workspace = true
 sp-runtime.workspace = true
@@ -42,8 +38,13 @@ timelock.workspace = true
 
 # IDN dependencies
 bp-idn.workspace = true
+pallet-timelock-transactions.workspace = true
+sp-idn-crypto.workspace = true
+sp-idn-traits.workspace = true
+sp-consensus-randomness-beacon.workspace = true
 
 [dev-dependencies]
+sp-idn-crypto.workspace = true
 sp-keystore.workspace = true
 sp-inherents.workspace = true
 pallet-balances.workspace = true

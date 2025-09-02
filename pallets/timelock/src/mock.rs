@@ -33,9 +33,6 @@ use sp_runtime::{
 };
 
 use ark_serialize::CanonicalSerialize;
-type K = ark_bls12_381::G1Affine;
-
-// use pallet_aura;
 
 // Logger module to track execution.
 #[frame_support::pallet]
@@ -250,7 +247,7 @@ impl WeightInfo for TestWeightInfo {
 	fn cancel_named(_s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
-	fn schedule_sealed(s: u32) -> Weight {
+	fn schedule_sealed(_s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
 }
@@ -277,21 +274,6 @@ pub type LoggerCall = logger::Call<Test>;
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
 	t.into()
-}
-
-pub fn run_to_block(n: u64) {
-	while System::block_number() < n {
-		Scheduler::on_finalize(System::block_number());
-		System::set_block_number(System::block_number() + 1);
-		Scheduler::on_initialize(System::block_number());
-	}
-}
-
-pub fn convert_to_bytes<E: CanonicalSerialize, const N: usize>(k: E) -> [u8; N] {
-	let mut out = Vec::with_capacity(k.compressed_size());
-	k.serialize_compressed(&mut out).unwrap_or(());
-	let o: [u8; N] = out.try_into().unwrap_or([0; N]);
-	o
 }
 
 pub fn root() -> OriginCaller {

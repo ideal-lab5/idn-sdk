@@ -15030,6 +15030,7 @@ dependencies = [
  "sp-inherents",
  "sp-runtime",
  "sp-std",
+ "timelock",
  "tokio 1.45.0",
 ]
 

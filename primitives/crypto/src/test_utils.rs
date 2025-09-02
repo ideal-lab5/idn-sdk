@@ -17,11 +17,20 @@
 extern crate alloc;
 
 use crate::drand::compute_round_on_g1;
+use ark_bls12_381::G1Affine as G1;
 use ark_ec::AffineRepr;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_std::rand::{rngs::StdRng, SeedableRng};
+use sha2::Digest;
+use sp_runtime::{traits::ConstU32, BoundedVec};
 use sp_std::{vec, vec::Vec};
-
-use ark_bls12_381::G1Affine;
+use timelock::{
+	self,
+	block_ciphers::AESGCMBlockCipherProvider,
+	engines::{drand::TinyBLS381, EngineBLS},
+	ibe::fullident::Identity,
+	tlock::tle,
+};
 
 pub type RawPulse = (u64, [u8; 96]);
 /// raw pulses fetched from drand (<https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/public/1000>)
@@ -32,15 +41,15 @@ pub const PULSE1003: RawPulse = (1003u64, *b"b104c82771698f45fd8dcfead083d482694
 
 // output the asig + amsg
 pub fn get(pulse_data: Vec<RawPulse>) -> (Vec<u8>, Vec<u8>, Vec<(u64, Vec<u8>)>) {
-	let mut amsg = G1Affine::zero();
-	let mut asig = G1Affine::zero();
+	let mut amsg = G1::zero();
+	let mut asig = G1::zero();
 
 	let mut sigs: Vec<(u64, Vec<u8>)> = vec![];
 
 	for pulse in pulse_data {
 		let sig_bytes = hex::decode(&pulse.1).unwrap();
 		sigs.push((pulse.0, sig_bytes.clone().try_into().unwrap()));
-		let sig = G1Affine::deserialize_compressed(&mut sig_bytes.as_slice()).unwrap();
+		let sig = G1::deserialize_compressed(&mut sig_bytes.as_slice()).unwrap();
 		asig = (asig + sig).into();
 
 		let msg = compute_round_on_g1(pulse.0).unwrap();
@@ -54,4 +63,39 @@ pub fn get(pulse_data: Vec<RawPulse>) -> (Vec<u8>, Vec<u8>, Vec<(u64, Vec<u8>)>)
 	amsg.serialize_compressed(&mut amsg_bytes).unwrap();
 
 	(asig_bytes, amsg_bytes, sigs)
+}
+
+/// build timelock encrypted call data
+pub fn build_ciphertext<RuntimeCall: codec::Encode>(
+	call: RuntimeCall,
+	round_number: u64,
+	pk_bytes: &[u8],
+) -> BoundedVec<u8, ConstU32<4048>> {
+	let pub_key =
+		<TinyBLS381 as EngineBLS>::PublicKeyGroup::deserialize_compressed(&*pk_bytes).unwrap();
+
+	let encoded_call = call.encode();
+
+	let message = {
+		let mut hasher = sha2::Sha256::new();
+		hasher.update(round_number.to_be_bytes());
+		hasher.finalize().to_vec()
+	};
+	let identity = Identity::new(b"", vec![message]);
+
+	let esk = [1; 32];
+
+	let rng = StdRng::from_seed([1; 32]);
+
+	let ct = tle::<TinyBLS381, AESGCMBlockCipherProvider, StdRng>(
+		pub_key,
+		esk,
+		&encoded_call,
+		identity.clone(),
+		rng,
+	)
+	.unwrap();
+	let mut ct_vec: Vec<u8> = Vec::new();
+	ct.serialize_compressed(&mut ct_vec).ok();
+	BoundedVec::truncate_from(ct_vec)
 }

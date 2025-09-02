@@ -226,14 +226,18 @@ mod benchmarks {
 		#[extrinsic_call]
 		_(origin, when, priority, ct);
 
-		let call_data = Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
+		let call_data =
+			Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
 
 		let decrypted_call = call_data.get(0).unwrap().1.clone();
 		assert_eq!(decrypted_call, call);
 	}
 
 	#[benchmark]
-	fn decrypt_and_decode(s: Linear<0, { T::MaxScheduledPerBlock::get() }>, t: Linear<0, {MAX_DECS_PER_BLOCK as u32}>) {
+	fn decrypt_and_decode(
+		s: Linear<0, { T::MaxScheduledPerBlock::get() }>,
+		t: Linear<0, { MAX_DECS_PER_BLOCK as u32 }>,
+	) {
 		let when = u64::MAX;
 		let sk = Fr::one();
 		fill_schedule::<T>(when, s, sk).unwrap();
@@ -245,17 +249,17 @@ mod benchmarks {
 
 		#[block]
 		{
-			bounded_vec = Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
+			bounded_vec =
+				Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
 		}
 
-		// There is a possibility that we can have more calls in a schedule than can be executed in a block
-		// Therefore we will decrypt and decode min(s,t) number of calls.
+		// There is a possibility that we can have more calls in a schedule than can be executed in
+		// a block Therefore we will decrypt and decode min(s,t) number of calls.
 		if s <= t {
 			assert_eq!(bounded_vec.len(), s as usize);
 		} else {
 			assert_eq!(bounded_vec.len(), t as usize);
 		}
-		
 	}
 
 	// service_agenda under heavy load
@@ -273,7 +277,8 @@ mod benchmarks {
 		let signature = identity.extract::<TinyBLS381>(sk).0;
 		let mut remaining_decrypts = MAX_DECS_PER_BLOCK;
 
-		let call_data = Timelock::<T>::decrypt_and_decode(when, signature.into(), &mut remaining_decrypts);
+		let call_data =
+			Timelock::<T>::decrypt_and_decode(when, signature.into(), &mut remaining_decrypts);
 
 		#[block]
 		{

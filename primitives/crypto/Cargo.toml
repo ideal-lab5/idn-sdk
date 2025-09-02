@@ -27,6 +27,7 @@ sp-inherents.workspace = true
 sp-idn-traits.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
+timelock.workspace = true
 
 # arkworks dependencies
 ark-ec.workspace = true
@@ -38,6 +39,7 @@ ark-std.workspace = true
 [dev-dependencies]
 array-bytes = "=6.2.3"
 tokio.workspace = true
+ark-std = { workspace = true, features = ["getrandom"]}
 
 [features]
 default = ["std"]
@@ -59,4 +61,5 @@ std = [
 	"ark-ff/std",
 	"ark-serialize/std",
 	"ark-std/std",
+	"timelock/std"
 ]

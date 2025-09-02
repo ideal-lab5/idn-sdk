@@ -66,10 +66,10 @@ mod benchmarks {
 		let mut amsg = G1Affine::zero();
 
 		// TEMP
-		let runtime_calls:BTreeMap<
-				RoundNumber,
-				Vec<(TaskName, <T::Tlock as TlockConfig>::RuntimeCall)>,
-			> = BTreeMap::new();
+		let runtime_calls: BTreeMap<
+			RoundNumber,
+			Vec<(TaskName, <T::Tlock as TlockConfig>::RuntimeCall)>,
+		> = BTreeMap::new();
 
 		(0..r + 1).for_each(|i| {
 			let msg = compute_round_on_g1(i.into()).unwrap();
