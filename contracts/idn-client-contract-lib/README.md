@@ -43,7 +43,7 @@ std = [
 
 In your contract's `lib.rs`, use the IDN Client as follows:
 
-````rust
+```rust
 use idn_client_contract_lib::{
     CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, ContractPulse,
     IdnConsumer, Result, SubscriptionId, UpdateSubParams
@@ -218,7 +218,7 @@ The IDN Client library allows configuring the following parameters at instantiat
 2. **Ideal Network Parachain ID**: The parachain ID of the Ideal Network
    ```rust
    let ideal_network_para_id: u32 = 2000; // Example value
-````
+    ```
 
 These parameters can be configured when creating an IdnClientImpl instance:
 
