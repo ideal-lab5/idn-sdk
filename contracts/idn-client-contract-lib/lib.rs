@@ -15,7 +15,7 @@
  */
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-mod types;
+pub mod types;
 
 use ink::{
 	env::Error as EnvError,
@@ -30,15 +30,9 @@ use ink::{
 };
 use parity_scale_codec::{Decode, Encode};
 use sp_idn_traits::Hashable;
+use types::{CreateSubParams, IdnXcm, PalletIndex, ParaId, Pulse, SubscriptionId, UpdateSubParams};
 
-pub use bp_idn::{
-	types::{
-		xcm as IdnXcm, CallIndex, CreateSubParams, RuntimePulse as Pulse, SubscriptionId,
-		UpdateSubParams,
-	},
-	Call as RuntimeCall, IdnManagerCall,
-};
-pub use types::{PalletIndex, ParaId};
+pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
 
 /// Represents possible errors that can occur when interacting with the IDN network
 #[allow(clippy::cast_possible_truncation)]

@@ -14,5 +14,10 @@
  * limitations under the License.
  */
 
+pub use bp_idn::types::{
+	xcm as IdnXcm, CallIndex, CreateSubParams, RuntimePulse as Pulse, SubscriptionId,
+	UpdateSubParams,
+};
+
 pub type ParaId = u32;
 pub type PalletIndex = u8;

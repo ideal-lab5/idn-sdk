@@ -21,8 +21,8 @@
 mod example_consumer {
 	use frame_support::BoundedVec;
 	use idn_client_contract_lib::{
-		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, IdnConsumer, Pulse, Result,
-		SubscriptionId, UpdateSubParams,
+		types::{CallIndex, CreateSubParams, Pulse, SubscriptionId, UpdateSubParams},
+		Error, IdnClient, IdnClientImpl, IdnConsumer, Result,
 	};
 	use ink::{prelude::vec::Vec, selector_id};
 	use sha2::{Digest, Sha256};
