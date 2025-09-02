@@ -21,8 +21,10 @@ use ink::{
 	xcm::prelude::*,
 };
 use parity_scale_codec::{Decode, Encode};
+use sp_idn_traits::Hashable;
 
 mod types;
+pub use bp_idn::types::{BlockNumber, CreateSubParams, Metadata, SubscriptionId, UpdateSubParams};
 pub use sp_idn_traits::pulse::Pulse;
 pub use types::ContractPulse;
 
@@ -81,18 +83,6 @@ impl From<EnvError> for Error {
 /// Result type for IDN client operations
 pub type Result<T> = core::result::Result<T, Error>;
 
-// TODO: import the following types from runtime/idn-manager
-// https://github.com/ideal-lab5/idn-sdk/issues/188
-
-/// Subscription ID is a unique identifier for an IDN randomness subscription
-pub type SubscriptionId = u64;
-
-/// BlockNumber represents a block number
-pub type BlockNumber = u32;
-
-/// Metadata is optional additional information for a subscription
-pub type Metadata = Vec<u8>;
-
 /// Represents the state of a subscription
 #[allow(clippy::cast_possible_truncation)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -106,35 +96,35 @@ pub enum SubscriptionState {
 	Finalized,
 }
 
-/// Parameters for creating a new subscription
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[ink::scale_derive(Encode, Decode, TypeInfo)]
-pub struct CreateSubParams {
-	/// Number of random values to receive
-	pub credits: u32,
-	/// XCM multilocation for random value delivery
-	pub target: Location,
-	/// Call index for XCM message
-	pub call_index: CallIndex,
-	/// Distribution interval for random values
-	pub frequency: BlockNumber,
-	/// Optional metadata for the subscription
-	pub metadata: Option<Metadata>,
-	/// Optional subscription ID, if None, a new one will be generated
-	pub sub_id: Option<SubscriptionId>,
-}
+// /// Parameters for creating a new subscription
+// #[derive(Debug, Clone, PartialEq, Eq)]
+// #[ink::scale_derive(Encode, Decode, TypeInfo)]
+// pub struct CreateSubParams {
+// 	/// Number of random values to receive
+// 	pub credits: u32,
+// 	/// XCM multilocation for random value delivery
+// 	pub target: Location,
+// 	/// Call index for XCM message
+// 	pub call_index: CallIndex,
+// 	/// Distribution interval for random values
+// 	pub frequency: BlockNumber,
+// 	/// Optional metadata for the subscription
+// 	pub metadata: Option<Metadata>,
+// 	/// Optional subscription ID, if None, a new one will be generated
+// 	pub sub_id: Option<SubscriptionId>,
+// }
 
-/// Parameters for updating an existing subscription
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[ink::scale_derive(Encode, Decode, TypeInfo)]
-pub struct UpdateSubParams {
-	/// ID of the subscription to update
-	pub sub_id: SubscriptionId,
-	/// New number of credits
-	pub credits: u32,
-	/// New distribution interval
-	pub frequency: BlockNumber,
-}
+// /// Parameters for updating an existing subscription
+// #[derive(Debug, Clone, PartialEq, Eq)]
+// #[ink::scale_derive(Encode, Decode, TypeInfo)]
+// pub struct UpdateSubParams {
+// 	/// ID of the subscription to update
+// 	pub sub_id: SubscriptionId,
+// 	/// New number of credits
+// 	pub credits: u32,
+// 	/// New distribution interval
+// 	pub frequency: BlockNumber,
+// }
 
 /// Client trait for interacting with the IDN Manager pallet
 pub trait IdnClient {
@@ -359,8 +349,8 @@ impl IdnClient for IdnClientImpl {
 		// Generate a subscription ID if not provided
 		if params.sub_id.is_none() {
 			// Generate a subscription ID based on the current timestamp
-			let timestamp: u64 = ink::env::block_timestamp::<ink::env::DefaultEnvironment>();
-			let subscription_id = timestamp.rem_euclid(1000).saturating_add(1);
+			let salt = ink::env::block_timestamp::<ink::env::DefaultEnvironment>().encode();
+			let subscription_id = params.hash(&salt).into();
 			params.sub_id = Some(subscription_id);
 		}
 
