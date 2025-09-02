@@ -214,7 +214,6 @@ mod benchmarks {
 	fn schedule_sealed() {
 		let origin = make_origin::<T>();
 		let when = u64::MAX;
-		let priority = u8::MAX;
 		let sk = Fr::one();
 
 		let call = make_large_call::<T>();
@@ -224,7 +223,7 @@ mod benchmarks {
 		let mut remaining_decrypts = MAX_DECS_PER_BLOCK;
 
 		#[extrinsic_call]
-		_(origin, when, priority, ct);
+		_(origin, when,  ct);
 
 		let call_data =
 			Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
