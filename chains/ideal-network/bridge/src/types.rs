@@ -43,6 +43,10 @@ pub use pallet_idn_manager::{
 };
 pub use sp_consensus_randomness_beacon::types::*;
 
+pub mod xcm {
+	pub use pallet_idn_manager::primitives::{Junction, Junctions, Location};
+}
+
 /// The runtime pulse represents a verifiable pulse constructed from the aggregation
 /// of one or more valid drand pulses. That is, this struct represents the format
 /// in which subscribers recieve, consume, and verify on-chain randomness

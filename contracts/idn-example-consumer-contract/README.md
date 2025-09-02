@@ -17,7 +17,7 @@ The Example Consumer contract shows the complete lifecycle of randomness subscri
 
 1. **Subscription Creation**: Creates a new subscription to receive randomness
 2. **Subscription Management**: Demonstrates pausing, reactivating, and updating subscriptions
-3. **Pulse-Based Randomness Reception**: Implements the RandomnessReceiver trait to handle incoming pulses
+3. **Pulse-Based Randomness Reception**: Implements the IdnConsumer trait to handle incoming pulses
 4. **State Management**: Stores and provides access to received randomness and pulse data
 5. **Configurable Parameters**: Allows setting network-specific parameters at instantiation time
 
@@ -28,12 +28,14 @@ The Example Consumer contract shows the complete lifecycle of randomness subscri
 To deploy this contract:
 
 1. Build the contract:
+
    ```bash
    cd contracts
    sh build_all_contracts.sh
    ```
 
    Or directly:
+
    ```bash
    cd contracts/idn-example-consumer-contract
    cargo contract build --release
@@ -42,6 +44,7 @@ To deploy this contract:
 2. Deploy to your parachain using your preferred method (e.g., Contracts UI)
 
 3. Initialize with the required parameters:
+
    ```
    new(
        ideal_network_para_id: u32,
@@ -52,6 +55,7 @@ To deploy this contract:
    ```
 
    Parameters:
+
    - `ideal_network_para_id`: The parachain ID of the Ideal Network
    - `idn_manager_pallet_index`: The pallet index for the IDN Manager on the Ideal Network
    - `destination_para_id`: The parachain ID where this contract is deployed
@@ -68,6 +72,7 @@ create_subscription(credits: u32, frequency: u32, metadata: Option<Vec<u8>>)
 ```
 
 Parameters:
+
 - `credits`: Number of random values to receive
 - `frequency`: Distribution interval for random values (in blocks)
 - `metadata`: Optional metadata for the subscription
@@ -98,6 +103,7 @@ get_idn_manager_pallet_index() -> u8
 ```
 
 The pulse-based methods provide access to additional data beyond just randomness:
+
 - Round numbers for tracking which randomness generation round produced the value
 - Signatures for verification purposes
 - The raw randomness bytes
@@ -116,6 +122,7 @@ cargo test
 To run the end-to-end tests with the idn-consumer-node instead of the default substrate-contracts-node:
 
 1. Build the idn-consumer-node:
+
    ```bash
    cargo build --release -p idn-consumer-node
    ```
@@ -129,13 +136,13 @@ Note: The idn-consumer-node must have the contracts pallet enabled for these tes
 
 ## Implementation Details
 
-### RandomnessReceiver Implementation
+### IdnConsumer Implementation
 
-The contract demonstrates how to implement the RandomnessReceiver trait:
+The contract demonstrates how to implement the IdnConsumer trait:
 
 ```rust
-impl RandomnessReceiver for ExampleConsumer {
-    fn on_randomness_received(
+impl IdnConsumer for ExampleConsumer {
+    fn consume_pulse(
         &mut self,
         pulse: ContractPulse,
         subscription_id: SubscriptionId
@@ -148,16 +155,16 @@ impl RandomnessReceiver for ExampleConsumer {
         } else {
             return Err(Error::SubscriptionNotFound);
         }
-        
+
         // Compute randomness as Sha256(sig)
         let mut hasher = Sha256::default();
         hasher.update(pulse.sig());
         let randomness: [u8; 32] = hasher.finalize().into();
-        
+
         // Store the randomness
         self.last_randomness = Some(randomness);
         self.randomness_history.push(randomness);
-        
+
         // Store the pulse
         let normalized_pulse = ContractPulse {
             rand: randomness,
@@ -166,7 +173,7 @@ impl RandomnessReceiver for ExampleConsumer {
         };
         self.last_pulse = Some(normalized_pulse);
         self.pulse_history.push(normalized_pulse);
-        
+
         Ok(())
     }
 }
@@ -183,14 +190,14 @@ pub fn simulate_pulse_received(
     pulse: ContractPulse,
 ) -> core::result::Result<(), ContractError> {
     self.ensure_authorized()?;
-    
+
     let subscription_id = if let Some(id) = self.subscription_id {
         id
     } else {
         return Err(ContractError::NoActiveSubscription);
     };
-    
-    self.on_randomness_received(pulse, subscription_id)
+
+    self.consume_pulse(pulse, subscription_id)
         .map_err(ContractError::IdnClientError)
 }
 ```
@@ -199,7 +206,7 @@ pub fn simulate_pulse_received(
 
 To adapt this contract for your needs:
 
-1. Change the randomness handling logic in the `on_randomness_received` method
+1. Change the randomness handling logic in the `consume_pulse` method
 2. Add your own state variables and methods to use the randomness
 3. Modify how you store and retrieve pulse data based on your verification needs
 4. Modify the subscription parameters to match your use case

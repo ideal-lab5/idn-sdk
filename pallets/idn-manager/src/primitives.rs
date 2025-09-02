@@ -19,7 +19,7 @@
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use frame_support::{traits::Contains, BoundedVec};
 use scale_info::TypeInfo;
-use xcm::prelude::{Junction::Parachain, Location};
+pub use xcm::prelude::{Junction, Junctions, Location};
 
 /// The type for the metadata of a subscription
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
@@ -62,7 +62,7 @@ pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId> {
 pub struct AllowSiblingsOnly;
 impl Contains<Location> for AllowSiblingsOnly {
 	fn contains(location: &Location) -> bool {
-		matches!(location.unpack(), (1, [Parachain(_)]))
+		matches!(location.unpack(), (1, [Junction::Parachain(_)]))
 	}
 }
 

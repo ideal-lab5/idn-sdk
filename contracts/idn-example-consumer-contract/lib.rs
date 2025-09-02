@@ -19,12 +19,14 @@
 
 #[ink::contract]
 mod example_consumer {
+	use frame_support::BoundedVec;
 	use idn_client_contract_lib::{
-		CallIndex, ContractPulse, CreateSubParams, Error, IdnClient, IdnClientImpl, Pulse,
-		RandomnessReceiver, Result, SubscriptionId, UpdateSubParams,
+		CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, IdnConsumer, Pulse, Result,
+		SubscriptionId, UpdateSubParams,
 	};
 	use ink::prelude::vec::Vec;
 	use sha2::{Digest, Sha256};
+	use sp_idn_traits::pulse::Pulse as TPulse;
 
 	/// The Example Consumer contract demonstrates how to use the IDN Client
 	/// to interact with the IDN Network for randomness subscriptions.
@@ -33,7 +35,7 @@ mod example_consumer {
 		/// Last received randomness
 		last_randomness: Option<[u8; 32]>,
 		/// Last received pulse
-		last_pulse: Option<ContractPulse>,
+		last_pulse: Option<Pulse>,
 		/// Active subscription ID
 		subscription_id: Option<SubscriptionId>,
 		/// Destination parachain ID (where this contract is deployed)
@@ -45,7 +47,7 @@ mod example_consumer {
 		/// History of randomness values
 		randomness_history: Vec<[u8; 32]>,
 		/// History of pulses
-		pulse_history: Vec<ContractPulse>,
+		pulse_history: Vec<Pulse>,
 		/// IDN client implementation
 		idn_client: IdnClientImpl,
 	}
@@ -127,7 +129,7 @@ mod example_consumer {
 		#[ink(message, payable)]
 		pub fn create_subscription(
 			&mut self,
-			credits: u32,
+			credits: u64,
 			frequency: u32,
 			metadata: Option<Vec<u8>>,
 		) -> core::result::Result<(), ContractError> {
@@ -146,7 +148,13 @@ mod example_consumer {
 				),
 				call_index: self.randomness_call_index,
 				frequency,
-				metadata,
+				metadata: if let Some(metadata) = metadata {
+					let metadata =
+						BoundedVec::try_from(metadata).map_err(|_| ContractError::Other)?;
+					Some(metadata)
+				} else {
+					None
+				},
 				sub_id: None, // Let the IDN client generate an ID
 			};
 
@@ -225,7 +233,7 @@ mod example_consumer {
 		#[ink(message, payable)]
 		pub fn update_subscription(
 			&mut self,
-			credits: u32,
+			credits: u64,
 			frequency: u32,
 		) -> core::result::Result<(), ContractError> {
 			// Ensure caller is authorized
@@ -236,7 +244,12 @@ mod example_consumer {
 				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
 
 			// Create update parameters
-			let params = UpdateSubParams { sub_id: subscription_id, credits, frequency };
+			let params = UpdateSubParams {
+				sub_id: subscription_id,
+				credits: Some(credits),
+				frequency: Some(frequency),
+				metadata: None,
+			};
 
 			// Update subscription through IDN client
 			self.idn_client
@@ -295,13 +308,13 @@ mod example_consumer {
 
 		/// Gets the last received pulse
 		#[ink(message)]
-		pub fn get_last_pulse(&self) -> Option<ContractPulse> {
-			self.last_pulse
+		pub fn get_last_pulse(&self) -> Option<Pulse> {
+			self.last_pulse.clone()
 		}
 
 		/// Gets all received pulses
 		#[ink(message)]
-		pub fn get_pulse_history(&self) -> Vec<ContractPulse> {
+		pub fn get_pulse_history(&self) -> Vec<Pulse> {
 			self.pulse_history.clone()
 		}
 
@@ -309,7 +322,7 @@ mod example_consumer {
 		#[ink(message)]
 		pub fn simulate_pulse_received(
 			&mut self,
-			pulse: ContractPulse,
+			pulse: Pulse,
 		) -> core::result::Result<(), ContractError> {
 			self.ensure_authorized()?;
 
@@ -319,7 +332,7 @@ mod example_consumer {
 				return Err(ContractError::NoActiveSubscription);
 			};
 
-			self.on_randomness_received(pulse, subscription_id)
+			self.consume_pulse(pulse, subscription_id)
 				.map_err(ContractError::IdnClientError)
 		}
 
@@ -327,7 +340,7 @@ mod example_consumer {
 		///
 		/// This is for demonstration purposes only.
 		/// In a real implementation, the IDN Network would call
-		/// the on_randomness_received method directly via XCM.
+		/// the consume_pulse method directly via XCM.
 		///
 		/// # Arguments
 		///
@@ -339,27 +352,27 @@ mod example_consumer {
 		#[ink(message)]
 		pub fn simulate_randomness_received(
 			&mut self,
-			randomness: [u8; 32],
+			randomness: [u8; 48],
 		) -> core::result::Result<(), ContractError> {
 			self.ensure_authorized()?;
 
 			// Create a basic pulse from the randomness
-			let pulse = ContractPulse { rand: randomness, message: [0u8; 48], sig: [0u8; 48] };
+			let pulse = Pulse::new(randomness, 1, 2);
 
 			self.simulate_pulse_received(pulse)
 		}
 
-		/// Public entry point for receiving randomness via XCM
-		/// This function is called by the IDN Network when delivering randomness
-		#[ink(message, selector = 0x01000000)]
-		pub fn receive_randomness(
-			&mut self,
-			pulse: ContractPulse,
-			subscription_id: SubscriptionId,
-		) -> core::result::Result<(), ContractError> {
-			self.on_randomness_received(pulse, subscription_id)
-				.map_err(ContractError::IdnClientError)
-		}
+		// /// Public entry point for receiving randomness via XCM
+		// /// This function is called by the IDN Network when delivering randomness
+		// #[ink(message, selector = 0x01000000)]
+		// pub fn receive_randomness(
+		// 	&mut self,
+		// 	pulse: Pulse,
+		// 	subscription_id: SubscriptionId,
+		// ) -> core::result::Result<(), ContractError> {
+		// 	self.consume_pulse(pulse, subscription_id)
+		// 		.map_err(ContractError::IdnClientError)
+		// }
 
 		fn ensure_authorized(&self) -> core::result::Result<(), ContractError> {
 			// TO DO: implement authorization logic
@@ -379,13 +392,12 @@ mod example_consumer {
 		}
 	}
 
-	/// Implementation of the RandomnessReceiver trait
-	impl RandomnessReceiver for ExampleConsumer {
-		fn on_randomness_received(
-			&mut self,
-			pulse: ContractPulse,
-			subscription_id: SubscriptionId,
-		) -> Result<()> {
+	/// Implementation of the IdnConsumer trait
+	impl IdnConsumer for ExampleConsumer {
+		/// Public entry point for receiving randomness via XCM
+		/// This function is called by the IDN Network when delivering randomness
+		#[ink(message, selector = 0x01000000)]
+		fn consume_pulse(&mut self, pulse: Pulse, subscription_id: SubscriptionId) -> Result<()> {
 			// Verify that the subscription ID matches our active subscription
 			if let Some(our_subscription_id) = self.subscription_id {
 				if our_subscription_id != subscription_id {
@@ -404,11 +416,9 @@ mod example_consumer {
 			self.last_randomness = Some(randomness);
 			self.randomness_history.push(randomness);
 
-			// Store the complete pulse (with normalized rand field)
-			let normalized_pulse =
-				ContractPulse { rand: randomness, message: pulse.message(), sig: pulse.sig() };
-			self.last_pulse = Some(normalized_pulse);
-			self.pulse_history.push(normalized_pulse);
+			// Store the complete pulse
+			self.last_pulse = Some(pulse.clone());
+			self.pulse_history.push(pulse);
 
 			Ok(())
 		}
@@ -425,8 +435,7 @@ mod example_consumer {
 			// Create a test pulse
 			let test_randomness = [42u8; 32];
 			let test_sig = [1u8; 48];
-			let test_pulse =
-				ContractPulse { rand: test_randomness, message: [0u8; 48], sig: test_sig };
+			let test_pulse = Pulse { rand: test_randomness, message: [0u8; 48], sig: test_sig };
 
 			// Setup contract
 			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
@@ -440,11 +449,8 @@ mod example_consumer {
 			let mut hasher = Sha256::default();
 			hasher.update(test_sig);
 			let expected_rand: [u8; 32] = hasher.finalize().into();
-			let expected_pulse = ContractPulse {
-				rand: expected_rand,
-				message: test_pulse.message,
-				sig: test_pulse.sig,
-			};
+			let expected_pulse =
+				Pulse { rand: expected_rand, message: test_pulse.message, sig: test_pulse.sig };
 
 			// Check stored values
 			assert_eq!(contract.get_last_randomness(), Some(expected_rand));
@@ -466,8 +472,8 @@ mod example_consumer {
 			assert_eq!(contract.get_pulse_history().len(), 0);
 
 			// Add some randomness
-			let test_pulse1 = ContractPulse { rand: [1u8; 32], message: [0u8; 48], sig: [1u8; 48] };
-			let test_pulse2 = ContractPulse { rand: [2u8; 32], message: [0u8; 48], sig: [2u8; 48] };
+			let test_pulse1 = Pulse { rand: [1u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+			let test_pulse2 = Pulse { rand: [2u8; 32], message: [0u8; 48], sig: [2u8; 48] };
 
 			// Simulate receiving randomness
 			contract.simulate_pulse_received(test_pulse1.clone()).unwrap();
@@ -477,20 +483,14 @@ mod example_consumer {
 			let mut hasher1 = Sha256::default();
 			hasher1.update(test_pulse1.sig());
 			let expected_rand1: [u8; 32] = hasher1.finalize().into();
-			let expected_pulse1 = ContractPulse {
-				rand: expected_rand1,
-				message: test_pulse1.message,
-				sig: test_pulse1.sig,
-			};
+			let expected_pulse1 =
+				Pulse { rand: expected_rand1, message: test_pulse1.message, sig: test_pulse1.sig };
 			// Compute expected randomness for test_pulse2
 			let mut hasher2 = Sha256::default();
 			hasher2.update(test_pulse2.sig());
 			let expected_rand2: [u8; 32] = hasher2.finalize().into();
-			let expected_pulse2 = ContractPulse {
-				rand: expected_rand2,
-				message: test_pulse2.message,
-				sig: test_pulse2.sig,
-			};
+			let expected_pulse2 =
+				Pulse { rand: expected_rand2, message: test_pulse2.message, sig: test_pulse2.sig };
 
 			assert_eq!(contract.get_last_randomness(), Some(expected_rand2));
 			assert_eq!(contract.get_last_pulse(), Some(expected_pulse2));
@@ -505,22 +505,18 @@ mod example_consumer {
 			contract.subscription_id = Some(5);
 
 			// Create a test pulse
-			let test_pulse = ContractPulse { rand: [9u8; 32], message: [0u8; 48], sig: [5u8; 48] };
+			let test_pulse = Pulse { rand: [9u8; 32], message: [0u8; 48], sig: [5u8; 48] };
 
 			// Call the trait method directly
-			let result =
-				RandomnessReceiver::on_randomness_received(&mut contract, test_pulse.clone(), 5);
+			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse.clone(), 5);
 			assert!(result.is_ok());
 
 			// Compute expected randomness
 			let mut hasher = Sha256::default();
 			hasher.update(test_pulse.sig());
 			let expected_rand: [u8; 32] = hasher.finalize().into();
-			let expected_pulse = ContractPulse {
-				rand: expected_rand,
-				message: test_pulse.message,
-				sig: test_pulse.sig,
-			};
+			let expected_pulse =
+				Pulse { rand: expected_rand, message: test_pulse.message, sig: test_pulse.sig };
 
 			// Check stored values
 			assert_eq!(contract.get_last_randomness(), Some(expected_rand));
@@ -534,11 +530,10 @@ mod example_consumer {
 			contract.subscription_id = Some(5);
 
 			// Create a test pulse
-			let test_pulse = ContractPulse { rand: [9u8; 32], message: [0u8; 48], sig: [5u8; 48] };
+			let test_pulse = Pulse { rand: [9u8; 32], message: [0u8; 48], sig: [5u8; 48] };
 
 			// Call with wrong subscription ID
-			let result =
-				RandomnessReceiver::on_randomness_received(&mut contract, test_pulse.clone(), 6);
+			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse.clone(), 6);
 			assert!(result.is_err());
 
 			// Should not have stored anything
