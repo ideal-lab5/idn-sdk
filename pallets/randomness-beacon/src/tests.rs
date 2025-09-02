@@ -20,6 +20,8 @@ mod tests {
 		SparseAccumulation,
 	};
 	use alloc::collections::btree_map::BTreeMap;
+	use ark_bls12_381::G2Affine as G2;
+	use ark_serialize::CanonicalDeserialize;
 	use codec::Encode;
 	use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
 	use sp_consensus_randomness_beacon::types::{CanonicalPulse, OpaquePublicKey, RoundNumber};
@@ -291,20 +293,21 @@ mod tests {
 	fn can_create_inherent_with_agenda_items_for_multiple_pulses() {
 		// setup the inherent data
 		let genesis = 42;
-		let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
+		let pk_bytes = hex::decode(BEACON_PUBKEY).expect("Valid hex");
+		let pk = G2::deserialize_compressed(&*pk_bytes).unwrap();
 
-		let public_key: OpaquePublicKey = pk.clone().try_into().unwrap();
+		let public_key: OpaquePublicKey = pk_bytes.clone().try_into().unwrap();
 		let config = BeaconConfiguration { public_key, genesis_round: genesis };
 
 		let (asig1, _amsg1, _sig1) = get(vec![PULSE1000]);
 		let pulse1 = CanonicalPulse { round: 1000u64, signature: asig1.try_into().unwrap() };
 		let call1 = RuntimeCall::System(SystemCall::remark { remark: vec![] });
-		let ct1 = build_ciphertext(&call1, 1000, &pk);
+		let (_, ct1) = build_ciphertext(&call1, 1000, pk);
 
 		let (asig2, _amsg2, _sig2) = get(vec![PULSE1001]);
 		let pulse2 = CanonicalPulse { round: 1001u64, signature: asig2.try_into().unwrap() };
 		let call2 = RuntimeCall::System(SystemCall::remark { remark: vec![] });
-		let ct2 = build_ciphertext(&call2, 1001, &pk);
+		let (_, ct2) = build_ciphertext(&call2, 1001, pk);
 
 		let (expected_asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
 		let expected_asig_array: [u8; 48] = expected_asig.try_into().unwrap();

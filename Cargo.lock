@@ -9188,7 +9188,6 @@ dependencies = [
  "pallet-preimage",
  "pallet-timestamp",
  "parity-scale-codec",
- "rand_chacha 0.9.0",
  "scale-info",
  "sp-consensus-randomness-beacon",
  "sp-core",

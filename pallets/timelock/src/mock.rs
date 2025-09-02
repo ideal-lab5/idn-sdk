@@ -22,7 +22,7 @@ use super::*;
 use crate as scheduler;
 use frame_support::{
 	ord_parameter_types, parameter_types,
-	traits::{ConstU32, ConstU64, Contains, EitherOfDiverse, OnFinalize, OnInitialize},
+	traits::{ConstU32, ConstU64, Contains, EitherOfDiverse},
 	weights::constants::RocksDbWeight,
 };
 use frame_system::{EnsureRoot, EnsureSignedBy};
@@ -31,8 +31,6 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
-
-use ark_serialize::CanonicalSerialize;
 
 // Logger module to track execution.
 #[frame_support::pallet]

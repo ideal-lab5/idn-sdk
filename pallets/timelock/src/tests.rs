@@ -16,49 +16,15 @@
 
 //! # Scheduler tests.
 use super::*;
-use crate::mock::{logger, new_test_ext, root, LoggerCall, RuntimeCall, Scheduler, Test, *};
-use ark_bls12_381::{Fr, FrConfig, G2Projective as G2};
+use crate::mock::{logger, new_test_ext, root, LoggerCall, RuntimeCall, Scheduler, *};
+use ark_bls12_381::{Fr, G2Projective as G2};
 use ark_ec::PrimeGroup;
-use ark_ff::{Fp, MontBackend};
-use ark_serialize::CanonicalSerialize;
-use ark_std::{ops::Mul, rand::rngs::OsRng, One};
+use ark_std::{ops::Mul, One};
 use frame_support::{
 	assert_noop, assert_ok,
 	traits::{ConstU32, Contains},
 };
-
-use sp_idn_crypto::drand;
-use timelock::{self, ibe::fullident::Identity, tlock::tle};
-
-fn make_ciphertext(
-	call: RuntimeCall,
-	round_number: u64,
-	sk: Fp<MontBackend<FrConfig, 4>, 4>,
-) -> (Identity, BoundedVec<u8, ConstU32<4048>>) {
-	let encoded_call = call.encode();
-
-	let message = drand::compute_round_on_g1(round_number).ok().unwrap();
-	let p_pub = G2::generator().mul(sk);
-	let msk = [1; 32];
-
-	let mut identity_vec: Vec<u8> = Vec::new();
-	message.serialize_compressed(&mut identity_vec).ok();
-	let id: Identity = Identity::new(b"", identity_vec.to_vec());
-
-	let ct = tle::<TinyBLS381, AESGCMBlockCipherProvider, OsRng>(
-		p_pub,
-		msk,
-		&encoded_call,
-		id.clone(),
-		OsRng,
-	)
-	.unwrap();
-	let mut ct_vec: Vec<u8> = Vec::new();
-	ct.serialize_compressed(&mut ct_vec).ok();
-	let ct_bounded_vec: BoundedVec<u8, ConstU32<4048>> = BoundedVec::truncate_from(ct_vec);
-
-	(id, ct_bounded_vec)
-}
+use sp_idn_crypto::test_utils::*;
 
 #[test]
 #[docify::export]
@@ -99,8 +65,9 @@ fn shielded_transactions_are_properly_scheduled() {
 		let drand_round_num_2 = 12;
 
 		let sk = Fr::one();
+		let pk = G2::generator().mul(sk);
 
-		let (id, ct_bounded_vec) = make_ciphertext(call.clone(), drand_round_num, sk);
+		let (id, ct_bounded_vec) = build_ciphertext(call.clone(), drand_round_num, pk.into());
 
 		let origin: RuntimeOrigin = RuntimeOrigin::root();
 
@@ -108,7 +75,8 @@ fn shielded_transactions_are_properly_scheduled() {
 
 		assert_ok!(Scheduler::schedule_sealed(origin.clone(), drand_round_num, ct_bounded_vec));
 
-		let (id_2, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_round_num_2, sk);
+		let (id_2, ct_bounded_vec_2) =
+			build_ciphertext(call_2.clone(), drand_round_num_2, pk.into());
 
 		assert_ok!(Scheduler::schedule_sealed(origin.clone(), drand_round_num_2, ct_bounded_vec_2));
 
@@ -171,15 +139,16 @@ fn schedule_simple_executes_fifo() {
 		let drand_round_num = 10;
 
 		let sk = Fr::one();
+		let pk = G2::generator().mul(sk);
 
-		let (id, ct_bounded_vec_1) = make_ciphertext(call_1.clone(), drand_round_num, sk);
+		let (id, ct_bounded_vec_1) = build_ciphertext(call_1.clone(), drand_round_num, pk.into());
 
 		let signature = id.extract::<TinyBLS381>(sk).0;
 
 		let origin: RuntimeOrigin = RuntimeOrigin::root();
 		assert_ok!(Scheduler::schedule_sealed(origin.clone(), drand_round_num, ct_bounded_vec_1));
 
-		let (_, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_round_num, sk);
+		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_round_num, pk.into());
 
 		assert_ok!(Scheduler::schedule_sealed(origin.clone(), drand_round_num, ct_bounded_vec_2));
 
@@ -219,8 +188,9 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 		let drand_round_num = 10;
 
 		let sk = Fr::one();
+		let pk = G2::generator().mul(sk);
 
-		let (id, ct_bounded_vec_1) = make_ciphertext(call_1.clone(), drand_round_num, sk);
+		let (id, ct_bounded_vec_1) = build_ciphertext(call_1.clone(), drand_round_num, pk.into());
 
 		let signature = id.extract::<TinyBLS381>(sk).0;
 
@@ -229,11 +199,11 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 		let origin: RuntimeOrigin = RuntimeOrigin::root();
 		assert_ok!(Scheduler::schedule_sealed(origin.clone(), drand_round_num, ct_bounded_vec_1));
 
-		let (_, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_round_num, sk);
+		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_round_num, pk.into());
 
 		assert_ok!(Scheduler::schedule_sealed(origin.clone(), drand_round_num, ct_bounded_vec_2));
 
-		let (_, ct_bounded_vec_3) = make_ciphertext(call_3.clone(), drand_round_num, sk);
+		let (_, ct_bounded_vec_3) = build_ciphertext(call_3.clone(), drand_round_num, pk.into());
 
 		assert_ok!(Scheduler::schedule_sealed(origin.clone(), drand_round_num, ct_bounded_vec_3));
 
@@ -268,10 +238,11 @@ fn agenda_is_cleared_even_if_all_decrypts_fail() {
 		let drand_round_num = 10;
 
 		let sk = Fr::one();
+		let pk = G2::generator().mul(sk);
 
 		// encrypt calls for some drand round
-		let (_, ct_bounded_vec_1) = make_ciphertext(call_1.clone(), drand_round_num, sk);
-		let (_, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_round_num, sk);
+		let (_, ct_bounded_vec_1) = build_ciphertext(call_1.clone(), drand_round_num, pk.into());
+		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_round_num, pk.into());
 
 		let origin: RuntimeOrigin = RuntimeOrigin::root();
 
@@ -285,10 +256,10 @@ fn agenda_is_cleared_even_if_all_decrypts_fail() {
 		assert_eq!(Agenda::<Test>::get(drand_bad_round).len(), 2);
 
 		// create id that would be used to decrypt round 9 encrypted CT
-		let (round_9_id, _) = make_ciphertext(
+		let (round_9_id, _) = build_ciphertext(
 			RuntimeCall::Logger(LoggerCall::log { i: 1, weight: Weight::from_parts(1, 0) }),
 			drand_bad_round,
-			sk,
+			pk.into(),
 		);
 
 		let signature = round_9_id.extract::<TinyBLS381>(sk).0;
@@ -325,17 +296,18 @@ fn agenda_executes_valid_calls_and_drops_others() {
 		let wrong_drand_round = 10;
 
 		let sk = Fr::one();
+		let pk = G2::generator().mul(sk);
 
 		// encrypt calls for some drand round
-		let (_, ct_bounded_vec_1) = make_ciphertext(call_1.clone(), wrong_drand_round, sk);
-		let (_, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), wrong_drand_round, sk);
+		let (_, ct_bounded_vec_1) = build_ciphertext(call_1.clone(), wrong_drand_round, pk.into());
+		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), wrong_drand_round, pk.into());
 
 		let origin: RuntimeOrigin = RuntimeOrigin::root();
 
 		let drand_targeted_round = 9;
 
 		let (round_9_id, ct_bounded_vec_3) =
-			make_ciphertext(call_3.clone(), drand_targeted_round, sk);
+			build_ciphertext(call_3.clone(), drand_targeted_round, pk.into());
 
 		// schedule calls to be executed on incorrect round
 		assert_ok!(Scheduler::schedule_sealed(
@@ -393,10 +365,11 @@ fn decrypt_and_decode_decrements_counter_on_good_decrypt_not_on_bad_decrypt() {
 		let drand_bad_round = 9;
 
 		let sk = Fr::one();
+		let pk = G2::generator().mul(sk);
 
 		// encrypt calls for some drand round
-		let (id, ct_bounded_vec_1) = make_ciphertext(call_1.clone(), drand_round_num, sk);
-		let (_, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_bad_round, sk);
+		let (id, ct_bounded_vec_1) = build_ciphertext(call_1.clone(), drand_round_num, pk.into());
+		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_bad_round, pk.into());
 
 		let origin: RuntimeOrigin = RuntimeOrigin::root();
 
@@ -431,10 +404,11 @@ fn decrypt_and_decode_only_decrypts_the_max_number_specified() {
 		let drand_bad_round = 9;
 
 		let sk = Fr::one();
+		let pk = G2::generator().mul(sk);
 
 		// encrypt calls for some drand round
-		let (id, ct_bounded_vec_1) = make_ciphertext(call_1.clone(), drand_round_num, sk);
-		let (_, ct_bounded_vec_2) = make_ciphertext(call_2.clone(), drand_bad_round, sk);
+		let (id, ct_bounded_vec_1) = build_ciphertext(call_1.clone(), drand_round_num, pk.into());
+		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_bad_round, pk.into());
 
 		let origin: RuntimeOrigin = RuntimeOrigin::root();
 
@@ -455,6 +429,14 @@ fn decrypt_and_decode_only_decrypts_the_max_number_specified() {
 		assert_eq!(call_data.len(), 1);
 	})
 }
+
+
+
+
+
+
+
+
 
 // #[test]
 // #[docify::export]
