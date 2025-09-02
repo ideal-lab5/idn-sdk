@@ -32,7 +32,38 @@ Now, the collator can include the calls within the block without exposing them p
 
 These two problems can be resolved by introducing a mechanism that allows for an order to be imposed prior to decryption. This can be done by introducing...
 
-### A Perpetual VCG Auction for Future Blockspace 
+### How Many Txs?
+
+We need to determine:
+- what is the maximum allowed transaction size?
+- how many timelocked txs can we execute per block?
+  - what about per round (2 rounds/block)
+- how large are ciphertexts?
+- what is the largest acceptable ciphertext?
+- do we reject too small ciphertexts?
+
+``` rust
+/// We assume that ~5% of the block weight is consumed by `on_initialize` handlers. This is
+/// used to limit the maximal weight of a single extrinsic.
+const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(5);
+/// We allow for 2 seconds of compute with a 6-second average block.
+const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
+	WEIGHT_REF_TIME_PER_SECOND.saturating_mul(2),
+	cumulus_primitives_core::relay_chain::MAX_POV_SIZE as u64,
+);
+```
+
+ok, so we have 95% of the remaining wait after initialization for executing extrinsics.
+- We will assume we want to reserve capacity for X VRaaS dispatches/block.
+  - lets say X% 
+- so we have (95 - X)% of block weight remaining.
+- let's assume we can process ~300 timelock decryptions in 1s (we should investigate optimizations)
+  - then if we don't care about any other calls, the maximum size is: Remaining_block_weight / 300
+    - (95-X)/100/300 = 3*(95-X) bytes
+- let's say we want to reserve Y% for standard txs. Then we only have (95-Z)%, where Z = X + Y.
+- Q: What is the largest possible call? can we just go from [largest possible call] +  128 bytes overhead from tlock encryption? yeah, but idk how to find that...
+
+### A Perpetual VCG Auction for Future Blockspace [FUTURE WORK]
 
 A VCG auction is a truth-incentivizing mechanism that can be leveraged for the fair allocation of resources across a committee. This could enable an elegant solution for efficient allocation of blockspace across participants, ensuring that timelocked transactions are guaranteed execution under proper economic conditions. However, there are some problems:
 - this is really inefficient

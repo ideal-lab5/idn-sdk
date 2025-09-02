@@ -52,9 +52,10 @@ mod benchmarks {
 		}
 	}
 
+	/// benchmark the try_submit_asig function
 	#[benchmark]
 	fn try_submit_asig(
-		r: Linear<1, { T::MaxSigsPerBlock::get().into() }>,
+		r: Linear<1, { T::MaxSigsPerBlock::get().into() }>
 	) -> Result<(), BenchmarkError> {
 		let drand = MockDrand::new();
 		// get the beacon pubkey
@@ -65,12 +66,14 @@ mod benchmarks {
 		let mut asig = G1Affine::zero();
 		let mut amsg = G1Affine::zero();
 
-		// TEMP
+		// TODO: https://github.com/ideal-lab5/idn-sdk/issues/343
 		let runtime_calls: BTreeMap<
 			RoundNumber,
 			Vec<(TaskName, <T::Tlock as TlockConfig>::RuntimeCall)>,
 		> = BTreeMap::new();
-
+		// compute the aggregated sig and message
+		// we use the asig to pass to the runtime
+		// and the amsg for verification
 		(0..r + 1).for_each(|i| {
 			let msg = compute_round_on_g1(i.into()).unwrap();
 			amsg = (amsg + msg).into();
@@ -79,9 +82,9 @@ mod benchmarks {
 			asig = (asig + sig).into();
 		});
 
+		// serialization
 		let mut asig_bytes = Vec::new();
 		asig.serialize_compressed(&mut asig_bytes).unwrap();
-
 		let mut amsg_bytes = Vec::new();
 		amsg.serialize_compressed(&mut amsg_bytes).unwrap();
 

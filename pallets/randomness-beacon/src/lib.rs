@@ -416,7 +416,7 @@ pub mod pallet {
 			// dispatch pulses to subscribers
 			let runtime_pulse = T::Pulse::from(sacc);
 			T::Dispatcher::dispatch(runtime_pulse);
-			// dispatch timelock transactions
+			// dispatch timelocked transactions
 			for (k, v) in raw_call_data {
 				T::TlockTxProvider::service_agenda(
 					&mut frame_support::weights::WeightMeter::new(),
