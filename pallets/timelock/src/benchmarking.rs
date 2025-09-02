@@ -17,8 +17,9 @@
 
 //! Timelock pallet benchmarking.
 use super::*;
-use crate::pallet::Pallet as Timelock;
 use frame_benchmarking::v2::*;
+use crate::pallet::Pallet as Timelock;
+
 use frame_support::{
 	ensure,
 	traits::{
@@ -43,15 +44,12 @@ use timelock::ibe::fullident::Identity;
 
 use sp_idn_crypto::drand;
 
-use frame_system::Call as SystemCall;
-
+use frame_system::{Call as SystemCall, RawOrigin};
 const SEED: u32 = 0;
 
 const BLOCK_NUMBER: u32 = 2;
 
 const MAX_DECS_PER_BLOCK: u16 = 100;
-
-// type SystemOrigin<T> = <T as frame_system::Config>::RuntimeOrigin;
 
 /// Add `n` items to the schedule.
 ///
@@ -123,11 +121,11 @@ fn fill_schedule<T: Config>(
 	n: u32,
 	sk: Fp<MontBackend<FrConfig, 4>, 4>,
 ) -> Result<(), &'static str> {
-	let origin: <T as frame_system::Config>::RuntimeOrigin = make_origin::<T>();
+	// let origin: <T as frame_system::Config>::RuntimeOrigin = RawOrigin::Root.into();
 	for _ in 0..n {
 		let call = make_large_call::<T>();
 		let ct = make_ciphertext::<T>(call, when, sk);
-		Timelock::<T>::schedule_sealed(origin.clone(), when, ct.1).unwrap();
+		Timelock::<T>::schedule_sealed(RawOrigin::Root.into(), when, ct.1).unwrap();
 	}
 
 	ensure!(Agenda::<T>::get(when).len() == n as usize, "didn't fill schedule");
@@ -212,7 +210,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn schedule_sealed() {
-		let origin = make_origin::<T>();
+		// let origin: <T as frame_system::Config>::RuntimeOrigin = RawOrigin::Root.into();
 		let when = u64::MAX;
 		let sk = Fr::one();
 
@@ -223,7 +221,7 @@ mod benchmarks {
 		let mut remaining_decrypts = MAX_DECS_PER_BLOCK;
 
 		#[extrinsic_call]
-		_(origin, when,  ct);
+		_(RawOrigin::Root, when,  ct);
 
 		let call_data =
 			Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
