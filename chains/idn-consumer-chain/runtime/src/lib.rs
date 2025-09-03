@@ -165,9 +165,7 @@ pub struct PulseConsumerImpl;
 impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
 	fn consume_pulse(pulse: Pulse, sub_id: SubscriptionId) -> Result<(), ()> {
 		let pk = hex::decode(BEACON_PUBKEY).unwrap();
-		if pulse
-			.authenticate(pk.try_into().expect("The public key is well-defined; qed."))
-		{
+		if pulse.authenticate(pk.try_into().expect("The public key is well-defined; qed.")) {
 			// Randomness consumption logic goes here.
 			log::info!("IDN Consumer: Verified pulse: {:?} with sub id: {:?}", pulse, sub_id);
 		} else {
