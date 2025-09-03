@@ -45,6 +45,7 @@ use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::ConstU16;
+#[cfg(feature = "tlock")]
 use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
 use xcm::prelude::BodyId;
@@ -339,15 +340,19 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;
 	type FallbackRandomness = RandomnessCollectiveFlip;
+	#[cfg(feature = "tlock")]
 	type Tlock = Runtime;
+	#[cfg(feature = "tlock")]
 	type TlockTxProvider = pallet_timelock_transactions::Pallet<Runtime>;
 }
 
+#[cfg(feature = "tlock")]
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
 		RuntimeBlockWeights::get().max_block;
 }
 
+#[cfg(feature = "tlock")]
 impl pallet_timelock_transactions::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeOrigin = RuntimeOrigin;
@@ -363,16 +368,19 @@ impl pallet_timelock_transactions::Config for Runtime {
 	type Preimages = crate::Preimage;
 }
 
+#[cfg(feature = "tlock")]
 parameter_types! {
 	pub const PreimageHoldReason: RuntimeHoldReason =
 		RuntimeHoldReason::Preimage(pallet_preimage::HoldReason::Preimage);
 }
 
+#[cfg(feature = "tlock")]
 parameter_types! {
 	pub const DepositPerItem: Balance = deposit(1, 0) as Balance;
 	pub const DepositPerByte: Balance = deposit(0, 1) as Balance;
 }
 
+#[cfg(feature = "tlock")]
 impl pallet_preimage::Config for Runtime {
 	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Runtime>;
 	type RuntimeEvent = RuntimeEvent;
@@ -385,4 +393,5 @@ impl pallet_preimage::Config for Runtime {
 		frame_support::traits::LinearStoragePrice<DepositPerItem, DepositPerByte, Balance>,
 	>;
 }
+
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

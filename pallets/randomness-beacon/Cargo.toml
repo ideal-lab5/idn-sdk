@@ -34,11 +34,10 @@ ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 ark-ec.workspace = true
 ark-std.workspace = true
-timelock.workspace = true
 
 # IDN dependencies
 bp-idn.workspace = true
-pallet-timelock-transactions.workspace = true
+pallet-timelock-transactions = { workspace = true, optional = true }
 sp-idn-crypto.workspace = true
 sp-idn-traits.workspace = true
 sp-consensus-randomness-beacon.workspace = true
@@ -76,8 +75,7 @@ std = [
 	"sp-idn-traits/std",
 	"sp-std/std",
 	"pallet-balances/std",
-	"pallet-timelock-transactions/std",
-	"timelock/std",
+	"pallet-timelock-transactions/std"
 ]
 runtime-benchmarks = [
 	"bp-idn/runtime-benchmarks",
@@ -91,4 +89,7 @@ try-runtime = [
 	"frame-support/try-runtime",
 	"frame-system/try-runtime",
 	"sp-runtime/try-runtime",
+]
+experimental = [
+	"pallet-timelock-transactions",
 ]
