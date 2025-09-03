@@ -31,15 +31,13 @@ use ark_std::{
 };
 use frame_support::{
 	ensure,
-	traits::{BoundedInline, ConstU32},
+	traits::{schedule::Priority, BoundedInline, ConstU32},
 };
 use frame_system::Call as SystemCall;
 use sp_idn_crypto::drand;
 use sp_runtime::BoundedVec;
 use sp_std::{prelude::*, vec};
 use timelock::ibe::fullident::Identity;
-
-const MAX_DECS_PER_BLOCK: u16 = 100;
 
 fn make_ciphertext<T: Config>(
 	call: <T as Config>::RuntimeCall,
@@ -91,7 +89,7 @@ fn fill_schedule<T: Config>(
 	let caller: T::AccountId = whitelisted_caller();
 	let origin = frame_system::RawOrigin::Signed(caller.clone());
 	for _ in 0..n {
-		let call = make_large_call::<T>();
+		let call: <T as Config>::RuntimeCall= make_large_call::<T>();
 		let ct = make_ciphertext::<T>(call, when, sk);
 		Timelock::<T>::schedule_sealed(origin.clone().into(), when, ct.1).unwrap();
 	}
@@ -104,6 +102,75 @@ fn make_large_call<T: Config>() -> <T as Config>::RuntimeCall {
 	let bound = BoundedInline::bound() as u32;
 	let len = bound - 3;
 	<<T as Config>::RuntimeCall>::from(SystemCall::remark { remark: vec![u8::MAX; len as usize] })
+
+}
+
+fn u32_to_name(i: u32) -> TaskName {
+	i.using_encoded(blake2_256)
+}
+
+fn make_task<T: Config>(
+	id: u32,
+	maybe_lookup_len: Option<u32>,
+	priority: Priority,
+	origin: <T as Config>::PalletsOrigin, 
+) -> ScheduledOf<T> {
+	let call = make_bounded_call::<T>(maybe_lookup_len);
+	let id: [u8; 32] = u32_to_name(id);
+	Scheduled { id: id, priority: priority, maybe_call: Some(call), maybe_ciphertext: None, origin: origin, _phantom: PhantomData }
+}
+
+fn bounded<T: Config>(len: u32) -> Option<BoundedCallOf<T>> {
+	let call =
+		<<T as Config>::RuntimeCall>::from(SystemCall::remark { remark: vec![0; len as usize] });
+	T::Preimages::bound(call).ok()
+}
+
+fn make_bounded_call<T: Config>(maybe_lookup_len: Option<u32>) -> BoundedCallOf<T> {
+	let bound = BoundedInline::bound() as u32;
+	let mut len = match maybe_lookup_len {
+		Some(len) => len.min(T::Preimages::MAX_LENGTH as u32 - 2).max(bound) - 3,
+		None => bound.saturating_sub(4),
+	};
+
+	loop {
+		let c = match bounded::<T>(len) {
+			Some(x) => x,
+			None => {
+				len -= 1;
+				continue
+			},
+		};
+		if c.lookup_needed() == maybe_lookup_len.is_some() {
+			break c
+		}
+		if maybe_lookup_len.is_some() {
+			len += 1;
+		} else {
+			if len > 0 {
+				len -= 1;
+			} else {
+				break c
+			}
+		}
+	}
+}
+
+fn fill_agenda<T: Config>(when: u64, n: u32, origin: <T as Config>::PalletsOrigin) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
+
+	let mut call_data_vec: Vec<([u8; 32], <T as pallet::Config>::RuntimeCall)> = Vec::new();
+	let dummy_call = <<T as Config>::RuntimeCall>::from(SystemCall::remark { remark: vec![0; 1] });
+
+	for i in 0..n {
+		let what= make_task::<T>(i, None, 0, origin.clone());
+		let task_name = u32_to_name(i);
+		call_data_vec.push((task_name, dummy_call.clone()));
+		// call_data_vec.append((task_name, call));
+		Timelock::<T>::place_task(when, what).unwrap();
+	}
+
+	BoundedVec::try_from(call_data_vec).unwrap()
+
 }
 
 #[benchmarks]
@@ -111,83 +178,103 @@ mod benchmarks {
 
 	use super::*;
 
+	// schedule_sealed with heavy calls being added to agenda
 	#[benchmark]
-	fn schedule_sealed() {
+	fn schedule_sealed(
+		s: Linear<0, { T::MaxScheduledPerBlock::get() - 1 }>,
+		) {
 		// let origin: <T as frame_system::Config>::RuntimeOrigin = RawOrigin::Root.into();
 		let caller: T::AccountId = whitelisted_caller();
 		let origin = frame_system::RawOrigin::Signed(caller.clone());
 		let when = u64::MAX;
 		let sk = Fr::one();
 
-		let call = make_large_call::<T>();
+		// Essentially a no-op call.
+		let call:<T as Config>::RuntimeCall = SystemCall::set_storage{items: vec![]}.into();
 
-		let (id, ct) = make_ciphertext::<T>(call.clone(), when, sk);
-		let sig = id.extract::<TinyBLS381>(sk).0;
-		let mut remaining_decrypts = MAX_DECS_PER_BLOCK;
+		fill_schedule::<T>(when, s, sk).unwrap();
+
+		let (_, ct) = make_ciphertext::<T>(call.clone(), when, sk);
 
 		#[extrinsic_call]
 		_(origin.clone(), when, ct);
 
-		let call_data =
-			Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
-
-		let decrypted_call = call_data.get(0).unwrap().1.clone();
-		assert_eq!(decrypted_call, call);
 	}
 
-	#[benchmark]
-	fn decrypt_and_decode(
-		s: Linear<0, { T::MaxScheduledPerBlock::get() }>,
-		t: Linear<0, { MAX_DECS_PER_BLOCK as u32 }>,
-	) {
-		let when = u64::MAX;
-		let sk = Fr::one();
-		fill_schedule::<T>(when, s, sk).unwrap();
-
-		let identity = get_ibe(when, sk).0;
-		let sig = identity.extract::<TinyBLS381>(sk).0;
-		let mut bounded_vec = BoundedVec::new();
-		let mut remaining_decrypts = t as u16;
-
-		#[block]
-		{
-			bounded_vec =
-				Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);
-		}
-
-		// There is a possibility that we can have more calls in a schedule than can be executed in
-		// a block Therefore we will decrypt and decode min(s,t) number of calls.
-		if s <= t {
-			assert_eq!(bounded_vec.len(), s as usize);
-		} else {
-			assert_eq!(bounded_vec.len(), t as usize);
-		}
-	}
-
-	// service_agenda under heavy load
+	// service_agenda with increasing agenda size
 	#[benchmark]
 	fn service_agenda(s: Linear<0, { T::MaxScheduledPerBlock::get() }>) {
 		let when = u64::MAX;
 
-		let mut weight_meter = WeightMeter::new();
+		let caller: T::AccountId = whitelisted_caller();
+		let origin = frame_system::RawOrigin::Signed(caller.clone());
 
-		let sk = Fr::one();
-
-		fill_schedule::<T>(when, s, sk).unwrap();
-
-		let identity = get_ibe(when, sk).0;
-		let signature = identity.extract::<TinyBLS381>(sk).0;
-		let mut remaining_decrypts = MAX_DECS_PER_BLOCK;
-
-		let call_data =
-			Timelock::<T>::decrypt_and_decode(when, signature.into(), &mut remaining_decrypts);
+		let call_data = fill_agenda::<T>(when, s, origin.into());
 
 		#[block]
 		{
-			Timelock::<T>::service_agenda(&mut weight_meter, when, call_data);
+			Timelock::<T>::service_agenda(when, call_data);
 		}
 
 		assert_eq!(Agenda::<T>::get(when).len() as u32, 0);
+	}
+
+	// `service_task` when the task is a non-fetched call and not
+	// dispatched (e.g. due to being overweight).
+	#[benchmark]
+	fn service_task_base() {
+
+		let when = 1;
+		let caller: T::AccountId = whitelisted_caller();
+		// let phantom = PhantomData::
+		let origin = frame_system::RawOrigin::Signed(caller.clone());
+		let task = make_task::<T>(0, None, 0, origin.into());
+		let mut weight = WeightMeter::with_limit(Weight::zero());
+		let agenda_index = 0;
+		let _result;
+		#[block]
+		{
+			_result = Timelock::<T>::service_task(&mut weight, when, agenda_index, task);
+		}
+	}
+
+	// `service_task` when the task is a fetched call (with a known
+	// preimage length) and is not dispatched (e.g. due to being overweight).
+	#[benchmark(pov_mode = MaxEncodedLen {
+		// Use measured PoV size for the Preimages since we pass in a length witness.
+		Preimage::PreimageFor: Measured
+	})]
+	fn service_task_fetched(s: Linear<{ BoundedInline::bound() as u32 }, { T::Preimages::MAX_LENGTH as u32 }>) {
+
+		let when = 1;
+		let caller: T::AccountId = whitelisted_caller();
+		let origin = frame_system::RawOrigin::Signed(caller.clone());
+		let task = make_task::<T>(0, Some(s), 0, origin.into());
+		let agenda_index = 0;
+		let mut weight = WeightMeter::with_limit(Weight::zero());
+
+		let _result;
+
+		#[block]
+		{
+			_result = Timelock::<T>::service_task(&mut weight, when, agenda_index, task);
+		}
+	}
+
+	#[benchmark]
+	fn execute_dispatch_signed() -> Result<(), BenchmarkError> {
+		let mut counter = WeightMeter::new();
+		let caller: T::AccountId = whitelisted_caller();
+		let origin = frame_system::RawOrigin::Signed(caller.clone());
+		let call = T::Preimages::realize(&make_bounded_call::<T>(None))?.0;
+		let result;
+		#[block]
+		{
+			result = Timelock::<T>::execute_dispatch(&mut counter, origin.into(), call);
+		}
+		assert!(result.is_ok());
+
+		Ok(())
 	}
 
 	impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);

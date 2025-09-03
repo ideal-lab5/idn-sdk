@@ -414,10 +414,10 @@ impl<T: Config> Pallet<T> {
 	/// the block overweight or for which we couldn't actually decrypt for any reason (bad
 	/// ciphertext, oversubscribed)
 	pub fn service_agenda(
-		weight: &mut WeightMeter,
 		when: RoundNumber,
 		call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock>,
 	) {
+		let mut meter = WeightMeter::with_limit(<T as Config>::MaximumWeight::get());
 		let mut agenda = Agenda::<T>::get(when);
 		let mut ordered: Vec<(u32, _)> = agenda
 			.iter_mut()
@@ -434,8 +434,6 @@ impl<T: Config> Pallet<T> {
 			.collect();
 		ordered.sort_by_key(|k| k.1);
 
-		let mut meter = WeightMeter::with_limit(T::MaximumWeight::get());
-
 		for (agenda_index, _) in ordered.into_iter() {
 			let task = agenda[agenda_index as usize].clone();
 			// If call data was found, then proceed as normal, otherwise do nothing and continue
@@ -443,7 +441,7 @@ impl<T: Config> Pallet<T> {
 			if let Some(ref maybe_call) = task.maybe_call {
 				let base_weight =
 					T::WeightInfo::service_task(maybe_call.lookup_len().map(|x| x as usize));
-				if !weight.can_consume(base_weight) {
+				if !meter.can_consume(base_weight) {
 					// TODO: how to report?
 					break;
 				}
@@ -551,7 +549,6 @@ pub trait TlockTxProvider<RuntimeCall, MaxScheduledPerBlock> {
 	) -> BoundedVec<(TaskName, RuntimeCall), MaxScheduledPerBlock>;
 
 	fn service_agenda(
-		weight: &mut WeightMeter,
 		when: RoundNumber,
 		call_data: BoundedVec<(TaskName, RuntimeCall), MaxScheduledPerBlock>,
 	);
@@ -569,13 +566,12 @@ impl<T: Config> TlockTxProvider<<T as pallet::Config>::RuntimeCall, T::MaxSchedu
 	}
 
 	fn service_agenda(
-		weight: &mut WeightMeter,
 		when: RoundNumber,
 		call_data: BoundedVec<
 			(TaskName, <T as pallet::Config>::RuntimeCall),
 			T::MaxScheduledPerBlock,
 		>,
 	) {
-		Self::service_agenda(weight, when, call_data)
+		Self::service_agenda(when, call_data)
 	}
 }

@@ -96,7 +96,7 @@ fn shielded_transactions_are_properly_scheduled() {
 		let runtime_call = result.first().unwrap().1.clone();
 		assert_eq!(runtime_call, call);
 
-		Scheduler::service_agenda(&mut WeightMeter::new(), drand_round_num, result);
+		Scheduler::service_agenda(drand_round_num, result);
 
 		assert_eq!(logger::log(), vec![(root(), 1u32)]);
 
@@ -118,7 +118,7 @@ fn shielded_transactions_are_properly_scheduled() {
 		let runtime_call_2 = result_2.first().unwrap().1.clone();
 		assert_eq!(runtime_call_2, call_2);
 
-		Scheduler::service_agenda(&mut WeightMeter::new(), drand_round_num_2, result_2);
+		Scheduler::service_agenda(drand_round_num_2, result_2);
 		assert_eq!(logger::log(), vec![(root(), 1u32), (root(), 2u32)]);
 	})
 }
@@ -161,7 +161,6 @@ fn schedule_simple_executes_fifo() {
 
 		assert_eq!(calls.len(), 2);
 		Scheduler::service_agenda(
-			&mut frame_support::weights::WeightMeter::new(),
 			drand_round_num,
 			calls,
 		);
@@ -217,7 +216,6 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 		assert_eq!(calls.len(), 3);
 
 		Scheduler::service_agenda(
-			&mut frame_support::weights::WeightMeter::new(),
 			drand_round_num,
 			calls,
 		);
@@ -274,7 +272,7 @@ fn agenda_is_cleared_even_if_all_decrypts_fail() {
 
 		assert_eq!(call_data.len(), 0);
 		// Call service agenda with empty call data
-		Scheduler::service_agenda(&mut WeightMeter::new(), drand_bad_round, call_data);
+		Scheduler::service_agenda(drand_bad_round, call_data);
 
 		// Verify that the agenda was cleared
 		assert_eq!(Agenda::<Test>::get(drand_bad_round).len(), 0);
@@ -342,7 +340,7 @@ fn agenda_executes_valid_calls_and_drops_others() {
 
 		assert_eq!(call_data.len(), 1);
 		// Call service agenda with empty call data
-		Scheduler::service_agenda(&mut WeightMeter::new(), drand_targeted_round, call_data);
+		Scheduler::service_agenda(drand_targeted_round, call_data);
 
 		// Verify that the agenda was cleared
 		assert_eq!(Agenda::<Test>::get(drand_targeted_round).len(), 0);

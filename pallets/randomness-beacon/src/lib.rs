@@ -438,7 +438,6 @@ pub mod pallet {
 			#[cfg(feature = "experimental")]
 			for (k, v) in raw_call_data {
 				T::TlockTxProvider::service_agenda(
-					&mut frame_support::weights::WeightMeter::new(),
 					k,
 					BoundedVec::truncate_from(v),
 				);
