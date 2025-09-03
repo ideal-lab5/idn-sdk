@@ -129,6 +129,12 @@ pub enum Error {
 	ConsumeQuoteError,
 	/// Error consuming subscription info
 	ConsumeSubInfoError,
+	/// Caller is not authorized
+	Unauthorized,
+	/// Invalid subscription ID
+	InvalidSubscriptionId,
+	/// Other error
+	Other,
 }
 
 impl From<EnvError> for Error {
@@ -159,7 +165,7 @@ pub trait IdnConsumer {
 	/// # Errors
 	/// - [`Error::ConsumePulseError`]: If the pulse cannot be consumed.
 	#[ink(message)]
-	fn consume_pulse(&self, pulse: Pulse, sub_id: SubscriptionId) -> Result<()>;
+	fn consume_pulse(&mut self, pulse: Pulse, sub_id: SubscriptionId) -> Result<()>;
 
 	/// Consumes a subscription quote from the IDN chain.
 	///
@@ -172,7 +178,7 @@ pub trait IdnConsumer {
 	/// # Errors
 	/// - [`Error::ConsumeQuoteError`]: If the quote cannot be consumed.
 	#[ink(message)]
-	fn consume_quote(&self, quote: Quote) -> Result<()>;
+	fn consume_quote(&mut self, quote: Quote) -> Result<()>;
 
 	/// Consumes subscription info from the IDN chain.
 	///
@@ -185,7 +191,7 @@ pub trait IdnConsumer {
 	/// # Errors
 	/// - [`Error::ConsumeSubInfoError`]: If the subscription info cannot be consumed.
 	#[ink(message)]
-	fn consume_sub_info(&self, sub_info: SubInfoResponse) -> Result<()>;
+	fn consume_sub_info(&mut self, sub_info: SubInfoResponse) -> Result<()>;
 }
 
 /// Implementation of the IDN Client
@@ -384,8 +390,8 @@ impl IdnClient {
 
 	/// Requests a subscription fee quote from the IDN network.
 	///
-	/// This method will send an XCM message to request current subscription pricing
-	/// information. The quote response will be delivered via the [`IdnConsumer::consume_quote`]
+	/// This method sends an XCM message to request current subscription pricing
+	/// information. The quote response is delivered via the [`IdnConsumer::consume_quote`]
 	/// callback method.
 	///
 	/// # Returns
@@ -400,9 +406,9 @@ impl IdnClient {
 
 	/// Requests information about a subscription from the IDN network.
 	///
-	/// This method will send an XCM message to request detailed information about
+	/// This method sends an XCM message to request detailed information about
 	/// a subscription's current state, remaining credits, and other parameters.
-	/// The response will be delivered via the [`IdnConsumer::consume_sub_info`] callback method.
+	/// The response is delivered via the [`IdnConsumer::consume_sub_info`] callback method.
 	///
 	/// # Returns
 	/// Currently returns [`Error::MethodNotImplemented`] as this feature is not yet implemented.

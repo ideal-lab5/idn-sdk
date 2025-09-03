@@ -21,10 +21,10 @@
 mod example_consumer {
 	use frame_support::BoundedVec;
 	use idn_client_contract_lib::{
-		types::{CallIndex, CreateSubParams, Pulse, SubscriptionId, UpdateSubParams},
-		Error, IdnClient, IdnClientImpl, IdnConsumer, Result,
+		types::{PalletIndex, ParaId, Pulse, Quote, SubInfoResponse, SubscriptionId},
+		Error, IdnClient, IdnConsumer,
 	};
-	use ink::{prelude::vec::Vec, selector_id};
+	use ink::prelude::vec::Vec;
 	use sha2::{Digest, Sha256};
 	use sp_idn_traits::pulse::Pulse as TPulse;
 
@@ -32,22 +32,18 @@ mod example_consumer {
 	/// to interact with the IDN Network for randomness subscriptions.
 	#[ink(storage)]
 	pub struct ExampleConsumer {
+		/// Owner of the contract
+		owner: AccountId,
+		/// IDN account Id
+		idn_account_id: AccountId,
 		/// Last received randomness
 		last_randomness: Option<[u8; 32]>,
 		/// Active subscription ID
 		subscription_id: Option<SubscriptionId>,
-		/// Destination parachain ID (where this contract is deployed)
-		destination_para_id: u32,
-		/// Contracts pallet index on the destination chain
-		contracts_pallet_index: u8,
-		/// Call index for the randomness callback
-		randomness_call_index: CallIndex,
 		/// History of randomness values
 		randomness_history: Vec<[u8; 32]>,
-		/// History of pulses
-		pulse_history: Vec<Pulse>,
 		/// IDN client implementation
-		idn_client: IdnClientImpl,
+		idn_client: IdnClient,
 	}
 
 	/// Errors that can occur in the Example Consumer contract
@@ -60,17 +56,27 @@ mod example_consumer {
 		NoActiveSubscription,
 		/// Caller is not authorized
 		Unauthorized,
-		/// Subscription system at capacity
-		SystemAtCapacity,
+		/// Subscription already exists
+		SubscriptionAlreadyExists,
+		/// Invalid subscription ID
+		InvalidSubscriptionId,
 		/// Other error
 		Other,
 	}
 
 	impl From<Error> for ContractError {
 		fn from(error: Error) -> Self {
+			ContractError::IdnClientError(error)
+		}
+	}
+
+	impl From<ContractError> for Error {
+		fn from(error: ContractError) -> Self {
 			match error {
-				Error::TooManySubscriptions => ContractError::SystemAtCapacity,
-				_ => ContractError::IdnClientError(error),
+				ContractError::IdnClientError(e) => e,
+				ContractError::Unauthorized => Error::Unauthorized,
+				ContractError::InvalidSubscriptionId => Error::InvalidSubscriptionId,
+				_ => Error::Other,
 			}
 		}
 	}
@@ -80,33 +86,36 @@ mod example_consumer {
 		///
 		/// # Arguments
 		///
-		/// * `ideal_network_para_id` - The parachain ID of the Ideal Network
+		/// * `idn_account_id` - The IDN account ID, this will help us know calls come from
+		///   authorized IDN
+		/// * `idn_para_id` - The parachain ID of the Ideal Network
 		/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet on the IDN
 		///   Network
-		/// * `destination_para_id` - The parachain ID where this contract is deployed
-		/// * `contracts_pallet_index` - The contracts pallet index on the destination chain
+		/// * `self_para_id` - The parachain ID where this contract is deployed
+		/// * `self_contracts_pallet_index` - The contracts pallet index on the destination chain
+		/// * `max_idn_xcm_fees` - The maximum XCM fees for IDN operations
 		#[ink(constructor)]
 		pub fn new(
-			ideal_network_para_id: u32,
-			idn_manager_pallet_index: u8,
-			destination_para_id: u32,
-			contracts_pallet_index: u8,
+			idn_account_id: AccountId,
+			idn_para_id: ParaId,
+			idn_manager_pallet_index: PalletIndex,
+			self_para_id: ParaId,
+			self_contracts_pallet_index: PalletIndex,
+			max_idn_xcm_fees: u128,
 		) -> Self {
-			let consume_pulse_id = (selector_id!("consume_pulse") >> 24) as u8;
-			// The call index for delivering randomness to this contract
-			// First byte: The pallet index of the contracts pallet on the destination chain (e.g.,
-			// 50) Second byte: The first byte of the consume_pulse selector id
-			let randomness_call_index: CallIndex = [contracts_pallet_index, consume_pulse_id]; // Contracts pallet index may vary by chain
-
 			Self {
+				owner: Self::env().caller(),
+				idn_account_id,
 				last_randomness: None,
 				subscription_id: None,
-				destination_para_id,
-				contracts_pallet_index,
-				randomness_call_index,
 				randomness_history: Vec::new(),
-				pulse_history: Vec::new(),
-				idn_client: IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id),
+				idn_client: IdnClient::new(
+					idn_manager_pallet_index,
+					idn_para_id,
+					self_contracts_pallet_index,
+					self_para_id,
+					max_idn_xcm_fees,
+				),
 			}
 		}
 
@@ -129,42 +138,32 @@ mod example_consumer {
 			credits: u64,
 			frequency: u32,
 			metadata: Option<Vec<u8>>,
-		) -> core::result::Result<(), ContractError> {
+		) -> Result<SubscriptionId, ContractError> {
+			// Ensure caller is authorized
+			self.ensure_authorized()?;
+
 			// Only allow creating a subscription if we don't already have one
 			if self.subscription_id.is_some() {
-				return Err(ContractError::Other);
+				return Err(ContractError::SubscriptionAlreadyExists);
 			}
 
-			// Create subscription parameters
-			let mut params = CreateSubParams {
-				credits,
-				target: IdnClientImpl::create_contracts_target_location(
-					self.destination_para_id,
-					self.contracts_pallet_index,
-					self.env().account_id().as_ref(),
-				),
-				call_index: self.randomness_call_index,
-				frequency,
-				metadata: if let Some(metadata) = metadata {
-					let metadata =
-						BoundedVec::try_from(metadata).map_err(|_| ContractError::Other)?;
-					Some(metadata)
-				} else {
-					None
-				},
-				sub_id: None, // Let the IDN client generate an ID
+			let metadata = if let Some(m) = metadata {
+				let m = BoundedVec::try_from(m).map_err(|_| ContractError::Other)?;
+				Some(m)
+			} else {
+				None
 			};
 
 			// Create subscription through IDN client
 			let subscription_id = self
 				.idn_client
-				.create_subscription(&mut params)
+				.create_subscription(credits, frequency, metadata, None)
 				.map_err(ContractError::IdnClientError)?;
 
 			// Update contract state with the new subscription
 			self.subscription_id = Some(subscription_id);
 
-			Ok(())
+			Ok(subscription_id)
 		}
 
 		/// Pauses the active randomness subscription
@@ -175,20 +174,15 @@ mod example_consumer {
 		///
 		/// * `Result<(), ContractError>` - Success or error
 		#[ink(message, payable)]
-		pub fn pause_subscription(&mut self) -> core::result::Result<(), ContractError> {
+		pub fn pause_subscription(&mut self) -> Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
 
 			// Get the active subscription ID
-			let subscription_id =
-				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
+			let subscription_id = self.ensure_active_sub()?;
 
 			// Pause subscription through IDN client
-			self.idn_client
-				.pause_subscription(subscription_id)
-				.map_err(ContractError::IdnClientError)?;
-
-			Ok(())
+			self.idn_client.pause_subscription(subscription_id).map_err(|e| e.into())
 		}
 
 		/// Reactivates a paused subscription
@@ -199,20 +193,15 @@ mod example_consumer {
 		///
 		/// * `Result<(), ContractError>` - Success or error
 		#[ink(message, payable)]
-		pub fn reactivate_subscription(&mut self) -> core::result::Result<(), ContractError> {
+		pub fn reactivate_subscription(&mut self) -> Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
 
 			// Get the active subscription ID
-			let subscription_id =
-				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
+			let subscription_id = self.ensure_active_sub()?;
 
 			// Reactivate subscription through IDN client
-			self.idn_client
-				.reactivate_subscription(subscription_id)
-				.map_err(ContractError::IdnClientError)?;
-
-			Ok(())
+			self.idn_client.reactivate_subscription(subscription_id).map_err(|e| e.into())
 		}
 
 		/// Updates the active subscription
@@ -232,28 +221,17 @@ mod example_consumer {
 			&mut self,
 			credits: u64,
 			frequency: u32,
-		) -> core::result::Result<(), ContractError> {
+		) -> Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
 
 			// Get the active subscription ID
-			let subscription_id =
-				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
-
-			// Create update parameters
-			let params = UpdateSubParams {
-				sub_id: subscription_id,
-				credits: Some(credits),
-				frequency: Some(frequency),
-				metadata: None,
-			};
+			let subscription_id = self.ensure_active_sub()?;
 
 			// Update subscription through IDN client
 			self.idn_client
-				.update_subscription(params)
-				.map_err(ContractError::IdnClientError)?;
-
-			Ok(())
+				.update_subscription(subscription_id, Some(credits), Some(frequency), None)
+				.map_err(|e| e.into())
 		}
 
 		/// Cancels the active subscription
@@ -264,13 +242,12 @@ mod example_consumer {
 		///
 		/// * `Result<(), ContractError>` - Success or error
 		#[ink(message, payable)]
-		pub fn kill_subscription(&mut self) -> core::result::Result<(), ContractError> {
+		pub fn kill_subscription(&mut self) -> Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
 
 			// Get the active subscription ID
-			let subscription_id =
-				self.subscription_id.ok_or(ContractError::NoActiveSubscription)?;
+			let subscription_id = self.ensure_active_sub()?;
 
 			// Kill subscription through IDN client
 			self.idn_client
@@ -303,71 +280,47 @@ mod example_consumer {
 			self.randomness_history.clone()
 		}
 
-		/// Gets all received pulses
-		#[ink(message)]
-		pub fn get_pulse_history(&self) -> Vec<Pulse> {
-			self.pulse_history.clone()
-		}
-
 		/// Simulates receiving a pulse from the IDN Network
 		#[ink(message)]
-		pub fn simulate_pulse_received(
-			&mut self,
-			pulse: Pulse,
-		) -> core::result::Result<(), ContractError> {
+		pub fn simulate_pulse_received(&mut self, pulse: Pulse) -> Result<(), ContractError> {
+			// Ensure caller is authorized
 			self.ensure_authorized()?;
 
-			let subscription_id = if let Some(id) = self.subscription_id {
-				id
-			} else {
-				return Err(ContractError::NoActiveSubscription);
-			};
+			// Get the active subscription ID
+			let subscription_id = self.ensure_active_sub()?;
 
 			self.consume_pulse(pulse, subscription_id)
 				.map_err(ContractError::IdnClientError)
 		}
 
-		/// Simulates receiving randomness from the IDN Network
-		///
-		/// This is for demonstration purposes only.
-		/// In a real implementation, the IDN Network would call
-		/// the consume_pulse method directly via XCM.
-		///
-		/// # Arguments
-		///
-		/// * `randomness` - The random value to simulate
-		///
-		/// # Returns
-		///
-		/// * `Result<(), ContractError>` - Success or error
-		#[ink(message)]
-		pub fn simulate_randomness_received(
-			&mut self,
-			randomness: [u8; 48],
-		) -> core::result::Result<(), ContractError> {
-			self.ensure_authorized()?;
-
-			// Create a basic pulse from the randomness
-			let pulse = Pulse::new(randomness, 1, 2);
-
-			self.simulate_pulse_received(pulse)
-		}
-
-		fn ensure_authorized(&self) -> core::result::Result<(), ContractError> {
-			// TODO: implement authorization logic
-			Ok(())
-		}
-
 		/// Gets the IDN parachain ID
 		#[ink(message)]
-		pub fn get_ideal_network_para_id(&self) -> u32 {
-			self.idn_client.get_ideal_network_para_id()
+		pub fn get_idn_para_id(&self) -> u32 {
+			self.idn_client.get_idn_para_id()
 		}
 
 		/// Gets the IDN Manager pallet index
 		#[ink(message)]
 		pub fn get_idn_manager_pallet_index(&self) -> u8 {
 			self.idn_client.get_idn_manager_pallet_index()
+		}
+
+		fn ensure_authorized(&self) -> Result<(), ContractError> {
+			if self.owner != Self::env().caller() {
+				return Err(ContractError::Unauthorized);
+			}
+			Ok(())
+		}
+
+		fn ensure_idn_caller(&self) -> Result<(), ContractError> {
+			if self.idn_account_id != Self::env().caller() {
+				return Err(ContractError::Unauthorized);
+			}
+			Ok(())
+		}
+
+		fn ensure_active_sub(&self) -> Result<SubscriptionId, ContractError> {
+			self.subscription_id.ok_or(ContractError::NoActiveSubscription)
 		}
 	}
 
@@ -376,14 +329,18 @@ mod example_consumer {
 		/// Public entry point for receiving randomness via XCM
 		/// This function is called by the IDN Network when delivering randomness
 		#[ink(message)]
-		fn consume_pulse(&mut self, pulse: Pulse, subscription_id: SubscriptionId) -> Result<()> {
+		fn consume_pulse(
+			&mut self,
+			pulse: Pulse,
+			subscription_id: SubscriptionId,
+		) -> Result<(), Error> {
+			// Make sure the caller is the IDN account
+			self.ensure_idn_caller()?;
+
 			// Verify that the subscription ID matches our active subscription
-			if let Some(our_subscription_id) = self.subscription_id {
-				if our_subscription_id != subscription_id {
-					return Err(Error::SubscriptionNotFound);
-				}
-			} else {
-				return Err(Error::SubscriptionNotFound);
+			let stored_sub_id = self.ensure_active_sub()?;
+			if stored_sub_id != subscription_id {
+				return Err(Error::InvalidSubscriptionId);
 			}
 
 			// Compute randomness as Sha256(sig)
@@ -395,8 +352,17 @@ mod example_consumer {
 			self.last_randomness = Some(randomness);
 			self.randomness_history.push(randomness);
 
-			self.pulse_history.push(pulse);
+			Ok(())
+		}
 
+		#[ink(message)]
+		fn consume_quote(&mut self, _quote: Quote) -> Result<(), Error> {
+			// TODO: Implement quote consumption logic
+			Ok(())
+		}
+		#[ink(message)]
+		fn consume_sub_info(&mut self, _sub_info: SubInfoResponse) -> Result<(), Error> {
+			// TODO: Implement subscription info consumption logic
 			Ok(())
 		}
 	}
@@ -429,7 +395,6 @@ mod example_consumer {
 			// Check stored values
 			assert_eq!(contract.get_last_randomness(), Some(expected_rand));
 			assert_eq!(contract.get_randomness_history().len(), 1);
-			assert_eq!(contract.get_pulse_history().len(), 1);
 		}
 
 		#[ink::test]
@@ -441,7 +406,6 @@ mod example_consumer {
 			// Test empty state
 			assert_eq!(contract.get_last_randomness(), None);
 			assert_eq!(contract.get_randomness_history().len(), 0);
-			assert_eq!(contract.get_pulse_history().len(), 0);
 
 			// Add some randomness
 			let test_pulse1 = Pulse::new([1u8; 48], 1, 2);
@@ -511,14 +475,6 @@ mod example_consumer {
 		}
 
 		#[ink::test]
-		fn test_error_mapping() {
-			let err = ContractError::from(Error::TooManySubscriptions);
-			assert_eq!(err, ContractError::SystemAtCapacity);
-			let err2 = ContractError::from(Error::RandomnessGenerationFailed);
-			assert!(matches!(err2, ContractError::IdnClientError(_)));
-		}
-
-		#[ink::test]
 		fn test_update_subscription_edge_cases() {
 			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
 			let result = contract.update_subscription(100, 10);
@@ -537,14 +493,14 @@ mod example_consumer {
 			mut client: Client,
 		) -> E2EResult<()> {
 			// Contract parameters
-			let ideal_network_para_id = 2000;
+			let idn_para_id = 2000;
 			let idn_manager_pallet_index = 10;
 			let destination_para_id = 1000;
 			let contracts_pallet_index = 50;
 
 			// Deploy the contract
 			let mut constructor = ExampleConsumerRef::new(
-				ideal_network_para_id,
+				idn_para_id,
 				idn_manager_pallet_index,
 				destination_para_id,
 				contracts_pallet_index,
@@ -559,11 +515,11 @@ mod example_consumer {
 
 			// Use call_builder to create message (ink! v5.1.1 syntax)
 			let call_builder = contract.call_builder::<ExampleConsumer>();
-			let get_para_id = call_builder.get_ideal_network_para_id();
+			let get_para_id = call_builder.get_idn_para_id();
 
 			let result = client.call(&ink_e2e::alice(), &get_para_id).dry_run().await?;
 
-			assert_eq!(result.return_value(), ideal_network_para_id);
+			assert_eq!(result.return_value(), idn_para_id);
 
 			Ok(())
 		}
