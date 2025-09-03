@@ -104,7 +104,7 @@ pub trait IdnClient {
 	/// * `Error::TooManySubscriptions` - If the IDN network has reached its maximum subscription
 	///   capacity
 	/// * `Error::XcmSendFailed` - If there was a problem sending the XCM message
-	fn create_subscription(&mut self, _params: CreateSubParams) -> Result<SubscriptionId> {
+	fn create_subscription(&mut self, _params: &mut CreateSubParams) -> Result<SubscriptionId> {
 		Err(Error::MethodNotImplemented)
 	}
 
@@ -306,13 +306,14 @@ impl IdnClientImpl {
 
 /// Implementation of the IdnClient trait for IdnClientImpl
 impl IdnClient for IdnClientImpl {
-	fn create_subscription(&mut self, mut params: CreateSubParams) -> Result<SubscriptionId> {
+	fn create_subscription(&mut self, params: &mut CreateSubParams) -> Result<SubscriptionId> {
+		let mut sub_id = params.sub_id;
 		// Generate a subscription ID if not provided
-		if params.sub_id.is_none() {
+		if sub_id.is_none() {
 			// Generate a subscription ID based on the current timestamp
 			let salt = ink::env::block_timestamp::<ink::env::DefaultEnvironment>().encode();
-			let sub_id = params.hash(&salt).into();
-			params.sub_id = Some(sub_id);
+			sub_id = Some(params.hash(&salt).into());
+			params.sub_id = sub_id;
 		}
 
 		// Create the XCM message
@@ -333,7 +334,7 @@ impl IdnClient for IdnClientImpl {
 		)?;
 
 		// Return the subscription ID (should always be Some at this point)
-		params.sub_id.ok_or(Error::SubscriptionIdInvalid)
+		sub_id.ok_or(Error::SubscriptionIdInvalid)
 	}
 
 	fn pause_subscription(&mut self, sub_id: SubscriptionId) -> Result<()> {

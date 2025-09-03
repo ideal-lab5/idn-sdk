@@ -136,7 +136,7 @@ mod example_consumer {
 			}
 
 			// Create subscription parameters
-			let params = CreateSubParams {
+			let mut params = CreateSubParams {
 				credits,
 				target: IdnClientImpl::create_contracts_target_location(
 					self.destination_para_id,
@@ -158,7 +158,7 @@ mod example_consumer {
 			// Create subscription through IDN client
 			let subscription_id = self
 				.idn_client
-				.create_subscription(params)
+				.create_subscription(&mut params)
 				.map_err(ContractError::IdnClientError)?;
 
 			// Update contract state with the new subscription
