@@ -124,7 +124,7 @@ impl IdnConsumer for MyContract {
 ### Creating a Subscription
 
 ```rust
-#[ink(message, payable)]
+#[ink(message)]
 pub fn create_randomness_subscription(&mut self) -> Result<()> {
     let sub_id = self.idn_client.create_subscription(
         100,        // Credits
@@ -133,20 +133,7 @@ pub fn create_randomness_subscription(&mut self) -> Result<()> {
         None,       // Auto-generate subscription ID
     )?;
 
-<<<<<<< HEAD
-    // Create subscription through IDN client
-    let subscription_id = self.idn_client.create_subscription(params)?;
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-
->>>>>>> cbeefe6 (refactor example contract)
-=======
->>>>>>> b267b1e (remove hardcoded runtime calls)
-    self.subscription_id = Some(subscription_id);
-=======
     self.subscription_id = Some(sub_id);
->>>>>>> f42b961 (update traits and xcm)
     Ok(())
 }
 ```
@@ -155,7 +142,7 @@ pub fn create_randomness_subscription(&mut self) -> Result<()> {
 
 ```rust
 // Pause subscription temporarily
-#[ink(message, payable)]
+#[ink(message)]
 pub fn pause_subscription(&mut self) -> Result<()> {
     if let Some(sub_id) = self.subscription_id {
         self.idn_client.pause_subscription(sub_id)
@@ -165,7 +152,7 @@ pub fn pause_subscription(&mut self) -> Result<()> {
 }
 
 // Reactivate paused subscription
-#[ink(message, payable)]
+#[ink(message)]
 pub fn reactivate_subscription(&mut self) -> Result<()> {
     if let Some(sub_id) = self.subscription_id {
         self.idn_client.reactivate_subscription(sub_id)
@@ -175,7 +162,7 @@ pub fn reactivate_subscription(&mut self) -> Result<()> {
 }
 
 // Update subscription parameters
-#[ink(message, payable)]
+#[ink(message)]
 pub fn update_subscription(
     &mut self,
     new_credits: Option<Credits>,
@@ -194,7 +181,7 @@ pub fn update_subscription(
 }
 
 // Terminate subscription permanently
-#[ink(message, payable)]
+#[ink(message)]
 pub fn kill_subscription(&mut self) -> Result<()> {
     if let Some(sub_id) = self.subscription_id {
         self.subscription_id = None; // Clear local state
@@ -203,7 +190,6 @@ pub fn kill_subscription(&mut self) -> Result<()> {
         Err(Error::ConsumePulseError)
     }
 }
-<<<<<<< HEAD
 
 ## Call Index Configuration
 
@@ -227,23 +213,7 @@ The IDN Client library allows configuring the following parameters at instantiat
 2. **Ideal Network Parachain ID**: The parachain ID of the Ideal Network
    ```rust
    let ideal_network_para_id: u32 = 2000; // Example value
-<<<<<<< HEAD
-<<<<<<< HEAD
-    ```
-=======
-````
->>>>>>> b267b1e (remove hardcoded runtime calls)
-=======
-    ```
->>>>>>> 22c6913 (clean up)
-
-These parameters can be configured when creating an IdnClientImpl instance:
-
-```rust
-let idn_client = IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id);
-=======
->>>>>>> f42b961 (update traits and xcm)
-```
+   ```
 
 ## Configuration Guide
 

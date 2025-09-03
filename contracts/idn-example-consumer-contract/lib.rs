@@ -14,6 +14,96 @@
  * limitations under the License.
  */
 
+//! # IDN Example Consumer Contract
+//!
+//! This ink! smart contract demonstrates how to integrate with the Ideal Network (IDN)
+//! to consume verifiable randomness through cross-chain messaging (XCM). It serves as
+//! a comprehensive reference implementation for developers building applications that
+//! require cryptographically secure randomness.
+//!
+//! ## Overview
+//!
+//! The Example Consumer contract showcases the complete lifecycle of randomness
+//! subscriptions with the IDN Network:
+//!
+//! - **Subscription Management**: Create, pause, reactivate, update, and terminate subscriptions
+//! - **Randomness Reception**: Receive and process randomness pulses via XCM callbacks
+//! - **State Management**: Store and retrieve randomness history for application use
+//! - **Authorization Control**: Secure access to subscription management functions
+//! - **Cross-chain Integration**: Handle XCM fees and cross-parachain communication
+//!
+//! ## Key Components
+//!
+//! ### IDN Client Integration
+//!
+//! The contract uses the IDN Client library to abstract XCM complexity and provide
+//! a simple API for IDN interactions. All subscription operations are handled through
+//! the integrated client, which manages cross-chain message construction and execution.
+//!
+//! ### Randomness Processing
+//!
+//! Implements the IdnConsumer trait to receive randomness via XCM callbacks. The contract
+//! processes incoming randomness pulses by extracting the BLS signature, computing SHA256
+//! hash to derive the final randomness value, and storing it for application use.
+//!
+//! ## Deployment and Usage
+//!
+//! ### Constructor Parameters
+//!
+//! The contract requires careful configuration to establish cross-chain connectivity:
+//!
+//! - **IDN Account ID**: Used to verify that randomness deliveries come from authorized sources
+//! - **Network Parameters**: Parachain IDs and pallet indices for both IDN and destination chains
+//! - **Fee Configuration**: Maximum XCM execution fees to prevent unexpected costs
+//!
+//! ### Basic Usage Flow
+//!
+//! 1. **Deploy Contract**: Deploy with proper network configuration for your environment
+//! 2. **Create Subscription**: Initialize a subscription with desired frequency and credits
+//! 3. **Receive Randomness**: IDN automatically delivers randomness based on subscription
+//!    parameters
+//! 4. **Access Data**: Use getter methods to retrieve current and historical randomness values
+//! 5. **Manage Subscription**: Pause, update, or terminate subscriptions as application needs
+//!    change
+//!
+//! ### XCM Fee Management  
+//!
+//! All subscription operations require XCM execution fees paid in the relay chain's native token.
+//! Fees are automatically withdrawn from the contract's balance, with unused portions refunded
+//! after execution. The maximum fee parameter protects against unexpected fee spikes.
+//!
+//! ## Error Handling
+//!
+//! The contract uses a comprehensive error system built on Result types rather than panics.
+//! Contract-specific errors cover authorization failures and subscription issues, while
+//! IDN client errors handle XCM and cross-chain communication problems.
+//!
+//! ## Security Considerations
+//!
+//! - **Owner Authorization**: Only the contract owner can manage subscriptions and configuration
+//! - **IDN Authorization**: Randomness delivery is restricted to the configured IDN account
+//! - **Subscription Validation**: All incoming randomness is validated against active subscriptions
+//! - **XCM Security**: Uses secure cross-chain message patterns with proper fee handling
+//!
+//! ## Testing
+//!
+//! The contract includes comprehensive test coverage for all functionality:
+//!
+//! - Unit tests verify individual method behavior and error conditions
+//! - Authorization tests ensure security controls work correctly
+//! - Mock randomness delivery simulates the complete randomness reception flow
+//! - End-to-end integration tests validate cross-chain functionality
+//!
+//! ## Customization
+//!
+//! To adapt this contract for your specific application needs:
+//!
+//! 1. Modify randomness processing logic in the consume_pulse implementation
+//! 2. Add application-specific state variables and access methods
+//! 3. Implement custom subscription management policies
+//! 4. Add specialized error types for domain-specific validation
+//! 5. Configure network parameters for your target deployment environment
+
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 #![allow(clippy::cast_possible_truncation)]
 
@@ -28,48 +118,96 @@ mod example_consumer {
 	use sha2::{Digest, Sha256};
 	use sp_idn_traits::pulse::Pulse as TPulse;
 
-	/// The Example Consumer contract demonstrates how to use the IDN Client
-	/// to interact with the IDN Network for randomness subscriptions.
+	const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+
+	/// The Example Consumer contract demonstrates comprehensive IDN integration for randomness
+	/// consumption.
+	///
+	/// This contract serves as both a working example and a foundation for building applications
+	/// that require verifiable randomness from the Ideal Network. It manages the complete lifecycle
+	/// of randomness subscriptions while providing secure access controls and comprehensive state
+	/// management.
+	///
+	/// The contract maintains both current and historical randomness data, allowing applications to
+	/// access previously received values and track randomness delivery patterns over time.
 	#[ink(storage)]
 	pub struct ExampleConsumer {
-		/// Owner of the contract
+		/// The account that deployed the contract and has administrative privileges.
+		/// Only the owner can create, modify, or terminate randomness subscriptions.
 		owner: AccountId,
-		/// IDN account Id
+		/// The authorized IDN Network account that delivers randomness to this contract.
+		/// This account identifier is used to verify that incoming randomness pulses
+		/// originate from legitimate IDN sources and prevent unauthorized data injection.
 		idn_account_id: AccountId,
-		/// Last received randomness
+		/// The most recently received randomness value, computed as SHA256 of the pulse signature.
+		/// This provides quick access to the latest randomness without needing to process
+		/// the complete pulse data structure.
 		last_randomness: Option<[u8; 32]>,
-		/// Active subscription ID
+		/// The subscription ID for the currently active randomness subscription.
+		/// When None, the contract has no active subscription and cannot receive randomness.
+		/// This ID is used to validate incoming pulses and manage subscription lifecycle.
 		subscription_id: Option<SubscriptionId>,
-		/// History of randomness values
+		/// Complete history of all randomness values received by this contract.
+		/// Each entry represents the SHA256 hash of a pulse signature, providing a
+		/// chronological record of randomness delivery for application analysis.
 		randomness_history: Vec<[u8; 32]>,
-		/// IDN client implementation
+		/// The IDN Client instance that handles all cross-chain communication with the IDN
+		/// Network. This client abstracts XCM message construction, fee management, and
+		/// subscription operations, providing a simplified interface for IDN interactions.
 		idn_client: IdnClient,
 	}
 
-	/// Errors that can occur in the Example Consumer contract
+	/// Errors that can occur during Example Consumer contract operations.
+	///
+	/// This enum covers both contract-specific errors and wrapped errors from the IDN Client
+	/// library. All errors implement proper conversion traits to enable seamless error propagation
+	/// between the contract and the underlying IDN infrastructure.
 	#[derive(Debug, PartialEq, Eq)]
 	#[ink::scale_derive(Encode, Decode, TypeInfo)]
 	pub enum ContractError {
-		/// Error from the IDN Client
+		/// An error occurred in the underlying IDN Client during XCM operations or IDN
+		/// communication. This wraps errors from cross-chain message sending, execution
+		/// failures, or IDN Network response processing. Check the inner Error for specific
+		/// failure details.
 		IdnClientError(Error),
-		/// No active subscription
+		/// Attempted to perform a subscription operation when no active subscription exists.
+		/// This occurs when trying to pause, reactivate, update, or terminate a subscription
+		/// before creating one, or after a subscription has been terminated.
 		NoActiveSubscription,
-		/// Caller is not authorized
+		/// The caller does not have permission to perform the requested operation.
+		/// Only the contract owner can manage subscriptions, and only the configured IDN account
+		/// can deliver randomness pulses. This error indicates an authorization check failure.
 		Unauthorized,
-		/// Subscription already exists
+		/// Attempted to create a subscription when one already exists and is active.
+		/// The contract supports only one active subscription at a time. Terminate or update
+		/// the existing subscription before creating a new one.
 		SubscriptionAlreadyExists,
-		/// Invalid subscription ID
+		/// The provided subscription ID does not match the contract's active subscription.
+		/// This occurs when receiving randomness pulses with incorrect subscription identifiers,
+		/// indicating potential delivery errors or unauthorized pulse injection attempts.
 		InvalidSubscriptionId,
-		/// Other error
+		/// Pulse authentication failed, indicating corrupted or tampered randomness data.
+		InvalidPulse,
+		/// A general error occurred that doesn't fit into other specific categories.
+		/// This includes boundary condition failures, data conversion errors, or unexpected
+		/// states that prevent normal contract operation.
 		Other,
 	}
 
+	/// Converts IDN Client library errors into contract errors.
+	///
+	/// This allows seamless propagation of XCM and IDN Network errors through
+	/// the contract's error system, providing unified error handling for callers.
 	impl From<Error> for ContractError {
 		fn from(error: Error) -> Self {
 			ContractError::IdnClientError(error)
 		}
 	}
 
+	/// Converts contract errors back to IDN Client library errors when needed.
+	///
+	/// This enables proper error type conversion for IdnConsumer trait implementation,
+	/// mapping contract-specific errors to their equivalent IDN library representations.
 	impl From<ContractError> for Error {
 		fn from(error: ContractError) -> Self {
 			match error {
@@ -82,18 +220,43 @@ mod example_consumer {
 	}
 
 	impl ExampleConsumer {
-		/// Creates a new ExampleConsumer contract
+		/// Creates a new ExampleConsumer contract with the specified network configuration.
+		///
+		/// This constructor initializes the contract with all necessary parameters for cross-chain
+		/// communication with the IDN Network. The configuration must be accurate for the target
+		/// deployment environment to ensure proper XCM message routing and fee handling.
+		///
+		/// The contract owner is automatically set to the account that calls this constructor,
+		/// granting them exclusive rights to manage randomness subscriptions.
 		///
 		/// # Arguments
 		///
-		/// * `idn_account_id` - The IDN account ID, this will help us know calls come from
-		///   authorized IDN
-		/// * `idn_para_id` - The parachain ID of the Ideal Network
-		/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet on the IDN
-		///   Network
-		/// * `self_para_id` - The parachain ID where this contract is deployed
-		/// * `self_contracts_pallet_index` - The contracts pallet index on the destination chain
-		/// * `max_idn_xcm_fees` - The maximum XCM fees for IDN operations
+		/// * `idn_account_id` - The authorized IDN Network account identifier used to verify that
+		///   incoming randomness pulses originate from legitimate sources. This prevents
+		///   unauthorized accounts from injecting fake randomness into the contract.
+		/// * `idn_para_id` - The parachain ID of the IDN Network in the relay chain ecosystem. This
+		///   must match the actual IDN parachain deployment for XCM routing to succeed.
+		/// * `idn_manager_pallet_index` - The pallet index of the IDN Manager pallet within the IDN
+		///   Network's runtime. This is used for constructing XCM calls that target subscription
+		///   management functions.
+		/// * `self_para_id` - The parachain ID where this contract is deployed. This enables the
+		///   IDN Network to route randomness delivery messages back to the correct chain.
+		/// * `self_contracts_pallet_index` - The pallet index of the Contracts pallet on this
+		///   parachain's runtime. Required for XCM callback routing to contract methods.
+		/// * `max_idn_xcm_fees` - The maximum amount of native tokens to spend on XCM execution
+		///   fees for IDN operations. This protects against unexpected fee spikes while ensuring
+		///   sufficient budget for normal operations.
+		///
+		/// # Returns
+		///
+		/// A new ExampleConsumer instance ready for randomness subscription operations.
+		///
+		/// # Security Considerations
+		///
+		/// - Ensure `idn_account_id` corresponds to a legitimate IDN Network account
+		/// - Verify all parachain IDs and pallet indices match your deployment environment
+		/// - Set `max_idn_xcm_fees` high enough for normal operations but low enough to prevent
+		///   abuse
 		#[ink(constructor)]
 		pub fn new(
 			idn_account_id: AccountId,
@@ -119,19 +282,45 @@ mod example_consumer {
 			}
 		}
 
-		/// Creates a new randomness subscription on the IDN Network
+		/// Creates a new randomness subscription with the IDN Network.
+		///
+		/// This method initiates a cross-chain subscription request that establishes ongoing
+		/// randomness delivery to this contract. The IDN Network will automatically deliver
+		/// randomness pulses based on the specified frequency until the subscription is
+		/// paused, exhausted, or terminated.
+		///
+		/// Only the contract owner can create subscriptions, and the contract supports only
+		/// one active subscription at a time. If you need different subscription parameters,
+		/// update the existing subscription or terminate it before creating a new one.
 		///
 		/// # Arguments
 		///
-		/// * `credits` - Number of random values to receive
-		/// * `frequency` - Distribution interval for random values (in blocks)
-		/// * `metadata` - Optional metadata for the subscription
-		///
-		/// The caller must provide sufficient funds to cover the XCM execution costs.
+		/// * `credits` - The payment budget for randomness delivery, denominated in IDN Network
+		///   credits. Higher credit amounts enable longer subscription duration and more randomness
+		///   deliveries before the subscription is automatically terminated.
+		/// * `frequency` - The delivery interval measured in IDN Network block numbers. Smaller
+		///   values result in more frequent randomness delivery, while larger values space out
+		///   deliveries to preserve credits and reduce cross-chain traffic.
+		/// * `metadata` - Optional application-specific data associated with this subscription.
+		///   This can be used to store context information, configuration parameters, or other data
+		///   relevant to your randomness consumption logic.
 		///
 		/// # Returns
 		///
-		/// * `Result<(), ContractError>` - Success or error
+		/// Returns the newly created subscription ID on success, which can be used to reference
+		/// this subscription in future management operations.
+		///
+		/// # Errors
+		///
+		/// - [`ContractError::Unauthorized`] - Only the contract owner can create subscriptions
+		/// - [`ContractError::SubscriptionAlreadyExists`] - An active subscription already exists
+		/// - [`ContractError::IdnClientError`] - XCM message sending or execution failed
+		///
+		/// # XCM Fees
+		///
+		/// This method requires XCM execution fees paid in the relay chain's native token.
+		/// Ensure the contract has sufficient balance to cover these fees before calling.
+		/// Unused fees are automatically refunded after execution.
 		#[ink(message, payable)]
 		pub fn create_subscription(
 			&mut self,
@@ -166,13 +355,29 @@ mod example_consumer {
 			Ok(subscription_id)
 		}
 
-		/// Pauses the active randomness subscription
+		/// Temporarily pauses the active randomness subscription.
 		///
-		/// The caller must provide sufficient funds to cover the XCM execution costs.
+		/// This method suspends randomness delivery while preserving the subscription state
+		/// and remaining credits. The subscription can be reactivated later using
+		/// `reactivate_subscription()` to resume randomness delivery from where it left off.
+		///
+		/// Pausing is useful when you need to temporarily halt randomness consumption without
+		/// losing your subscription or credits, such as during maintenance periods or when
+		/// your application logic needs to process accumulated randomness.
 		///
 		/// # Returns
 		///
-		/// * `Result<(), ContractError>` - Success or error
+		/// Returns `Ok(())` if the subscription was successfully paused.
+		///
+		/// # Errors
+		///
+		/// - [`ContractError::Unauthorized`] - Only the contract owner can pause subscriptions
+		/// - [`ContractError::NoActiveSubscription`] - No subscription exists to pause
+		/// - [`ContractError::IdnClientError`] - XCM message sending or execution failed
+		///
+		/// # XCM Fees
+		///
+		/// This method requires XCM execution fees. Ensure sufficient contract balance.
 		#[ink(message, payable)]
 		pub fn pause_subscription(&mut self) -> Result<(), ContractError> {
 			// Ensure caller is authorized
@@ -260,21 +465,34 @@ mod example_consumer {
 			Ok(())
 		}
 
-		/// Gets the last received randomness
+		/// Retrieves the most recently received randomness value.
+		///
+		/// This method provides quick access to the latest randomness without needing to
+		/// iterate through the complete history. The randomness value is computed as
+		/// SHA256 of the BLS signature from the most recent pulse delivery.
 		///
 		/// # Returns
 		///
-		/// * `Option<[u8; 32]>` - The last randomness or None
+		/// Returns `Some([u8; 32])` containing the latest 32-byte randomness value, or
+		/// `None` if no randomness has been received yet.
 		#[ink(message)]
 		pub fn get_last_randomness(&self) -> Option<[u8; 32]> {
 			self.last_randomness
 		}
 
-		/// Gets all received randomness values
+		/// Retrieves the complete history of all received randomness values.
+		///
+		/// This method returns a chronological record of all randomness values delivered
+		/// to this contract since deployment. Each entry represents the SHA256 hash of
+		/// a pulse signature, providing a verifiable trail of randomness consumption.
+		///
+		/// The history grows with each randomness delivery and is preserved across
+		/// subscription changes, providing long-term randomness analytics capabilities.
 		///
 		/// # Returns
 		///
-		/// * `Vec<[u8; 32]>` - All received randomness values
+		/// Returns a vector containing all received randomness values in chronological order,
+		/// with the oldest values first and the most recent values last.
 		#[ink(message)]
 		pub fn get_randomness_history(&self) -> Vec<[u8; 32]> {
 			self.randomness_history.clone()
@@ -285,6 +503,8 @@ mod example_consumer {
 		pub fn simulate_pulse_received(&mut self, pulse: Pulse) -> Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
+
+			self.ensure_valid_pulse(&pulse)?;
 
 			// Get the active subscription ID
 			let subscription_id = self.ensure_active_sub()?;
@@ -345,12 +565,55 @@ mod example_consumer {
 		fn ensure_active_sub(&self) -> Result<SubscriptionId, ContractError> {
 			self.subscription_id.ok_or(ContractError::NoActiveSubscription)
 		}
+
+		fn ensure_valid_pulse(&self, pulse: &Pulse) -> Result<(), ContractError> {
+			if !pulse.authenticate(
+				BEACON_PUBKEY.try_into().expect("The public key is well-defined; qed."),
+			) {
+				return Err(ContractError::InvalidPulse);
+			}
+			Ok(())
+		}
 	}
 
-	/// Implementation of the IdnConsumer trait
+	/// Implementation of the IdnConsumer trait for receiving IDN Network callbacks.
+	///
+	/// This implementation handles all incoming cross-chain messages from the IDN Network,
+	/// including randomness pulses, subscription quotes, and subscription information.
+	/// The methods in this trait are automatically invoked by XCM when the IDN Network
+	/// sends data to this contract.
 	impl IdnConsumer for ExampleConsumer {
-		/// Public entry point for receiving randomness via XCM
-		/// This function is called by the IDN Network when delivering randomness
+		/// Processes randomness pulses delivered by the IDN Network via XCM.
+		///
+		/// This method is the primary callback for randomness consumption and is automatically
+		/// invoked when the IDN Network delivers randomness to this contract. It performs
+		/// authorization checks, validates the subscription, processes the randomness data,
+		/// and updates the contract's state.
+		///
+		/// The randomness value is derived by computing SHA256 of the BLS signature contained
+		/// in the pulse, providing a deterministic 32-byte random value for application use.
+		///
+		/// # Arguments
+		///
+		/// * `pulse` - The randomness pulse containing the BLS signature, round number, and
+		///   metadata
+		/// * `subscription_id` - The subscription ID associated with this randomness delivery
+		///
+		/// # Returns
+		///
+		/// Returns `Ok(())` if the pulse was successfully processed and stored.
+		///
+		/// # Errors
+		///
+		/// - [`Error::Unauthorized`] - The caller is not the configured IDN account
+		/// - [`Error::InvalidSubscriptionId`] - The subscription ID doesn't match the active
+		///   subscription
+		/// - [`Error::Other`] - Internal processing errors or invalid contract state
+		///
+		/// # Security
+		///
+		/// This method enforces strict authorization to ensure only legitimate IDN Network
+		/// accounts can deliver randomness, preventing unauthorized data injection attacks.
 		#[ink(message)]
 		fn consume_pulse(
 			&mut self,
@@ -359,6 +622,8 @@ mod example_consumer {
 		) -> Result<(), Error> {
 			// Make sure the caller is the IDN account
 			self.ensure_idn_caller()?;
+
+			self.ensure_valid_pulse(&pulse)?;
 
 			self.do_consume_pulse(pulse, subscription_id).map_err(|e| e.into())
 		}
