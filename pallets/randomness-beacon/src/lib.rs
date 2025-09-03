@@ -389,7 +389,10 @@ pub mod pallet {
 			end: RoundNumber,
 			raw_call_data: BTreeMap<RoundNumber, Vec<CallDataOf<T>>>,
 		) -> DispatchResultWithPostInfo {
+			// block experimental features if attempted
+			#[cfg(not(feature = "experimental"))]
 			ensure!(raw_call_data.len() == 0, Error::<T>::ExperimentalFeaturesDisabled);
+
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);

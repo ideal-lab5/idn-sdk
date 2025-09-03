@@ -48,8 +48,9 @@ fn can_construct_pallet_and_set_genesis_params() {
 	});
 }
 
+#[cfg(not(feature = "experimental"))]
 #[test]
-fn can_fail_write_pulse_when_genesis_round_not_set() {
+fn can_reject_call_data_if_not_experimental() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
 	let raw_call_data = BTreeMap::new();
 
@@ -64,6 +65,30 @@ fn can_fail_write_pulse_when_genesis_round_not_set() {
 				raw_call_data
 			),
 			Error::<Test>::BeaconConfigNotSet,
+		);
+	});
+}
+
+#[test]
+fn can_fail_write_pulse_when_genesis_round_not_set() {
+	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let mut raw_call_data = BTreeMap::new();
+	raw_call_data.insert(0u64, vec![((), core::marker::PhantomData)]);
+	let config = get_config(1000);
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
+
+		assert_noop!(
+			Drand::try_submit_asig(
+				RuntimeOrigin::none(),
+				asig.try_into().unwrap(),
+				1000,
+				1001,
+				raw_call_data
+			),
+			Error::<Test>::ExperimentalFeaturesDisabled,
 		);
 	});
 }
