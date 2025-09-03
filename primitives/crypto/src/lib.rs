@@ -19,5 +19,6 @@
 
 pub mod bls12_381;
 pub mod drand;
+pub mod prelude;
 pub mod test_utils;
 pub mod verifier;

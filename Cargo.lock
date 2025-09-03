@@ -1485,6 +1485,7 @@ dependencies = [
 name = "bp-idn"
 version = "0.0.1-dev"
 dependencies = [
+ "ark-serialize 0.4.2",
  "frame-support",
  "pallet-idn-manager",
  "parity-scale-codec",
@@ -5283,6 +5284,7 @@ dependencies = [
  "sp-consensus-aura",
  "sp-core",
  "sp-genesis-builder",
+ "sp-idn-traits",
  "sp-inherents",
  "sp-keyring",
  "sp-offchain",
@@ -8521,6 +8523,7 @@ dependencies = [
  "sp-arithmetic",
  "sp-consensus-randomness-beacon",
  "sp-core",
+ "sp-idn-crypto",
  "sp-idn-traits",
  "sp-io",
  "sp-runtime",

@@ -346,7 +346,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let initial_balance = u32::MAX as u64;
+		let initial_balance = 2 * u32::MAX as u64;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
@@ -661,14 +661,20 @@ fn update_subscription_fails_if_sub_does_not_exists() {
 fn test_credits_consumption_and_cleanup() {
 	ExtBuilder::build().execute_with(|| {
 		// Setup initial conditions
-		let credits: u64 = 1_010_000;
+		let frequency: u64 = 1;
+		let idle = <Test as Config>::FeesManager::get_idle_credits(None);
+		let dispatch = <Test as Config>::FeesManager::get_consume_credits(None);
+		let fees = frequency.saturating_mul(idle).saturating_add(dispatch);
+		// valid for  10 pulses delivered
+		let credits: u64 = 10 * fees;
+
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
-		let frequency: u64 = 1;
+
 		let initial_balance = 10_000_000_000;
 		let initial_treasury_balance = IdnManager::min_balance();
 		let mut treasury_balance = initial_treasury_balance;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -706,7 +712,7 @@ fn test_credits_consumption_and_cleanup() {
 		assert_eq!(subscription.credits_left, credits);
 
 		// Consume credits one by one
-		for i in 0..credits / 1000 {
+		for i in 0..credits {
 			// Advance block and run hooks
 			System::set_block_number(System::block_number() + 1);
 
@@ -792,7 +798,7 @@ fn test_credits_consumption_not_enough_balance() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -850,7 +856,7 @@ fn test_credits_consumption_xcm_send_fails() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
 		let initial_balance = 10_000_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -903,12 +909,15 @@ fn test_credits_consumption_xcm_send_fails() {
 fn test_credits_consumption_frequency() {
 	ExtBuilder::build().execute_with(|| {
 		// Setup initial conditions
-		let credits: u64 = 10_180; // 10 active blocks (at 1k credits each) + 18 idle blocks (at 10 credits each)
+		let frequency: u64 = 3;
+		// valid for 10 pulses delivered
+		let lifetime_pulses = 10;
+		let credits = <Test as Config>::FeesManager::calculate_credits(frequency, lifetime_pulses);
+
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
-		let frequency: u64 = 3; // Every 3 blocks
 		let initial_balance = 10_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -932,7 +941,7 @@ fn test_credits_consumption_frequency() {
 		assert_eq!(sub.credits_left, credits);
 		assert!(sub.last_delivered.is_none());
 
-		let deliveries = 27;
+		let deliveries = lifetime_pulses * (frequency + 1) - 1;
 		// Run through the test blocks
 		for i in 0..=deliveries {
 			// Set the block number
@@ -988,9 +997,9 @@ fn test_sub_state_is_finalized_when_credits_left_goes_low() {
 		let credits: u64 = 10_000;
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
-		let frequency: u64 = 3; // Every 3 blocks
+		let frequency: u64 = 3; // ignored
 		let initial_balance = 10_000_000;
-		let pulse = mock::Pulse { rand: [0u8; 32], message: [0u8; 48], sig: [1u8; 48] };
+		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -1015,7 +1024,8 @@ fn test_sub_state_is_finalized_when_credits_left_goes_low() {
 
 		// Set the subscription to a state where it should be finalized, by forcing the credits_left
 		// go low
-		sub.credits_left = IdnManager::get_min_credits(&sub) - 1;
+		sub.credits_left = IdnManager::get_min_credits(&sub);
+
 		Subscriptions::<Test>::insert(sub_id, sub);
 
 		// Dispatch randomness
@@ -1754,9 +1764,18 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 #[test]
 fn test_quote_subscription_works() {
 	ExtBuilder::build().execute_with(|| {
-		let credits: u64 = 50;
+		// f*C_idle + C_dispatch
+		let lifetime_pulses = 1000;
 		let pulse_callback_index = [1, 2];
 		let quote_callback_index = [1, 3];
+		let frequency = 10u64;
+		let idle = <Test as Config>::FeesManager::get_idle_credits(None);
+		let dispatch = <Test as Config>::FeesManager::get_consume_credits(None);
+		let credits = frequency
+			.saturating_mul(idle)
+			.saturating_add(dispatch)
+			.saturating_mul(lifetime_pulses);
+		let fees = <Test as Config>::FeesManager::calculate_subscription_fees(&credits);
 
 		let origin = RuntimeOrigin::signed(mock::SIBLING_PARA_ACCOUNT);
 
@@ -1764,23 +1783,21 @@ fn test_quote_subscription_works() {
 			credits,
 			target: Location::new(1, [Junction::PalletInstance(1)]),
 			call_index: pulse_callback_index,
-			frequency: 10,
+			frequency,
 			metadata: None,
 			sub_id: None,
 		};
 
 		let req_ref = [1; 32];
-		let lifetime_pulses = 10;
 
 		let quote_request = QuoteRequest { req_ref, create_sub_params, lifetime_pulses };
 		let quote_sub_params = QuoteSubParams { quote_request, call_index: quote_callback_index };
 		// Call the function
 		assert_ok!(IdnManager::quote_subscription(origin, quote_sub_params));
-
 		// Verify the XCM message was sent
 		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubQuoted {
 			requester: Location::new(1, [Junction::Parachain(mock::SIBLING_PARA_ID)]),
-			quote: Quote { req_ref, fees: 1095000, deposit: 1130 },
+			quote: Quote { req_ref, fees, deposit: 1130 },
 		}));
 	});
 }

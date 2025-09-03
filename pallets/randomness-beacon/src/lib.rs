@@ -190,7 +190,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
 
-	/// The aggregated signature and aggregated public key (identifier) of all observed pulses
+	/// The aggregated signature and (start, end) rounds
 	#[pallet::storage]
 	pub type SparseAccumulation<T: Config> = StorageValue<_, Accumulation, OptionQuery>;
 
@@ -421,17 +421,17 @@ pub mod pallet {
 			let mut amsg_bytes = Vec::new();
 			amsg.serialize_compressed(&mut amsg_bytes)
 				.map_err(|_| Error::<T>::SerializationFailed)?;
-
-			let acc = T::SignatureVerifier::verify(
+			// verify the signature
+			T::SignatureVerifier::verify(
 				config.public_key.as_ref().to_vec(),
 				asig.clone().as_ref().to_vec(),
 				amsg_bytes,
-				None,
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
+
 			LatestRound::<T>::set(Some(end + 1));
 
-			let sacc = Accumulation::try_from(acc).map_err(|_| Error::<T>::VerificationFailed)?;
+			let sacc = Accumulation::new(asig, start, end);
 			SparseAccumulation::<T>::set(Some(sacc.clone()));
 			DidUpdate::<T>::put(true);
 

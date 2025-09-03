@@ -168,7 +168,7 @@ pub fn local_testnet_config() -> ChainSpec {
 			sr25519::Public::from_str("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C") // Treasury Account
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK") // Sibling 2001 Account (consumer)
+			sr25519::Public::from_str("5Eg2fntQqi3CG6VPPPmF9GvorYw3v2v2WXeuZ6KdHgpWPLN9") // Sibling 4594 Account (consumer)
 				.unwrap()
 				.into(),
 			sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"

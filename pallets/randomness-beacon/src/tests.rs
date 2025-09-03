@@ -112,7 +112,7 @@ fn can_set_genesis_round_once_as_root() {
 
 #[test]
 fn can_submit_valid_pulses_under_the_limit() {
-	let (asig, amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
 	let config = get_config(1000);
 	let raw_call_data = BTreeMap::new();
 
@@ -139,7 +139,8 @@ fn can_submit_valid_pulses_under_the_limit() {
 
 		let aggr = maybe_res.unwrap();
 		assert_eq!(asig, aggr.signature);
-		assert_eq!(amsg, aggr.message_hash);
+		assert_eq!(1000, aggr.start);
+		assert_eq!(1001, aggr.end);
 	});
 }
 
@@ -177,7 +178,7 @@ fn can_submit_valid_sigs_in_sequence() {
 	let config = get_config(1000);
 
 	let (asig1, _amsg1, _raw1) = get(vec![PULSE1000, PULSE1001]);
-	let (asig2, amsg2, _raw2) = get(vec![PULSE1002, PULSE1003]);
+	let (asig2, _amsg2, _raw2) = get(vec![PULSE1002, PULSE1003]);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
@@ -207,7 +208,8 @@ fn can_submit_valid_sigs_in_sequence() {
 
 		let aggr = maybe_res.unwrap();
 		assert_eq!(asig2, aggr.signature);
-		assert_eq!(amsg2, aggr.message_hash);
+		assert_eq!(1002, aggr.start);
+		assert_eq!(1003, aggr.end);
 
 		let actual_latest = LatestRound::<Test>::get();
 		assert_eq!(1004, actual_latest.unwrap());
@@ -246,7 +248,7 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 
 #[test]
 fn can_fail_to_submit_invalid_sigs_in_sequence() {
-	let (asig, amsg1, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let (asig, _amsg1, _raw) = get(vec![PULSE1000, PULSE1001]);
 
 	let config = get_config(1000);
 
@@ -292,7 +294,8 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 
 		let aggr = maybe_res.unwrap();
 		assert_eq!(asig.clone(), aggr.signature);
-		assert_eq!(amsg1, aggr.message_hash);
+		assert_eq!(1000, aggr.start);
+		assert_eq!(1001, aggr.end);
 
 		let actual_latest = LatestRound::<Test>::get();
 		assert_eq!(1002, actual_latest.unwrap());

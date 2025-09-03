@@ -41,24 +41,24 @@ std = [
 
 ```rust
 use idn_client_contract_lib::{
-    ContractPulse, IdnClient, IdnClientImpl, RandomnessReceiver, 
+    ContractPulse, IdnClient, IdnClientImpl, IdnConsumer,
     SubscriptionId, Result, Error
 };
 use idn_client_contract_lib::Pulse;
 
-// Implement the RandomnessReceiver trait to handle incoming randomness
-impl RandomnessReceiver for YourContract {
-    fn on_randomness_received(
-        &mut self, 
+// Implement the IdnConsumer trait to handle incoming randomness
+impl IdnConsumer for YourContract {
+    fn consume_pulse(
+        &mut self,
         pulse: ContractPulse,
         subscription_id: SubscriptionId
     ) -> Result<()> {
         // Access the raw randomness
         let randomness = pulse.rand();
-        
+
         // Optionally, store the full pulse for verification purposes
         // self.last_pulse = Some(pulse);
-        
+
         // Handle the received randomness
         Ok(())
     }
@@ -92,7 +92,7 @@ self.idn_client.create_subscription(
 
 // Later, pause, update, or kill the subscription as needed
 self.idn_client.pause_subscription(subscription_id)?;
-self.idn_client.update_subscription(UpdateSubParams { 
+self.idn_client.update_subscription(UpdateSubParams {
     sub_id: subscription_id,
     credits,
     frequency
@@ -112,6 +112,7 @@ self.idn_client.update_subscription(UpdateSubParams {
 The `idn-example-consumer-contract` contract demonstrates a complete implementation of a contract that uses the IDN Client library to create randomness subscriptions and handle received randomness.
 
 See the `idn-example-consumer-contract/lib.rs` file for details on how to:
+
 - Initialize a contract with IDN Client capabilities
 - Create and manage randomness subscriptions
 - Process received randomness with the Pulse trait
@@ -144,6 +145,7 @@ cargo contract build
 ```
 
 This will generate the contract artifacts in the `target/ink/<contract-name>` directory:
+
 - `<contract-name>.contract`: The bundled contract (code + metadata)
 - `<contract-name>.wasm`: The WebAssembly binary
 - `<contract-name>.json`: The contract metadata

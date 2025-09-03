@@ -22,4 +22,10 @@ Current version for development: 1.3.133
 `zombienet -p native spawn zombienet.toml`
 
 #### To run tests
-`zombienet -p native test ./path/to/tests/<your-test-name>.zndsl` 
+1. Install the `@polkadot/api-cli`
+
+``` shell
+yarn global add @polkadot/api-cli
+```
+Then execute the test:
+`zombienet -p native test ./path/to/tests/<your-test-name>.zndsl`  

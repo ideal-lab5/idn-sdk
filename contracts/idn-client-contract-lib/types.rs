@@ -1,32 +1,23 @@
-use parity_scale_codec::{Decode, Encode};
-use scale_info::TypeInfo;
-use sp_idn_traits::pulse::Pulse;
+/*
+ * Copyright 2025 by Ideal Labs, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-/// A minimal Pulse implementation for contracts, avoiding runtime dependencies.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
-pub struct ContractPulse {
-	pub message: [u8; 48],
-	pub rand: [u8; 32],
-	pub sig: [u8; 48],
-}
+pub use bp_idn::types::{
+	xcm as IdnXcm, CallIndex, CreateSubParams, RuntimePulse as Pulse, SubscriptionId,
+	UpdateSubParams,
+};
 
-impl Pulse for ContractPulse {
-	type Rand = [u8; 32];
-	type Sig = [u8; 48];
-	type Pubkey = [u8; 32]; // Placeholder, adjust as needed
-
-	fn message(&self) -> Self::Sig {
-		self.message
-	}
-	fn rand(&self) -> Self::Rand {
-		self.rand
-	}
-	fn sig(&self) -> Self::Sig {
-		self.sig
-	}
-	fn authenticate(&self, _pubkey: Self::Pubkey) -> bool {
-		// No-op for contract, or implement if needed
-		true
-	}
-}
+pub type ParaId = u32;
+pub type PalletIndex = u8;

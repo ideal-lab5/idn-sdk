@@ -51,7 +51,7 @@ sp-genesis-builder.workspace = true
 sp-inherents.workspace = true
 sp-keyring.workspace = true
 sp-offchain.workspace = true
-sp-runtime.workspace = true
+sp-runtime.workspace = true 
 sp-session.workspace = true
 sp-std.workspace = true
 sp-transaction-pool.workspace = true
@@ -87,6 +87,7 @@ parachain-info.workspace = true
 
 # Ideal Network
 pallet-idn-consumer.workspace = true
+sp-idn-traits.workspace = true
 
 [features]
 default = ["std"]
@@ -134,6 +135,7 @@ std = [
   "sp-consensus-aura/std",
   "sp-core/std",
   "sp-genesis-builder/std",
+  "sp-idn-traits/std",
   "sp-inherents/std",
   "sp-keyring/std",
   "sp-offchain/std",
