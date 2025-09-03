@@ -86,13 +86,10 @@ pub use pallet::*;
 extern crate alloc;
 use alloc::{collections::btree_map::BTreeMap, vec, vec::Vec};
 use ark_bls12_381::G1Affine;
-use frame_support::{
-	pallet_prelude::*,
-	traits::Randomness,
-};
-use frame_system::pallet_prelude::BlockNumberFor;
 #[cfg(feature = "experimental")]
 use frame_support::traits::schedule::v3::TaskName;
+use frame_support::{pallet_prelude::*, traits::Randomness};
+use frame_system::pallet_prelude::BlockNumberFor;
 #[cfg(feature = "experimental")]
 use pallet_timelock_transactions::{Config as TlockConfig, TlockTxProvider};
 use sp_consensus_randomness_beacon::types::{CanonicalPulse, RoundNumber};
@@ -372,9 +369,8 @@ pub mod pallet {
 		/// * `asig`: An aggregated signature as bytes
 		/// * `start`: The first round from which signatures are aggregated
 		/// * `end`: The last round from which signatures were aggregated
-		/// * `raw_call_data`: Ignored unless `experimental` is enabled,
-		///                    allows raw call data to be injected to the rutime
-		///
+		/// * `raw_call_data`: Ignored unless `experimental` is enabled, allows raw call data to be
+		///   injected to the rutime
 		#[pallet::call_index(0)]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(
 			T::MaxSigsPerBlock::get().into())

@@ -430,14 +430,6 @@ fn decrypt_and_decode_only_decrypts_the_max_number_specified() {
 	})
 }
 
-
-
-
-
-
-
-
-
 // #[test]
 // #[docify::export]
 // fn basic_scheduling_works() {
@@ -1502,5 +1494,3 @@ fn decrypt_and_decode_only_decrypts_the_max_number_specified() {
 // 		assert!(logger::log().is_empty());
 // 	});
 // }
-
-

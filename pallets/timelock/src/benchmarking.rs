@@ -17,19 +17,9 @@
 
 //! Timelock pallet benchmarking.
 use super::*;
-use frame_benchmarking::v2::*;
 use crate::pallet::Pallet as Timelock;
+use frame_benchmarking::v2::*;
 
-use frame_support::{
-	ensure,
-	traits::{
-		BoundedInline, ConstU32,
-	},
-};
-use frame_system::Call as SystemCall;
-use sp_std::{prelude::*, vec};
-use sp_runtime::BoundedVec;
-use sp_idn_crypto::drand;
 use ark_bls12_381::{Fr, FrConfig, G2Projective as G2};
 use ark_ec::{short_weierstrass::Projective, PrimeGroup};
 use ark_ff::{Fp, MontBackend};
@@ -39,6 +29,14 @@ use ark_std::{
 	rand::{rngs::StdRng, SeedableRng},
 	One,
 };
+use frame_support::{
+	ensure,
+	traits::{BoundedInline, ConstU32},
+};
+use frame_system::Call as SystemCall;
+use sp_idn_crypto::drand;
+use sp_runtime::BoundedVec;
+use sp_std::{prelude::*, vec};
 use timelock::ibe::fullident::Identity;
 
 const MAX_DECS_PER_BLOCK: u16 = 100;
@@ -128,7 +126,7 @@ mod benchmarks {
 		let mut remaining_decrypts = MAX_DECS_PER_BLOCK;
 
 		#[extrinsic_call]
-		_(origin.clone(), when,  ct);
+		_(origin.clone(), when, ct);
 
 		let call_data =
 			Timelock::<T>::decrypt_and_decode(when, sig.into(), &mut remaining_decrypts);

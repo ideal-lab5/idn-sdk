@@ -55,7 +55,7 @@ mod benchmarks {
 	/// benchmark the try_submit_asig function
 	#[benchmark]
 	fn try_submit_asig(
-		r: Linear<1, { T::MaxSigsPerBlock::get().into() }>
+		r: Linear<1, { T::MaxSigsPerBlock::get().into() }>,
 	) -> Result<(), BenchmarkError> {
 		let drand = MockDrand::new();
 		// get the beacon pubkey

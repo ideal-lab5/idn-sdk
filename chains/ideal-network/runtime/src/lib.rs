@@ -309,7 +309,7 @@ mod runtime {
 	#[runtime::pallet_index(42)]
 	#[cfg(feature = "tlock")]
 	pub type Preimage = pallet_preimage::Pallet<Runtime>;
-	
+
 	#[runtime::pallet_index(43)]
 	#[cfg(feature = "tlock")]
 	pub type Timelock = pallet_timelock_transactions::Pallet<Runtime>;

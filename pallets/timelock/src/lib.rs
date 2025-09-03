@@ -256,7 +256,6 @@ pub mod pallet {
 		/// * `origin`: The calling origin
 		/// * `when`: The drand round number when the ciphertext will execute
 		/// * `ciphertext`: The timelock encrypted ciphertext
-		///
 		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::schedule_sealed(T::MaxScheduledPerBlock::get()))]
 		pub fn schedule_sealed(
@@ -369,7 +368,8 @@ impl<T: Config> Pallet<T> {
 	///
 	/// * `when`: The round number for when ciphertexts should be fetched
 	/// * `signature`: The decryption key (BLS sig) output by a randomness beacon
-	/// * `remaining_decrypts`: A `fail-safe` counter to limit the number of decryption operations this fucntion performs before stopping.
+	/// * `remaining_decrypts`: A `fail-safe` counter to limit the number of decryption operations
+	///   this fucntion performs before stopping.
 	pub fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
@@ -411,7 +411,8 @@ impl<T: Config> Pallet<T> {
 	/// ensuring priority ordering by list index order.
 	///
 	/// For now, it is a 'fail-silent' approach, silently dropping transactions that would make
-	/// the block overweight or for which we couldn't actually decrypt for any reason (bad ciphertext, oversubscribed)
+	/// the block overweight or for which we couldn't actually decrypt for any reason (bad
+	/// ciphertext, oversubscribed)
 	pub fn service_agenda(
 		weight: &mut WeightMeter,
 		when: RoundNumber,
@@ -531,9 +532,8 @@ impl<T: Config> Pallet<T> {
 		let dispatch_origin = origin.into();
 		let (maybe_actual_call_weight, result) = match call.dispatch(dispatch_origin) {
 			Ok(post_info) => (post_info.actual_weight, Ok(())),
-			Err(error_and_info) => {
-				(error_and_info.post_info.actual_weight, Err(error_and_info.error))
-			},
+			Err(error_and_info) =>
+				(error_and_info.post_info.actual_weight, Err(error_and_info.error)),
 		};
 		let call_weight = maybe_actual_call_weight.unwrap_or(call_weight);
 		let _ = weight.try_consume(base_weight);
