@@ -47,6 +47,10 @@ bench_example = '''**Examples**:
  
  %(prog)s --runtime ideal-network --continue-on-fail 
  
+ > runs with additional cargo features
+ 
+ %(prog)s --runtime ideal-network --features "my-feature,another-feature"
+ 
  > does not output anything and cleans up the previous bot's & author command triggering comments in PR 
  
  %(prog)s --runtime ideal-network idn-consumer-chain --pallet pallet_balances pallet_multisig --quiet --clean 
@@ -60,6 +64,7 @@ for arg, config in common_args.items():
 
 parser_bench.add_argument('--runtime', help='Runtime(s) space separated', choices=runtimeNames, nargs='*', default=runtimeNames)
 parser_bench.add_argument('--pallet', help='Pallet(s) space separated', nargs='*', default=[])
+parser_bench.add_argument('--features', help='Additional cargo features to enable (comma-separated or space-separated)', default="")
 
 """
 FMT 
@@ -81,6 +86,22 @@ if args.command == 'bench':
 
     profile = "release"  # Updated from "production"
 
+    # Build the features string
+    base_features = ["runtime-benchmarks"]
+    
+    if args.features:
+        # Handle both comma-separated and space-separated features
+        additional_features = []
+        if ',' in args.features:
+            additional_features = [f.strip() for f in args.features.split(',') if f.strip()]
+        else:
+            additional_features = args.features.split()
+        
+        base_features.extend(additional_features)
+    
+    features_str = ",".join(base_features)
+    print(f'Using features: {features_str}')
+
     print(f'Provided runtimes: {args.runtime}')
     # convert to mapped dict
     runtimesMatrix = list(filter(lambda x: x['name'] in args.runtime, runtimesMatrix))
@@ -89,7 +110,16 @@ if args.command == 'bench':
 
     # loop over remaining runtimes to collect available pallets
     for runtime in runtimesMatrix.values():
-        os.system(f"cargo build -p {runtime['package']} --{profile} --features runtime-benchmarks")
+        build_cmd = f"cargo build -p {runtime['package']} --{profile} --features {features_str}"
+        print(f'Building runtime with command: {build_cmd}')
+        build_status = os.system(build_cmd)
+        
+        if build_status != 0:
+            print(f'❌ Failed to build {runtime["name"]} with features: {features_str}')
+            if not args.continue_on_fail:
+                sys.exit(1)
+            continue
+            
         print(f'-- listing pallets for benchmark for {runtime["name"]}')
         wasm_file = f"target/{profile}/wbuild/{runtime['package']}/{runtime['package'].replace('-', '_')}.wasm"
         output = os.popen(

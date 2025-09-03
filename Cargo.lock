@@ -1485,7 +1485,7 @@ dependencies = [
 name = "bp-idn"
 version = "0.0.1-dev"
 dependencies = [
- "ark-serialize 0.4.2",
+ "ark-serialize 0.5.0",
  "frame-support",
  "pallet-idn-manager",
  "parity-scale-codec",
