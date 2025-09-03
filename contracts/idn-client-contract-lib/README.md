@@ -16,7 +16,7 @@ A client library for ink! smart contracts to interact with the Ideal Network ser
 The library provides:
 
 1. **IdnClient Trait**: The main interface for interacting with the IDN Manager pallet
-2. **RandomnessReceiver Trait**: Interface that contracts must implement to receive randomness
+2. **IdnConsumer Trait**: Interface that contracts must implement to receive randomness
 3. **ContractPulse Struct**: Implementation of the `Pulse` trait for handling randomness with metadata
 4. **IdnClientImpl**: Reference implementation of the IdnClient trait with configurable parameters
 5. **Helper Types**: Subscription IDs, error types, CreateSubParams, UpdateSubParams, and other necessary types
@@ -46,7 +46,7 @@ In your contract's `lib.rs`, use the IDN Client as follows:
 ```rust
 use idn_client_contract_lib::{
     CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, ContractPulse,
-    RandomnessReceiver, Result, SubscriptionId, UpdateSubParams
+    IdnConsumer, Result, SubscriptionId, UpdateSubParams
 };
 use idn_client_contract_lib::Pulse;
 
@@ -77,7 +77,7 @@ impl YourContract {
         contracts_pallet_index: u8,
     ) -> Self {
         // The call index for randomness delivery to this contract
-        let randomness_call_index: CallIndex = [contracts_pallet_index, 0x01]; 
+        let randomness_call_index: CallIndex = [contracts_pallet_index, 0x01];
 
         Self {
             subscription_id: None,
@@ -89,7 +89,7 @@ impl YourContract {
             idn_client: IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id),
         }
     }
-    
+
     // Getter methods for configuration
     #[ink(message)]
     pub fn get_ideal_network_para_id(&self) -> u32 {
@@ -102,9 +102,9 @@ impl YourContract {
     }
 }
 
-impl RandomnessReceiver for YourContract {
-    fn on_randomness_received(
-        &mut self, 
+impl IdnConsumer for YourContract {
+    fn consume_pulse(
+        &mut self,
         pulse: ContractPulse,
         subscription_id: SubscriptionId,
     ) -> Result<()> {
@@ -116,14 +116,14 @@ impl RandomnessReceiver for YourContract {
         } else {
             return Err(Error::SubscriptionNotFound);
         }
-        
+
         // Extract and store the randomness
         let randomness = pulse.rand();
         self.last_randomness = Some(randomness);
-        
+
         // Store the pulse
         self.last_pulse = Some(pulse);
-        
+
         Ok(())
     }
 }
@@ -131,9 +131,9 @@ impl RandomnessReceiver for YourContract {
 // Create a subscription
 #[ink(message, payable)]
 pub fn create_subscription(
-    &mut self, 
-    credits: u32, 
-    frequency: u32, 
+    &mut self,
+    credits: u32,
+    frequency: u32,
     metadata: Option<Vec<u8>>,
 ) -> core::result::Result<(), Error> {
     // Create subscription parameters
@@ -152,7 +152,6 @@ pub fn create_subscription(
 
     // Create subscription through IDN client
     let subscription_id = self.idn_client.create_subscription(params)?;
-    
     self.subscription_id = Some(subscription_id);
     Ok(())
 }
@@ -179,14 +178,14 @@ pub fn update_subscription(
     frequency: u32,
 ) -> core::result::Result<(), Error> {
     let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
-    
+
     // Create update parameters
-    let params = UpdateSubParams { 
+    let params = UpdateSubParams {
         sub_id: subscription_id,
         credits,
         frequency,
     };
-    
+
     self.idn_client.update_subscription(params)
 }
 
@@ -214,14 +213,15 @@ The IDN Client library allows configuring the following parameters at instantiat
    ```rust
    // Example value, use the correct value for your network
    let idn_manager_pallet_index: u8 = 42;
-   ```
+    ```
 
 2. **Ideal Network Parachain ID**: The parachain ID of the Ideal Network
    ```rust
    let ideal_network_para_id: u32 = 2000; // Example value
-   ```
+    ```
 
 These parameters can be configured when creating an IdnClientImpl instance:
+
 ```rust
 let idn_client = IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id);
 ```
@@ -232,7 +232,7 @@ All types such as `Pulse` (trait), `ContractPulse`, `SubscriptionId`, `BlockNumb
 
 ```rust
 use idn_client_contract_lib::{
-    Pulse, ContractPulse, SubscriptionId, BlockNumber, Metadata, 
+    Pulse, ContractPulse, SubscriptionId, BlockNumber, Metadata,
     SubscriptionState, CreateSubParams, UpdateSubParams, Error
 };
 ```

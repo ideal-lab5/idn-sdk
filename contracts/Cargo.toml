@@ -4,5 +4,5 @@ resolver = "2"
 members = [
     "idn-client-contract-lib",
     "idn-example-consumer-contract",
-    "rand-extension-example",
+    "idn-contract-lib",
 ]
