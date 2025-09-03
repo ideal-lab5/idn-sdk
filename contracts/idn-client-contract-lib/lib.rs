@@ -13,6 +13,70 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+//! # IDN Client Contract Library
+//!
+//! This library provides ink! smart contracts with the ability to interact with the Ideal Network
+//! (IDN) to consume verifiable randomness through cross-chain messaging (XCM).
+//!
+//! ## Purpose
+//!
+//! The IDN Client Contract Library serves as a bridge between ink! smart contracts deployed on
+//! Polkadot parachains and the Ideal Network's randomness beacon services. It enables contracts
+//! to subscribe to, consume, and manage randomness subscriptions in a seamless, cross-chain manner.
+//!
+//! ## Key Concepts
+//!
+//! ### Randomness Pulses
+//!
+//! Randomness pulses are cryptographically verifiable random values delivered by the IDN's
+//! randomness beacon. Each pulse contains:
+//! - A 48-byte randomness value derived from drand's Quicknet
+//! - A round number for temporal ordering
+//! - Associated metadata for subscription context
+//!
+//! Contracts receive these pulses through the [`IdnConsumer::consume_pulse`] callback method,
+//! which is automatically invoked by the IDN when new randomness becomes available.
+//!
+//! ### Subscription Management
+//!
+//! Subscriptions define how contracts receive randomness and are configured with:
+//!
+//! - **Credits**: Payment budget for the subscription (more credits = more pulses available)
+//! - **Frequency**: Distribution interval measured in IDN block numbers
+//! - **Metadata**: Optional bounded data for application-specific context
+//! - **Subscription ID**: Unique identifier for tracking and management
+//!
+//! Subscriptions progress through states (Active → Paused → Finalized) and can be updated
+//! or terminated through the [`IdnClient`] management methods.
+//!
+//! ### XCM Message Flow
+//!
+//! The library abstracts the complexity of cross-chain communication:
+//!
+//! 1. **Contract Call**: Contract invokes [`IdnClient`] methods (e.g., `create_subscription`)
+//! 2. **XCM Construction**: Method constructs appropriate XCM message with:
+//!    - Asset withdrawal for execution fees
+//! 	- Runtime call to IDN Manager pallet
+//! 	- Fee refund and deposit instructions
+//! 3. **Cross-Chain Execution**: XCM message is sent to IDN parachain for processing
+//! 4. **Response Delivery**: IDN sends randomness back via XCM to contract's callback
+//!
+//! This flow ensures that contracts can seamlessly interact with IDN services without
+//! directly handling XCM message construction or cross-chain execution details.
+//!
+//! ### Fee Management
+//!
+//! XCM execution requires fees paid in the target chain's native asset:
+//!
+//! - **Fee Estimation**: The `max_idn_xcm_fees` parameter sets the maximum fee budget
+//! - **Asset Handling**: Fees are automatically withdrawn from the contract's account
+//! - **Surplus Refund**: Unused fees are refunded back to the contract after execution
+//! - **Fee Assets**: Uses the relay chain's native token (DOT/KSM) for XCM execution
+//!
+//! The library handles all fee-related XCM instructions automatically, ensuring contracts
+//! only need to maintain sufficient balance for their subscription operations.
+
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 pub mod types;
@@ -20,17 +84,29 @@ pub mod types;
 use ink::{
 	env::Error as EnvError,
 	prelude::vec,
+	selector_id,
 	xcm::{
 		lts::{
-			prelude::{OriginKind, Transact, Weight, Xcm},
-			Junction, Junctions, Location,
+			prelude::{
+				BuyExecution, DepositAsset, OriginKind, RefundSurplus, Transact, Weight,
+				WithdrawAsset, Xcm,
+			},
+			Asset,
+			AssetFilter::Wild,
+			AssetId, Junction, Junctions, Location,
+			WeightLimit::Unlimited,
+			WildAsset::AllOf,
+			WildFungibility,
 		},
 		VersionedLocation, VersionedXcm,
 	},
 };
 use parity_scale_codec::{Decode, Encode};
 use sp_idn_traits::Hashable;
-use types::{CreateSubParams, IdnXcm, PalletIndex, ParaId, Pulse, SubscriptionId, UpdateSubParams};
+use types::{
+	CallIndex, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata, PalletIndex, ParaId,
+	Pulse, Quote, SubInfoResponse, SubscriptionId, UpdateSubParams,
+};
 
 pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
 
@@ -43,22 +119,16 @@ pub enum Error {
 	XcmExecutionFailed,
 	/// Error when sending XCM message
 	XcmSendFailed,
-	/// Error in balance transfer
-	BalanceTransferFailed,
-	/// The requested subscription was not found
-	SubscriptionNotFound,
-	/// The requested subscription is inactive
-	SubscriptionInactive,
-	/// Invalid Subscription Id
-	SubscriptionIdInvalid,
-	/// Randomness generation failed
-	RandomnessGenerationFailed,
-	/// The system has reached its maximum subscription capacity
-	TooManySubscriptions,
 	/// Non XCM environment error
 	NonXcmEnvError,
 	/// Method not implemented
 	MethodNotImplemented,
+	/// Error consuming pulse
+	ConsumePulseError,
+	/// Error consuming quote
+	ConsumeQuoteError,
+	/// Error consuming subscription info
+	ConsumeSubInfoError,
 }
 
 impl From<EnvError> for Error {
@@ -75,128 +145,87 @@ impl From<EnvError> for Error {
 /// Result type for IDN client operations
 pub type Result<T> = core::result::Result<T, Error>;
 
-/// Represents the state of a subscription
-#[allow(clippy::cast_possible_truncation)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[ink::scale_derive(Encode, Decode, TypeInfo)]
-pub enum SubscriptionState {
-	/// Subscription is active and receiving randomness
-	Active,
-	/// Subscription is paused and not receiving randomness
-	Paused,
-	/// The subscription is finalized and cannot be resumed.
-	Finalized,
-}
-
-/// Client trait for interacting with the IDN Manager pallet
-pub trait IdnClient {
-	/// Creates a new subscription for randomness
-	///
-	/// # Arguments
-	///
-	/// * `params` - Parameters for the subscription
-	///
-	/// # Returns
-	///
-	/// * `Result<SubscriptionId>` - Success with subscription ID or error
-	///
-	/// This function can fail with:
-	/// * `Error::TooManySubscriptions` - If the IDN network has reached its maximum subscription
-	///   capacity
-	/// * `Error::XcmSendFailed` - If there was a problem sending the XCM message
-	fn create_subscription(&mut self, _params: &mut CreateSubParams) -> Result<SubscriptionId> {
-		Err(Error::MethodNotImplemented)
-	}
-
-	/// Pauses an active subscription
-	///
-	/// # Arguments
-	///
-	/// * `sub_id` - ID of the subscription to pause
-	///
-	/// # Returns
-	///
-	/// * `Result<()>` - Success or error
-	fn pause_subscription(&mut self, _sub_id: SubscriptionId) -> Result<()> {
-		Err(Error::MethodNotImplemented)
-	}
-
-	/// Reactivates a paused subscription
-	///
-	/// # Arguments
-	///
-	/// * `sub_id` - ID of the subscription to reactivate
-	///
-	/// # Returns
-	///
-	/// * `Result<()>` - Success or error
-	fn reactivate_subscription(&mut self, _sub_id: SubscriptionId) -> Result<()> {
-		Err(Error::MethodNotImplemented)
-	}
-
-	/// Updates an existing subscription
-	///
-	/// # Arguments
-	///
-	/// * `params` - Parameters for the update
-	///
-	/// # Returns
-	///
-	/// * `Result<()>` - Success or error
-	fn update_subscription(&mut self, _params: UpdateSubParams) -> Result<()> {
-		Err(Error::MethodNotImplemented)
-	}
-
-	/// Cancels an active subscription
-	///
-	/// # Arguments
-	///
-	/// * `sub_id` - ID of the subscription to cancel
-	///
-	/// # Returns
-	///
-	/// * `Result<()>` - Success or error
-	fn kill_subscription(&mut self, _sub_id: SubscriptionId) -> Result<()> {
-		Err(Error::MethodNotImplemented)
-	}
-}
-
-/// Trait for contracts that receive randomness from the IDN Network
+/// Trait for contracts that receive data from the IDN Network
 #[ink::trait_definition]
 pub trait IdnConsumer {
-	/// Called by the IDN Network with randomness
+	/// Consumes a randomness pulse from the IDN chain.
 	///
-	/// # Arguments
+	/// This function processes randomness pulses delivered by the IDN chain.
 	///
-	/// * `pulse` - The pulse containing randomness data
-	/// * `sub_id` - ID of the subscription that received randomness
+	/// # Parameters
+	/// - `pulse`: The randomness pulse to be consumed.
+	/// - `sub_id`: The subscription ID associated with the pulse.
 	///
-	/// # Returns
-	///
-	/// * `Result<()>` - Success or error
+	/// # Errors
+	/// - [`Error::ConsumePulseError`]: If the pulse cannot be consumed.
 	#[ink(message)]
-	fn consume_pulse(&mut self, pulse: Pulse, sub_id: SubscriptionId) -> Result<()>;
+	fn consume_pulse(&self, pulse: Pulse, sub_id: SubscriptionId) -> Result<()>;
+
+	/// Consumes a subscription quote from the IDN chain.
+	///
+	/// This function processes subscription fee quotes received from the IDN chain.
+	/// implementation.
+	///
+	/// # Parameters
+	/// - `quote`: The subscription quote to be consumed.
+	///
+	/// # Errors
+	/// - [`Error::ConsumeQuoteError`]: If the quote cannot be consumed.
+	#[ink(message)]
+	fn consume_quote(&self, quote: Quote) -> Result<()>;
+
+	/// Consumes subscription info from the IDN chain.
+	///
+	/// This function processes subscription information received from the IDN chain.
+	/// implementation.
+	///
+	/// # Parameters
+	/// - `sub_info`: The subscription information to be consumed.
+	///
+	/// # Errors
+	/// - [`Error::ConsumeSubInfoError`]: If the subscription info cannot be consumed.
+	#[ink(message)]
+	fn consume_sub_info(&self, sub_info: SubInfoResponse) -> Result<()>;
 }
 
 /// Implementation of the IDN Client
 #[derive(Clone, Copy, Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
-pub struct IdnClientImpl {
+pub struct IdnClient {
 	/// Pallet index for the IDN Manager pallet
 	pub idn_manager_pallet_index: PalletIndex,
 	/// Parachain ID of the IDN network
-	pub ideal_network_para_id: ParaId,
+	pub idn_para_id: ParaId,
+	/// Index for the contracts pallet in the parachain this contract is deployed on
+	pub self_contracts_pallet_index: PalletIndex,
+	/// ID of this parachain this contract is deployed on
+	pub self_para_id: ParaId,
+	/// The maximum amount of fees to pay for the execution of a single XCM message sent to the
+	/// IDN chain, expressed in the IDN asset.
+	pub max_idn_xcm_fees: u128,
 }
 
-impl IdnClientImpl {
-	/// Creates a new IdnClientImpl with the specified IDN Manager pallet index and parachain ID
+impl IdnClient {
+	/// Creates a new IdnClient with the specified IDN Manager pallet index and parachain ID
 	///
 	/// # Arguments
 	///
 	/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet
-	/// * `ideal_network_para_id` - The parachain ID of the IDN network
-	pub fn new(idn_manager_pallet_index: PalletIndex, ideal_network_para_id: ParaId) -> Self {
-		Self { idn_manager_pallet_index, ideal_network_para_id }
+	/// * `idn_para_id` - The parachain ID of the IDN network
+	pub fn new(
+		idn_manager_pallet_index: PalletIndex,
+		idn_para_id: ParaId,
+		self_contracts_pallet_index: PalletIndex,
+		self_para_id: ParaId,
+		max_idn_xcm_fees: u128,
+	) -> Self {
+		Self {
+			idn_manager_pallet_index,
+			idn_para_id,
+			self_contracts_pallet_index,
+			self_para_id,
+			max_idn_xcm_fees,
+		}
 	}
 
 	/// Gets the pallet index for the IDN Manager pallet
@@ -205,36 +234,202 @@ impl IdnClientImpl {
 	}
 
 	/// Gets the parachain ID of the IDN network
-	pub fn get_ideal_network_para_id(&self) -> ParaId {
-		self.ideal_network_para_id
+	pub fn get_idn_para_id(&self) -> ParaId {
+		self.idn_para_id
 	}
 
-	/// Creates a target location for a contract on a parachain
+	/// Gets the contracts pallet index for this parachain
+	pub fn get_self_contracts_pallet_index(&self) -> PalletIndex {
+		self.self_contracts_pallet_index
+	}
+
+	/// Gets the parachain ID of this parachain
+	pub fn get_self_para_id(&self) -> ParaId {
+		self.self_para_id
+	}
+
+	/// Creates a new randomness subscription with the IDN network.
 	///
-	/// # Arguments
+	/// This method sends an XCM message to the IDN Manager pallet to create a subscription
+	/// for receiving randomness pulses. If no subscription ID is provided, one will be
+	/// automatically generated using a hash of the current block timestamp.
 	///
-	/// * `destination_para_id` - The parachain ID where the contract is deployed
-	/// * `contracts_pallet_index` - The index of the contracts pallet on the destination chain
-	/// * `contract_account_id` - The account ID of the contract
+	/// # Parameters
+	/// - `credits`: Payment budget for the subscription (more credits = more pulses available)
+	/// - `frequency`: Distribution interval measured in IDN block numbers
+	/// - `metadata`: Optional bounded data for application-specific context
+	/// - `sub_id`: Optional subscription ID; if None, auto-generated
+	///
+	/// # Returns
+	/// Returns the subscription ID that was created or provided.
+	///
+	/// # Errors
+	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
+	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
+	pub fn create_subscription(
+		&self,
+		credits: Credits,
+		frequency: IdnBlockNumber,
+		metadata: Option<Metadata>,
+		sub_id: Option<SubscriptionId>,
+	) -> Result<SubscriptionId> {
+		let mut params = CreateSubParams {
+			credits,
+			target: self.self_para_sibling_location(),
+			call_index: self.pulse_callback_index(),
+			frequency,
+			metadata,
+			sub_id,
+		};
+
+		// If `sub_id` is not provided, generate a new one and assign it to the params
+		let sub_id = match sub_id {
+			Some(sub_id) => sub_id,
+			None => {
+				let salt = ink::env::block_timestamp::<ink::env::DefaultEnvironment>().encode();
+				let sub_id = params.hash(&salt).into();
+				params.sub_id = Some(sub_id);
+				sub_id
+			},
+		};
+
+		let call =
+			RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params: params.clone() });
+
+		self.xcm_send(call)?;
+
+		// Return the subscription ID (should always be Some at this point)
+		Ok(sub_id)
+	}
+
+	/// Pauses an active subscription temporarily.
+	///
+	/// This method sends an XCM message to pause the specified subscription. While paused,
+	/// no randomness pulses will be delivered, but the subscription remains in storage
+	/// and can be reactivated later.
+	///
+	/// # Parameters
+	/// - `sub_id`: The subscription ID to pause
+	///
+	/// # Errors
+	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
+	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
+	pub fn pause_subscription(&self, sub_id: SubscriptionId) -> Result<()> {
+		let call = RuntimeCall::IdnManager(IdnManagerCall::pause_subscription { sub_id });
+		self.xcm_send(call)
+	}
+
+	/// Reactivates a paused subscription.
+	///
+	/// This method sends an XCM message to reactivate a previously paused subscription.
+	/// Once reactivated, randomness pulses will resume being delivered according to
+	/// the subscription's frequency settings.
+	///
+	/// # Parameters
+	/// - `sub_id`: The subscription ID to reactivate
+	///
+	/// # Errors
+	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
+	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
+	pub fn reactivate_subscription(&self, sub_id: SubscriptionId) -> Result<()> {
+		let call = RuntimeCall::IdnManager(IdnManagerCall::reactivate_subscription { sub_id });
+		self.xcm_send(call)
+	}
+
+	/// Updates an existing subscription's parameters.
+	///
+	/// This method sends an XCM message to modify the specified subscription's settings.
+	/// Any parameter set to `Some(value)` will be updated, while `None` parameters
+	/// remain unchanged.
+	///
+	/// # Parameters
+	/// - `sub_id`: The subscription ID to update
+	/// - `credits`: Optional new credit budget for the subscription
+	/// - `frequency`: Optional new distribution interval in IDN blocks
+	/// - `metadata`: Optional metadata update (use `Some(None)` to clear metadata)
+	///
+	/// # Errors
+	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
+	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
+	pub fn update_subscription(
+		&mut self,
+		sub_id: SubscriptionId,
+		credits: Option<Credits>,
+		frequency: Option<IdnBlockNumber>,
+		metadata: Option<Option<Metadata>>,
+	) -> Result<()> {
+		let params = UpdateSubParams { sub_id, credits, frequency, metadata };
+
+		let call = RuntimeCall::IdnManager(IdnManagerCall::update_subscription { params });
+
+		self.xcm_send(call)
+	}
+
+	/// Permanently terminates a subscription.
+	///
+	/// This method sends an XCM message to kill the specified subscription. Once killed,
+	/// the subscription is removed from storage, any unused credits are refunded to the
+	/// origin, and the storage deposit is returned. This action cannot be undone.
+	///
+	/// # Parameters
+	/// - `sub_id`: The subscription ID to terminate
+	///
+	/// # Errors
+	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
+	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
+	pub fn kill_subscription(&self, sub_id: SubscriptionId) -> Result<()> {
+		let call = RuntimeCall::IdnManager(IdnManagerCall::kill_subscription { sub_id });
+		self.xcm_send(call)
+	}
+
+	/// Requests a subscription fee quote from the IDN network.
+	///
+	/// This method will send an XCM message to request current subscription pricing
+	/// information. The quote response will be delivered via the [`IdnConsumer::consume_quote`]
+	/// callback method.
+	///
+	/// # Returns
+	/// Currently returns [`Error::MethodNotImplemented`] as this feature is not yet implemented.
+	///
+	/// # Errors
+	/// - [`Error::MethodNotImplemented`]: This method is not yet implemented
+	pub fn request_quote(&self) -> Result<()> {
+		// TODO: implement
+		Err(Error::MethodNotImplemented)
+	}
+
+	/// Requests information about a subscription from the IDN network.
+	///
+	/// This method will send an XCM message to request detailed information about
+	/// a subscription's current state, remaining credits, and other parameters.
+	/// The response will be delivered via the [`IdnConsumer::consume_sub_info`] callback method.
+	///
+	/// # Returns
+	/// Currently returns [`Error::MethodNotImplemented`] as this feature is not yet implemented.
+	///
+	/// # Errors
+	/// - [`Error::MethodNotImplemented`]: This method is not yet implemented
+	pub fn request_sub_info(&self) -> Result<()> {
+		// TODO: implement
+		Err(Error::MethodNotImplemented)
+	}
+
+	/// Get this parachain's Location as a sibling of the IDN chain.
 	///
 	/// # Returns
 	///
 	/// * A MultiLocation targeting the contract via XCM
-	pub fn create_contracts_target_location(
-		destination_para_id: ParaId,
-		contracts_pallet_index: PalletIndex,
-		contract_account_id: &[u8; 32],
-	) -> IdnXcm::Location {
+	fn self_para_sibling_location(&self) -> IdnXcm::Location {
 		IdnXcm::Location {
 			parents: 1, // Go up to the relay chain
 			interior: IdnXcm::Junctions::X3(
 				[
-					IdnXcm::Junction::Parachain(destination_para_id), /* Target parachain */
-					IdnXcm::Junction::PalletInstance(contracts_pallet_index), /* Contracts pallet */
+					IdnXcm::Junction::Parachain(self.get_self_para_id()), /* Target parachain */
+					IdnXcm::Junction::PalletInstance(self.get_self_contracts_pallet_index()), /* Contracts pallet */
 					IdnXcm::Junction::AccountId32 {
 						// Contract address
 						network: None,
-						id: *contract_account_id,
+						id: *ink::env::account_id::<ink::env::DefaultEnvironment>().as_ref(),
 					},
 				]
 				.into(),
@@ -242,179 +437,78 @@ impl IdnClientImpl {
 		}
 	}
 
-	/// Helper function to construct an XCM message for calling an IDN Manager pallet function
+	/// Sends an XCM message to the Ideal Network (IDN) chain.
 	///
-	/// # Arguments
+	/// This function constructs and dispatches an XCM message using the provided `RuntimeCall`.
+	/// The message includes the following instructions:
+	/// - `WithdrawAsset`: Withdraws the specified asset (IDN fee) from the sender's account.
+	/// - `BuyExecution`: Pays for the execution of the XCM message with the withdrawn asset.
+	/// - `Transact`: Executes the provided `RuntimeCall` on the target chain.
+	/// - `RefundSurplus`: Refunds any surplus fees to the sender.
+	/// - `DepositAsset`: Deposits the refunded asset back into the sender's account.
 	///
-	/// * `call_index` - The IDN Manager call index for the specific function
-	/// * `encoded_params` - The SCALE-encoded parameters for the function call
+	/// The function ensures that the XCM message is properly versioned and sent to the target
+	/// location (`SiblingIdnLocation`). If the message fails to send, an `XcmSendError` is
+	/// returned.
+	///
+	/// # Parameters
+	/// - `origin`: The origin of the call.
+	/// - `call`: The `RuntimeCall` to be executed on the target chain.
 	///
 	/// # Returns
-	///
-	/// * An XCM message that will execute the specified function call
-	fn construct_xcm_for_idn_manager(&self, call: RuntimeCall) -> Xcm<()> {
-		// Build the XCM message
-		Xcm(vec![Transact {
-			origin_kind: OriginKind::SovereignAccount,
-			require_weight_at_most: Weight::from_parts(1_000_000_000, 1_000_000),
-			call: call.encode().into(),
-		}])
-	}
-
-	/// Constructs an XCM message for creating a subscription
-	fn construct_create_subscription_xcm(&self, params: &CreateSubParams) -> Xcm<()> {
-		let call =
-			RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params: params.clone() });
-
-		// Use the helper function to construct the XCM message
-		self.construct_xcm_for_idn_manager(call)
-	}
-
-	/// Constructs an XCM message for pausing a subscription
-	fn construct_pause_subscription_xcm(&self, sub_id: SubscriptionId) -> Xcm<()> {
-		let call = RuntimeCall::IdnManager(IdnManagerCall::pause_subscription { sub_id });
-
-		// Use the helper function to construct the XCM message
-		self.construct_xcm_for_idn_manager(call)
-	}
-
-	/// Constructs an XCM message for reactivating a subscription
-	fn construct_reactivate_subscription_xcm(&self, sub_id: SubscriptionId) -> Xcm<()> {
-		let call = RuntimeCall::IdnManager(IdnManagerCall::reactivate_subscription { sub_id });
-
-		// Use the helper function to construct the XCM message
-		self.construct_xcm_for_idn_manager(call)
-	}
-
-	/// Constructs an XCM message for updating a subscription
-	fn construct_update_subscription_xcm(&self, params: &UpdateSubParams) -> Xcm<()> {
-		let call =
-			RuntimeCall::IdnManager(IdnManagerCall::update_subscription { params: params.clone() });
-
-		// Use the helper function to construct the XCM message
-		self.construct_xcm_for_idn_manager(call)
-	}
-
-	/// Constructs an XCM message for canceling a subscription
-	fn construct_kill_subscription_xcm(&self, sub_id: SubscriptionId) -> Xcm<()> {
-		let call = RuntimeCall::IdnManager(IdnManagerCall::kill_subscription { sub_id });
-
-		// Use the helper function to construct the XCM message
-		self.construct_xcm_for_idn_manager(call)
-	}
-}
-
-/// Implementation of the IdnClient trait for IdnClientImpl
-impl IdnClient for IdnClientImpl {
-	fn create_subscription(&mut self, params: &mut CreateSubParams) -> Result<SubscriptionId> {
-		let mut sub_id = params.sub_id;
-		// Generate a subscription ID if not provided
-		if sub_id.is_none() {
-			// Generate a subscription ID based on the current timestamp
-			let salt = ink::env::block_timestamp::<ink::env::DefaultEnvironment>().encode();
-			sub_id = Some(params.hash(&salt).into());
-			params.sub_id = sub_id;
-		}
-
-		// Create the XCM message
-		let message = self.construct_create_subscription_xcm(&params);
-
-		// Create the destination MultiLocation (IDN parachain)
-		let junction = Junction::Parachain(self.ideal_network_para_id);
-		let destination = Location {
-			parents: 1, // Parent (relay chain)
-			interior: Junctions::X1([junction].into()),
+	/// - `Ok(())` if the message is successfully sent.
+	/// - `Err(Error<T>)` if the message fails to send.
+	fn xcm_send(&self, call: RuntimeCall) -> Result<()> {
+		let idn_fee_asset = Asset {
+			id: AssetId(Location { parents: 1, interior: Junctions::Here }),
+			fun: self.max_idn_xcm_fees.into(),
 		};
 
-		// Send the XCM message
-		// We use xcm_send for async execution
-		ink::env::xcm_send::<ink::env::DefaultEnvironment, ()>(
-			&VersionedLocation::V4(destination),
-			&VersionedXcm::V4(message),
-		)?;
+		let xcm_call: Xcm<RuntimeCall> = Xcm(vec![
+			WithdrawAsset(idn_fee_asset.clone().into()),
+			BuyExecution { weight_limit: Unlimited, fees: idn_fee_asset.clone() },
+			Transact {
+				origin_kind: OriginKind::Xcm,
+				require_weight_at_most: Weight::MAX,
+				call: call.encode().into(),
+			},
+			RefundSurplus,
+			DepositAsset {
+				assets: Wild(AllOf { id: idn_fee_asset.id, fun: WildFungibility::Fungible }),
+				// refund any surplus back to the chain's sovereign account
+				beneficiary: self.contract_idn_location(),
+			},
+		]);
 
-		// Return the subscription ID (should always be Some at this point)
-		sub_id.ok_or(Error::SubscriptionIdInvalid)
-	}
+		let versioned_target: Box<VersionedLocation> = Box::new(self.sibling_idn_location().into());
 
-	fn pause_subscription(&mut self, sub_id: SubscriptionId) -> Result<()> {
-		// Create the XCM message
-		let message = self.construct_pause_subscription_xcm(sub_id);
+		let versioned_msg: Box<VersionedXcm<()>> = Box::new(VersionedXcm::V4(xcm_call.into()));
 
-		// Create the destination MultiLocation (IDN parachain)
-		let junction = Junction::Parachain(self.ideal_network_para_id);
-		let destination = Location {
-			parents: 1, // Parent (relay chain)
-			interior: Junctions::X1([junction].into()),
-		};
-
-		// Send the XCM message
-		ink::env::xcm_send::<ink::env::DefaultEnvironment, ()>(
-			&VersionedLocation::V4(destination),
-			&VersionedXcm::V4(message),
-		)?;
+		ink::env::xcm_send::<ink::env::DefaultEnvironment, ()>(&versioned_target, &versioned_msg)
+			.map_err(|_err| Error::XcmSendFailed)?;
 
 		Ok(())
 	}
 
-	fn reactivate_subscription(&mut self, sub_id: SubscriptionId) -> Result<()> {
-		// Create the XCM message
-		let message = self.construct_reactivate_subscription_xcm(sub_id);
-
-		// Create the destination MultiLocation (IDN parachain)
-		let junction = Junction::Parachain(self.ideal_network_para_id);
-		let destination = Location {
-			parents: 1, // Parent (relay chain)
-			interior: Junctions::X1([junction].into()),
-		};
-
-		// Send the XCM message
-		ink::env::xcm_send::<ink::env::DefaultEnvironment, ()>(
-			&VersionedLocation::V4(destination),
-			&VersionedXcm::V4(message),
-		)?;
-
-		Ok(())
+	/// Helper function to get the sibling location of the IDN parachain
+	fn sibling_idn_location(&self) -> Location {
+		Location::new(1, Junction::Parachain(self.get_idn_para_id()))
 	}
 
-	fn update_subscription(&mut self, params: UpdateSubParams) -> Result<()> {
-		// Create the XCM message
-		let message = self.construct_update_subscription_xcm(&params);
-
-		// Create the destination MultiLocation (IDN parachain)
-		let junction = Junction::Parachain(self.ideal_network_para_id);
-		let destination = Location {
-			parents: 1, // Parent (relay chain)
-			interior: Junctions::X1([junction].into()),
-		};
-
-		// Send the XCM message
-		ink::env::xcm_send::<ink::env::DefaultEnvironment, ()>(
-			&VersionedLocation::V4(destination),
-			&VersionedXcm::V4(message),
-		)?;
-
-		Ok(())
+	/// Helper function to get the location of this contract's address on the IDN parachain
+	fn contract_idn_location(&self) -> Location {
+		Location::new(
+			0,
+			Junction::AccountId32 {
+				network: None,
+				id: *ink::env::account_id::<ink::env::DefaultEnvironment>().as_ref(),
+			},
+		)
 	}
-
-	fn kill_subscription(&mut self, sub_id: SubscriptionId) -> Result<()> {
-		// Create the XCM message
-		let message = self.construct_kill_subscription_xcm(sub_id);
-
-		// Create the destination MultiLocation (IDN parachain)
-		let junction = Junction::Parachain(self.ideal_network_para_id);
-		let destination = Location {
-			parents: 1, // Parent (relay chain)
-			interior: Junctions::X1([junction].into()),
-		};
-
-		// Send the XCM message
-		ink::env::xcm_send::<ink::env::DefaultEnvironment, ()>(
-			&VersionedLocation::V4(destination),
-			&VersionedXcm::V4(message),
-		)?;
-
-		Ok(())
+	/// Get the call index for the [`IdnConsumer::consume_pulse`] call
+	fn pulse_callback_index(&self) -> CallIndex {
+		let consume_pulse_id = (selector_id!("consume_pulse") >> 24) as u8;
+		[self.get_self_contracts_pallet_index(), consume_pulse_id]
 	}
 }
 
@@ -428,7 +522,7 @@ mod tests {
 
 	#[test]
 	fn test_constructing_xcm_messages() {
-		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		let sub_id = [123u8; 32];
 		// Test creating a subscription XCM message
@@ -464,7 +558,7 @@ mod tests {
 
 	#[test]
 	fn test_message_content_validation() {
-		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 		let sub_id = [123u8; 32];
 		// Test create subscription message content
 		let create_params = CreateSubParams {
@@ -492,13 +586,13 @@ mod tests {
 	#[test]
 	fn test_client_encoding_decoding() {
 		// Create a client
-		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Encode the client
 		let encoded = client.encode();
 
 		// Decode the client
-		let decoded: IdnClientImpl = Decode::decode(&mut &encoded[..]).unwrap();
+		let decoded: IdnClient = Decode::decode(&mut &encoded[..]).unwrap();
 
 		let sub_id = [123u8; 32];
 		// Create a message with the decoded client to verify it works
@@ -518,7 +612,7 @@ mod tests {
 
 	#[test]
 	fn test_edge_cases() {
-		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 
 		// Test with zero values
 		let zero_credits_params = CreateSubParams {
@@ -547,10 +641,6 @@ mod tests {
 
 	#[test]
 	fn test_error_handling() {
-		// Existing test
-		// Verify TooManySubscriptions error is distinct from other errors
-		assert_ne!(Error::TooManySubscriptions, Error::NonXcmEnvError);
-
 		// Verify that XCM-specific errors are properly handled in the From implementation
 		// This only tests that our Error enum has the right variants for the XCM errors
 		// since we can't easily construct the actual XCM errors in unit tests
@@ -570,7 +660,7 @@ mod tests {
 	#[test]
 	fn test_pause_subscription_invalid_id() {
 		// Simulate passing an invalid subscription ID (e.g., 0)
-		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 		// In practice, this would fail at the runtime/pallet level, but we can check XCM message is
 		// still constructed
 		let msg = client.construct_pause_subscription_xcm([0u8; 32]);
@@ -579,7 +669,7 @@ mod tests {
 
 	#[test]
 	fn test_update_subscription_invalid_id() {
-		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 		let params = UpdateSubParams {
 			sub_id: [0u8; 32],
 			credits: Some(1),
@@ -592,7 +682,7 @@ mod tests {
 
 	#[test]
 	fn test_create_subscription_maximum_values() {
-		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 		let params = CreateSubParams {
 			credits: u64::MAX,
 			target: IdnXcm::Location::default(),
@@ -607,7 +697,7 @@ mod tests {
 
 	#[test]
 	fn test_create_subscription_invalid_call_index() {
-		let client = IdnClientImpl::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
+		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000);
 		let params = CreateSubParams {
 			credits: 1,
 			target: IdnXcm::Location::default(),
@@ -622,8 +712,7 @@ mod tests {
 
 	#[test]
 	fn test_create_contracts_target_location_various_inputs() {
-		let account_id = [1u8; 32];
-		let loc = IdnClientImpl::create_contracts_target_location(2001, 55, &account_id);
+		let loc = IdnClient::create_contracts_target_location(2001, 55, &account_id);
 		// Basic checks on the MultiLocation structure
 		assert_eq!(loc.parents, 1);
 		// Further checks could decode the Junctions if needed

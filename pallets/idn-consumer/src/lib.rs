@@ -534,7 +534,6 @@ impl<T: Config> Pallet<T> {
 		let mut params = CreateSubParams {
 			credits,
 			target: Self::self_para_sibling_location()?,
-			// the `0` on the second element is the call index for the `consume` call
 			call_index: Self::pulse_callback_index()?,
 			frequency,
 			metadata,
