@@ -15,8 +15,8 @@
  */
 
 pub use bp_idn::types::{
-	xcm as IdnXcm, CallIndex, CreateSubParams, RuntimePulse as Pulse, SubscriptionId,
-	UpdateSubParams,
+	xcm as IdnXcm, BlockNumber as IdnBlockNumber, CallIndex, CreateSubParams, Credits, Metadata,
+	Quote, RuntimePulse as Pulse, SubInfoResponse, SubscriptionId, UpdateSubParams,
 };
 
 pub type ParaId = u32;

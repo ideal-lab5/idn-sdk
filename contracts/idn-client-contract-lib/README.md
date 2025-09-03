@@ -1,31 +1,36 @@
 # IDN Client Contract Library
 
-A client library for ink! smart contracts to interact with the Ideal Network services through XCM. This library makes it simple for contracts on other parachains to subscribe to and receive randomness from the Ideal Network.
+A comprehensive client library enabling ink! smart contracts to seamlessly interact with the Ideal Network (IDN) for consuming verifiable randomness through cross-chain messaging (XCM).
 
-## Features
+## Overview
 
-- **Simplified XCM Interaction**: Abstracts away the complexity of constructing XCM messages
-- **Randomness Subscription Management**: Create, pause, reactivate, update, and kill randomness subscriptions
-- **Pulse Trait Implementation**: Uses the `Pulse` trait for type-safe randomness handling with round numbers and signatures
-- **Randomness Reception**: Define how to receive and process randomness through callbacks
-- **Error Handling**: Comprehensive error types for robust contract development
-- **Configurable Parameters**: Network-specific parameters configurable at instantiation time
+The IDN Client Contract Library bridges ink! smart contracts on Polkadot parachains with the Ideal Network's randomness beacon services. It provides a simple, robust interface for subscription management and automatic randomness delivery without requiring deep XCM knowledge.
 
-## Library Structure
+## Architecture
 
-The library provides:
+### Cross-Chain Integration
 
-1. **IdnClient Trait**: The main interface for interacting with the IDN Manager pallet
-2. **IdnConsumer Trait**: Interface that contracts must implement to receive randomness
-3. **ContractPulse Struct**: Implementation of the `Pulse` trait for handling randomness with metadata
-4. **IdnClientImpl**: Reference implementation of the IdnClient trait with configurable parameters
-5. **Helper Types**: Subscription IDs, error types, CreateSubParams, UpdateSubParams, and other necessary types
+The library leverages XCM (Cross-Consensus Messaging) to enable seamless communication between your contract and the IDN:
 
-## Usage
+```
+Your Contract (Parachain A) ←→ XCM Messages ←→ IDN (Parachain B)
+      ↓                                              ↓
+  IdnClient Methods                         IDN Manager Pallet
+      ↓                                              ↓
+  Subscription Mgmt                        Randomness Beacon
+```
 
-### 1. Adding to Your Contract
+### Component Architecture
 
-First, add the IDN Client library to your contract's `Cargo.toml`:
+- **`IdnClient`**: Main interface for subscription management
+- **`IdnConsumer` Trait**: Contract callback interface for receiving randomness
+- **XCM Layer**: Cross-chain message construction and handling
+
+## Quick Start
+
+### 1. Add Dependency
+
+Add to your contract's `Cargo.toml`:
 
 ```toml
 [dependencies]
@@ -35,121 +40,100 @@ idn-client-contract-lib = { path = "../idn-client-contract-lib", default-feature
 default = ["std"]
 std = [
     "idn-client-contract-lib/std",
-    # other dependencies with std feature
+    # other std features...
 ]
 ```
 
-### 2. Implementing Your Contract
-
-In your contract's `lib.rs`, use the IDN Client as follows:
+### 2. Basic Contract Setup
 
 ```rust
 use idn_client_contract_lib::{
-    CallIndex, CreateSubParams, Error, IdnClient, IdnClientImpl, ContractPulse,
-    IdnConsumer, Result, SubscriptionId, UpdateSubParams
+    IdnClient, IdnConsumer, Result, Error,
+    types::{SubscriptionId, Pulse, Credits, IdnBlockNumber}
 };
-use idn_client_contract_lib::Pulse;
 
-#[ink(storage)]
-pub struct YourContract {
-    // The subscription ID for the randomness subscription
-    subscription_id: Option<SubscriptionId>,
-    // The last received randomness
-    last_randomness: Option<[u8; 32]>,
-    // The last received pulse (contains randomness, round number, and signature)
-    last_pulse: Option<ContractPulse>,
-    // The parachain ID where this contract is deployed
-    destination_para_id: u32,
-    // The contracts pallet index on the destination chain
-    contracts_pallet_index: u8,
-    // The call index for receiving randomness
-    randomness_call_index: CallIndex,
-    // IDN Client implementation
-    idn_client: IdnClientImpl,
-}
+#[ink::contract]
+mod my_randomness_contract {
+    use super::*;
 
-impl YourContract {
-    #[ink(constructor)]
-    pub fn new(
-        ideal_network_para_id: u32,
-        idn_manager_pallet_index: u8,
-        destination_para_id: u32,
-        contracts_pallet_index: u8,
-    ) -> Self {
-        // The call index for randomness delivery to this contract
-        let randomness_call_index: CallIndex = [contracts_pallet_index, 0x01];
-
-        Self {
-            subscription_id: None,
-            last_randomness: None,
-            last_pulse: None,
-            destination_para_id,
-            contracts_pallet_index,
-            randomness_call_index,
-            idn_client: IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id),
-        }
+    #[ink(storage)]
+    pub struct MyContract {
+        idn_client: IdnClient,
+        subscription_id: Option<SubscriptionId>,
+        last_randomness: Option<[u8; 48]>,
     }
 
-    // Getter methods for configuration
-    #[ink(message)]
-    pub fn get_ideal_network_para_id(&self) -> u32 {
-        self.idn_client.get_ideal_network_para_id()
-    }
-
-    #[ink(message)]
-    pub fn get_idn_manager_pallet_index(&self) -> u8 {
-        self.idn_client.get_idn_manager_pallet_index()
-    }
-}
-
-impl IdnConsumer for YourContract {
-    fn consume_pulse(
-        &mut self,
-        pulse: ContractPulse,
-        subscription_id: SubscriptionId,
-    ) -> Result<()> {
-        // Verify that the subscription ID matches our active subscription
-        if let Some(our_subscription_id) = self.subscription_id {
-            if our_subscription_id != subscription_id {
-                return Err(Error::SubscriptionNotFound);
+    impl MyContract {
+        #[ink(constructor)]
+        pub fn new() -> Self {
+            Self {
+                // Configure for your specific network
+                idn_client: IdnClient::new(
+                    42,    // IDN Manager pallet index
+                    2000,  // IDN parachain ID
+                    50,    // Contracts pallet index (this chain)
+                    2001,  // This parachain ID
+                    1_000_000_000, // Max XCM fees (1 DOT)
+                ),
+                subscription_id: None,
+                last_randomness: None,
             }
-        } else {
-            return Err(Error::SubscriptionNotFound);
+        }
+    }
+}
+```
+
+### 3. Implement Randomness Reception
+
+```rust
+impl IdnConsumer for MyContract {
+    #[ink(message)]
+    fn consume_pulse(&mut self, pulse: Pulse, sub_id: SubscriptionId) -> Result<()> {
+        // Verify this is for our subscription
+        if Some(sub_id) != self.subscription_id {
+            return Err(Error::ConsumePulseError);
         }
 
-        // Extract and store the randomness
-        let randomness = pulse.rand();
-        self.last_randomness = Some(randomness);
+        // Compute randomness as Sha256(sig)
+		let mut hasher = Sha256::default();
+		hasher.update(pulse.sig());
+		let randomness: [u8; 32] = hasher.finalize().into();
 
-        // Store the pulse
-        self.last_pulse = Some(pulse);
+        // Do somthing with `randomness`
 
         Ok(())
     }
+
+    // Implement other trait methods as needed
+    #[ink(message)]
+    fn consume_quote(&mut self, quote: Quote) -> Result<()> {
+        // Handle subscription quotes
+        Ok(())
+    }
+
+    #[ink(message)]
+    fn consume_sub_info(&mut self, info: SubInfoResponse) -> Result<()> {
+        // Handle subscription info
+        Ok(())
+    }
 }
+```
 
-// Create a subscription
+## Subscription Lifecycle Management
+
+### Creating a Subscription
+
+```rust
 #[ink(message, payable)]
-pub fn create_subscription(
-    &mut self,
-    credits: u32,
-    frequency: u32,
-    metadata: Option<Vec<u8>>,
-) -> core::result::Result<(), Error> {
-    // Create subscription parameters
-    let params = CreateSubParams {
-        credits,
-        target: IdnClientImpl::create_contracts_target_location(
-            self.destination_para_id,
-            self.contracts_pallet_index,
-            self.env().account_id().as_ref(),
-        ),
-        call_index: self.randomness_call_index,
-        frequency,
-        metadata,
-        sub_id: None, // Let the system generate an ID
-    };
+pub fn create_randomness_subscription(&mut self) -> Result<()> {
+    let sub_id = self.idn_client.create_subscription(
+        100,        // Credits
+        10,         // Frequency (every 10 IDN blocks)
+        None,       // Optional metadata
+        None,       // Auto-generate subscription ID
+    )?;
 
+<<<<<<< HEAD
     // Create subscription through IDN client
     let subscription_id = self.idn_client.create_subscription(params)?;
 <<<<<<< HEAD
@@ -160,48 +144,66 @@ pub fn create_subscription(
 =======
 >>>>>>> b267b1e (remove hardcoded runtime calls)
     self.subscription_id = Some(subscription_id);
+=======
+    self.subscription_id = Some(sub_id);
+>>>>>>> f42b961 (update traits and xcm)
     Ok(())
 }
+```
 
-// Pause a subscription
+### Subscription Management
+
+```rust
+// Pause subscription temporarily
 #[ink(message, payable)]
-pub fn pause_subscription(&mut self) -> core::result::Result<(), Error> {
-    let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
-    self.idn_client.pause_subscription(subscription_id)
+pub fn pause_subscription(&mut self) -> Result<()> {
+    if let Some(sub_id) = self.subscription_id {
+        self.idn_client.pause_subscription(sub_id)
+    } else {
+        Err(Error::ConsumePulseError) // No active subscription
+    }
 }
 
-// Reactivate a paused subscription
+// Reactivate paused subscription
 #[ink(message, payable)]
-pub fn reactivate_subscription(&mut self) -> core::result::Result<(), Error> {
-    let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
-    self.idn_client.reactivate_subscription(subscription_id)
+pub fn reactivate_subscription(&mut self) -> Result<()> {
+    if let Some(sub_id) = self.subscription_id {
+        self.idn_client.reactivate_subscription(sub_id)
+    } else {
+        Err(Error::ConsumePulseError)
+    }
 }
 
-// Update a subscription
+// Update subscription parameters
 #[ink(message, payable)]
 pub fn update_subscription(
     &mut self,
-    credits: u32,
-    frequency: u32,
-) -> core::result::Result<(), Error> {
-    let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
-
-    // Create update parameters
-    let params = UpdateSubParams {
-        sub_id: subscription_id,
-        credits,
-        frequency,
-    };
-
-    self.idn_client.update_subscription(params)
+    new_credits: Option<Credits>,
+    new_frequency: Option<IdnBlockNumber>
+) -> Result<()> {
+    if let Some(sub_id) = self.subscription_id {
+        self.idn_client.update_subscription(
+            sub_id,
+            new_credits,
+            new_frequency,
+            None, // metadata update
+        )
+    } else {
+        Err(Error::ConsumePulseError)
+    }
 }
 
-// Kill a subscription
+// Terminate subscription permanently
 #[ink(message, payable)]
-pub fn kill_subscription(&mut self) -> core::result::Result<(), Error> {
-    let subscription_id = self.subscription_id.ok_or(Error::SubscriptionNotFound)?;
-    self.idn_client.kill_subscription(subscription_id)
+pub fn kill_subscription(&mut self) -> Result<()> {
+    if let Some(sub_id) = self.subscription_id {
+        self.subscription_id = None; // Clear local state
+        self.idn_client.kill_subscription(sub_id)
+    } else {
+        Err(Error::ConsumePulseError)
+    }
 }
+<<<<<<< HEAD
 
 ## Call Index Configuration
 
@@ -239,58 +241,118 @@ These parameters can be configured when creating an IdnClientImpl instance:
 
 ```rust
 let idn_client = IdnClientImpl::new(idn_manager_pallet_index, ideal_network_para_id);
+=======
+>>>>>>> f42b961 (update traits and xcm)
 ```
 
-## Using Types from the Library
+## Configuration Guide
 
-All types such as `Pulse` (trait), `ContractPulse`, `SubscriptionId`, `BlockNumber`, `Metadata`, `SubscriptionState`, `CreateSubParams`, `UpdateSubParams`, and `Error` are defined within this library. Import them directly:
+### Network Parameters
+
+Configure these parameters for your specific deployment:
 
 ```rust
-use idn_client_contract_lib::{
-    Pulse, ContractPulse, SubscriptionId, BlockNumber, Metadata,
-    SubscriptionState, CreateSubParams, UpdateSubParams, Error
-};
+// IDN Configuration
+const IDN_PARA_ID: u32 = 2000;              // IDN parachain ID
+const IDN_MANAGER_PALLET_INDEX: u8 = 42;    // IDN Manager pallet index
+
+// Your Parachain Configuration
+const SELF_PARA_ID: u32 = 2001;             // Your parachain ID
+const CONTRACTS_PALLET_INDEX: u8 = 50;      // Contracts pallet index
+
+// XCM Fee Configuration
+const MAX_XCM_FEES: u128 = 1_000_000_000;   // 1 DOT in Planck units
 ```
 
-## Using the Pulse Trait and ContractPulse
+### Pallet Index Discovery
 
-The library provides:
+To find the correct pallet indices:
 
-1. A `Pulse` trait defining the interface for randomness data
-2. A `ContractPulse` implementation of the Pulse trait that is optimized for storage in ink! contracts
+1. **IDN Manager Pallet**: Check IDN runtime configuration or metadata
+2. **Contracts Pallet**: Check your parachain's runtime configuration
+3. **Verification**: Use `polkadot-js` apps or runtime metadata inspection
 
-```rust
-// Working with ContractPulse
-// Get the raw randomness
-let rand_bytes = pulse.rand();
+### XCM Channel Setup
 
-// Get the round number
-let round = pulse.round();
+Ensure HRMP channels are established between your parachain and IDN:
 
-// Get the signature
-let signature = pulse.sig();
+```bash
+# Example channel setup (adjust for your network)
+# From your parachain to IDN
+hrmp.hrmp_init_open_channel(2000, 1000, 1000)
 
-// Authenticate (if applicable)
-let is_valid = pulse.authenticate(pubkey);
+# From IDN to your parachain
+hrmp.hrmp_accept_open_channel(2001)
 ```
 
 ## Security Considerations
 
-When using this library:
+### 1. Account Funding
 
-1. **Sovereign Account Funding**: Ensure your contract's sovereign account on the IDN Network has sufficient funds for subscription costs
-2. **Parachain Configuration**: Both parachains must have properly configured XCM channels
-3. **Call Index Verification**: Verify the call indices for your pallet and function to receive randomness
-4. **Signature Verification**: Consider implementing verification of the Pulse signatures for additional security
-5. **Network Parameters**: Ensure the correct parachain IDs and pallet indices are used for your target environment
+Ensure your contract's account has sufficient balance on the IDN chain for:
 
-## Testing
+- XCM execution fees (paid in relay chain tokens)
+- Subscription costs (paid to IDN)
 
-See the `idn-example-consumer-contract` for examples of how to test contracts that use this library, including:
+### 2. Randomness Verification
 
-- Unit tests for subscription management
-- Simulating randomness reception with ContractPulse objects
+Consider implementing additional randomness verification:
+
+```rust
+fn verify_pulse_authenticity(&self, pulse: &Pulse) -> bool {
+    pub const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+
+    if pulse
+        .authenticate(BEACON_PUBKEY.try_into().expect("The public key is well-defined; qed."))
+    {
+        // Randomness consumption logic goes here.
+        log::info!("IDN Consumer: Verified pulse: {:?} with sub id: {:?}", pulse, sub_id);
+    } else {
+        log::error!(
+            "IDN Consumer: Unverified pulse ingested: {:?} with sub id: {:?}",
+            pulse,
+            sub_id
+        );
+        return false;
+    }
+    true
+}
+```
+
+### 3. Subscription Management
+
+- Track subscription states locally
+- Implement access control for subscription management
+- Monitor credit consumption and refill proactively
+
+## Troubleshooting
+
+### Common Issues
+
+1. **XCM Send Failed**
+
+   - Check HRMP channel setup
+   - Verify sufficient account balance
+   - Confirm pallet indices
+
+2. **Pulse Not Received**
+
+   - Verify `IdnConsumer` trait implementation
+   - Check callback call index configuration
+   - Ensure subscription is active
+
+3. **Fee Estimation Errors**
+   - Increase `max_idn_xcm_fees` parameter
+   - Monitor network fee fluctuations
+   - Implement fee adjustment mechanisms
+
+## Resources
+
+- [Example Consumer Contract](../idn-example-consumer-contract/)
+- [IDN SDK Documentation](../../README.md)
+- [XCM Format Specification](https://github.com/paritytech/xcm-format)
+- [ink! Documentation](https://use.ink/)
 
 ## License
 
-Licensed under the Apache License, Version 2.0.
+Licensed under the Apache License, Version 2.0. See the [LICENSE](../../LICENSE) file for details.
