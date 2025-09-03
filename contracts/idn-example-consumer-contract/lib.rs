@@ -289,8 +289,31 @@ mod example_consumer {
 			// Get the active subscription ID
 			let subscription_id = self.ensure_active_sub()?;
 
-			self.consume_pulse(pulse, subscription_id)
-				.map_err(ContractError::IdnClientError)
+			self.do_consume_pulse(pulse, subscription_id)
+		}
+
+		/// Internal method to process pulse
+		fn do_consume_pulse(
+			&mut self,
+			pulse: Pulse,
+			subscription_id: SubscriptionId,
+		) -> Result<(), ContractError> {
+			// Verify that the subscription ID matches our active subscription
+			let stored_sub_id = self.ensure_active_sub()?;
+			if stored_sub_id != subscription_id {
+				return Err(ContractError::InvalidSubscriptionId);
+			}
+
+			// Compute randomness as Sha256(sig)
+			let mut hasher = Sha256::default();
+			hasher.update(pulse.sig());
+			let randomness: [u8; 32] = hasher.finalize().into();
+
+			// Store the randomness for backward compatibility
+			self.last_randomness = Some(randomness);
+			self.randomness_history.push(randomness);
+
+			Ok(())
 		}
 
 		/// Gets the IDN parachain ID
@@ -337,22 +360,7 @@ mod example_consumer {
 			// Make sure the caller is the IDN account
 			self.ensure_idn_caller()?;
 
-			// Verify that the subscription ID matches our active subscription
-			let stored_sub_id = self.ensure_active_sub()?;
-			if stored_sub_id != subscription_id {
-				return Err(Error::InvalidSubscriptionId);
-			}
-
-			// Compute randomness as Sha256(sig)
-			let mut hasher = Sha256::default();
-			hasher.update(pulse.sig());
-			let randomness: [u8; 32] = hasher.finalize().into();
-
-			// Store the randomness for backward compatibility
-			self.last_randomness = Some(randomness);
-			self.randomness_history.push(randomness);
-
-			Ok(())
+			self.do_consume_pulse(pulse, subscription_id).map_err(|e| e.into())
 		}
 
 		#[ink(message)]
@@ -379,13 +387,25 @@ mod example_consumer {
 			let test_sig = [1u8; 48];
 			let test_pulse = Pulse::new(test_sig, 1, 2);
 
-			// Setup contract
-			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
+			// Setup contract with owner as caller
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
+			let mut contract = ExampleConsumer::new(
+				accounts.bob, // idn_account_id
+				2000,         // idn_para_id
+				10,           // idn_manager_pallet_index
+				1000,         // self_para_id
+				50,           // self_contracts_pallet_index
+				1_000_000,    // max_idn_xcm_fees
+			);
 			contract.subscription_id = Some([1u8; 32]);
 
-			// Simulate receiving pulse
+			// Simulate receiving pulse (should succeed with owner as caller)
 			let result = contract.simulate_pulse_received(test_pulse.clone());
-			assert!(result.is_ok());
+			match result {
+				Ok(_) => {},
+				Err(e) => panic!("Expected success but got error: {:?}", e),
+			}
 
 			// Compute expected randomness
 			let mut hasher = Sha256::default();
@@ -399,8 +419,19 @@ mod example_consumer {
 
 		#[ink::test]
 		fn test_randomness_getters() {
+			// Setup test environment with owner as caller
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
+
 			// Create a test contract
-			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
+			let mut contract = ExampleConsumer::new(
+				accounts.bob, // idn_account_id
+				2000,         // idn_para_id
+				10,           // idn_manager_pallet_index
+				1000,         // self_para_id
+				50,           // self_contracts_pallet_index
+				1_000_000,    // max_idn_xcm_fees
+			);
 			contract.subscription_id = Some([1u8; 32]);
 
 			// Test empty state
@@ -412,8 +443,12 @@ mod example_consumer {
 			let test_pulse2 = Pulse::new([2u8; 48], 1, 2);
 
 			// Simulate receiving randomness
-			contract.simulate_pulse_received(test_pulse1.clone()).unwrap();
-			contract.simulate_pulse_received(test_pulse2.clone()).unwrap();
+			contract
+				.simulate_pulse_received(test_pulse1.clone())
+				.expect("Should successfully receive first pulse");
+			contract
+				.simulate_pulse_received(test_pulse2.clone())
+				.expect("Should successfully receive second pulse");
 
 			// Compute expected randomness for test_pulse1
 			let mut hasher1 = Sha256::default();
@@ -430,16 +465,31 @@ mod example_consumer {
 
 		#[ink::test]
 		fn test_randomness_receiver_trait() {
+			// Setup test environment with IDN account as caller
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob); // Use bob as IDN account
+
 			// Create a test contract
-			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
+			let mut contract = ExampleConsumer::new(
+				accounts.bob, // idn_account_id
+				2000,         // idn_para_id
+				10,           // idn_manager_pallet_index
+				1000,         // self_para_id
+				50,           // self_contracts_pallet_index
+				1_000_000,    // max_idn_xcm_fees
+			);
 			contract.subscription_id = Some([5u8; 32]);
+			// idn_account_id is already set to accounts.bob in constructor
 
 			// Create a test pulse
 			let test_pulse = Pulse::new([9u8; 48], 1, 2);
 
 			// Call the trait method directly
 			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse.clone(), [5u8; 32]);
-			assert!(result.is_ok());
+			match result {
+				Ok(_) => {},
+				Err(e) => panic!("Expected success but got error: {:?}", e),
+			}
 
 			// Compute expected randomness
 			let mut hasher = Sha256::default();
@@ -452,16 +502,31 @@ mod example_consumer {
 
 		#[ink::test]
 		fn test_randomness_receiver_wrong_subscription() {
+			// Setup test environment with IDN account as caller
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob); // Use bob as IDN account
+
 			// Create a test contract
-			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
+			let mut contract = ExampleConsumer::new(
+				accounts.bob, // idn_account_id
+				2000,         // idn_para_id
+				10,           // idn_manager_pallet_index
+				1000,         // self_para_id
+				50,           // self_contracts_pallet_index
+				1_000_000,    // max_idn_xcm_fees
+			);
 			contract.subscription_id = Some([5u8; 32]);
+			// idn_account_id is already set to accounts.bob in constructor
 
 			// Create a test pulse
 			let test_pulse = Pulse::new([0u8; 48], 1, 2);
 
 			// Call with wrong subscription ID
 			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse.clone(), [6u8; 32]);
-			assert!(result.is_err());
+			match result {
+				Ok(_) => panic!("Expected error but got success"),
+				Err(_) => {}, // Expected error
+			}
 
 			// Should not have stored anything
 			assert_eq!(contract.get_last_randomness(), None);
@@ -469,16 +534,97 @@ mod example_consumer {
 
 		#[ink::test]
 		fn test_pause_without_subscription() {
-			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
+			// Setup test environment with owner as caller
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
+
+			let mut contract = ExampleConsumer::new(
+				accounts.bob, // idn_account_id
+				2000,         // idn_para_id
+				10,           // idn_manager_pallet_index
+				1000,         // self_para_id
+				50,           // self_contracts_pallet_index
+				1_000_000,    // max_idn_xcm_fees
+			);
 			let result = contract.pause_subscription();
 			assert_eq!(result, Err(ContractError::NoActiveSubscription));
 		}
 
 		#[ink::test]
 		fn test_update_subscription_edge_cases() {
-			let mut contract = ExampleConsumer::new(2000, 10, 1000, 50);
+			// Setup test environment with owner as caller
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
+
+			let mut contract = ExampleConsumer::new(
+				accounts.bob, // idn_account_id
+				2000,         // idn_para_id
+				10,           // idn_manager_pallet_index
+				1000,         // self_para_id
+				50,           // self_contracts_pallet_index
+				1_000_000,    // max_idn_xcm_fees
+			);
 			let result = contract.update_subscription(100, 10);
 			assert_eq!(result, Err(ContractError::NoActiveSubscription));
+		}
+
+		#[ink::test]
+		fn test_unauthorized_simulate_pulse() {
+			// Setup test environment with owner as caller first
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice will be owner
+
+			let mut contract = ExampleConsumer::new(
+				accounts.bob, // idn_account_id
+				2000,         // idn_para_id
+				10,           // idn_manager_pallet_index
+				1000,         // self_para_id
+				50,           // self_contracts_pallet_index
+				1_000_000,    // max_idn_xcm_fees
+			);
+			contract.subscription_id = Some([1u8; 32]);
+
+			// Now change caller to non-owner
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob); // Bob is not owner
+
+			let test_pulse = Pulse::new([1u8; 48], 1, 2);
+			let result = contract.simulate_pulse_received(test_pulse);
+
+			// Should fail with Unauthorized error
+			match result {
+				Ok(_) => panic!("Expected Unauthorized error but got success"),
+				Err(ContractError::Unauthorized) => {}, // Expected
+				Err(ContractError::IdnClientError(_)) =>
+					panic!("Got IDN client error instead of direct unauthorized error"),
+				Err(e) => panic!("Expected Unauthorized error but got: {:?}", e),
+			}
+		}
+
+		#[ink::test]
+		fn test_unauthorized_idn_caller() {
+			// Setup test environment with non-IDN account as caller
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice is not IDN account
+
+			let mut contract = ExampleConsumer::new(
+				accounts.bob, // idn_account_id
+				2000,         // idn_para_id
+				10,           // idn_manager_pallet_index
+				1000,         // self_para_id
+				50,           // self_contracts_pallet_index
+				1_000_000,    // max_idn_xcm_fees
+			);
+			contract.subscription_id = Some([5u8; 32]);
+			// idn_account_id is already set to accounts.bob in constructor
+
+			let test_pulse = Pulse::new([9u8; 48], 1, 2);
+
+			// Call consume_pulse with non-IDN caller - should fail
+			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse, [5u8; 32]);
+			match result {
+				Ok(_) => panic!("Expected Unauthorized error but got success"),
+				Err(_) => {}, // Expected error (authorization check fails)
+			}
 		}
 	}
 
@@ -500,10 +646,12 @@ mod example_consumer {
 
 			// Deploy the contract
 			let mut constructor = ExampleConsumerRef::new(
-				idn_para_id,
-				idn_manager_pallet_index,
-				destination_para_id,
-				contracts_pallet_index,
+				ink_e2e::alice().0.clone().into(), // idn_account_id
+				idn_para_id,                       // idn_para_id
+				idn_manager_pallet_index,          // idn_manager_pallet_index
+				destination_para_id,               // self_para_id
+				contracts_pallet_index,            // self_contracts_pallet_index
+				1_000_000,                         // max_idn_xcm_fees
 			);
 
 			// Verify that the contract can be deployed
