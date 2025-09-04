@@ -148,7 +148,10 @@
 pub mod types;
 
 use ink::{
-	env::Error as EnvError,
+	env::{
+		hash::{Blake2x256, CryptoHash},
+		Error as EnvError,
+	},
 	prelude::vec,
 	selector_id,
 	xcm::{
@@ -169,7 +172,7 @@ use ink::{
 };
 use parity_scale_codec::{Decode, Encode};
 use scale_info::prelude::boxed::Box;
-use sp_idn_traits::{pulse::Pulse as TPulse, Hashable};
+use sp_idn_traits::pulse::Pulse as TPulse;
 use types::{
 	CallIndex, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata, PalletIndex, ParaId,
 	Pulse, Quote, SubInfoResponse, SubscriptionId, UpdateSubParams,
@@ -178,6 +181,26 @@ use types::{
 pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
 
 pub const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+
+/// Contract-compatible trait for hashing with a salt
+pub trait Hashable {
+	fn hash(&self, salt: &[u8]) -> [u8; 32];
+}
+
+impl<T> Hashable for T
+where
+	T: Encode,
+{
+	fn hash(&self, salt: &[u8]) -> [u8; 32] {
+		let id_tuple = (self, salt);
+		// Encode the tuple using SCALE codec
+		let encoded = id_tuple.encode();
+		// Use ink!'s built-in hashing for contract environment
+		let mut output = [0u8; 32];
+		Blake2x256::hash(&encoded, &mut output);
+		output
+	}
+}
 
 /// Represents possible errors that can occur when interacting with the IDN network
 #[allow(clippy::cast_possible_truncation)]
@@ -362,7 +385,7 @@ impl IdnClient {
 			Some(sub_id) => sub_id,
 			None => {
 				let salt = ink::env::block_timestamp::<ink::env::DefaultEnvironment>().encode();
-				let sub_id = params.hash(&salt).into();
+				let sub_id = params.hash(&salt);
 				params.sub_id = Some(sub_id);
 				sub_id
 			},

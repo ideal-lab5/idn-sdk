@@ -43,7 +43,9 @@ To deploy this contract:
 
 2. Deploy to your parachain using your preferred method (e.g., Contracts UI)
 
-3. Initialize with the required parameters:
+3. **⚠️ CRITICAL**: Fund your contract's sovereign account on the IDN chain with relay chain native tokens (DOT/KSM) before calling any subscription methods, or you'll get "Funds are unavailable" errors. See the [detailed funding guide](../idn-client-contract-lib/README.md#contract-account-funding-requirements) for step-by-step instructions.
+
+4. Initialize with the required parameters:
 
    ```
    new(
@@ -253,13 +255,14 @@ To adapt this contract for your needs:
 
 When deploying on a real network:
 
-1. **Configure IDN Account**: Set the correct `idn_account_id` for the authorized IDN Network account
-2. **Set Network Parameters**: Configure `idn_para_id` and `self_para_id` to match your deployment environment
-3. **Configure Pallet Indices**: Set correct `idn_manager_pallet_index` and `self_contracts_pallet_index` values
-4. **Set Fee Limits**: Configure `max_idn_xcm_fees` appropriately for your network's fee structure
-5. **Ensure Sufficient Balance**: The contract account needs enough native tokens for XCM execution fees
-6. **Implement Error Handling**: Set up proper error handling for production use with Result types
-7. **Test Thoroughly**: Use the comprehensive test suite to validate your deployment configuration
+1. **Fund Sovereign Account**: **MOST IMPORTANT** - Fund your contract's sovereign account on the IDN chain with relay chain native tokens before any operations. Follow the [detailed funding guide](../idn-client-contract-lib/README.md#contract-account-funding-requirements) to calculate and fund the correct account.
+2. **Configure IDN Account**: Set the correct `idn_account_id` for the authorized IDN Network account
+3. **Set Network Parameters**: Configure `idn_para_id` and `self_para_id` to match your deployment environment
+4. **Configure Pallet Indices**: Set correct `idn_manager_pallet_index` and `self_contracts_pallet_index` values
+5. **Set Fee Limits**: Configure `max_idn_xcm_fees` appropriately for your network's fee structure
+6. **Verify HRMP Channels**: Ensure HRMP channels are established between your parachain and IDN
+7. **Implement Error Handling**: Set up proper error handling for production use with Result types
+8. **Test Thoroughly**: Use the comprehensive test suite to validate your deployment configuration
 
 ## License
 
