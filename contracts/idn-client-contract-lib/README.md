@@ -389,26 +389,57 @@ fn verify_pulse_authenticity(&self, pulse: &Pulse) -> bool {
 - Implement access control for subscription management
 - Monitor credit consumption and refill proactively
 
+## Contract Account Funding Requirements
+
+### Understanding Sovereign Accounts
+
+When your contract sends XCM messages to the IDN chain, it operates through a **sovereign account** - a derived account that represents your contract on the destination chain. This account must be funded with relay chain native tokens (DOT/KSM) to pay for XCM execution fees.
+
+### Critical Setup Requirement
+
+**⚠️ IMPORTANT**: Before calling any subscription methods (`create_subscription`, `pause_subscription`, etc.), you **must fund your contract's sovereign account** on the IDN chain, or you will get "Funds are unavailable" errors.
+
 ## Troubleshooting
 
 ### Common Issues
 
-1. **XCM Send Failed**
+1. **"Funds are unavailable" Error**
 
-   - Check HRMP channel setup
-   - Verify sufficient account balance
-   - Confirm pallet indices
+   **Symptoms**: XCM execution fails at `WithdrawAsset` instruction with "Funds are unavailable"
+   
+   **Cause**: Contract's sovereign account on IDN chain lacks sufficient relay chain tokens
+   
+   **Solution**:
+   - Verify funding before retrying subscription operations
 
-2. **Pulse Not Received**
+2. **XCM Send Failed**
 
-   - Verify `IdnConsumer` trait implementation
-   - Check callback call index configuration
-   - Ensure subscription is active
+   - Check HRMP channel setup between your parachain and IDN
+   - Verify sufficient account balance for contract operations
+   - Confirm pallet indices match runtime configuration
+   - Ensure contract has permission to send XCM messages
 
-3. **Fee Estimation Errors**
+3. **Pulse Not Received**
+
+   - Verify `IdnConsumer` trait implementation is correct
+   - Check callback call index configuration matches your pallet setup
+   - Ensure subscription is in Active state (not Paused)
+   - Confirm contract account has XCM execution permissions
+   - Validate pulse authenticity using `is_valid_pulse()`
+
+4. **Fee Estimation Errors**
+   
    - Increase `max_idn_xcm_fees` parameter
-   - Monitor network fee fluctuations
-   - Implement fee adjustment mechanisms
+   - Monitor network fee fluctuations and adjust accordingly
+   - Check sovereign account balance is sufficient for fee amount
+   - Implement dynamic fee adjustment mechanisms based on network conditions
+
+5. **Subscription State Issues**
+   
+   - Verify subscription hasn't been automatically terminated due to insufficient credits
+   - Check that subscription ID matches what was returned from creation
+   - Ensure proper state management in your contract (Active/Paused/Finalized)
+   - Monitor credit consumption and refill before depletion
 
 ## Resources
 
