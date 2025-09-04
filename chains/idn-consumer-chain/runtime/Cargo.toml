@@ -18,6 +18,7 @@ docify.workspace = true
 
 [dependencies]
 codec.workspace = true
+hex.workspace = true
 hex-literal.workspace = true
 log.workspace = true
 scale-info.workspace = true
@@ -110,6 +111,7 @@ std = [
   "frame-system/std",
   "frame-try-runtime?/std",
   "frame-metadata-hash-extension/std",
+  "hex/std",
   "log/std",
   "pallet-aura/std",
   "pallet-authorship/std",
