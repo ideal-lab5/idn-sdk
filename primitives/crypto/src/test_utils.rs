@@ -77,7 +77,7 @@ pub fn build_ciphertext<RuntimeCall: codec::Encode>(
 		hasher.update(round_number.to_be_bytes());
 		hasher.finalize().to_vec()
 	};
-	let identity = Identity::new(b"", vec![message]);
+	let identity = Identity::new(b"", &message);
 
 	let esk = [1; 32];
 
