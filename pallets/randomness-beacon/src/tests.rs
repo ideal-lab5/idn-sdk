@@ -66,8 +66,32 @@ fn can_reject_call_data_if_not_experimental() {
 	});
 }
 
+#[cfg(not(feature = "experimental"))]
 #[test]
 fn can_fail_write_pulse_when_genesis_round_not_set() {
+	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let mut raw_call_data = BTreeMap::new();
+	let config = get_config(1000);
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		assert_noop!(
+			Drand::try_submit_asig(
+				RuntimeOrigin::none(),
+				asig.try_into().unwrap(),
+				1000,
+				1001,
+				raw_call_data
+			),
+			Error::<Test>::BeaconConfigNotSet,
+		);
+	});
+}
+
+#[cfg(not(feature = "experimental"))]
+#[test]
+fn can_fail_try_submit_asig_when_not_experimental_but_btreemap_is_nonempty() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
 	let mut raw_call_data = BTreeMap::new();
 	raw_call_data.insert(0u64, vec![((), core::marker::PhantomData)]);
