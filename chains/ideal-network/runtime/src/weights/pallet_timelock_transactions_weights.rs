@@ -45,19 +45,9 @@
 use frame_support::{traits::Get, weights::Weight};
 use core::marker::PhantomData;
 
-pub trait WeightInfo {
-
-	fn schedule_sealed(s: u32) -> Weight;
-	fn service_agenda(s: u32) -> Weight;
-	fn service_task_base() -> Weight;
-	fn service_task_fetched(s: u32, ) -> Weight;
-	fn execute_dispatch_signed() -> Weight;
-
-}
-
 /// Weight functions for `pallet_timelock_transactions`.
-pub struct SubstrateWeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for SubstrateWeightInfo<T> {
+pub struct WeightInfo<T>(PhantomData<T>);
+impl<T: frame_system::Config> pallet_timelock_transactions::WeightInfo for WeightInfo<T> {
 	/// Storage: `Timelock::Agenda` (r:1 w:1)
 	/// Proof: `Timelock::Agenda` (`max_values`: None, `max_size`: Some(2467858), added: 2470333, mode: `MaxEncodedLen`)
 	/// Storage: `Timelock::Lookup` (r:0 w:1)
@@ -65,13 +55,13 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeightInfo<T> {
 	/// The range of component `s` is `[0, 511]`.
 	fn schedule_sealed(s: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `87 + s * (444 ±0)`
+		//  Measured:  `87 + s * (4119 ±0)`
 		//  Estimated: `2471323`
-		// Minimum execution time: 45_367_000 picoseconds.
-		Weight::from_parts(60_210_485, 0)
+		// Minimum execution time: 30_367_000 picoseconds.
+		Weight::from_parts(31_129_000, 0)
 			.saturating_add(Weight::from_parts(0, 2471323))
-			// Standard Error: 8_871
-			.saturating_add(Weight::from_parts(2_102_905, 0).saturating_mul(s.into()))
+			// Standard Error: 29_886
+			.saturating_add(Weight::from_parts(13_509_378, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -84,11 +74,11 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `87 + s * (200 ±0)`
 		//  Estimated: `2471323`
-		// Minimum execution time: 6_686_000 picoseconds.
-		Weight::from_parts(6_777_000, 0)
+		// Minimum execution time: 6_764_000 picoseconds.
+		Weight::from_parts(6_874_000, 0)
 			.saturating_add(Weight::from_parts(0, 2471323))
-			// Standard Error: 8_488
-			.saturating_add(Weight::from_parts(9_254_697, 0).saturating_mul(s.into()))
+			// Standard Error: 8_159
+			.saturating_add(Weight::from_parts(9_218_337, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(s.into())))
@@ -99,8 +89,8 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 3_827_000 picoseconds.
-		Weight::from_parts(3_950_000, 0)
+		// Minimum execution time: 3_780_000 picoseconds.
+		Weight::from_parts(3_938_000, 0)
 			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -113,11 +103,11 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `111 + s * (1 ±0)`
 		//  Estimated: `3576 + s * (1 ±0)`
-		// Minimum execution time: 12_430_000 picoseconds.
-		Weight::from_parts(12_717_000, 0)
+		// Minimum execution time: 11_883_000 picoseconds.
+		Weight::from_parts(12_167_000, 0)
 			.saturating_add(Weight::from_parts(0, 3576))
-			// Standard Error: 614
-			.saturating_add(Weight::from_parts(59_431, 0).saturating_mul(s.into()))
+			// Standard Error: 618
+			.saturating_add(Weight::from_parts(59_765, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(Weight::from_parts(0, 1).saturating_mul(s.into()))
@@ -126,8 +116,8 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 4_509_000 picoseconds.
-		Weight::from_parts(4_700_000, 0)
+		// Minimum execution time: 4_572_000 picoseconds.
+		Weight::from_parts(4_818_000, 0)
 			.saturating_add(Weight::from_parts(0, 0))
 	}
 }

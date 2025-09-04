@@ -83,7 +83,7 @@ pub use weights::WeightInfo;
 use ark_bls12_381::G1Affine;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
-	dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin},
+	dispatch::{DispatchResult, GetDispatchInfo, Parameter},
 	traits::{
 		schedule, Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage,
 		StorageVersion, StorePreimage,
@@ -515,10 +515,7 @@ impl<T: Config> Pallet<T> {
 		origin: T::PalletsOrigin,
 		call: <T as Config>::RuntimeCall,
 	) -> Result<DispatchResult, ()> {
-		let base_weight = match origin.as_system_ref() {
-			Some(&RawOrigin::Signed(_)) => T::WeightInfo::execute_dispatch_signed(),
-			_ => T::WeightInfo::execute_dispatch_unsigned(),
-		};
+		let base_weight = T::WeightInfo::execute_dispatch_signed();
 		let call_weight = call.get_dispatch_info().call_weight;
 		// We only allow a scheduled call if it cannot push the weight past the limit.
 		let max_weight = base_weight.saturating_add(call_weight);

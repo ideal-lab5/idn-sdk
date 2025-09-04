@@ -27,7 +27,7 @@ use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
-#[cfg(feature = "experimental")]
+#[cfg(feature = "tlock")]
 pub type SystemCall = frame_system::Call<Test>;
 
 // Configure a mock runtime to test the pallet.
@@ -131,28 +131,16 @@ impl pallet_randomness_beacon::Config for Test {
 	type Pulse = MockPulse;
 	type Dispatcher = MockDispatcher;
 	type FallbackRandomness = MockFallbackRandomness;
-	#[cfg(feature = "experimental")]
+	#[cfg(feature = "tlock")]
 	type Tlock = Test;
-	#[cfg(feature = "experimental")]
+	#[cfg(feature = "tlock")]
 	type TlockTxProvider = Timelock;
 }
 
 pub struct TestWeightInfo;
 impl pallet_timelock_transactions::WeightInfo for TestWeightInfo {
-	fn service_agendas_base() -> Weight {
-		Weight::from_parts(0b0000_0001, 0)
-	}
-	fn service_agenda_base(i: u32) -> Weight {
-		Weight::from_parts((i << 8) as u64 + 0b0000_0010, 0)
-	}
 	fn service_task_base() -> Weight {
 		Weight::from_parts(0b0000_0100, 0)
-	}
-	fn service_task_periodic() -> Weight {
-		Weight::from_parts(0b0000_1100, 0)
-	}
-	fn service_task_named() -> Weight {
-		Weight::from_parts(0b0001_0100, 0)
 	}
 	fn service_task_fetched(s: u32) -> Weight {
 		Weight::from_parts((s << 8) as u64 + 0b0010_0100, 0)
@@ -160,22 +148,10 @@ impl pallet_timelock_transactions::WeightInfo for TestWeightInfo {
 	fn execute_dispatch_signed() -> Weight {
 		Weight::from_parts(0b0100_0000, 0)
 	}
-	fn execute_dispatch_unsigned() -> Weight {
-		Weight::from_parts(0b1000_0000, 0)
-	}
-	fn schedule(_s: u32) -> Weight {
-		Weight::from_parts(50, 0)
-	}
-	fn cancel(_s: u32) -> Weight {
-		Weight::from_parts(50, 0)
-	}
-	fn schedule_named(_s: u32) -> Weight {
-		Weight::from_parts(50, 0)
-	}
-	fn cancel_named(_s: u32) -> Weight {
-		Weight::from_parts(50, 0)
-	}
 	fn schedule_sealed(_s: u32) -> Weight {
+		Weight::from_parts(50, 0)
+	}
+	fn service_agenda(s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
 }

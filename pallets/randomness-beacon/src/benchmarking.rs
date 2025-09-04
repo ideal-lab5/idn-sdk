@@ -67,12 +67,12 @@ mod benchmarks {
 		let mut amsg = G1Affine::zero();
 
 		// TODO: https://github.com/ideal-lab5/idn-sdk/issues/343
-		#[cfg(feature = "experimental")]
+		#[cfg(feature = "tlock")]
 		let runtime_calls: BTreeMap<
 			RoundNumber,
 			Vec<(TaskName, <T::Tlock as TlockConfig>::RuntimeCall)>,
 		> = BTreeMap::new();
-		#[cfg(not(feature = "experimental"))]
+		#[cfg(not(feature = "tlock"))]
 		let runtime_calls = BTreeMap::new();
 		// compute the aggregated sig and message
 		// we use the asig to pass to the runtime
