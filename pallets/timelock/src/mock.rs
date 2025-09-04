@@ -21,16 +21,10 @@ use super::*;
 
 use crate as scheduler;
 use frame_support::{
-	ord_parameter_types, parameter_types,
-	traits::{ConstU32, ConstU64, Contains},
-	weights::constants::RocksDbWeight,
+	derive_impl, ord_parameter_types, parameter_types, traits::ConstU32
 };
 use frame_system::{EnsureRoot, EnsureSigned};
-use sp_core::H256;
-use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage,
-};
+use sp_runtime::BuildStorage;
 
 // Logger module to track execution.
 #[frame_support::pallet]
@@ -77,16 +71,6 @@ pub mod logger {
 			});
 			Ok(())
 		}
-
-		#[pallet::call_index(1)]
-		#[pallet::weight(*weight)]
-		pub fn log_without_filter(origin: OriginFor<T>, i: u32, weight: Weight) -> DispatchResult {
-			Self::deposit_event(Event::Logged(i, weight));
-			Log::mutate(|log| {
-				log.push((origin.caller().clone(), i));
-			});
-			Ok(())
-		}
 	}
 }
 
@@ -103,91 +87,11 @@ frame_support::construct_runtime!(
 	}
 );
 
-// Scheduler must dispatch with root and no filter, this tests base filter is indeed not used.
-pub struct BaseFilter;
-impl Contains<RuntimeCall> for BaseFilter {
-	fn contains(call: &RuntimeCall) -> bool {
-		!matches!(call, RuntimeCall::Logger(LoggerCall::log { .. }))
-	}
-}
-
 parameter_types! {
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
 			Weight::from_parts(2_000_000_000_000, u64::MAX),
 		);
-}
-
-pub struct MockWeights;
-impl frame_system::ExtensionsWeightInfo for MockWeights {
-	fn check_genesis() -> Weight {
-		Weight::from_parts(10, 0)
-	}
-
-	fn check_mortality_mortal_transaction() -> Weight {
-		Weight::from_parts(10, 0)
-	}
-
-	fn check_mortality_immortal_transaction() -> Weight {
-		Weight::from_parts(10, 0)
-	}
-
-	fn check_non_zero_sender() -> Weight {
-		Weight::from_parts(10, 0)
-	}
-
-	fn check_nonce() -> Weight {
-		Weight::from_parts(10, 0)
-	}
-
-	fn check_spec_version() -> Weight {
-		Weight::from_parts(10, 0)
-	}
-
-	fn check_tx_version() -> Weight {
-		Weight::from_parts(10, 0)
-	}
-
-	fn check_weight() -> Weight {
-		Weight::from_parts(10, 0)
-	}
-
-	fn weight_reclaim() -> Weight {
-		Weight::from_parts(10, 0)
-	}
-}
-
-impl system::Config for Test {
-	type ExtensionsWeightInfo = MockWeights;
-	type BaseCallFilter = BaseFilter;
-	type BlockWeights = BlockWeights;
-	type BlockLength = ();
-	type DbWeight = RocksDbWeight;
-	type RuntimeOrigin = RuntimeOrigin;
-	type RuntimeCall = RuntimeCall;
-	type Nonce = u64;
-	type Hash = H256;
-	type Hashing = BlakeTwo256;
-	type AccountId = u64;
-	type Lookup = IdentityLookup<Self::AccountId>;
-	type Block = Block;
-	type RuntimeEvent = RuntimeEvent;
-	type BlockHashCount = ConstU64<250>;
-	type Version = ();
-	type PalletInfo = PalletInfo;
-	type AccountData = ();
-	type OnNewAccount = ();
-	type OnKilledAccount = ();
-	type SystemWeightInfo = ();
-	type SS58Prefix = ();
-	type OnSetCode = ();
-	type SingleBlockMigrations = ();
-	type MultiBlockMigrator = ();
-	type PreInherents = ();
-	type PostInherents = ();
-	type PostTransactions = ();
-	type RuntimeTask = RuntimeTask;
-	type MaxConsumers = ConstU32<16>;
 }
 
 impl logger::Config for Test {
@@ -210,25 +114,28 @@ impl pallet_insecure_randomness_collective_flip::Config for Test {}
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn service_task_base() -> Weight {
-		Weight::from_parts(0b0000_0100, 0)
+		Weight::from_parts(50, 0)
 	}
-	fn service_task_fetched(s: u32) -> Weight {
-		Weight::from_parts((s << 8) as u64 + 0b0010_0100, 0)
+	fn service_task_fetched(_s: u32) -> Weight {
+		Weight::from_parts(50, 0)
 	}
 	fn execute_dispatch_signed() -> Weight {
-		Weight::from_parts(0b0100_0000, 0)
+		Weight::from_parts(50, 0)
 	}
 	fn schedule_sealed(_s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
-	fn service_agenda(s: u32) -> Weight {
+	fn service_agenda(_s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
 }
 parameter_types! {
-	// pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
-	// 	BlockWeights::get().max_block;
 	pub MaximumSchedulerWeight: Weight = Weight::from_parts(1000, 1000);
+}
+
+#[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
+impl system::Config for Test {
+	type Block = Block;
 }
 
 impl Config for Test {
@@ -248,8 +155,4 @@ pub type LoggerCall = logger::Call<Test>;
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
 	t.into()
-}
-
-pub fn root() -> OriginCaller {
-	system::RawOrigin::Root.into()
 }
