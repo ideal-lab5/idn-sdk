@@ -44,11 +44,36 @@
 //!
 //! - **Credits**: Payment budget for the subscription (more credits = more pulses available)
 //! - **Frequency**: Distribution interval measured in IDN block numbers
-//! - **Metadata**: Optional bounded data for application-specific context
+//! - **Metadata**: Optional bounded data (max 128 bytes) for application-specific context such as
+//!   identifiers, configuration flags, or routing information
 //! - **Subscription ID**: Unique identifier for tracking and management
 //!
 //! Subscriptions progress through states (Active → Paused → Finalized) and can be updated
 //! or terminated through the [`IdnClient`] management methods.
+//!
+//! #### Subscription State Transitions
+//!
+//! Subscriptions follow a well-defined lifecycle with specific state transitions:
+//!
+//! ```text
+//! [Creation] → [Active] ⇄ [Paused] → [Finalized]
+//!                ↓
+//!           [Finalized] (via kill_subscription)
+//! ```
+//!
+//! - **Active**: Subscription delivers randomness according to frequency settings
+//!   - Can transition to: Paused (via `pause_subscription`), Finalized (via `kill_subscription`)
+//!   - Available operations: Update parameters, pause, terminate
+//!
+//! - **Paused**: Subscription exists but does not deliver randomness
+//!   - Can transition to: Active (via `reactivate_subscription`), Finalized (via
+//!     `kill_subscription`)
+//!   - Available operations: Update parameters, reactivate, terminate
+//!
+//! - **Finalized**: Subscription is permanently terminated and removed from storage
+//!   - No further transitions possible
+//!   - Credits refunded, storage deposits returned
+//!   - Subscription ID can be reused for new subscriptions
 //!
 //! ### XCM Message Flow
 //!
@@ -76,6 +101,47 @@
 //!
 //! The library handles all fee-related XCM instructions automatically, ensuring contracts
 //! only need to maintain sufficient balance for their subscription operations.
+//!
+//! #### Fee Calculation Strategies
+//!
+//! Proper fee estimation is crucial for reliable cross-chain operations. Consider these factors:
+//!
+//! **Base Fee Components:**
+//! - XCM instruction execution cost on IDN chain
+//! - Runtime call weight (varies by pallet operation)
+//! - Asset withdrawal and deposit instructions
+//! - Network congestion multiplier
+//!
+//! **Estimation Methods:**
+//! - Conservative approach: Set high maximum (e.g., 1 DOT = 1_000_000_000u128 Planck), unused
+//!   portion is refunded
+//! - Network-specific approach: Adjust based on relay chain (1 DOT for Polkadot, 0.1 KSM for
+//!   Kusama)
+//! - Dynamic approach: Monitor success rates and adjust fees based on network congestion
+//!
+//! **Fee Monitoring:**
+//! - Track actual fees consumed vs. maximum set
+//! - Adjust maximums based on success/failure patterns
+//! - Monitor refunded amounts to optimize fee estimates
+//! - Consider implementing fee adjustment mechanisms in contract logic
+//!
+//! ### Metadata Management
+//!
+//! Subscription metadata enables applications to attach context-specific data to their
+//! randomness subscriptions. This bounded data (maximum 128 bytes) travels with subscription
+//! operations and can be used for:
+//!
+//! - **Application Identifiers**: Distinguish between multiple subscriptions within one contract
+//! - **Configuration Flags**: Store subscription-specific settings or options
+//! - **Routing Information**: Specify how randomness should be processed or distributed
+//! - **User Context**: Associate subscriptions with specific users or sessions
+//!
+//! #### Creating Metadata
+//!
+//! Metadata can be created from various data sources:
+//! - String identifiers: Convert application names or game identifiers to bytes
+//! - Structured data: Use byte arrays for configuration flags or binary data
+//! - JSON-like data: Serialize structured information as bytes (mind the 128-byte limit)
 
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
@@ -102,13 +168,15 @@ use ink::{
 	},
 };
 use parity_scale_codec::{Decode, Encode};
-use sp_idn_traits::Hashable;
+use sp_idn_traits::{pulse::Pulse as TPulse, Hashable};
 use types::{
 	CallIndex, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata, PalletIndex, ParaId,
 	Pulse, Quote, SubInfoResponse, SubscriptionId, UpdateSubParams,
 };
 
 pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
+
+pub const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 
 /// Represents possible errors that can occur when interacting with the IDN network
 #[allow(clippy::cast_possible_truncation)]
@@ -418,6 +486,49 @@ impl IdnClient {
 	pub fn request_sub_info(&self) -> Result<()> {
 		// TODO: implement
 		Err(Error::MethodNotImplemented)
+	}
+
+	/// Validates the cryptographic authenticity of a randomness pulse.
+	///
+	/// This method verifies that a pulse was legitimately generated by the IDN's randomness beacon
+	/// by checking its BLS12-381 signature against the known beacon public key. This provides
+	/// cryptographic proof that the randomness originates from the drand network and hasn't been
+	/// tampered with during cross-chain delivery.
+	///
+	/// # Verification Process
+	///
+	/// The validation performs the following checks:
+	/// 1. Decodes the beacon's BLS12-381 public key from the hardcoded constant
+	/// 2. Calls the pulse's `authenticate` method with the public key
+	/// 3. Returns true if the signature verification succeeds, false otherwise
+	///
+	/// # Usage Pattern
+	///
+	/// Always validate pulses in your IdnConsumer::consume_pulse implementation before using
+	/// the randomness. Invalid pulses should be rejected and potentially logged for security
+	/// monitoring. Valid pulses can be safely processed to derive randomness for your application.
+	///
+	/// # Security Considerations
+	///
+	/// - **Always validate**: Never use randomness from unverified pulses in production
+	/// - **Handle failures**: Invalid pulses may indicate network attacks or data corruption
+	/// - **Log suspicious activity**: Consider logging validation failures for monitoring
+	///
+	/// # Performance Notes
+	///
+	/// BLS signature verification is computationally expensive. Consider caching validation
+	/// results if the same pulse might be processed multiple times, though this is uncommon
+	/// in typical usage patterns.
+	///
+	/// # Parameters
+	/// - `pulse`: The randomness pulse to validate
+	///
+	/// # Returns
+	/// - `true` if the pulse signature is cryptographically valid
+	/// - `false` if validation fails (invalid signature, malformed data, etc.)
+	pub fn is_valid_pulse(&self, pulse: &Pulse) -> bool {
+		let pk = hex::decode(BEACON_PUBKEY).unwrap();
+		pulse.authenticate(pk.try_into().expect("The public key is well-defined; qed."))
 	}
 
 	/// Get this parachain's Location as a sibling of the IDN chain.

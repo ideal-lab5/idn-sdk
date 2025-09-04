@@ -263,4 +263,4 @@ When deploying on a real network:
 
 ## License
 
-Licensed under the Apache License, Version 2.0.
+Licensed under the Apache License, Version 2.0. See the [LICENSE](../../LICENSE) file for details.
