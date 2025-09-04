@@ -83,7 +83,7 @@ pub use weights::WeightInfo;
 use ark_bls12_381::G1Affine;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
-	dispatch::{DispatchResult, GetDispatchInfo, Parameter, RawOrigin},
+	dispatch::{DispatchResult, GetDispatchInfo, Parameter},
 	traits::{
 		schedule, Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage,
 		StorageVersion, StorePreimage,
