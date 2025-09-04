@@ -27,7 +27,7 @@ use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 
-#[cfg(feature = "tlock")]
+#[cfg(feature = "experimental")]
 pub type SystemCall = frame_system::Call<Test>;
 
 // Configure a mock runtime to test the pallet.
@@ -131,9 +131,9 @@ impl pallet_randomness_beacon::Config for Test {
 	type Pulse = MockPulse;
 	type Dispatcher = MockDispatcher;
 	type FallbackRandomness = MockFallbackRandomness;
-	#[cfg(feature = "tlock")]
+	#[cfg(feature = "experimental")]
 	type Tlock = Test;
-	#[cfg(feature = "tlock")]
+	#[cfg(feature = "experimental")]
 	type TlockTxProvider = Timelock;
 }
 

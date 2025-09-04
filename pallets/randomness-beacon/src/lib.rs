@@ -86,11 +86,11 @@ pub use pallet::*;
 extern crate alloc;
 use alloc::{collections::btree_map::BTreeMap, vec, vec::Vec};
 use ark_bls12_381::G1Affine;
-#[cfg(feature = "tlock")]
+#[cfg(feature = "experimental")]
 use frame_support::traits::schedule::v3::TaskName;
 use frame_support::{pallet_prelude::*, traits::Randomness};
 use frame_system::pallet_prelude::BlockNumberFor;
-#[cfg(feature = "tlock")]
+#[cfg(feature = "experimental")]
 use pallet_timelock_transactions::{Config as TlockConfig, TlockTxProvider};
 use sp_consensus_randomness_beacon::types::{CanonicalPulse, RoundNumber};
 use sp_core::H256;
@@ -120,9 +120,9 @@ const LOG_TARGET: &str = "pallet-randomness-beacon";
 
 const SERIALIZED_SIG_SIZE: usize = 48;
 
-#[cfg(feature = "tlock")]
+#[cfg(feature = "experimental")]
 type CallDataOf<T> = (TaskName, <<T as Config>::Tlock as TlockConfig>::RuntimeCall);
-#[cfg(not(feature = "tlock"))]
+#[cfg(not(feature = "experimental"))]
 type CallDataOf<T> = ((), PhantomData<T>);
 
 #[frame_support::pallet]
@@ -169,10 +169,10 @@ pub mod pallet {
 		/// The fallback randomness source
 		type FallbackRandomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 		/// The timelock transaction configuration
-		#[cfg(feature = "tlock")]
+		#[cfg(feature = "experimental")]
 		type Tlock: TlockConfig;
 		/// Something that provides timelock transaction capabilities
-		#[cfg(feature = "tlock")]
+		#[cfg(feature = "experimental")]
 		type TlockTxProvider: TlockTxProvider<
 			<Self::Tlock as TlockConfig>::RuntimeCall,
 			<Self::Tlock as TlockConfig>::MaxScheduledPerBlock,
@@ -264,11 +264,11 @@ pub mod pallet {
 					let end = pulses.last().map(|p| p.round);
 
 					// data needs to be a map since we will have multiple pulses to consider
-					#[cfg(not(feature = "tlock"))]
+					#[cfg(not(feature = "experimental"))]
 					let tasks = BTreeMap::new();
-					#[cfg(feature = "tlock")]
+					#[cfg(feature = "experimental")]
 					let mut tasks = BTreeMap::new();
-					#[cfg(feature = "tlock")]
+					#[cfg(feature = "experimental")]
 					let mut remaining_decrypts = T::MaxDecryptionsPerBlock::get();
 
 					if let (Some(start), Some(end)) = (start, end) {
@@ -280,13 +280,13 @@ pub mod pallet {
 								let sig =
 									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()?;
 
-								#[cfg(feature = "tlock")]
+								#[cfg(feature = "experimental")]
 								let calls = T::TlockTxProvider::decrypt_and_decode(
 									pulse.round,
 									sig,
 									&mut remaining_decrypts,
 								);
-								#[cfg(feature = "tlock")]
+								#[cfg(feature = "experimental")]
 								if !calls.is_empty() {
 									tasks.insert(pulse.round, calls.into_inner());
 								}
@@ -369,7 +369,7 @@ pub mod pallet {
 		/// * `asig`: An aggregated signature as bytes
 		/// * `start`: The first round from which signatures are aggregated
 		/// * `end`: The last round from which signatures were aggregated
-		/// * `raw_call_data`: Ignored unless `tlock` is enabled, allows raw call data to be
+		/// * `raw_call_data`: Ignored unless `experimental` is enabled, allows raw call data to be
 		///   injected to the rutime
 		#[pallet::call_index(0)]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(
@@ -385,8 +385,8 @@ pub mod pallet {
 			end: RoundNumber,
 			raw_call_data: BTreeMap<RoundNumber, Vec<CallDataOf<T>>>,
 		) -> DispatchResultWithPostInfo {
-			// block tlock features if attempted
-			#[cfg(not(feature = "tlock"))]
+			// block experimental features if attempted
+			#[cfg(not(feature = "experimental"))]
 			ensure!(raw_call_data.len() == 0, Error::<T>::ExperimentalFeaturesDisabled);
 
 			ensure_none(origin)?;
@@ -435,7 +435,7 @@ pub mod pallet {
 			let runtime_pulse = T::Pulse::from(sacc);
 			T::Dispatcher::dispatch(runtime_pulse);
 			// dispatch timelocked transactions
-			#[cfg(feature = "tlock")]
+			#[cfg(feature = "experimental")]
 			for (k, v) in raw_call_data {
 				T::TlockTxProvider::service_agenda(
 					k,
