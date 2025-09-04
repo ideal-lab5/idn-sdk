@@ -118,7 +118,7 @@ impl pallet_xcm::benchmarking::Config for Runtime {
 		Asset { id: AssetId(RelayLocation::get()), fun: Fungible(ExistentialDeposit::get()) }
 	}
 }
-
+#[cfg(feature = "tlock")]
 frame_benchmarking::define_benchmarks!(
 	// Only benchmark the following pallets
 	[frame_system, SystemBench::<Runtime>]
@@ -136,4 +136,23 @@ frame_benchmarking::define_benchmarks!(
 	[pallet_transaction_payment, TransactionPayment]
 	[pallet_xcm, PalletXcmExtrinsicsBenchmark::<Runtime>]
 	[pallet_timelock_transactions, Timelock]
+);
+
+#[cfg(not(feature = "tlock"))]
+frame_benchmarking::define_benchmarks!(
+	// Only benchmark the following pallets
+	[frame_system, SystemBench::<Runtime>]
+	[cumulus_pallet_parachain_system, ParachainSystem]
+	[pallet_timestamp, Timestamp]
+	[pallet_balances, Balances]
+	[pallet_sudo, Sudo]
+	[pallet_collator_selection, CollatorSelection]
+	[pallet_contracts, Contracts]
+	[pallet_session, SessionBench::<Runtime>]
+	[cumulus_pallet_xcmp_queue, XcmpQueue]
+	[pallet_message_queue, MessageQueue]
+	[pallet_randomness_beacon, RandBeacon]
+	[pallet_idn_manager, IdnManager]
+	[pallet_transaction_payment, TransactionPayment]
+	[pallet_xcm, PalletXcmExtrinsicsBenchmark::<Runtime>]
 );

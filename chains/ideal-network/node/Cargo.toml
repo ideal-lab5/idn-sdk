@@ -104,3 +104,5 @@ try-runtime = [
   "polkadot-cli/try-runtime",
   "sp-runtime/try-runtime",
 ]
+
+tlock = ["idn-runtime/tlock"]
