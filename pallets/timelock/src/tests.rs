@@ -20,10 +20,7 @@ use crate::mock::{logger, new_test_ext, LoggerCall, RuntimeCall, Timelock, *};
 use ark_bls12_381::{Fr, G2Projective as G2};
 use ark_ec::PrimeGroup;
 use ark_std::{ops::Mul, One};
-use frame_support::{
-	assert_noop, assert_ok,
-	traits::{ConstU32},
-};
+use frame_support::{assert_noop, assert_ok, traits::ConstU32};
 use sp_idn_crypto::test_utils::*;
 
 pub const ALICE: u64 = 0;
@@ -154,18 +151,14 @@ fn schedule_simple_executes_fifo() {
 
 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
 
-		let calls: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Timelock::decrypt_and_decode(
-				drand_round_num,
-				signature.into(),
-				&mut remaining_decrypts,
-			);
+		let calls: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Timelock::decrypt_and_decode(
+			drand_round_num,
+			signature.into(),
+			&mut remaining_decrypts,
+		);
 
 		assert_eq!(calls.len(), 2);
-		Timelock::service_agenda(
-			drand_round_num,
-			calls,
-		);
+		Timelock::service_agenda(drand_round_num, calls);
 
 		println!("{:?}", logger::log());
 		assert_eq!(logger::log(), vec![(signed().into(), 1u32), (signed().into(), 2u32)]);
@@ -207,19 +200,15 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 
 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_3));
 
-		let calls: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Timelock::decrypt_and_decode(
-				drand_round_num,
-				signature.into(),
-				&mut remaining_decrypts,
-			);
+		let calls: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Timelock::decrypt_and_decode(
+			drand_round_num,
+			signature.into(),
+			&mut remaining_decrypts,
+		);
 
 		assert_eq!(calls.len(), 3);
 
-		Timelock::service_agenda(
-			drand_round_num,
-			calls,
-		);
+		Timelock::service_agenda(drand_round_num, calls);
 		assert_eq!(logger::log(), vec![(signed().into(), 1u32), (signed().into(), 3u32)]);
 	})
 }

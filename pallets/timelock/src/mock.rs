@@ -18,9 +18,7 @@
 use super::*;
 
 use crate as timelock;
-use frame_support::{
-	derive_impl, ord_parameter_types, parameter_types, traits::ConstU32
-};
+use frame_support::{derive_impl, ord_parameter_types, parameter_types, traits::ConstU32};
 use frame_system::{EnsureRoot, EnsureSigned};
 use sp_runtime::BuildStorage;
 

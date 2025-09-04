@@ -27,10 +27,7 @@ use frame_system::Call as SystemCall;
 use sp_runtime::BoundedVec;
 use sp_std::{prelude::*, vec};
 
-fn fill_schedule<T: Config>(
-	when: u64,
-	n: u32,
-) -> Result<(), &'static str> {
+fn fill_schedule<T: Config>(when: u64, n: u32) -> Result<(), &'static str> {
 	let caller: T::AccountId = whitelisted_caller();
 	let origin = frame_system::RawOrigin::Signed(caller.clone());
 	for _ in 0..n {

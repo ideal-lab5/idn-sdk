@@ -437,10 +437,7 @@ pub mod pallet {
 			// dispatch timelocked transactions
 			#[cfg(feature = "experimental")]
 			for (k, v) in raw_call_data {
-				T::TlockTxProvider::service_agenda(
-					k,
-					BoundedVec::truncate_from(v),
-				);
+				T::TlockTxProvider::service_agenda(k, BoundedVec::truncate_from(v));
 			}
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 
