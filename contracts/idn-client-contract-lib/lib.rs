@@ -81,9 +81,9 @@
 //!
 //! 1. **Contract Call**: Contract invokes [`IdnClient`] methods (e.g., `create_subscription`)
 //! 2. **XCM Construction**: Method constructs appropriate XCM message with:
-//!    - Asset withdrawal for execution fees
-//! 	- Runtime call to IDN Manager pallet
-//! 	- Fee refund and deposit instructions
+//!   - Asset withdrawal for execution fees
+//!   - Runtime call to IDN Manager pallet
+//!   - Fee refund and deposit instructions
 //! 3. **Cross-Chain Execution**: XCM message is sent to IDN parachain for processing
 //! 4. **Response Delivery**: IDN sends randomness back via XCM to contract's callback
 //!
@@ -168,6 +168,7 @@ use ink::{
 	},
 };
 use parity_scale_codec::{Decode, Encode};
+use scale_info::prelude::boxed::Box;
 use sp_idn_traits::{pulse::Pulse as TPulse, Hashable};
 use types::{
 	CallIndex, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata, PalletIndex, ParaId,
