@@ -717,7 +717,7 @@ fn test_credits_consumption_and_cleanup() {
 			System::set_block_number(System::block_number() + 1);
 
 			// Dispatch randomness
-			IdnManager::dispatch(pulse.into());
+			IdnManager::dispatch(pulse);
 
 			System::assert_last_event(RuntimeEvent::IdnManager(
 				Event::<Test>::RandomnessDistributed { sub_id },
@@ -744,7 +744,7 @@ fn test_credits_consumption_and_cleanup() {
 			treasury_balance += fees;
 
 			assert_eq!(
-				Balances::free_balance(&TreasuryAccount::get()),
+				Balances::free_balance(TreasuryAccount::get()),
 				treasury_balance,
 				"Fees not moved to treasury correctly"
 			);
@@ -778,7 +778,7 @@ fn test_credits_consumption_and_cleanup() {
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0);
 		assert_eq!(
-			Balances::free_balance(&TreasuryAccount::get()) - initial_treasury_balance,
+			Balances::free_balance(TreasuryAccount::get()) - initial_treasury_balance,
 			initial_fees
 		);
 
@@ -831,14 +831,14 @@ fn test_credits_consumption_not_enough_balance() {
 					&sub,
 				);
 				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
-				IdnManager::dispatch(pulse.into());
+				IdnManager::dispatch(pulse);
 
 				let updated_sub = Subscriptions::<Test>::get(sub_id).unwrap();
 				assert_eq!(updated_sub.state, SubscriptionState::Paused);
 				break;
 			} else {
 				// Dispatch randomness
-				IdnManager::dispatch(pulse.into());
+				IdnManager::dispatch(pulse);
 			}
 
 			// finalize block
@@ -890,13 +890,13 @@ fn test_credits_consumption_xcm_send_fails() {
 				sub.details.target = bad_location;
 				Subscriptions::<Test>::insert(sub_id, sub);
 
-				IdnManager::dispatch(pulse.into());
+				IdnManager::dispatch(pulse);
 				let updated_sub = Subscriptions::<Test>::get(sub_id).unwrap();
 				assert_eq!(updated_sub.state, SubscriptionState::Paused);
 				break;
 			} else {
 				// Dispatch randomness
-				IdnManager::dispatch(pulse.into());
+				IdnManager::dispatch(pulse);
 			}
 
 			// finalize block
@@ -955,7 +955,7 @@ fn test_credits_consumption_frequency() {
 			let credits_left = sub.credits_left;
 
 			// Dispatch randomness
-			IdnManager::dispatch(pulse.into());
+			IdnManager::dispatch(pulse);
 
 			// Check the subscription state
 			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
@@ -1029,7 +1029,7 @@ fn test_sub_state_is_finalized_when_credits_left_goes_low() {
 		Subscriptions::<Test>::insert(sub_id, sub);
 
 		// Dispatch randomness
-		IdnManager::dispatch(pulse.into());
+		IdnManager::dispatch(pulse);
 
 		let sub = Subscriptions::<Test>::get(sub_id).unwrap();
 
@@ -1618,7 +1618,7 @@ fn test_runtime_api_calculate_subscription_fees() {
 		];
 
 		for (credits, expected_fee) in test_cases {
-			let fee = Test::calculate_subscription_fees(credits.clone());
+			let fee = Test::calculate_subscription_fees(credits);
 			assert_eq!(
 				fee, expected_fee,
 				"Fee calculation incorrect for {} credits, expected {}, got {}",

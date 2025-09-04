@@ -98,7 +98,7 @@ fn shielded_transactions_are_properly_scheduled() {
 
 		Timelock::service_agenda(drand_round_num, result);
 
-		assert_eq!(logger::log(), vec![(signed().into(), 1u32)]);
+		assert_eq!(logger::log(), vec![(signed(), 1u32)]);
 
 		let empty_result_late: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
 			Timelock::decrypt_and_decode(11, signature.into(), &mut remaining_decrypts);
@@ -119,7 +119,7 @@ fn shielded_transactions_are_properly_scheduled() {
 		assert_eq!(runtime_call_2, call_2);
 
 		Timelock::service_agenda(drand_round_num_2, result_2);
-		assert_eq!(logger::log(), vec![(signed().into(), 1u32), (signed().into(), 2u32)]);
+		assert_eq!(logger::log(), vec![(signed(), 1u32), (signed(), 2u32)]);
 	})
 }
 
@@ -161,7 +161,7 @@ fn schedule_simple_executes_fifo() {
 		Timelock::service_agenda(drand_round_num, calls);
 
 		println!("{:?}", logger::log());
-		assert_eq!(logger::log(), vec![(signed().into(), 1u32), (signed().into(), 2u32)]);
+		assert_eq!(logger::log(), vec![(signed(), 1u32), (signed(), 2u32)]);
 	})
 }
 
@@ -209,7 +209,7 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 		assert_eq!(calls.len(), 3);
 
 		Timelock::service_agenda(drand_round_num, calls);
-		assert_eq!(logger::log(), vec![(signed().into(), 1u32), (signed().into(), 3u32)]);
+		assert_eq!(logger::log(), vec![(signed(), 1u32), (signed(), 3u32)]);
 	})
 }
 
@@ -331,7 +331,7 @@ fn agenda_executes_valid_calls_and_drops_others() {
 		// Verify that the agenda was cleared
 		assert_eq!(Agenda::<Test>::get(drand_targeted_round).len(), 0);
 
-		assert_eq!(logger::log(), vec![(signed().into(), 3u32)]);
+		assert_eq!(logger::log(), vec![(signed(), 3u32)]);
 	})
 }
 
