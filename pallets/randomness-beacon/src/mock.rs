@@ -18,8 +18,10 @@ use crate::*;
 use bp_idn::types::*;
 use frame_support::{
 	derive_impl, ord_parameter_types, parameter_types,
-	traits::{ConstU16, ConstU8},
+	traits::{ConstU8},
 };
+#[cfg(feature = "experimental")]
+use frame_support::traits::ConstU16;
 use frame_system::EnsureRoot;
 use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
@@ -128,7 +130,8 @@ impl pallet_randomness_beacon::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type SignatureVerifier = QuicknetVerifier;
-	type MaxDecryptionsPerBlock = ConstU16<100>;
+	#[cfg(feature = "experimental")]
+	type MaxDecryptionsPerBlock = ConstU16<2>;
 	type MaxSigsPerBlock = ConstU8<3>;
 	type Pulse = MockPulse;
 	type Dispatcher = MockDispatcher;
@@ -153,7 +156,7 @@ impl pallet_timelock_transactions::WeightInfo for TestWeightInfo {
 	fn schedule_sealed(_s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
-	fn service_agenda(s: u32) -> Weight {
+	fn service_agenda(_s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
 }

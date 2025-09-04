@@ -152,6 +152,7 @@ pub mod pallet {
 		/// something that knows how to aggregate and verify beacon pulses.
 		type SignatureVerifier: SignatureVerifier;
 		/// The maximum number of ciphertexts that can be decrypted per block
+		#[cfg(feature = "experimental")]
 		type MaxDecryptionsPerBlock: Get<u16>;
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;

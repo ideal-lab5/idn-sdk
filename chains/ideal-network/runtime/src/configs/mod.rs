@@ -44,6 +44,7 @@ use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+#[cfg(feature = "tlock")]
 use sp_core::ConstU16;
 #[cfg(feature = "tlock")]
 use sp_runtime::Perbill;
@@ -331,6 +332,7 @@ impl pallet_idn_manager::Config for Runtime {
 }
 
 parameter_types! {
+	#[cfg(feature = "tlock")]
 	pub const MaxDecryptionsPerBlock: u16 = crate::constants::idn::MAX_DECS_PER_BLOCK as u16;
 	pub const MaxSigsPerBlock: u8 = crate::constants::idn::MAX_QUEUE_SIZE as u8;
 
@@ -340,7 +342,8 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
-	type MaxDecryptionsPerBlock = ConstU16<100>;
+	#[cfg(feature = "tlock")]
+	type MaxDecryptionsPerBlock = MaxDecryptionsPerBlock;
 	type MaxSigsPerBlock = MaxSigsPerBlock;
 	type Pulse = types::RuntimePulse;
 	type Dispatcher = crate::IdnManager;

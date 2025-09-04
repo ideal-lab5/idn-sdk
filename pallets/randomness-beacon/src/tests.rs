@@ -66,12 +66,11 @@ fn can_reject_call_data_if_not_experimental() {
 	});
 }
 
-#[cfg(not(feature = "experimental"))]
+// #[cfg(not(feature = "experimental"))]
 #[test]
 fn can_fail_write_pulse_when_genesis_round_not_set() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
-	let mut raw_call_data = BTreeMap::new();
-	let config = get_config(1000);
+	let raw_call_data = BTreeMap::new();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
@@ -380,6 +379,68 @@ fn can_create_inherent_with_agenda_items_for_multiple_pulses() {
 
 		assert_ok!(Timelock::schedule_sealed(origin.clone(), 1000, ct1));
 		assert_ok!(Timelock::schedule_sealed(origin.clone(), 1001, ct2));
+
+		let result = Drand::create_inherent(&inherent_data);
+		if let Some(Call::try_submit_asig { asig, start, end, raw_call_data }) = result {
+			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
+			assert_eq!(start, expected_start, "The sequence should start at 1000");
+			assert_eq!(end, expected_end, "The sequence should end at 1001");
+			assert_eq!(
+				expected_call_map, raw_call_data,
+				"The list of raw call data should match the expected call data."
+			);
+		} else {
+			panic!("Expected Some(Call::try_submit_asig), got None");
+		}
+	});
+}
+
+#[cfg(feature = "experimental")]
+#[test]
+fn can_create_inherent_with_agenda_items_for_too_many_decryptions() {
+	// setup the inherent data
+	let genesis = 42;
+	let pk_bytes = hex::decode(BEACON_PUBKEY).expect("Valid hex");
+	let pk = G2::deserialize_compressed(&*pk_bytes).unwrap();
+
+	let public_key: OpaquePublicKey = pk_bytes.clone().try_into().unwrap();
+	let config = BeaconConfiguration { public_key, genesis_round: genesis };
+
+	let (asig1, _amsg1, _sig1) = get(vec![PULSE1000]);
+	let pulse1 = CanonicalPulse { round: 1000u64, signature: asig1.try_into().unwrap() };
+	let call1 = RuntimeCall::System(SystemCall::remark { remark: vec![] });
+	let (_, ct1) = build_ciphertext(&call1, 1000, pk);
+
+	let (asig2, _amsg2, _sig2) = get(vec![PULSE1001]);
+	let pulse2 = CanonicalPulse { round: 1001u64, signature: asig2.try_into().unwrap() };
+	let call2 = RuntimeCall::System(SystemCall::remark { remark: vec![] });
+	let (_, ct2) = build_ciphertext(&call2, 1001, pk);
+	// this one should be dropped
+	let (_, ct3) = build_ciphertext(&call2, 1001, pk);
+
+	let (expected_asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let expected_asig_array: [u8; 48] = expected_asig.try_into().unwrap();
+	let mut expected_call_map = BTreeMap::new();
+
+	let id1 = blake2_256(&ct1[..]);
+	let id2 = blake2_256(&ct2[..]);
+	expected_call_map.insert(1000u64, vec![(id1, call1)]);
+	expected_call_map.insert(1001u64, vec![(id2, call2)]);
+
+	let expected_start = 1000;
+	let expected_end = 1001;
+
+	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode()];
+	let mut inherent_data = InherentData::new();
+	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
+
+	new_test_ext().execute_with(|| {
+		let origin: RuntimeOrigin = RuntimeOrigin::root();
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
+
+		assert_ok!(Timelock::schedule_sealed(origin.clone(), 1000, ct1));
+		assert_ok!(Timelock::schedule_sealed(origin.clone(), 1001, ct2));
+		assert_ok!(Timelock::schedule_sealed(origin.clone(), 1001, ct3));
 
 		let result = Drand::create_inherent(&inherent_data);
 		if let Some(Call::try_submit_asig { asig, start, end, raw_call_data }) = result {
