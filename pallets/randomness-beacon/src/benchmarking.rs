@@ -67,6 +67,7 @@ mod benchmarks {
 		let mut amsg = G1Affine::zero();
 
 		// TODO: https://github.com/ideal-lab5/idn-sdk/issues/343
+		#[allow(clippy::type_complexity)]
 		#[cfg(feature = "experimental")]
 		let runtime_calls: BTreeMap<
 			RoundNumber,
