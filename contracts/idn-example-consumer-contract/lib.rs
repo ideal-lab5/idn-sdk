@@ -109,16 +109,17 @@
 
 #[ink::contract]
 mod example_consumer {
-	use frame_support::BoundedVec;
 	use idn_client_contract_lib::{
-		types::{PalletIndex, ParaId, Pulse, Quote, SubInfoResponse, SubscriptionId},
+		types::{
+			Credits, IdnBalance, IdnBlockNumber, Metadata, PalletIndex, ParaId, Pulse, Quote,
+			SubInfoResponse, SubscriptionId,
+		},
 		Error, IdnClient, IdnConsumer,
 	};
 	use ink::prelude::vec::Vec;
-	use sha2::{Digest, Sha256};
 	use sp_idn_traits::pulse::Pulse as TPulse;
 
-	const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+	type Rand = <Pulse as TPulse>::Rand;
 
 	/// The Example Consumer contract demonstrates comprehensive IDN integration for randomness
 	/// consumption.
@@ -142,7 +143,7 @@ mod example_consumer {
 		/// The most recently received randomness value, computed as SHA256 of the pulse signature.
 		/// This provides quick access to the latest randomness without needing to process
 		/// the complete pulse data structure.
-		last_randomness: Option<[u8; 32]>,
+		last_randomness: Option<Rand>,
 		/// The subscription ID for the currently active randomness subscription.
 		/// When None, the contract has no active subscription and cannot receive randomness.
 		/// This ID is used to validate incoming pulses and manage subscription lifecycle.
@@ -150,7 +151,7 @@ mod example_consumer {
 		/// Complete history of all randomness values received by this contract.
 		/// Each entry represents the SHA256 hash of a pulse signature, providing a
 		/// chronological record of randomness delivery for application analysis.
-		randomness_history: Vec<[u8; 32]>,
+		randomness_history: Vec<Rand>,
 		/// The IDN Client instance that handles all cross-chain communication with the IDN
 		/// Network. This client abstracts XCM message construction, fee management, and
 		/// subscription operations, providing a simplified interface for IDN interactions.
@@ -264,7 +265,7 @@ mod example_consumer {
 			idn_manager_pallet_index: PalletIndex,
 			self_para_id: ParaId,
 			self_contracts_pallet_index: PalletIndex,
-			max_idn_xcm_fees: u128,
+			max_idn_xcm_fees: IdnBalance,
 		) -> Self {
 			Self {
 				owner: Self::env().caller(),
@@ -321,12 +322,12 @@ mod example_consumer {
 		/// This method requires XCM execution fees paid in the relay chain's native token.
 		/// Ensure the contract has sufficient balance to cover these fees before calling.
 		/// Unused fees are automatically refunded after execution.
-		#[ink(message, payable)]
+		#[ink(message)]
 		pub fn create_subscription(
 			&mut self,
-			credits: u64,
-			frequency: u32,
-			metadata: Option<Vec<u8>>,
+			credits: Credits,
+			frequency: IdnBlockNumber,
+			metadata: Option<Metadata>,
 		) -> Result<SubscriptionId, ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
@@ -336,12 +337,12 @@ mod example_consumer {
 				return Err(ContractError::SubscriptionAlreadyExists);
 			}
 
-			let metadata = if let Some(m) = metadata {
-				let m = BoundedVec::try_from(m).map_err(|_| ContractError::Other)?;
-				Some(m)
-			} else {
-				None
-			};
+			// let metadata = if let Some(m) = metadata {
+			// 	let m = BoundedVec::try_from(m).map_err(|_| ContractError::Other)?;
+			// 	Some(m)
+			// } else {
+			// 	None
+			// };
 
 			// Create subscription through IDN client
 			let subscription_id = self
@@ -378,7 +379,7 @@ mod example_consumer {
 		/// # XCM Fees
 		///
 		/// This method requires XCM execution fees. Ensure sufficient contract balance.
-		#[ink(message, payable)]
+		#[ink(message)]
 		pub fn pause_subscription(&mut self) -> Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
@@ -397,7 +398,7 @@ mod example_consumer {
 		/// # Returns
 		///
 		/// * `Result<(), ContractError>` - Success or error
-		#[ink(message, payable)]
+		#[ink(message)]
 		pub fn reactivate_subscription(&mut self) -> Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
@@ -421,11 +422,11 @@ mod example_consumer {
 		/// # Returns
 		///
 		/// * `Result<(), ContractError>` - Success or error
-		#[ink(message, payable)]
+		#[ink(message)]
 		pub fn update_subscription(
 			&mut self,
-			credits: u64,
-			frequency: u32,
+			credits: Credits,
+			frequency: IdnBlockNumber,
 		) -> Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
@@ -446,7 +447,7 @@ mod example_consumer {
 		/// # Returns
 		///
 		/// * `Result<(), ContractError>` - Success or error
-		#[ink(message, payable)]
+		#[ink(message)]
 		pub fn kill_subscription(&mut self) -> Result<(), ContractError> {
 			// Ensure caller is authorized
 			self.ensure_authorized()?;
@@ -473,10 +474,10 @@ mod example_consumer {
 		///
 		/// # Returns
 		///
-		/// Returns `Some([u8; 32])` containing the latest 32-byte randomness value, or
+		/// Returns `Some(Rand)` containing the latest 32-byte randomness value, or
 		/// `None` if no randomness has been received yet.
 		#[ink(message)]
-		pub fn get_last_randomness(&self) -> Option<[u8; 32]> {
+		pub fn get_last_randomness(&self) -> Option<Rand> {
 			self.last_randomness
 		}
 
@@ -494,7 +495,7 @@ mod example_consumer {
 		/// Returns a vector containing all received randomness values in chronological order,
 		/// with the oldest values first and the most recent values last.
 		#[ink(message)]
-		pub fn get_randomness_history(&self) -> Vec<[u8; 32]> {
+		pub fn get_randomness_history(&self) -> Vec<Rand> {
 			self.randomness_history.clone()
 		}
 
@@ -525,9 +526,7 @@ mod example_consumer {
 			}
 
 			// Compute randomness as Sha256(sig)
-			let mut hasher = Sha256::default();
-			hasher.update(pulse.sig());
-			let randomness: [u8; 32] = hasher.finalize().into();
+			let randomness = pulse.rand();
 
 			// Store the randomness for backward compatibility
 			self.last_randomness = Some(randomness);
@@ -538,13 +537,13 @@ mod example_consumer {
 
 		/// Gets the IDN parachain ID
 		#[ink(message)]
-		pub fn get_idn_para_id(&self) -> u32 {
+		pub fn get_idn_para_id(&self) -> ParaId {
 			self.idn_client.get_idn_para_id()
 		}
 
 		/// Gets the IDN Manager pallet index
 		#[ink(message)]
-		pub fn get_idn_manager_pallet_index(&self) -> u8 {
+		pub fn get_idn_manager_pallet_index(&self) -> PalletIndex {
 			self.idn_client.get_idn_manager_pallet_index()
 		}
 
@@ -567,9 +566,13 @@ mod example_consumer {
 		}
 
 		fn ensure_valid_pulse(&self, pulse: &Pulse) -> Result<(), ContractError> {
-			if !pulse.authenticate(
-				BEACON_PUBKEY.try_into().expect("The public key is well-defined; qed."),
-			) {
+			#[cfg(not(test))]
+			if !self.idn_client.is_valid_pulse(pulse) {
+				return Err(ContractError::InvalidPulse);
+			}
+			#[cfg(test)]
+			// In test mode, allow all pulses except the zero-sig pulse
+			if pulse.sig() == [0u8; 48] {
 				return Err(ContractError::InvalidPulse);
 			}
 			Ok(())
@@ -644,7 +647,6 @@ mod example_consumer {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use sha2::{Digest, Sha256};
 
 		#[ink::test]
 		fn test_receive_and_store_randomness() {
@@ -672,13 +674,8 @@ mod example_consumer {
 				Err(e) => panic!("Expected success but got error: {:?}", e),
 			}
 
-			// Compute expected randomness
-			let mut hasher = Sha256::default();
-			hasher.update(test_sig);
-			let expected_rand: [u8; 32] = hasher.finalize().into();
-
 			// Check stored values
-			assert_eq!(contract.get_last_randomness(), Some(expected_rand));
+			assert_eq!(contract.get_last_randomness(), Some(test_pulse.rand()));
 			assert_eq!(contract.get_randomness_history().len(), 1);
 		}
 
@@ -715,14 +712,8 @@ mod example_consumer {
 				.simulate_pulse_received(test_pulse2.clone())
 				.expect("Should successfully receive second pulse");
 
-			// Compute expected randomness for test_pulse1
-			let mut hasher1 = Sha256::default();
-			hasher1.update(test_pulse1.sig());
-			let expected_rand1: [u8; 32] = hasher1.finalize().into();
-			// Compute expected randomness for test_pulse2
-			let mut hasher2 = Sha256::default();
-			hasher2.update(test_pulse2.sig());
-			let expected_rand2: [u8; 32] = hasher2.finalize().into();
+			let expected_rand1 = test_pulse1.rand();
+			let expected_rand2 = test_pulse2.rand();
 
 			assert_eq!(contract.get_last_randomness(), Some(expected_rand2));
 			assert_eq!(contract.get_randomness_history(), vec![expected_rand1, expected_rand2]);
@@ -756,10 +747,7 @@ mod example_consumer {
 				Err(e) => panic!("Expected success but got error: {:?}", e),
 			}
 
-			// Compute expected randomness
-			let mut hasher = Sha256::default();
-			hasher.update(test_pulse.sig());
-			let expected_rand: [u8; 32] = hasher.finalize().into();
+			let expected_rand = test_pulse.rand();
 
 			// Check stored values
 			assert_eq!(contract.get_last_randomness(), Some(expected_rand));

@@ -47,37 +47,20 @@ std = [
 ### 2. Basic Contract Setup
 
 ```rust
-use idn_client_contract_lib::{
-    IdnClient, IdnConsumer, Result, Error,
-    types::{SubscriptionId, Pulse, Credits, IdnBlockNumber}
-};
+use idn_client_contract_lib::{IdnClient, IdnConsumer, Result, Error};
 
-#[ink::contract]
-mod my_randomness_contract {
-    use super::*;
+#[ink(storage)]
+pub struct MyContract {
+    idn_client: IdnClient,
+    subscription_id: Option<SubscriptionId>,
+}
 
-    #[ink(storage)]
-    pub struct MyContract {
-        idn_client: IdnClient,
-        subscription_id: Option<SubscriptionId>,
-        last_randomness: Option<[u8; 48]>,
-    }
-
-    impl MyContract {
-        #[ink(constructor)]
-        pub fn new() -> Self {
-            Self {
-                // Configure for your specific network
-                idn_client: IdnClient::new(
-                    42,    // IDN Manager pallet index
-                    2000,  // IDN parachain ID
-                    50,    // Contracts pallet index (this chain)
-                    2001,  // This parachain ID
-                    1_000_000_000, // Max XCM fees (1 DOT)
-                ),
-                subscription_id: None,
-                last_randomness: None,
-            }
+impl MyContract {
+    #[ink(constructor)]
+    pub fn new() -> Self {
+        Self {
+            idn_client: IdnClient::new(42, 2000, 50, 2001, 1_000_000_000),
+            subscription_id: None,
         }
     }
 }
@@ -85,39 +68,9 @@ mod my_randomness_contract {
 
 ### 3. Implement Randomness Reception
 
-```rust
-impl IdnConsumer for MyContract {
-    #[ink(message)]
-    fn consume_pulse(&mut self, pulse: Pulse, sub_id: SubscriptionId) -> Result<()> {
-        // Verify this is for our subscription
-        if Some(sub_id) != self.subscription_id {
-            return Err(Error::ConsumePulseError);
-        }
-
-        // Compute randomness as Sha256(sig)
-		let mut hasher = Sha256::default();
-		hasher.update(pulse.sig());
-		let randomness: [u8; 32] = hasher.finalize().into();
-
-        // Do somthing with `randomness`
-
-        Ok(())
-    }
-
-    // Implement other trait methods as needed
-    #[ink(message)]
-    fn consume_quote(&mut self, quote: Quote) -> Result<()> {
-        // Handle subscription quotes
-        Ok(())
-    }
-
-    #[ink(message)]
-    fn consume_sub_info(&mut self, info: SubInfoResponse) -> Result<()> {
-        // Handle subscription info
-        Ok(())
-    }
-}
-```
+Implement the `IdnConsumer` trait to receive randomness:
+- `consume_pulse`: Validate pulse with `is_valid_pulse()` then use `pulse.rand()` for randomness
+- `consume_quote` and `consume_sub_info`: Handle subscription quotes and info responses
 
 ## Subscription Lifecycle Management
 
@@ -125,14 +78,13 @@ impl IdnConsumer for MyContract {
 
 ```rust
 #[ink(message)]
-pub fn create_randomness_subscription(&mut self) -> Result<()> {
+pub fn create_subscription(&mut self) -> Result<()> {
     let sub_id = self.idn_client.create_subscription(
-        100,        // Credits
-        10,         // Frequency (every 10 IDN blocks)
-        None,       // Optional metadata
-        None,       // Auto-generate subscription ID
+        100,  // Credits
+        10,   // Frequency (every 10 IDN blocks)
+        None, // Optional metadata
+        None, // Auto-generate ID
     )?;
-
     self.subscription_id = Some(sub_id);
     Ok(())
 }
@@ -140,56 +92,11 @@ pub fn create_randomness_subscription(&mut self) -> Result<()> {
 
 ### Subscription Management
 
-```rust
-// Pause subscription temporarily
-#[ink(message)]
-pub fn pause_subscription(&mut self) -> Result<()> {
-    if let Some(sub_id) = self.subscription_id {
-        self.idn_client.pause_subscription(sub_id)
-    } else {
-        Err(Error::ConsumePulseError) // No active subscription
-    }
-}
-
-// Reactivate paused subscription
-#[ink(message)]
-pub fn reactivate_subscription(&mut self) -> Result<()> {
-    if let Some(sub_id) = self.subscription_id {
-        self.idn_client.reactivate_subscription(sub_id)
-    } else {
-        Err(Error::ConsumePulseError)
-    }
-}
-
-// Update subscription parameters
-#[ink(message)]
-pub fn update_subscription(
-    &mut self,
-    new_credits: Option<Credits>,
-    new_frequency: Option<IdnBlockNumber>
-) -> Result<()> {
-    if let Some(sub_id) = self.subscription_id {
-        self.idn_client.update_subscription(
-            sub_id,
-            new_credits,
-            new_frequency,
-            None, // metadata update
-        )
-    } else {
-        Err(Error::ConsumePulseError)
-    }
-}
-
-// Terminate subscription permanently
-#[ink(message)]
-pub fn kill_subscription(&mut self) -> Result<()> {
-    if let Some(sub_id) = self.subscription_id {
-        self.subscription_id = None; // Clear local state
-        self.idn_client.kill_subscription(sub_id)
-    } else {
-        Err(Error::ConsumePulseError)
-    }
-}
+Available subscription operations:
+- `pause_subscription(sub_id)` - Temporarily pause randomness delivery
+- `reactivate_subscription(sub_id)` - Resume paused subscription  
+- `update_subscription(sub_id, credits, frequency, metadata)` - Modify subscription parameters
+- `kill_subscription(sub_id)` - Permanently terminate subscription
 
 ## Call Index Configuration
 
@@ -215,6 +122,172 @@ The IDN Client library allows configuring the following parameters at instantiat
    let ideal_network_para_id: u32 = 2000; // Example value
    ```
 
+## Subscription Lifecycle Management
+
+Understanding subscription states and transitions is crucial for proper randomness subscription management.
+
+### Subscription States
+
+Subscriptions progress through three main states:
+
+```text
+[Creation] → [Active] ⇄ [Paused] → [Finalized]
+               ↓
+          [Finalized] (direct termination)
+```
+
+#### Active State
+- **Behavior**: Delivers randomness pulses according to frequency settings
+- **Transitions**: Can be paused or terminated
+- **Operations**: Update parameters, pause, kill
+
+```rust
+// Subscription is active and receiving randomness
+#[ink(message)]
+pub fn pause_subscription(&mut self) -> Result<()> {
+    if let Some(sub_id) = self.subscription_id {
+        // Transition: Active → Paused
+        self.idn_client.pause_subscription(sub_id)
+    } else {
+        Err(Error::InvalidSubscriptionId)
+    }
+}
+```
+
+#### Paused State  
+- **Behavior**: Exists in storage but no randomness delivery
+- **Transitions**: Can be reactivated or terminated
+- **Operations**: Update parameters, reactivate, kill
+
+```rust
+// Reactivate a paused subscription
+#[ink(message)]  
+pub fn reactivate_subscription(&mut self) -> Result<()> {
+    if let Some(sub_id) = self.subscription_id {
+        // Transition: Paused → Active
+        self.idn_client.reactivate_subscription(sub_id)
+    } else {
+        Err(Error::InvalidSubscriptionId)
+    }
+}
+```
+
+#### Finalized State
+- **Behavior**: Permanently removed from storage
+- **Transitions**: None (terminal state)
+- **Operations**: None (subscription no longer exists)
+
+```rust
+// Permanently terminate subscription
+#[ink(message)]
+pub fn terminate_subscription(&mut self) -> Result<()> {
+    if let Some(sub_id) = self.subscription_id {
+        self.subscription_id = None; // Clear local state first
+        // Transition: Active/Paused → Finalized
+        self.idn_client.kill_subscription(sub_id)
+    } else {
+        Err(Error::InvalidSubscriptionId)
+    }
+}
+```
+
+### State Management Best Practices
+
+1. **Track State Locally**: Store subscription state in your contract storage
+2. **Handle State Errors**: Invalid state transitions will fail at the IDN level
+3. **Clean Up Resources**: Clear local state when subscriptions are finalized
+4. **Monitor Credits**: Low credits can affect subscription behavior
+
+```rust
+#[ink(storage)]
+pub struct MyContract {
+    idn_client: IdnClient,
+    subscription_id: Option<SubscriptionId>,
+    subscription_state: SubscriptionState, // Track state locally
+    last_randomness: Option<[u8; 32]>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum SubscriptionState {
+    None,
+    Active,
+    Paused,
+    Finalized,
+}
+
+impl MyContract {
+    #[ink(message)]
+    pub fn get_subscription_state(&self) -> SubscriptionState {
+        self.subscription_state
+    }
+
+    #[ink(message)]
+    pub fn can_receive_randomness(&self) -> bool {
+        self.subscription_state == SubscriptionState::Active
+    }
+}
+```
+
+## Metadata Usage Patterns
+
+Subscription metadata allows you to attach up to 128 bytes of application-specific data to your randomness subscriptions. This can be useful for routing, configuration, or tracking purposes.
+
+### Common Metadata Patterns
+
+```rust
+use frame_support::BoundedVec;
+use idn_client_contract_lib::types::Metadata;
+
+// Pattern 1: Simple identifiers
+let game_id = b"poker_table_5";
+let metadata = BoundedVec::try_from(game_id.to_vec())?;
+
+// Pattern 2: Structured configuration
+let config = [
+    0x01,  // version
+    0x05,  // game type (poker = 5)
+    0x0A,  // max players (10)
+    0xFF,  // premium features enabled
+];
+let metadata = BoundedVec::try_from(config.to_vec())?;
+
+// Pattern 3: JSON-like data (be mindful of size limit)
+let user_context = br#"{"user":123,"round":5}"#;
+let metadata = BoundedVec::try_from(user_context.to_vec())?;
+
+// Pattern 4: Multiple subscriptions with different purposes
+let lottery_metadata = BoundedVec::try_from(b"lottery".to_vec())?;
+let dice_metadata = BoundedVec::try_from(b"dice_game".to_vec())?;
+```
+
+### Processing Metadata in Consume Pulse
+
+```rust
+impl IdnConsumer for MyContract {
+    #[ink(message)]
+    fn consume_pulse(&mut self, pulse: Pulse, sub_id: SubscriptionId) -> Result<()> {
+        // Retrieve subscription info to access metadata
+        // Note: This would typically come from your contract's storage
+        // where you store subscription details alongside metadata
+        
+        match self.subscription_metadata.get(&sub_id) {
+            Some(metadata) if metadata.starts_with(b"lottery") => {
+                self.process_lottery_randomness(pulse)?;
+            },
+            Some(metadata) if metadata.starts_with(b"dice_game") => {
+                self.process_dice_randomness(pulse)?;
+            },
+            _ => {
+                // Default processing
+                self.process_default_randomness(pulse)?;
+            }
+        }
+        
+        Ok(())
+    }
+}
+```
+
 ## Configuration Guide
 
 ### Network Parameters
@@ -233,6 +306,27 @@ const CONTRACTS_PALLET_INDEX: u8 = 50;      // Contracts pallet index
 // XCM Fee Configuration
 const MAX_XCM_FEES: u128 = 1_000_000_000;   // 1 DOT in Planck units
 ```
+
+### XCM Fee Estimation and Optimization
+
+Proper XCM fee estimation is critical for reliable cross-chain operations. The `max_idn_xcm_fees` parameter represents the maximum amount you're willing to pay for XCM execution.
+
+#### Understanding Fee Components
+
+XCM execution costs include several components:
+
+1. **Instruction Execution**: Cost per XCM instruction (WithdrawAsset, BuyExecution, etc.)
+2. **Runtime Call Weight**: Cost of executing the IDN Manager pallet call
+3. **Asset Operations**: Withdrawal and deposit instruction costs
+4. **Network Congestion**: Dynamic multiplier based on relay chain usage
+
+#### Fee Calculation Strategies
+
+**Conservative Approach (Recommended):** Set high maximum (1 DOT = 1_000_000_000u128), unused fees are automatically refunded.
+
+**Network-Specific Approach:** Adjust based on relay chain. E.g. 1 DOT for Polkadot, 0.1 KSM for Kusama, lower for testnets.
+
+**Dynamic Fee Adjustment:** Implement logic to adjust fees based on real-time network conditions and historical success rates.
 
 ### Pallet Index Discovery
 
