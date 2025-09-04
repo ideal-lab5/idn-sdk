@@ -231,4 +231,4 @@ metadata-hash = ["substrate-wasm-builder/metadata-hash"]
 on-chain-release-build = ["metadata-hash"]
 
 # A feature for hiding timelocked transactions features
-tlock = []
+tlock = ["pallet-randomness-beacon/experimental"]

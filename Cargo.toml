@@ -238,7 +238,7 @@ parachain-info = { version = "0.20.0", package = "staging-parachain-info", defau
 bp-idn = { path = "./chains/ideal-network/bridge", default-features = false }
 pallet-idn-manager = { path = "./pallets/idn-manager", default-features = false }
 pallet-idn-consumer = { path = "./pallets/idn-consumer", default-features = false }
-pallet-randomness-beacon = { path = "./pallets/randomness-beacon", default-features = false, features = ["experimental"] }
+pallet-randomness-beacon = { path = "./pallets/randomness-beacon", default-features = false }
 pallet-timelock-transactions = { path = "./pallets/timelock", default-features = false }
 sc-consensus-randomness-beacon = { path = "./client/consensus/randomness-beacon", default-features = false }
 sp-consensus-randomness-beacon = { path = "./primitives/consensus/randomness-beacon", default-features = false }
