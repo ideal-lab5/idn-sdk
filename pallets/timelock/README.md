@@ -7,28 +7,13 @@ A module for scheduling dispatches.
 
 ## Overview
 
-This module exposes capabilities for scheduling dispatches to occur at a
-specified block number or at a specified period. These scheduled dispatches
-may be named or anonymous and may be canceled.
-
-**NOTE:** The scheduled calls will be dispatched with the default filter
-for the origin: namely `frame_system::Config::BaseCallFilter` for all origin
-except root which will get no filter. And not the filter contained in origin
-use to call `fn schedule`.
-
-If a call is scheduled using proxy or whatever mecanism which adds filter,
-then those filter will not be used when dispatching the schedule call.
+This module exposes capabilities for scheduling "shielded" transactions based on Drand round numbers. Transactions are encrypted for a given Drand round and are scheduled via submission to the `schedule_sealed(SignedOrigin, drand_round, Ciphertext)` extrinsic. Scheduled transactions currently follow a FIFO mechanism for which there is no guarantee of execution. Due to encryption/decryption being done via the BF-IBE scheme, any scheduled shielded transaction will be publicly decryptable once the specified Drand round has been reached.
 
 ## Interface
 
 ### Dispatchable Functions
 
-- `schedule` - schedule a dispatch, which may be periodic, to occur at a
-  specified block and with a specified priority.
-- `cancel` - cancel a scheduled dispatch, specified by block number and
-  index.
-- `schedule_named` - augments the `schedule` interface with an additional
-  `Vec<u8>` parameter that can be used for identification.
-- `cancel_named` - the named complement to the cancel function.
+- `schedule_sealed` - schedule a dispatch, to occur at a
+  specified Drand round.
 
 License: Apache 2.0
