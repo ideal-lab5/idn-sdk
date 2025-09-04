@@ -151,6 +151,9 @@ impl pallet_timelock_transactions::WeightInfo for TestWeightInfo {
 	fn schedule_sealed(_s: u32) -> Weight {
 		Weight::from_parts(50, 0)
 	}
+	fn service_agenda(s: u32) -> Weight {
+		Weight::from_parts(50, 0)
+	}
 }
 
 parameter_types! {
