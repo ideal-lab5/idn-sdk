@@ -22,10 +22,10 @@ use super::*;
 use crate as scheduler;
 use frame_support::{
 	ord_parameter_types, parameter_types,
-	traits::{ConstU32, ConstU64, Contains, EitherOfDiverse},
+	traits::{ConstU32, ConstU64, Contains},
 	weights::constants::RocksDbWeight,
 };
-use frame_system::{EnsureRoot, EnsureSignedBy};
+use frame_system::{EnsureRoot, EnsureSigned};
 use sp_core::H256;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
@@ -261,7 +261,7 @@ impl Config for Test {
 	type PalletsOrigin = OriginCaller;
 	type RuntimeCall = RuntimeCall;
 	type MaximumWeight = MaximumSchedulerWeight;
-	type ScheduleOrigin = EitherOfDiverse<EnsureRoot<u64>, EnsureSignedBy<One, u64>>;
+	type ScheduleOrigin = EnsureSigned<u64>;
 	type MaxScheduledPerBlock = ConstU32<10>;
 	type WeightInfo = TestWeightInfo;
 	type Preimages = Preimage;
