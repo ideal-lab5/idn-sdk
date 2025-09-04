@@ -45,19 +45,9 @@
 use frame_support::{traits::Get, weights::Weight};
 use core::marker::PhantomData;
 
-pub trait WeightInfo {
-
-	fn schedule_sealed(s: u32) -> Weight;
-	fn service_agenda(s: u32) -> Weight;
-	fn service_task_base() -> Weight;
-	fn service_task_fetched(s: u32, ) -> Weight;
-	fn execute_dispatch_signed() -> Weight;
-
-}
-
 /// Weight functions for `pallet_timelock_transactions`.
-pub struct SubstrateWeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for SubstrateWeightInfo<T> {
+pub struct WeightInfo<T>(PhantomData<T>);
+impl<T: frame_system::Config> pallet_timelock_transactions::WeightInfo for WeightInfo<T> {
 	/// Storage: `Timelock::Agenda` (r:1 w:1)
 	/// Proof: `Timelock::Agenda` (`max_values`: None, `max_size`: Some(2467858), added: 2470333, mode: `MaxEncodedLen`)
 	/// Storage: `Timelock::Lookup` (r:0 w:1)
