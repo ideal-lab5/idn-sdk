@@ -95,10 +95,10 @@ fn make_bounded_call<T: Config>(maybe_lookup_len: Option<u32>) -> BoundedCallOf<
 		if maybe_lookup_len.is_some() {
 			len += 1;
 		} else if len > 0 {
-  				len -= 1;
-  			} else {
-  				break c;
-  			}
+			len -= 1;
+		} else {
+			break c;
+		}
 	}
 }
 
