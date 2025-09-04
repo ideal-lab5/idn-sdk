@@ -1,7 +1,7 @@
-# Scheduler
+# Timelocked Transactions
 A module for scheduling dispatches.
 
-- [`scheduler::Config`](https://docs.rs/pallet-scheduler/latest/pallet_timelock_transactions/trait.Config.html)
+- [`timelock::Config`](https://docs.rs/pallet-scheduler/latest/pallet_timelock_transactions/trait.Config.html)
 - [`Call`](https://docs.rs/pallet-scheduler/latest/pallet_timelock_transactions/enum.Call.html)
 - [`Module`](https://docs.rs/pallet-scheduler/latest/pallet_timelock_transactions/struct.Module.html)
 

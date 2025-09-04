@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-//! # Scheduler tests.
+//! # Timelocked Transactions tests.
 use super::*;
-use crate::mock::{logger, new_test_ext, LoggerCall, RuntimeCall, Scheduler, *};
+use crate::mock::{logger, new_test_ext, LoggerCall, RuntimeCall, Timelock, *};
 use ark_bls12_381::{Fr, G2Projective as G2};
 use ark_ec::PrimeGroup;
 use ark_std::{ops::Mul, One};
@@ -38,7 +38,7 @@ fn basic_sealed_scheduling_works() {
 	new_test_ext().execute_with(|| {
 		let drand_round_num: u64 = 10;
 		let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ciphertext));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ciphertext));
 	});
 }
 
@@ -50,7 +50,7 @@ fn execution_fails_bad_origin() {
 		let origin: RuntimeOrigin = RuntimeOrigin::none();
 		let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
 		assert_noop!(
-			Scheduler::schedule_sealed(origin, drand_round_num, ciphertext),
+			Timelock::schedule_sealed(origin, drand_round_num, ciphertext),
 			DispatchError::BadOrigin
 		);
 	});
@@ -76,21 +76,21 @@ fn shielded_transactions_are_properly_scheduled() {
 
 		let signature = id.extract::<TinyBLS381>(sk).0;
 
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec));
 
 		let (id_2, ct_bounded_vec_2) =
 			build_ciphertext(call_2.clone(), drand_round_num_2, pk.into());
 
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num_2, ct_bounded_vec_2));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num_2, ct_bounded_vec_2));
 
 		let empty_result_early: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Scheduler::decrypt_and_decode(9, signature.into(), &mut remaining_decrypts);
+			Timelock::decrypt_and_decode(9, signature.into(), &mut remaining_decrypts);
 		assert_eq!(empty_result_early.len(), 0);
 		let empty_result_early_call = empty_result_early.first();
 		assert_eq!(empty_result_early_call, None);
 
 		let result: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Scheduler::decrypt_and_decode(
+			Timelock::decrypt_and_decode(
 				drand_round_num,
 				signature.into(),
 				&mut remaining_decrypts,
@@ -99,12 +99,12 @@ fn shielded_transactions_are_properly_scheduled() {
 		let runtime_call = result.first().unwrap().1.clone();
 		assert_eq!(runtime_call, call);
 
-		Scheduler::service_agenda(drand_round_num, result);
+		Timelock::service_agenda(drand_round_num, result);
 
 		assert_eq!(logger::log(), vec![(signed().into(), 1u32)]);
 
 		let empty_result_late: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Scheduler::decrypt_and_decode(11, signature.into(), &mut remaining_decrypts);
+			Timelock::decrypt_and_decode(11, signature.into(), &mut remaining_decrypts);
 		assert_eq!(empty_result_late.len(), 0);
 		let empty_result_late_call = empty_result_late.first();
 		assert_eq!(empty_result_late_call, None);
@@ -112,7 +112,7 @@ fn shielded_transactions_are_properly_scheduled() {
 		let signature_2 = id_2.extract::<TinyBLS381>(sk).0;
 
 		let result_2: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Scheduler::decrypt_and_decode(
+			Timelock::decrypt_and_decode(
 				drand_round_num_2,
 				signature_2.into(),
 				&mut remaining_decrypts,
@@ -121,7 +121,7 @@ fn shielded_transactions_are_properly_scheduled() {
 		let runtime_call_2 = result_2.first().unwrap().1.clone();
 		assert_eq!(runtime_call_2, call_2);
 
-		Scheduler::service_agenda(drand_round_num_2, result_2);
+		Timelock::service_agenda(drand_round_num_2, result_2);
 		assert_eq!(logger::log(), vec![(signed().into(), 1u32), (signed().into(), 2u32)]);
 	})
 }
@@ -148,21 +148,21 @@ fn schedule_simple_executes_fifo() {
 
 		let signature = id.extract::<TinyBLS381>(sk).0;
 
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
 
 		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_round_num, pk.into());
 
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
 
 		let calls: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Scheduler::decrypt_and_decode(
+			Timelock::decrypt_and_decode(
 				drand_round_num,
 				signature.into(),
 				&mut remaining_decrypts,
 			);
 
 		assert_eq!(calls.len(), 2);
-		Scheduler::service_agenda(
+		Timelock::service_agenda(
 			drand_round_num,
 			calls,
 		);
@@ -197,18 +197,18 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 
 		// use different priorities for now to ensure that they do not effect
 		// execution order
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
 
 		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_round_num, pk.into());
 
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
 
 		let (_, ct_bounded_vec_3) = build_ciphertext(call_3.clone(), drand_round_num, pk.into());
 
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_3));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_3));
 
 		let calls: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Scheduler::decrypt_and_decode(
+			Timelock::decrypt_and_decode(
 				drand_round_num,
 				signature.into(),
 				&mut remaining_decrypts,
@@ -216,7 +216,7 @@ fn schedule_simple_skips_overweight_call_and_continues() {
 
 		assert_eq!(calls.len(), 3);
 
-		Scheduler::service_agenda(
+		Timelock::service_agenda(
 			drand_round_num,
 			calls,
 		);
@@ -246,8 +246,8 @@ fn agenda_is_cleared_even_if_all_decrypts_fail() {
 		let drand_bad_round = 9;
 
 		// schedule calls to be executed on incorrect round
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_bad_round, ct_bounded_vec_1));
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_bad_round, ct_bounded_vec_2));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_bad_round, ct_bounded_vec_1));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_bad_round, ct_bounded_vec_2));
 
 		// verify that the agenda is holding both of the CT
 		assert_eq!(Agenda::<Test>::get(drand_bad_round).len(), 2);
@@ -263,7 +263,7 @@ fn agenda_is_cleared_even_if_all_decrypts_fail() {
 
 		// Decrypt and Decode for round 9
 		let call_data: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Scheduler::decrypt_and_decode(
+			Timelock::decrypt_and_decode(
 				drand_bad_round,
 				signature.into(),
 				&mut remaining_decrypts,
@@ -271,7 +271,7 @@ fn agenda_is_cleared_even_if_all_decrypts_fail() {
 
 		assert_eq!(call_data.len(), 0);
 		// Call service agenda with empty call data
-		Scheduler::service_agenda(drand_bad_round, call_data);
+		Timelock::service_agenda(drand_bad_round, call_data);
 
 		// Verify that the agenda was cleared
 		assert_eq!(Agenda::<Test>::get(drand_bad_round).len(), 0);
@@ -305,18 +305,18 @@ fn agenda_executes_valid_calls_and_drops_others() {
 			build_ciphertext(call_3.clone(), drand_targeted_round, pk.into());
 
 		// schedule calls to be executed on incorrect round
-		assert_ok!(Scheduler::schedule_sealed(
+		assert_ok!(Timelock::schedule_sealed(
 			signed().into(),
 			drand_targeted_round,
 			ct_bounded_vec_1
 		));
-		assert_ok!(Scheduler::schedule_sealed(
+		assert_ok!(Timelock::schedule_sealed(
 			signed().into(),
 			drand_targeted_round,
 			ct_bounded_vec_2
 		));
 
-		assert_ok!(Scheduler::schedule_sealed(
+		assert_ok!(Timelock::schedule_sealed(
 			signed().into(),
 			drand_targeted_round,
 			ct_bounded_vec_3
@@ -329,7 +329,7 @@ fn agenda_executes_valid_calls_and_drops_others() {
 
 		// Decrypt and Decode for round 9
 		let call_data: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Scheduler::decrypt_and_decode(
+			Timelock::decrypt_and_decode(
 				drand_targeted_round,
 				signature.into(),
 				&mut remaining_decrypts,
@@ -337,7 +337,7 @@ fn agenda_executes_valid_calls_and_drops_others() {
 
 		assert_eq!(call_data.len(), 1);
 		// Call service agenda with empty call data
-		Scheduler::service_agenda(drand_targeted_round, call_data);
+		Timelock::service_agenda(drand_targeted_round, call_data);
 
 		// Verify that the agenda was cleared
 		assert_eq!(Agenda::<Test>::get(drand_targeted_round).len(), 0);
@@ -367,12 +367,12 @@ fn decrypt_and_decode_decrements_counter_on_good_decrypt_not_on_bad_decrypt() {
 		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_bad_round, pk.into());
 
 		// schedule calls to be executed on incorrect round
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
 
 		let signature = id.extract::<TinyBLS381>(sk).0;
 		// Decrypt and Decode for round 9
-		let call_data = Scheduler::decrypt_and_decode(
+		let call_data = Timelock::decrypt_and_decode(
 			drand_round_num,
 			signature.into(),
 			&mut remaining_decrypts,
@@ -404,13 +404,13 @@ fn decrypt_and_decode_only_decrypts_the_max_number_specified() {
 		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_bad_round, pk.into());
 
 		// schedule calls to be executed on incorrect round
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
-		assert_ok!(Scheduler::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
+		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
 
 		let signature = id.extract::<TinyBLS381>(sk).0;
 		// Decrypt and Decode for round 9
 		let call_data: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-			Scheduler::decrypt_and_decode(
+			Timelock::decrypt_and_decode(
 				drand_round_num,
 				signature.into(),
 				&mut remaining_decrypts,
