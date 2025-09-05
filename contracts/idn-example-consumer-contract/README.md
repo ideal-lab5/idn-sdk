@@ -43,7 +43,7 @@ To deploy this contract:
 
 2. Deploy to your parachain using your preferred method (e.g., Contracts UI)
 
-3. **⚠️ CRITICAL**: Fund your contract's sovereign account on the IDN chain with relay chain native tokens (DOT/KSM) before calling any subscription methods, or you'll get "Funds are unavailable" errors. See the [detailed funding guide](../idn-client-contract-lib/README.md#contract-account-funding-requirements) for step-by-step instructions.
+3. **⚠️ CRITICAL**: Fund your contract's sovereign account on the IDN chain with relay chain native tokens (DOT/PAS) before calling any subscription methods, or you'll get "Funds are unavailable" errors. See the [detailed funding guide](../idn-client-contract-lib/README.md#contract-account-funding-requirements) for step-by-step instructions.
 
 4. Initialize with the required parameters:
 
@@ -230,7 +230,7 @@ Understanding and managing XCM fees is crucial for successful contract operation
 ### Fee Requirements
 
 - All subscription management methods require XCM execution fees
-- Fees are paid in the relay chain's native token (DOT/KSM)
+- Fees are paid in the relay chain's native token (DOT/PAS)
 - The contract's balance must be sufficient to cover fees
 - Unused fees are automatically refunded after execution
 
