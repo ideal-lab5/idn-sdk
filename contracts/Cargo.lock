@@ -3533,6 +3533,7 @@ name = "idn-client-contract-lib"
 version = "0.1.0"
 dependencies = [
  "bp-idn",
+ "hex",
  "ink",
  "parity-scale-codec",
  "scale-info",
@@ -3555,14 +3556,12 @@ dependencies = [
 name = "idn-example-consumer-contract"
 version = "0.1.0"
 dependencies = [
- "frame-support 40.1.0",
  "idn-client-contract-lib",
  "ink",
  "ink_e2e",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sha2 0.10.9",
  "sp-idn-traits",
 ]
 
