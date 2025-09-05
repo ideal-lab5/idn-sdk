@@ -45,8 +45,6 @@ use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 #[cfg(feature = "tlock")]
-use sp_core::ConstU16;
-#[cfg(feature = "tlock")]
 use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
 use xcm::prelude::BodyId;
