@@ -16,12 +16,9 @@
 use crate as pallet_randomness_beacon;
 use crate::*;
 use bp_idn::types::*;
-use frame_support::{
-	derive_impl, ord_parameter_types, parameter_types,
-	traits::{ConstU8},
-};
 #[cfg(feature = "experimental")]
 use frame_support::traits::ConstU16;
+use frame_support::{derive_impl, ord_parameter_types, parameter_types, traits::ConstU8};
 use frame_system::EnsureRoot;
 use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};

@@ -17,13 +17,13 @@
 //!
 //! # Timelocked Transactions Pallet
 //!
-//! A Pallet for scheduling confidential (timelocked) runtime calls.
+//! A Pallet for scheduling timelock encrypted runtime calls.
 //!
 //! ## Overview
 //!
-//! This Pallet exposes capabilities for scheduling runtime calls to occur at a specified round
-//! number output from a randomness beacon. These scheduled calls each contain a timelocked
-//! ciphertext and round number when they unlock.
+//! This Pallet exposes capabilities for scheduling runtime calls as timelock encrypted ciphertexts
+//! to be decrypt by signatures output in a future Drand pulse. Each scheduled call contains a
+//! timelocked ciphertext and round number when they unlock. T he
 //!
 //! __NOTE:__ Instead of using the filter contained in the origin to call `fn schedule`, scheduled
 //! runtime calls will be dispatched with the default filter for the origin: namely
@@ -35,11 +35,9 @@
 //!
 //! ### Examples
 //!
-//! 1. Scheduling a runtime call at a specific block.
-// #![doc = docify::embed!("src/tests.rs", basic_scheduling_works)]
+//! Scheduling a timelock encrypted runtime call for a specific Drand round
+// #![doc = docify::embed!("src/tests.rs", basic_sealed_scheduling_works)]
 //!
-//! 2. Scheduling a preimage hash of a runtime call at a specifc block
-// #![doc = docify::embed!("src/tests.rs", scheduling_with_preimages_works)]
 
 //!
 //! ## Pallet API
@@ -62,8 +60,6 @@
 //!     * Could fail due to the runtime call index not being part of the `Call`.
 //!     * Could lead to undefined behavior, such as executing another runtime call with the same
 //!       index.
-//!
-//! [`on_initialize`]: frame_support::traits::Hooks::on_initialize
 
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -113,7 +109,7 @@ pub type TaskAddress<BlockNumber> = (BlockNumber, u32);
 pub type BoundedCallOf<T> =
 	Bounded<<T as Config>::RuntimeCall, <T as frame_system::Config>::Hashing>;
 // TODO: ciphertexts can't exceed 4048 (arbitrarily)
-// we need to determine a better upper bound for this
+// This will be addressed in https://github.com/ideal-lab5/idn-sdk/issues/342
 pub type Ciphertext = BoundedVec<u8, ConstU32<4048>>;
 
 /// Information regarding an item to be executed in the future.
@@ -418,6 +414,9 @@ impl<T: Config> Pallet<T> {
 		call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock>,
 	) {
 		let mut meter = WeightMeter::with_limit(<T as Config>::MaximumWeight::get());
+		// iterate over the agenda and fill in call data
+		// for now we just match on id
+		// but in the future we will implement https://github.com/ideal-lab5/idn-sdk/issues/339
 		let mut agenda = Agenda::<T>::get(when);
 		let mut ordered: Vec<(u32, _)> = agenda
 			.iter_mut()
@@ -442,7 +441,6 @@ impl<T: Config> Pallet<T> {
 				let base_weight =
 					T::WeightInfo::service_task(maybe_call.lookup_len().map(|x| x as usize));
 				if !meter.can_consume(base_weight) {
-					// TODO: how to report?
 					break;
 				}
 				let _result = Self::service_task(&mut meter, when, agenda_index, task);
