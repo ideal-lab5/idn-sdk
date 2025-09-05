@@ -94,36 +94,14 @@
 //!
 //! XCM execution requires fees paid in the target chain's native asset:
 //!
-//! - **Fee Estimation**: The `max_idn_xcm_fees` parameter sets the maximum fee budget
+//! - **Fees**: The `max_idn_xcm_fees` parameter sets the maximum fees to pay for the execution
+//! of a single XCM message sent to the IDN chain, expressed in the IDN asset.
 //! - **Asset Handling**: Fees are automatically withdrawn from the contract's account
 //! - **Surplus Refund**: Unused fees are refunded back to the contract after execution
-//! - **Fee Assets**: Uses the relay chain's native token (DOT/KSM) for XCM execution
+//! - **Fee Assets**: Uses the relay chain's native token (DOT/PAS) for XCM execution
 //!
 //! The library handles all fee-related XCM instructions automatically, ensuring contracts
 //! only need to maintain sufficient balance for their subscription operations.
-//!
-//! #### Fee Calculation Strategies
-//!
-//! Proper fee estimation is crucial for reliable cross-chain operations. Consider these factors:
-//!
-//! **Base Fee Components:**
-//! - XCM instruction execution cost on IDN chain
-//! - Runtime call weight (varies by pallet operation)
-//! - Asset withdrawal and deposit instructions
-//! - Network congestion multiplier
-//!
-//! **Estimation Methods:**
-//! - Conservative approach: Set high maximum (e.g., 1 DOT = 1_000_000_000u128 Planck), unused
-//!   portion is refunded
-//! - Network-specific approach: Adjust based on relay chain (1 DOT for Polkadot, 0.1 KSM for
-//!   Kusama)
-//! - Dynamic approach: Monitor success rates and adjust fees based on network congestion
-//!
-//! **Fee Monitoring:**
-//! - Track actual fees consumed vs. maximum set
-//! - Adjust maximums based on success/failure patterns
-//! - Monitor refunded amounts to optimize fee estimates
-//! - Consider implementing fee adjustment mechanisms in contract logic
 //!
 //! ### Metadata Management
 //!
@@ -298,7 +276,7 @@ pub struct IdnClient {
 	pub self_contracts_pallet_index: PalletIndex,
 	/// ID of this parachain this contract is deployed on
 	pub self_para_id: ParaId,
-	/// The maximum amount of fees to pay for the execution of a single XCM message sent to the
+	/// The maximum fees to pay for the execution of a single XCM message sent to the
 	/// IDN chain, expressed in the IDN asset.
 	pub max_idn_xcm_fees: u128,
 }

@@ -324,7 +324,7 @@ XCM execution costs include several components:
 
 **Conservative Approach (Recommended):** Set high maximum (1 DOT = 1_000_000_000u128), unused fees are automatically refunded.
 
-**Network-Specific Approach:** Adjust based on relay chain. E.g. 1 DOT for Polkadot, 0.1 KSM for Kusama, lower for testnets.
+**Network-Specific Approach:** Adjust based on relay chain. E.g. DOT, PAS
 
 **Dynamic Fee Adjustment:** Implement logic to adjust fees based on real-time network conditions and historical success rates.
 
@@ -393,11 +393,32 @@ fn verify_pulse_authenticity(&self, pulse: &Pulse) -> bool {
 
 ### Understanding Sovereign Accounts
 
-When your contract sends XCM messages to the IDN chain, it operates through a **sovereign account** - a derived account that represents your contract on the destination chain. This account must be funded with relay chain native tokens (DOT/KSM) to pay for XCM execution fees.
+When your contract sends XCM messages to the IDN chain, it operates through a **sovereign account** - a derived account that represents your contract on the destination chain. This account must be funded with relay chain native tokens (DOT/PAS) to pay for XCM execution fees.
 
 ### Critical Setup Requirement
 
 **⚠️ IMPORTANT**: Before calling any subscription methods (`create_subscription`, `pause_subscription`, etc.), you **must fund your contract's sovereign account** on the IDN chain, or you will get "Funds are unavailable" errors.
+
+### Finding Your Contract's Sovereign Account
+
+To determine your contract's sovereign account address on the IDN chain:
+
+1. **Using Polkadot.js Apps (Recommended for Documentation)**
+   - Open [Polkadot.js Apps](https://polkadot.js.org/apps/)
+   - Connect to the IDN node (e.g. `wss://idn-0.idealabs.network:443`)
+   - Navigate to **Developer → Runtime calls**
+   - Select **locationToAccountApi → convertLocation**
+   - Configure your location:
+     - **Version**: `V4`
+     - **Parents**: `1` (for sibling parachain)
+     - **Interior**: `X2`
+     - **Junction 1**: `Parachain` → Enter your parachain ID (e.g., `2000`, `4594`)
+     - **Junction 2**: `AccountId32` → Enter your contract's account ID
+       - **Network**: Leave it as `None`
+       - **ID**: Paste your contract's account ID
+   - Click "Submit" to see the sovereign account address
+
+   *Try different ParaIds to test: Asset Hub (`1000`), your parachain ID, etc.*
 
 ## Troubleshooting
 
