@@ -17,7 +17,7 @@
 //!
 //! # Timelocked Transactions Pallet
 //!
-//! A Pallet for scheduling timelock encrypted runtime calls.
+//! A Pallet for scheduling and executing timelock encrypted runtime calls.
 //!
 //! ## Overview
 //!
@@ -30,15 +30,10 @@
 //! `frame_system::Config::BaseCallFilter` for all origin types (except root which will get no
 //! filter).
 //!
-//! If a call is scheduled using proxy or whatever mechanism which adds filter, then those filter
-//! will not be used when dispatching the schedule runtime call.
-//!
 //! ### Examples
 //!
 //! Scheduling a timelock encrypted runtime call for a specific Drand round
 // #![doc = docify::embed!("src/tests.rs", basic_sealed_scheduling_works)]
-//!
-
 //!
 //! ## Pallet API
 //!
@@ -47,10 +42,9 @@
 //!
 //! ## Warning
 //!
-//! This Pallet executes all scheduled runtime calls in the [`on_initialize`] hook. Do not execute
-//! any runtime calls which should not be considered mandatory.
+//! This Pallet does not execute calls itself, but must be executed in the context of another pallet.
 //!
-//! Please be aware that any scheduled runtime calls executed in a future block may __fail__ or may
+//! Please be aware that any timelocked runtime calls executed in a future block may __fail__ or may
 //! result in __undefined behavior__ since the runtime could have upgraded between the time of
 //! scheduling and execution. For example, the runtime upgrade could have:
 //!
