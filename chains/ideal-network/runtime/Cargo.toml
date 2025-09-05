@@ -40,6 +40,7 @@ pallet-balances.workspace = true
 pallet-contracts.workspace = true
 pallet-insecure-randomness-collective-flip.workspace = true
 pallet-message-queue.workspace = true
+pallet-preimage.workspace = true
 pallet-session.workspace = true
 pallet-sudo.workspace = true
 pallet-timestamp.workspace = true
@@ -87,6 +88,7 @@ parachain-info.workspace = true
 bp-idn = { workspace = true, default-features = false }
 pallet-idn-manager.workspace = true
 pallet-randomness-beacon.workspace = true
+pallet-timelock-transactions.workspace = true
 sp-consensus-randomness-beacon.workspace = true
 sp-idn-crypto.workspace = true
 
@@ -121,7 +123,9 @@ std = [
   "pallet-contracts/std",
   "pallet-insecure-randomness-collective-flip/std",
   "pallet-message-queue/std",
+  "pallet-preimage/std",
   "pallet-randomness-beacon/std",
+  "pallet-timelock-transactions/std",
   "pallet-session/std",
   "pallet-sudo/std",
   "pallet-timestamp/std",
@@ -171,10 +175,12 @@ runtime-benchmarks = [
   "pallet-collator-selection/runtime-benchmarks",
   "pallet-contracts/runtime-benchmarks",
   "pallet-message-queue/runtime-benchmarks",
+  "pallet-preimage/runtime-benchmarks",
   "pallet-sudo/runtime-benchmarks",
   "pallet-timestamp/runtime-benchmarks",
   "pallet-xcm/runtime-benchmarks",
   "pallet-randomness-beacon/runtime-benchmarks",
+  "pallet-timelock-transactions/runtime-benchmarks",
   "parachains-common/runtime-benchmarks",
   "polkadot-parachain-primitives/runtime-benchmarks",
   "polkadot-runtime-common/runtime-benchmarks",
@@ -200,6 +206,7 @@ try-runtime = [
   "pallet-contracts/try-runtime",
   "pallet-insecure-randomness-collective-flip/try-runtime",
   "pallet-message-queue/try-runtime",
+  "pallet-preimage/try-runtime",
   "pallet-session/try-runtime",
   "pallet-sudo/try-runtime",
   "pallet-timestamp/try-runtime",
@@ -222,3 +229,6 @@ metadata-hash = ["substrate-wasm-builder/metadata-hash"]
 # A convenience feature for enabling things when doing a build
 # for an on-chain release.
 on-chain-release-build = ["metadata-hash"]
+
+# A feature for hiding timelocked transactions features
+tlock = ["pallet-randomness-beacon/experimental"]

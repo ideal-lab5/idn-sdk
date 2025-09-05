@@ -83,11 +83,16 @@
 
 pub use pallet::*;
 
-use frame_support::pallet_prelude::*;
-
-use frame_support::traits::Randomness;
+extern crate alloc;
+use alloc::{collections::btree_map::BTreeMap, vec, vec::Vec};
+use ark_bls12_381::G1Affine;
+#[cfg(feature = "experimental")]
+use frame_support::traits::schedule::v3::TaskName;
+use frame_support::{pallet_prelude::*, traits::Randomness};
 use frame_system::pallet_prelude::BlockNumberFor;
-use sp_consensus_randomness_beacon::types::CanonicalPulse;
+#[cfg(feature = "experimental")]
+use pallet_timelock_transactions::{Config as TlockConfig, TlockTxProvider};
+use sp_consensus_randomness_beacon::types::{CanonicalPulse, RoundNumber};
 use sp_core::H256;
 use sp_idn_crypto::verifier::SignatureVerifier;
 use sp_idn_traits::{
@@ -95,9 +100,6 @@ use sp_idn_traits::{
 	Hashable,
 };
 use sp_std::fmt::Debug;
-
-extern crate alloc;
-use alloc::vec::Vec;
 
 pub mod types;
 pub mod weights;
@@ -118,17 +120,18 @@ const LOG_TARGET: &str = "pallet-randomness-beacon";
 
 const SERIALIZED_SIG_SIZE: usize = 48;
 
+#[cfg(feature = "experimental")]
+type CallDataOf<T> = (TaskName, <<T as Config>::Tlock as TlockConfig>::RuntimeCall);
+#[cfg(not(feature = "experimental"))]
+type CallDataOf<T> = ((), PhantomData<T>);
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use ark_bls12_381::G1Affine;
 	use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
-	use sp_consensus_randomness_beacon::{
-		digest::ConsensusLog,
-		types::{OpaqueSignature, RoundNumber},
-	};
+	use sp_consensus_randomness_beacon::{digest::ConsensusLog, types::OpaqueSignature};
 	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
 	use sp_runtime::generic::DigestItem;
 
@@ -148,6 +151,9 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 		/// something that knows how to aggregate and verify beacon pulses.
 		type SignatureVerifier: SignatureVerifier;
+		/// The maximum number of ciphertexts that can be decrypted per block
+		#[cfg(feature = "experimental")]
+		type MaxDecryptionsPerBlock: Get<u16>;
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;
 		/// The pulse type
@@ -163,6 +169,15 @@ pub mod pallet {
 		type Dispatcher: Dispatcher<Self::Pulse>;
 		/// The fallback randomness source
 		type FallbackRandomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
+		/// The timelock transaction configuration
+		#[cfg(feature = "experimental")]
+		type Tlock: TlockConfig;
+		/// Something that provides timelock transaction capabilities
+		#[cfg(feature = "experimental")]
+		type TlockTxProvider: TlockTxProvider<
+			<Self::Tlock as TlockConfig>::RuntimeCall,
+			<Self::Tlock as TlockConfig>::MaxScheduledPerBlock,
+		>;
 	}
 
 	/// The round when we start consuming pulses
@@ -211,6 +226,8 @@ pub mod pallet {
 		SerializationFailed,
 		/// The round of this pulse has already happened
 		StartExpired,
+		/// Experimental features are disabled
+		ExperimentalFeaturesDisabled,
 	}
 
 	#[pallet::inherent]
@@ -247,13 +264,40 @@ pub mod pallet {
 					let start = pulses.first().map(|p| p.round);
 					let end = pulses.last().map(|p| p.round);
 
+					// data needs to be a map since we will have multiple pulses to consider
+					#[cfg(not(feature = "experimental"))]
+					let tasks = BTreeMap::new();
+					#[cfg(feature = "experimental")]
+					let mut tasks = BTreeMap::new();
+					#[cfg(feature = "experimental")]
+					let mut remaining_decrypts = T::MaxDecryptionsPerBlock::get();
+
 					if let (Some(start), Some(end)) = (start, end) {
-						let asig = pulses
+						let filtered = pulses
 							.into_iter()
 							.filter_map(|pulse| {
 								let bytes = pulse.signature;
-								G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()
+
+								let sig =
+									G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()?;
+
+								#[cfg(feature = "experimental")]
+								let calls = T::TlockTxProvider::decrypt_and_decode(
+									pulse.round,
+									sig,
+									&mut remaining_decrypts,
+								);
+								#[cfg(feature = "experimental")]
+								if !calls.is_empty() {
+									tasks.insert(pulse.round, calls.into_inner());
+								}
+
+								Some(sig)
 							})
+							.collect::<Vec<_>>();
+
+						let asig = filtered
+							.iter()
 							.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| {
 								(acc + sig).into()
 							});
@@ -267,6 +311,7 @@ pub mod pallet {
 						return Some(Call::try_submit_asig {
 							asig: OpaqueSignature::try_from(asig_bytes)
 								.expect("The signature is well formatted. qed."),
+							raw_call_data: tasks,
 							start,
 							end,
 						});
@@ -323,7 +368,10 @@ pub mod pallet {
 		///
 		/// * `origin`: An unsigned origin.
 		/// * `asig`: An aggregated signature as bytes
-		/// * `height`: The number of signatures aggregated in asig
+		/// * `start`: The first round from which signatures are aggregated
+		/// * `end`: The last round from which signatures were aggregated
+		/// * `raw_call_data`: Ignored unless `experimental` is enabled, allows raw call data to be
+		///   injected to the rutime
 		#[pallet::call_index(0)]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(
 			T::MaxSigsPerBlock::get().into())
@@ -336,7 +384,12 @@ pub mod pallet {
 			asig: OpaqueSignature,
 			start: RoundNumber,
 			end: RoundNumber,
+			raw_call_data: BTreeMap<RoundNumber, Vec<CallDataOf<T>>>,
 		) -> DispatchResultWithPostInfo {
+			// block experimental features if attempted
+			#[cfg(not(feature = "experimental"))]
+			ensure!(raw_call_data.len() == 0, Error::<T>::ExperimentalFeaturesDisabled);
+
 			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
@@ -382,7 +435,11 @@ pub mod pallet {
 			// dispatch pulses to subscribers
 			let runtime_pulse = T::Pulse::from(sacc);
 			T::Dispatcher::dispatch(runtime_pulse);
-
+			// dispatch timelocked transactions
+			#[cfg(feature = "experimental")]
+			for (k, v) in raw_call_data {
+				T::TlockTxProvider::service_agenda(k, BoundedVec::truncate_from(v));
+			}
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
 
 			// Insert the latest round into the header digest

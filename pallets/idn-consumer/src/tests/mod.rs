@@ -128,7 +128,7 @@ fn test_create_subscription_fails() {
 			sub_id,
 		);
 
-		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
 }
 
@@ -195,7 +195,7 @@ fn test_pause_subscription_fails() {
 		// Call the function and assert failure
 		let result =
 			crate::Pallet::<Test>::pause_subscription(RuntimeOrigin::signed(ALICE), sub_id);
-		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
 }
 
@@ -209,7 +209,7 @@ fn test_kill_subscription_fails() {
 
 		// Call the function and assert failure
 		let result = crate::Pallet::<Test>::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id);
-		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
 }
 
@@ -232,7 +232,7 @@ fn test_update_subscription_fails() {
 			frequency,
 			metadata,
 		);
-		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
 }
 
@@ -247,7 +247,7 @@ fn test_reactivate_subscription_fails() {
 		// Call the function and assert failure
 		let result =
 			crate::Pallet::<Test>::reactivate_subscription(RuntimeOrigin::signed(ALICE), sub_id);
-		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
 }
 
@@ -485,7 +485,7 @@ fn test_get_subscription_fails() {
 		// Call the function and assert failure
 		let result =
 			crate::Pallet::<Test>::request_sub_info(RuntimeOrigin::signed(ALICE), sub_id, req_ref);
-		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError.into());
+		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
 }
 

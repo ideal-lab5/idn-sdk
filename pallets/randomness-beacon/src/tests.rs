@@ -13,15 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 use crate::{
 	mock::*, types::*, weights::WeightInfo, BeaconConfig, Call, DidUpdate, Error, LatestRound,
 	SparseAccumulation,
 };
+use alloc::collections::btree_map::BTreeMap;
+#[cfg(feature = "experimental")]
+use ark_bls12_381::G2Affine as G2;
+#[cfg(feature = "experimental")]
+use ark_serialize::CanonicalDeserialize;
 use codec::Encode;
 use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
-use sp_consensus_randomness_beacon::types::{CanonicalPulse, OpaquePublicKey, RoundNumber};
+use sp_consensus_randomness_beacon::{
+	inherents::INHERENT_IDENTIFIER,
+	types::{CanonicalPulse, OpaquePublicKey, RoundNumber},
+};
+#[cfg(feature = "experimental")]
+use sp_idn_crypto::test_utils::build_ciphertext;
 use sp_idn_crypto::test_utils::{get, PULSE1000, PULSE1001, PULSE1002, PULSE1003};
+use sp_inherents::InherentData;
+#[cfg(feature = "experimental")]
+use sp_io::hashing::blake2_256;
 
 const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 
@@ -33,15 +45,70 @@ fn can_construct_pallet_and_set_genesis_params() {
 	});
 }
 
+#[cfg(not(feature = "experimental"))]
 #[test]
-fn can_fail_write_pulse_when_genesis_round_not_set() {
+fn can_reject_call_data_if_not_experimental() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let raw_call_data = BTreeMap::new();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig.try_into().unwrap(), 1000, 1001,),
+			Drand::try_submit_asig(
+				RuntimeOrigin::none(),
+				asig.try_into().unwrap(),
+				1000,
+				1001,
+				raw_call_data
+			),
 			Error::<Test>::BeaconConfigNotSet,
+		);
+	});
+}
+
+// #[cfg(not(feature = "experimental"))]
+#[test]
+fn can_fail_write_pulse_when_genesis_round_not_set() {
+	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let raw_call_data = BTreeMap::new();
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+
+		assert_noop!(
+			Drand::try_submit_asig(
+				RuntimeOrigin::none(),
+				asig.try_into().unwrap(),
+				1000,
+				1001,
+				raw_call_data
+			),
+			Error::<Test>::BeaconConfigNotSet,
+		);
+	});
+}
+
+#[cfg(not(feature = "experimental"))]
+#[test]
+fn can_fail_try_submit_asig_when_not_experimental_but_btreemap_is_nonempty() {
+	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let mut raw_call_data = BTreeMap::new();
+	raw_call_data.insert(0u64, vec![((), core::marker::PhantomData)]);
+	let config = get_config(1000);
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
+
+		assert_noop!(
+			Drand::try_submit_asig(
+				RuntimeOrigin::none(),
+				asig.try_into().unwrap(),
+				1000,
+				1001,
+				raw_call_data
+			),
+			Error::<Test>::ExperimentalFeaturesDisabled,
 		);
 	});
 }
@@ -67,6 +134,7 @@ fn can_set_genesis_round_once_as_root() {
 fn can_submit_valid_pulses_under_the_limit() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
 	let config = get_config(1000);
+	let raw_call_data = BTreeMap::new();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
@@ -77,6 +145,7 @@ fn can_submit_valid_pulses_under_the_limit() {
 			asig.clone().try_into().unwrap(),
 			1000,
 			1001,
+			raw_call_data,
 		));
 
 		let maybe_res = SparseAccumulation::<Test>::get();
@@ -103,7 +172,7 @@ fn can_fail_when_sig_height_is_0() {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 1000),
+			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 1000, BTreeMap::new()),
 			Error::<Test>::ZeroHeightProvided
 		);
 	});
@@ -118,7 +187,7 @@ fn can_fail_when_sig_height_is_exceeds_max() {
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
 
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 10000),
+			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 10000, BTreeMap::new()),
 			Error::<Test>::ExcessiveHeightProvided
 		);
 	});
@@ -139,7 +208,8 @@ fn can_submit_valid_sigs_in_sequence() {
 			RuntimeOrigin::none(),
 			asig1.try_into().unwrap(),
 			1000,
-			1001
+			1001,
+			BTreeMap::new()
 		));
 
 		Drand::on_finalize(1);
@@ -150,6 +220,7 @@ fn can_submit_valid_sigs_in_sequence() {
 			asig2.clone().try_into().unwrap(),
 			1002,
 			1003,
+			BTreeMap::new()
 		));
 
 		let maybe_res = SparseAccumulation::<Test>::get();
@@ -180,6 +251,7 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 			asig.clone().try_into().unwrap(),
 			1000,
 			1001,
+			BTreeMap::new()
 		));
 		assert_noop!(
 			Drand::try_submit_asig(
@@ -187,6 +259,7 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 				asig.clone().try_into().unwrap(),
 				1000,
 				1001,
+				BTreeMap::new()
 			),
 			Error::<Test>::SignatureAlreadyVerified,
 		);
@@ -208,6 +281,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 			asig.clone().try_into().unwrap(),
 			1000,
 			1001,
+			BTreeMap::new()
 		));
 
 		Drand::on_finalize(1);
@@ -219,6 +293,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 				asig.clone().try_into().unwrap(),
 				1000,
 				1001,
+				BTreeMap::new()
 			),
 			Error::<Test>::StartExpired,
 		);
@@ -229,6 +304,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 				asig.clone().try_into().unwrap(),
 				1002,
 				1004,
+				BTreeMap::new()
 			),
 			Error::<Test>::VerificationFailed,
 		);
@@ -260,11 +336,129 @@ fn can_call_on_initialize() {
 /*
 	Inherents Tests
 */
-use sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
-use sp_inherents::InherentData;
+#[cfg(feature = "experimental")]
+#[test]
+fn can_create_inherent_with_agenda_items_for_multiple_pulses() {
+	// setup the inherent data
+	let genesis = 42;
+	let pk_bytes = hex::decode(BEACON_PUBKEY).expect("Valid hex");
+	let pk = G2::deserialize_compressed(&*pk_bytes).unwrap();
+
+	let public_key: OpaquePublicKey = pk_bytes.clone().try_into().unwrap();
+	let config = BeaconConfiguration { public_key, genesis_round: genesis };
+
+	let (asig1, _amsg1, _sig1) = get(vec![PULSE1000]);
+	let pulse1 = CanonicalPulse { round: 1000u64, signature: asig1.try_into().unwrap() };
+	let call1 = RuntimeCall::System(SystemCall::remark { remark: vec![] });
+	let (_, ct1) = build_ciphertext(&call1, 1000, pk);
+
+	let (asig2, _amsg2, _sig2) = get(vec![PULSE1001]);
+	let pulse2 = CanonicalPulse { round: 1001u64, signature: asig2.try_into().unwrap() };
+	let call2 = RuntimeCall::System(SystemCall::remark { remark: vec![] });
+	let (_, ct2) = build_ciphertext(&call2, 1001, pk);
+
+	let (expected_asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let expected_asig_array: [u8; 48] = expected_asig.try_into().unwrap();
+	let mut expected_call_map = BTreeMap::new();
+
+	let id1 = blake2_256(&ct1[..]);
+	let id2 = blake2_256(&ct2[..]);
+	expected_call_map.insert(1000u64, vec![(id1, call1)]);
+	expected_call_map.insert(1001u64, vec![(id2, call2)]);
+
+	let expected_start = 1000;
+	let expected_end = 1001;
+
+	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode()];
+	let mut inherent_data = InherentData::new();
+	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
+
+	new_test_ext().execute_with(|| {
+		let origin: RuntimeOrigin = RuntimeOrigin::root();
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
+
+		assert_ok!(Timelock::schedule_sealed(origin.clone(), 1000, ct1));
+		assert_ok!(Timelock::schedule_sealed(origin.clone(), 1001, ct2));
+
+		let result = Drand::create_inherent(&inherent_data);
+		if let Some(Call::try_submit_asig { asig, start, end, raw_call_data }) = result {
+			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
+			assert_eq!(start, expected_start, "The sequence should start at 1000");
+			assert_eq!(end, expected_end, "The sequence should end at 1001");
+			assert_eq!(
+				expected_call_map, raw_call_data,
+				"The list of raw call data should match the expected call data."
+			);
+		} else {
+			panic!("Expected Some(Call::try_submit_asig), got None");
+		}
+	});
+}
+
+#[cfg(feature = "experimental")]
+#[test]
+fn can_create_inherent_with_agenda_items_for_too_many_decryptions() {
+	// setup the inherent data
+	let genesis = 42;
+	let pk_bytes = hex::decode(BEACON_PUBKEY).expect("Valid hex");
+	let pk = G2::deserialize_compressed(&*pk_bytes).unwrap();
+
+	let public_key: OpaquePublicKey = pk_bytes.clone().try_into().unwrap();
+	let config = BeaconConfiguration { public_key, genesis_round: genesis };
+
+	let (asig1, _amsg1, _sig1) = get(vec![PULSE1000]);
+	let pulse1 = CanonicalPulse { round: 1000u64, signature: asig1.try_into().unwrap() };
+	let call1 = RuntimeCall::System(SystemCall::remark { remark: vec![] });
+	let (_, ct1) = build_ciphertext(&call1, 1000, pk);
+
+	let (asig2, _amsg2, _sig2) = get(vec![PULSE1001]);
+	let pulse2 = CanonicalPulse { round: 1001u64, signature: asig2.try_into().unwrap() };
+	let call2 = RuntimeCall::System(SystemCall::remark { remark: vec![] });
+	let (_, ct2) = build_ciphertext(&call2, 1001, pk);
+	// this one should be dropped
+	let (_, ct3) = build_ciphertext(&call2, 1001, pk);
+
+	let (expected_asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
+	let expected_asig_array: [u8; 48] = expected_asig.try_into().unwrap();
+	let mut expected_call_map = BTreeMap::new();
+
+	let id1 = blake2_256(&ct1[..]);
+	let id2 = blake2_256(&ct2[..]);
+	expected_call_map.insert(1000u64, vec![(id1, call1)]);
+	expected_call_map.insert(1001u64, vec![(id2, call2)]);
+
+	let expected_start = 1000;
+	let expected_end = 1001;
+
+	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode()];
+	let mut inherent_data = InherentData::new();
+	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
+
+	new_test_ext().execute_with(|| {
+		let origin: RuntimeOrigin = RuntimeOrigin::root();
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
+
+		assert_ok!(Timelock::schedule_sealed(origin.clone(), 1000, ct1));
+		assert_ok!(Timelock::schedule_sealed(origin.clone(), 1001, ct2));
+		assert_ok!(Timelock::schedule_sealed(origin.clone(), 1001, ct3));
+
+		let result = Drand::create_inherent(&inherent_data);
+		if let Some(Call::try_submit_asig { asig, start, end, raw_call_data }) = result {
+			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
+			assert_eq!(start, expected_start, "The sequence should start at 1000");
+			assert_eq!(end, expected_end, "The sequence should end at 1001");
+			assert_eq!(
+				expected_call_map, raw_call_data,
+				"The list of raw call data should match the expected call data."
+			);
+		} else {
+			panic!("Expected Some(Call::try_submit_asig), got None");
+		}
+	});
+}
 
 #[test]
-fn can_create_inherent() {
+fn can_create_inherent_with_empty_agenda() {
 	// setup the inherent data
 	let genesis = 1001;
 	let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
@@ -293,10 +487,11 @@ fn can_create_inherent() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
 		let result = Drand::create_inherent(&inherent_data);
-		if let Some(Call::try_submit_asig { asig, start, end }) = result {
+		if let Some(Call::try_submit_asig { asig, start, end, raw_call_data }) = result {
 			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
 			assert_eq!(start, expected_start, "The sequence should start at 1001");
 			assert_eq!(end, expected_end, "The sequence should end at 1002");
+			assert_eq!(BTreeMap::new(), raw_call_data, "The list of raw call data should be empty");
 		} else {
 			panic!("Expected Some(Call::try_submit_asig), got None");
 		}
@@ -338,10 +533,11 @@ fn can_create_inherent_with_extra_pulses_drained() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
 		let result = Drand::create_inherent(&inherent_data);
-		if let Some(Call::try_submit_asig { asig, start, end }) = result {
+		if let Some(Call::try_submit_asig { asig, start, end, raw_call_data }) = result {
 			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
 			assert_eq!(start, expected_start, "The sequence should start at 1001");
 			assert_eq!(end, expected_end, "The sequence should end at 1002");
+			assert_eq!(BTreeMap::new(), raw_call_data, "The list of raw call data should be empty");
 		} else {
 			panic!("Expected Some(Call::try_submit_asig), got None");
 		}
