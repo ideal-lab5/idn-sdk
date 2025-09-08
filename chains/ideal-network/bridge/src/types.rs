@@ -38,7 +38,7 @@ use sp_runtime::{
 };
 
 pub use pallet_idn_manager::{
-	primitives::{CallIndex, RequestReference},
+	primitives::{RequestReference, SubscriptionCallData},
 	SubscriptionState,
 };
 pub use sp_consensus_randomness_beacon::types::*;
@@ -153,6 +153,8 @@ parameter_types! {
 	pub const MaxTerminatableSubs: u32 = 200;
 	/// The maximum length of the metadata vector
 	pub const MaxMetadataLen: u32 = 8;
+	/// The maximum length of the call data vector
+	pub const MaxCallDataLen: u32 = 512;
 }
 
 /// A type that defines the amount of credits in a subscription
@@ -175,11 +177,16 @@ pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::Account
 ///
 /// See [`pallet_idn_manager::primitives::SubscriptionMetadata`] for more details.
 pub type Metadata = SubscriptionMetadata<MaxMetadataLen>;
+/// The call data type used in the pallet, represented as a bounded vector of bytes.
+///
+/// See [`pallet_idn_manager::primitives::SubscriptionCallData`] for more details.
+pub type CallData = SubscriptionCallData<MaxCallDataLen>;
 /// The parameters for creating a new subscription, containing various details about the
 /// subscription.
 ///
 /// See [`pallet_idn_manager::primitives::CreateSubParams`] for more details.
-pub type CreateSubParams = MngCreateSubParams<Credits, BlockNumber, Metadata, SubscriptionId>;
+pub type CreateSubParams =
+	MngCreateSubParams<Credits, BlockNumber, Metadata, SubscriptionId, CallData>;
 /// The parameters for updating an existing subscription, containing various details about the
 /// subscription.
 ///
@@ -188,7 +195,7 @@ pub type UpdateSubParams = MngUpdateSubParams<SubscriptionId, Credits, BlockNumb
 /// The parameters for quoting a subscription.
 ///
 /// See [`pallet_idn_manager::primitives::QuoteSubParams`] for more details.
-pub type QuoteSubParams = MngQuoteSubParams<CreateSubParams, BlockNumber>;
+pub type QuoteSubParams = MngQuoteSubParams<CreateSubParams, BlockNumber, CallData>;
 /// The request for a quote, containing the parameters for the describing the subscription.
 ///
 /// See [`pallet_idn_manager::primitives::QuoteRequest`] for more details.
@@ -200,7 +207,8 @@ pub type Quote = MngQuote<Balance>;
 /// Represents a subscription in the system.
 ///
 /// See [`pallet_idn_manager::Subscription`] for more details.
-pub type Subscription = MngSubscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId>;
+pub type Subscription =
+	MngSubscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId, CallData>;
 /// The subscription info returned by the IDN Manager to the target parachain.
 ///
 /// See [`pallet_idn_manager::primitives::SubInfoResponse`] for more details.
@@ -208,11 +216,12 @@ pub type SubInfoResponse = MngSubInfoResponse<Subscription>;
 /// Contains the parameters for requesting a subscription info by its Id.
 ///
 /// See [`pallet_idn_manager::primitives::SubInfoRequest`] for more details.
-pub type SubInfoRequest = MngSubInfoRequest<SubscriptionId>;
+pub type SubInfoRequest = MngSubInfoRequest<SubscriptionId, CallData>;
 /// Details specific to a subscription for pulse delivery.
 ///
 /// See [`pallet_idn_manager::SubscriptionDetails`] for more details.
-pub type SubscriptionDetails = MngSubscriptionDetails<AccountId>;
+
+pub type SubscriptionDetails = MngSubscriptionDetails<AccountId, CallData>;
 
 #[cfg(test)]
 mod test {

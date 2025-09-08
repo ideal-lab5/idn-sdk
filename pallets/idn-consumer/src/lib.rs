@@ -43,7 +43,7 @@ pub mod weights;
 
 use bp_idn::{
 	types::{
-		BlockNumber as IdnBlockNumber, CallIndex, CreateSubParams, Credits, Metadata, QuoteRequest,
+		BlockNumber as IdnBlockNumber, CallData, CreateSubParams, Credits, Metadata, QuoteRequest,
 		QuoteSubParams, RequestReference, SubInfoRequest, UpdateSubParams,
 	},
 	Call as RuntimeCall, IdnManagerCall,
@@ -194,6 +194,9 @@ pub mod pallet {
 
 		/// An error occurred while sending the XCM message.
 		XcmSendError,
+
+		/// The call data is too long to fit in the bounded vector.
+		CallDataTooLong,
 	}
 
 	#[pallet::call]
@@ -534,7 +537,7 @@ impl<T: Config> Pallet<T> {
 		let mut params = CreateSubParams {
 			credits,
 			target: Self::self_para_sibling_location()?,
-			call_index: Self::pulse_callback_index()?,
+			call: Self::pulse_callback_call_data()?,
 			frequency,
 			metadata,
 			sub_id,
@@ -628,7 +631,7 @@ impl<T: Config> Pallet<T> {
 			credits: 0,
 			target: Self::self_para_sibling_location()?,
 			// the `0` on the second element is the call index for the `consume` call
-			call_index: Self::pulse_callback_index()?,
+			call: Self::pulse_callback_call_data()?,
 			frequency,
 			metadata,
 			sub_id,
@@ -646,7 +649,7 @@ impl<T: Config> Pallet<T> {
 		let quote_request =
 			QuoteRequest { req_ref, create_sub_params, lifetime_pulses: number_of_pulses };
 
-		let params = QuoteSubParams { quote_request, call_index: Self::quote_callback_index()? };
+		let params = QuoteSubParams { quote_request, call: Self::quote_callback_call_data()? };
 
 		let call = RuntimeCall::IdnManager(IdnManagerCall::quote_subscription { params });
 
@@ -676,7 +679,7 @@ impl<T: Config> Pallet<T> {
 				sub_id.hash(&salt).into()
 			},
 		};
-		let req = SubInfoRequest { sub_id, req_ref, call_index: Self::sub_info_callback_index()? };
+		let req = SubInfoRequest { sub_id, req_ref, call: Self::sub_info_callback_call_data()? };
 		let call = RuntimeCall::IdnManager(IdnManagerCall::get_subscription_info { req });
 
 		Self::xcm_send(origin, call)?;
@@ -753,24 +756,27 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
-	/// Get the call index for the [`Pallet::consume_pulse`] call
-	fn pulse_callback_index() -> Result<CallIndex, Error<T>> {
+	/// Get the call data for the [`Pallet::consume_pulse`] call
+	fn pulse_callback_call_data() -> Result<CallData, Error<T>> {
 		// IMPORTANT: The second element of the call index MUST MATCH the index of the
 		// `consume_pulse` dispatchable.
-		Ok([Self::pallet_index()?, 0])
+		let call_index = [Self::pallet_index()?, 0];
+		CallData::try_from(call_index.to_vec()).map_err(|_| Error::<T>::CallDataTooLong)
 	}
 
-	/// Get the call index for the [`Pallet::consume_quote`] call
-	fn quote_callback_index() -> Result<CallIndex, Error<T>> {
+	/// Get the call data for the [`Pallet::consume_quote`] call
+	fn quote_callback_call_data() -> Result<CallData, Error<T>> {
 		// IMPORTANT: The second element of the call index MUST MATCH the index of the
 		// `consume_quote` dispatchable.
-		Ok([Self::pallet_index()?, 1])
+		let call_index = [Self::pallet_index()?, 1];
+		CallData::try_from(call_index.to_vec()).map_err(|_| Error::<T>::CallDataTooLong)
 	}
 
-	/// Get the call index for the [`Pallet::consume_sub_info`] call
-	fn sub_info_callback_index() -> Result<CallIndex, Error<T>> {
+	/// Get the call data for the [`Pallet::consume_sub_info`] call
+	fn sub_info_callback_call_data() -> Result<CallData, Error<T>> {
 		// IMPORTANT: The second element of the call index MUST MATCH the index of the
 		// `consume_sub_info` dispatchable.
-		Ok([Self::pallet_index()?, 2])
+		let call_index = [Self::pallet_index()?, 2];
+		CallData::try_from(call_index.to_vec()).map_err(|_| Error::<T>::CallDataTooLong)
 	}
 }
