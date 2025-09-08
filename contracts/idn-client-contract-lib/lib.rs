@@ -94,8 +94,8 @@
 //!
 //! XCM execution requires fees paid in the target chain's native asset:
 //!
-//! - **Fees**: The `max_idn_xcm_fees` parameter sets the maximum fees to pay for the execution
-//! of a single XCM message sent to the IDN chain, expressed in the IDN asset.
+//! - **Fees**: The `max_idn_xcm_fees` parameter sets the maximum fees to pay for the execution of a
+//!   single XCM message sent to the IDN chain, expressed in the IDN asset.
 //! - **Asset Handling**: Fees are automatically withdrawn from the contract's account
 //! - **Surplus Refund**: Unused fees are refunded back to the contract after execution
 //! - **Fee Assets**: Uses the relay chain's native token (DOT/PAS) for XCM execution
@@ -268,14 +268,17 @@ pub trait IdnConsumer {
 #[derive(Clone, Copy, Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
 pub struct IdnClient {
-	/// Pallet index for the IDN Manager pallet
-	pub idn_manager_pallet_index: PalletIndex,
 	/// Parachain ID of the IDN network
 	pub idn_para_id: ParaId,
-	/// Index for the contracts pallet in the parachain this contract is deployed on
-	pub self_contracts_pallet_index: PalletIndex,
+	/// Pallet index for the IDN Manager pallet
+	pub idn_manager_pallet_index: PalletIndex,
 	/// ID of this parachain this contract is deployed on
 	pub self_para_id: ParaId,
+	/// Index for the contracts pallet in the parachain this contract is deployed on
+	pub self_contracts_pallet_index: PalletIndex,
+	/// Call dispatchable index for the contracts pallet in the parachain this contract is deployed
+	/// on
+	pub self_contract_call_index: u8,
 	/// The maximum fees to pay for the execution of a single XCM message sent to the
 	/// IDN chain, expressed in the IDN asset.
 	pub max_idn_xcm_fees: u128,
@@ -289,17 +292,19 @@ impl IdnClient {
 	/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet
 	/// * `idn_para_id` - The parachain ID of the IDN network
 	pub fn new(
-		idn_manager_pallet_index: PalletIndex,
 		idn_para_id: ParaId,
-		self_contracts_pallet_index: PalletIndex,
+		idn_manager_pallet_index: PalletIndex,
 		self_para_id: ParaId,
+		self_contracts_pallet_index: PalletIndex,
+		self_contract_call_index: u8,
 		max_idn_xcm_fees: u128,
 	) -> Self {
 		Self {
-			idn_manager_pallet_index,
 			idn_para_id,
-			self_contracts_pallet_index,
+			idn_manager_pallet_index,
 			self_para_id,
+			self_contracts_pallet_index,
+			self_contract_call_index,
 			max_idn_xcm_fees,
 		}
 	}
@@ -314,9 +319,9 @@ impl IdnClient {
 		self.idn_para_id
 	}
 
-	/// Gets the contracts pallet index for this parachain
-	pub fn get_self_contracts_pallet_index(&self) -> PalletIndex {
-		self.self_contracts_pallet_index
+	/// Gets the contracts call index for this parachain
+	pub fn get_self_contracts_call_index(&self) -> CallIndex {
+		[self.self_contracts_pallet_index, self.self_contract_call_index].into()
 	}
 
 	/// Gets the parachain ID of this parachain
@@ -587,7 +592,7 @@ impl IdnClient {
 			WithdrawAsset(idn_fee_asset.clone().into()),
 			BuyExecution { weight_limit: Unlimited, fees: idn_fee_asset.clone() },
 			Transact {
-				origin_kind: OriginKind::Xcm,
+				origin_kind: OriginKind::SovereignAccount,
 				require_weight_at_most: Weight::MAX,
 				call: call.encode().into(),
 			},
@@ -626,7 +631,7 @@ impl IdnClient {
 	}
 	/// Get the call index for the [`IdnConsumer::consume_pulse`] call
 	fn pulse_callback_index(&self) -> CallIndex {
-		let consume_pulse_id = (selector_id!("consume_pulse") >> 24) as u8;
+		let encoded_selector = (selector_id!("consume_pulse") >> 24) as u8;
 		[self.get_self_contracts_pallet_index(), consume_pulse_id]
 	}
 }

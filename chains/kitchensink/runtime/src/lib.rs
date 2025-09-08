@@ -308,7 +308,7 @@ impl pallet_idn_manager::Config for Runtime {
 	type MaxTerminatableSubs = MaxTerminatableSubs;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Runtime>>;
-	type SiblingOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, AllowSiblingsOnly>;
+	type XcmOriginFilter = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, AllowSiblingsOnly>;
 	type XcmLocationToAccountId = MockSiblingConversion;
 }
 

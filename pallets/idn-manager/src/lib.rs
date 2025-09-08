@@ -348,9 +348,9 @@ pub mod pallet {
 		/// **Example definition**
 		/// ```rust
 		/// use pallet_idn_manager::primitives::AllowSiblingsOnly;
-		/// type SiblingOrigin = pallet_xcm::EnsureXcm<AllowSiblingsOnly>;
+		/// type XcmOriginFilter = pallet_xcm::EnsureXcm<AllowSiblingsOnly>;
 		/// ```
-		type SiblingOrigin: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
+		type XcmOriginFilter: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
 
 		/// A type that converts XCM locations to account identifiers.
 		type XcmLocationToAccountId: ConvertLocation<Self::AccountId>;
@@ -470,7 +470,7 @@ pub mod pallet {
 			params: CreateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
 			log::trace!(target: LOG_TARGET, "Create subscription request received: {:?}", params);
-			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
+			let subscriber = Self::ensure_signed_or_valid_xcm_origin(origin)?;
 
 			ensure!(params.credits != Zero::zero(), Error::<T>::InvalidParams);
 
@@ -554,7 +554,7 @@ pub mod pallet {
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
 			log::trace!(target: LOG_TARGET, "Pause subscription request received: {:?}", sub_id);
-			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
+			let subscriber = Self::ensure_signed_or_valid_xcm_origin(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
@@ -590,7 +590,7 @@ pub mod pallet {
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
 			log::trace!(target: LOG_TARGET, "Kill subscription request received: {:?}", sub_id);
-			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
+			let subscriber = Self::ensure_signed_or_valid_xcm_origin(origin)?;
 
 			let sub =
 				Self::get_subscription(&sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -621,7 +621,7 @@ pub mod pallet {
 			params: UpdateSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
 			log::trace!(target: LOG_TARGET, "Update subscription request received: {:?}", params);
-			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
+			let subscriber = Self::ensure_signed_or_valid_xcm_origin(origin)?;
 
 			Subscriptions::<T>::try_mutate(params.sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -685,7 +685,7 @@ pub mod pallet {
 			sub_id: T::SubscriptionId,
 		) -> DispatchResult {
 			log::trace!(target: LOG_TARGET, "Reactivating subscription: {:?}", sub_id);
-			let subscriber = Self::ensure_signed_or_xcm_sibling(origin)?;
+			let subscriber = Self::ensure_signed_or_valid_xcm_origin(origin)?;
 			Subscriptions::<T>::try_mutate(sub_id, |maybe_sub| {
 				let sub = maybe_sub.as_mut().ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 				ensure!(sub.details.subscriber == subscriber, Error::<T>::NotSubscriber);
@@ -710,7 +710,7 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			log::trace!(target: LOG_TARGET, "Quote subscription request received: {:?}", params);
 			// Ensure the origin is a sibling, and get the location
-			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
+			let requester: Location = T::XcmOriginFilter::ensure_origin(origin.clone())?;
 
 			let deposit  = Self::calculate_storage_deposit_from_create_params(
 				&T::XcmLocationToAccountId::convert_location(&requester)
@@ -746,7 +746,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			log::trace!(target: LOG_TARGET, "Get subscription info request received: {:?}", req);
 			// Ensure the origin is a sibling, and get the location
-			let requester: Location = T::SiblingOrigin::ensure_origin(origin.clone())?;
+			let requester: Location = T::XcmOriginFilter::ensure_origin(origin.clone())?;
 
 			let sub =
 				Self::get_subscription(&req.sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
@@ -1069,19 +1069,21 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Validates the origin as either a signed origin or an XCM sibling origin.
+	/// Validates the origin as either a signed origin or a valid XCM origin.
 	///
 	/// # Parameters
-	/// - `origin`: The origin to validate, which can be either a signed origin or an XCM sibling
+	/// - `origin`: The origin to validate, which can be either a signed origin or a valid XCM
 	///   origin.
 	///
 	/// # Returns
 	/// - `Ok(T::AccountId)`: The account ID of the signed origin or the account ID derived from the
-	///   XCM sibling origin.
+	///   XCM origin.
 	/// - `Err(DispatchError)`: An error if the origin is invalid or cannot be converted to an
 	///   account ID.
-	fn ensure_signed_or_xcm_sibling(origin: OriginFor<T>) -> Result<T::AccountId, DispatchError> {
-		match T::SiblingOrigin::ensure_origin(origin.clone()) {
+	fn ensure_signed_or_valid_xcm_origin(
+		origin: OriginFor<T>,
+	) -> Result<T::AccountId, DispatchError> {
+		match T::XcmOriginFilter::ensure_origin(origin.clone()) {
 			Ok(location) => T::XcmLocationToAccountId::convert_location(&location)
 				.ok_or(DispatchError::from(Error::<T>::InvalidSubscriber)),
 			Err(_) => ensure_signed(origin).map_err(|e| e.into()),

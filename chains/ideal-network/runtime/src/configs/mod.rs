@@ -317,9 +317,9 @@ impl pallet_idn_manager::Config for Runtime {
 	type SubscriptionId = types::SubscriptionId;
 	type DiffBalance = impls::DiffBalanceImpl<BalanceOf<Runtime>>;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type SiblingOrigin = EnsureXcm<AllowSiblingsOnly>;
+	type XcmOriginFilter = EnsureXcm<AllowSiblingsOnly>;
 	#[cfg(feature = "runtime-benchmarks")]
-	type SiblingOrigin = bench_ensure_origin::BenchEnsureOrigin;
+	type XcmOriginFilter = bench_ensure_origin::BenchEnsureOrigin;
 	type XcmLocationToAccountId = xcm_config::LocationToAccountId;
 }
 

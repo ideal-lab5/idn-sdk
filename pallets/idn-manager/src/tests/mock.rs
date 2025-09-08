@@ -179,7 +179,7 @@ impl pallet_idn_manager::Config for Test {
 	type MaxTerminatableSubs = MaxTerminatableSubs;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Test>>;
-	type SiblingOrigin = MockEnsureXcm<primitives::AllowSiblingsOnly>; // Use the custom EnsureOrigin
+	type XcmOriginFilter = MockEnsureXcm<primitives::AllowSiblingsOnly>; // Use the custom EnsureOrigin
 	type XcmLocationToAccountId = MockSiblingConversion;
 }
 
