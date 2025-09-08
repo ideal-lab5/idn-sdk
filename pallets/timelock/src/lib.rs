@@ -42,7 +42,8 @@
 //!
 //! ## Warning
 //!
-//! This Pallet does not execute calls itself, but must be executed in the context of another pallet.
+//! This Pallet does not execute calls itself, but must be executed in the context of another
+//! pallet.
 //!
 //! Please be aware that any timelocked runtime calls executed in a future block may __fail__ or may
 //! result in __undefined behavior__ since the runtime could have upgraded between the time of
