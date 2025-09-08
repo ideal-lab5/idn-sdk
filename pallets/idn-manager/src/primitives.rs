@@ -24,32 +24,28 @@ pub use xcm::prelude::{Junction, Junctions, Location};
 /// The type for the metadata of a subscription
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
 
-/// Two-byte identifier for dispatching XCM calls
+/// Pre-encoded call data for XCM dispatch
 ///
-/// This type represents a compact encoding of pallet and function identifiers:
-/// - The first byte represents the pallet index in the destination runtime
-/// - The second byte represents the call index within that pallet
+/// This contains the SCALE-encoded call data that will be sent to the target chain.
+/// The target chain will decode this according to its runtime configuration.
 ///
-/// # Example
-/// ```nocompile
-/// let call_index: CallIndex = [42, 3];  // Target the 42nd pallet, 3rd function
-/// ```
-///
-/// This identifier is used in XCM messages to ensure randomness is delivered
-/// to the appropriate function in the destination pallet.
-pub type CallIndex = [u8; 2];
+/// Examples:
+/// - Runtime calls: `[pallet_index, call_index].encode()`
+/// - Contract calls: `(pallet_contracts_index, call_index, dest, value, gas_limit,
+///   storage_deposit_limit, selector).encode()`
+pub type SubscriptionCallData<L> = BoundedVec<u8, L>;
 
 /// Parameters for creating a new subscription
 #[derive(
-	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, Default,
+	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq,
 )]
-pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId> {
+pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId, CallData> {
 	// Number of random values to receive
 	pub credits: Credits,
 	// XCM multilocation for pulse delivery
 	pub target: Location,
-	// Call index for XCM message
-	pub call_index: CallIndex,
+	// Pre-encoded call data for XCM message
+	pub call: CallData,
 	// Distribution interval for pulses
 	pub frequency: Frequency,
 	// Bounded vector for additional data
@@ -100,27 +96,27 @@ pub struct QuoteRequest<CreateSubParams, PulseIndex> {
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct QuoteSubParams<CreateSubParams, PulseIndex> {
+pub struct QuoteSubParams<CreateSubParams, PulseIndex, CallData> {
 	/// The quote request details.
 	pub quote_request: QuoteRequest<CreateSubParams, PulseIndex>,
-	/// The call index for the dispatchable that handles the generated quote.
+	/// The call to the function that handles the generated quote.
 	/// This is the function in the parachain that originated the request that will be called by
 	/// the IDN parachain and receive the [`Quote`].
-	pub call_index: CallIndex,
+	pub call: CallData,
 }
 
 /// Contains the parameters for requesting a subscription info by its Id.
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct SubInfoRequest<SubId> {
+pub struct SubInfoRequest<SubId, CallData> {
 	/// An arbitrary reference for this subscription info request.
 	pub req_ref: RequestReference,
 	/// The subscription Id to get the info for.
 	pub sub_id: SubId,
-	/// The call index for the dispatchable that handles the generated subscription info on the
+	/// The call to the function that handles the generated subscription info on the
 	/// target parachain.
-	pub call_index: CallIndex,
+	pub call: CallData,
 }
 
 /// The subscription info returned by the IDN Manager to the target parachain.

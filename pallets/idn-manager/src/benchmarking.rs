@@ -61,7 +61,7 @@ mod benchmarks {
 		let params = CreateSubParamsOf::<T> {
 			credits,
 			target: target.clone(),
-			call_index,
+			call: call_index.encode().try_into().unwrap(),
 			frequency,
 			metadata,
 			sub_id,
@@ -100,7 +100,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: call_index.encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
@@ -140,7 +140,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: call_index.encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
@@ -179,7 +179,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: call_index.encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
@@ -237,7 +237,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: call_index.encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
@@ -279,7 +279,7 @@ mod benchmarks {
 		let params = CreateSubParamsOf::<T> {
 			credits,
 			target: target.clone(),
-			call_index,
+			call: call_index.encode().try_into().unwrap(),
 			frequency,
 			metadata,
 			sub_id,
@@ -290,7 +290,8 @@ mod benchmarks {
 
 		let quote_request =
 			QuoteRequest { req_ref, create_sub_params: params.clone(), lifetime_pulses };
-		let quote_sub_params = QuoteSubParams { quote_request, call_index };
+		let quote_sub_params =
+			QuoteSubParams { quote_request, call: call_index.encode().try_into().unwrap() };
 
 		#[extrinsic_call]
 		_(origin, quote_sub_params);
@@ -331,14 +332,18 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: call_index.encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: Some(sub_id),
 			},
 		);
 
-		let req = SubInfoRequestOf::<T> { sub_id, req_ref: [1; 32], call_index: [1, 1] };
+		let req = SubInfoRequestOf::<T> {
+			sub_id,
+			req_ref: [1; 32],
+			call: [1, 1].encode().try_into().unwrap(),
+		};
 
 		#[extrinsic_call]
 		_(origin, req);
@@ -368,7 +373,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: call_index.encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: Some(sub_id),
@@ -450,7 +455,7 @@ mod benchmarks {
 				CreateSubParamsOf::<T> {
 					credits,
 					target: target.clone(),
-					call_index,
+					call: call_index.encode().try_into().unwrap(),
 					frequency,
 					metadata: None,
 					sub_id: None,

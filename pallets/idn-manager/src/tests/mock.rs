@@ -75,6 +75,7 @@ parameter_types! {
 	pub const SDMultiplier: u64 = 10;
 	pub const MaxSubscriptions: u32 = 1_000;
 	pub const MaxMetadataLen: u32 = 8;
+	pub const MaxCallDataLen: u32 = 2048;
 	pub const MaxTerminatableSubs: u32 = 100;
 }
 
@@ -174,6 +175,7 @@ impl pallet_idn_manager::Config for Test {
 	type WeightInfo = ();
 	type Xcm = TestController;
 	type MaxMetadataLen = MaxMetadataLen;
+	type MaxCallDataLen = MaxCallDataLen;
 	type Credits = u64;
 	type MaxSubscriptions = MaxSubscriptions;
 	type MaxTerminatableSubs = MaxTerminatableSubs;

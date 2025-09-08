@@ -60,8 +60,8 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CallIndex, CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubInfoResponse,
-		SubscriptionMetadata,
+		CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubInfoResponse,
+		SubscriptionCallData, SubscriptionMetadata,
 	},
 	traits::{
 		BalanceDirection, DepositCalculator, DiffBalance, FeesError, FeesManager,
@@ -110,14 +110,18 @@ pub type BalanceOf<T> = <<T as Config>::Currency as Inspect<AccountIdOf<T>>>::Ba
 /// The metadata type used in the pallet, represented as a bounded vector of bytes.
 pub type MetadataOf<T> = SubscriptionMetadata<<T as Config>::MaxMetadataLen>;
 
+/// The call data type used in the pallet, represented as a bounded vector of bytes.
+pub type CallDataOf<T> = SubscriptionCallData<<T as Config>::MaxCallDataLen>;
+
 /// The quote type used in the pallet, representing a quote for a subscription.
 pub type QuoteOf<T> = Quote<BalanceOf<T>>;
 
 /// The quote request type used in the pallet, containing details about the subscription to be
 /// quoted.
-pub type QuoteSubParamsOf<T> = QuoteSubParams<CreateSubParamsOf<T>, BlockNumberFor<T>>;
+pub type QuoteSubParamsOf<T> =
+	QuoteSubParams<CreateSubParamsOf<T>, BlockNumberFor<T>, CallDataOf<T>>;
 
-pub type SubInfoRequestOf<T> = SubInfoRequest<SubscriptionIdOf<T>>;
+pub type SubInfoRequestOf<T> = SubInfoRequest<SubscriptionIdOf<T>, CallDataOf<T>>;
 
 /// The subscription ID type used in the pallet, derived from the configuration.
 pub type SubscriptionIdOf<T> = <T as pallet::Config>::SubscriptionId;
@@ -129,17 +133,18 @@ pub type SubscriptionOf<T> = Subscription<
 	<T as pallet::Config>::Credits,
 	MetadataOf<T>,
 	SubscriptionIdOf<T>,
+	CallDataOf<T>,
 >;
 
 /// Represents a subscription in the system.
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId> {
+pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId, CallData> {
 	// The subscription ID
 	pub id: SubscriptionId,
 	// The immutable params of the subscription
-	pub details: SubscriptionDetails<AccountId>,
+	pub details: SubscriptionDetails<AccountId, CallData>,
 	// Number of random values left to distribute
 	pub credits_left: Credits,
 	// The state of the subscription
@@ -165,13 +170,13 @@ pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionI
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct SubscriptionDetails<AccountId> {
+pub struct SubscriptionDetails<AccountId, CallData> {
 	// The account that created and pays for the subscription
 	pub subscriber: AccountId,
 	// The XCM location where randomness should be delivered
 	pub target: Location,
-	// Identifier for dispatching the XCM call, see [`crate::CallIndex`]
-	pub call_index: CallIndex,
+	// Pre-encoded call data for dispatching the XCM call
+	pub call: CallData,
 }
 
 /// The AccountId type used in the pallet, derived from the configuration.
@@ -179,7 +184,7 @@ pub type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
 
 /// The subscription details type used in the pallet, containing information about the subscription
 /// owner and target.
-pub type SubscriptionDetailsOf<T> = SubscriptionDetails<AccountIdOf<T>>;
+pub type SubscriptionDetailsOf<T> = SubscriptionDetails<AccountIdOf<T>, CallDataOf<T>>;
 
 /// The parameters for creating a new subscription, containing various details about the
 /// subscription.
@@ -188,6 +193,7 @@ pub type CreateSubParamsOf<T> = CreateSubParams<
 	BlockNumberFor<T>,
 	MetadataOf<T>,
 	SubscriptionIdOf<T>,
+	CallDataOf<T>,
 >;
 
 /// Parameters for updating an existing subscription.
@@ -303,6 +309,10 @@ pub mod pallet {
 		/// Maximum metadata size
 		#[pallet::constant]
 		type MaxMetadataLen: Get<u32>;
+
+		/// Maximum call data size
+		#[pallet::constant]
+		type MaxCallDataLen: Get<u32>;
 
 		/// A type to define the amount of credits in a subscription
 		type Credits: Unsigned
@@ -484,7 +494,7 @@ pub mod pallet {
 			let details = SubscriptionDetails {
 				subscriber: subscriber.clone(),
 				target: params.target.clone(),
-				call_index: params.call_index,
+				call: params.call.clone(),
 			};
 
 			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(
@@ -730,7 +740,15 @@ pub mod pallet {
 
 			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
 
-			Self::xcm_send(&requester, (params.call_index, quote.clone()).encode().into())?;
+			Self::xcm_send(
+				&requester,
+				// Simple concatenation: pre-encoded call data + pulse data
+				{
+					let mut call_data = params.call.clone().into_inner();
+					call_data.extend(&quote.encode());
+					call_data.into()
+				},
+			)?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
 
 			Ok(Some(T::WeightInfo::quote_subscription()).into())
@@ -752,7 +770,15 @@ pub mod pallet {
 				Self::get_subscription(&req.sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 
 			let response = SubInfoResponse { sub, req_ref: req.req_ref };
-			Self::xcm_send(&requester, (req.call_index, response).encode().into())?;
+			Self::xcm_send(
+				&requester,
+				// Simple concatenation: pre-encoded call data + pulse data
+				{
+					let mut call_data = req.call.clone().into_inner();
+					call_data.extend(&response.encode());
+					call_data.into()
+				},
+			)?;
 			Self::deposit_event(Event::SubscriptionDistributed { sub_id: req.sub_id });
 
 			Ok(())
@@ -799,7 +825,7 @@ impl<T: Config> Pallet<T> {
 		let details = SubscriptionDetails {
 			subscriber: subscriber.clone(),
 			target: params.target.clone(),
-			call_index: params.call_index,
+			call: params.call.clone(),
 		};
 
 		let subscription = Subscription {
@@ -873,13 +899,12 @@ impl<T: Config> Pallet<T> {
 				// Send the XCM message
 				if let Err(e) = Self::xcm_send(
 					&sub.details.target,
-					// Create a tuple of call_index and pulse, encode it using SCALE codec,
-					// then convert to Vec<u8> The encoded data will be used by the
-					// receiving chain to:
-					// 1. Find the target pallet using first byte of call_index
-					// 2. Find the target function using second byte of call_index
-					// 3. Pass the parameters to that function
-					(sub.details.call_index, &pulse, &sub_id).encode().into(),
+					// Simple concatenation: pre-encoded call data + pulse data
+					{
+						let mut call_data = sub.details.call.clone().into_inner();
+						call_data.extend((&pulse, &sub_id).encode());
+						call_data.into()
+					},
 				) {
 					Self::pause_subscription_on_error(sub_id, sub, "Failed to dispatch XCM", e);
 					continue;
