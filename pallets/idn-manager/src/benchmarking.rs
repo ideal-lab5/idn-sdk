@@ -48,7 +48,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -61,7 +60,7 @@ mod benchmarks {
 		let params = CreateSubParamsOf::<T> {
 			credits,
 			target: target.clone(),
-			call: call_index.encode().try_into().unwrap(),
+			call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 			frequency,
 			metadata,
 			sub_id,
@@ -85,7 +84,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -100,7 +98,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call: call_index.encode().try_into().unwrap(),
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
@@ -125,7 +123,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -140,7 +137,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call: call_index.encode().try_into().unwrap(),
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
@@ -164,7 +161,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -179,7 +175,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call: call_index.encode().try_into().unwrap(),
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
@@ -222,7 +218,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -237,7 +232,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call: call_index.encode().try_into().unwrap(),
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
@@ -271,7 +266,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(sibling_account.clone());
 		let credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -279,7 +273,7 @@ mod benchmarks {
 		let params = CreateSubParamsOf::<T> {
 			credits,
 			target: target.clone(),
-			call: call_index.encode().try_into().unwrap(),
+			call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 			frequency,
 			metadata,
 			sub_id,
@@ -290,8 +284,10 @@ mod benchmarks {
 
 		let quote_request =
 			QuoteRequest { req_ref, create_sub_params: params.clone(), lifetime_pulses };
-		let quote_sub_params =
-			QuoteSubParams { quote_request, call: call_index.encode().try_into().unwrap() };
+		let quote_sub_params = QuoteSubParams {
+			quote_request,
+			call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
+		};
 
 		#[extrinsic_call]
 		_(origin, quote_sub_params);
@@ -316,7 +312,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(sibling_account.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1, 0];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id: T::SubscriptionId = H256::default().into();
@@ -332,7 +327,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call: call_index.encode().try_into().unwrap(),
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: Some(sub_id),
@@ -342,7 +337,7 @@ mod benchmarks {
 		let req = SubInfoRequestOf::<T> {
 			sub_id,
 			req_ref: [1; 32],
-			call: [1, 1].encode().try_into().unwrap(),
+			call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 		};
 
 		#[extrinsic_call]
@@ -357,7 +352,6 @@ mod benchmarks {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id: T::SubscriptionId = H256::default().into();
@@ -373,7 +367,7 @@ mod benchmarks {
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call: call_index.encode().try_into().unwrap(),
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: Some(sub_id),
@@ -442,7 +436,6 @@ mod benchmarks {
 	{
 		let credits: T::Credits = 100_000u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 
 		// Create s subscriptions
@@ -455,7 +448,7 @@ mod benchmarks {
 				CreateSubParamsOf::<T> {
 					credits,
 					target: target.clone(),
-					call: call_index.encode().try_into().unwrap(),
+					call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 					frequency,
 					metadata: None,
 					sub_id: None,
