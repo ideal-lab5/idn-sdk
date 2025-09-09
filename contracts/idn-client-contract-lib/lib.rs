@@ -657,18 +657,27 @@ impl IdnClient {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::constants::IDN_MANAGER_PALLET_INDEX_PASEO;
+	use crate::constants::{
+		CONSUMER_PARA_ID_PASEO, CONTRACTS_CALL_INDEX, CONTRACTS_PALLET_INDEX_PASEO,
+		IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO,
+	};
 
 	#[test]
 	fn test_client_basic_functionality() {
-		let client =
-			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+		let client = IdnClient::new(
+			IDN_PARA_ID_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO,
+			CONSUMER_PARA_ID_PASEO,
+			CONTRACTS_PALLET_INDEX_PASEO,
+			CONTRACTS_CALL_INDEX,
+			1_000_000_000,
+		);
 
 		// Test getter methods
 		assert_eq!(client.get_idn_manager_pallet_index(), IDN_MANAGER_PALLET_INDEX_PASEO);
-		assert_eq!(client.get_idn_para_id(), 2000);
-		assert_eq!(client.get_self_contracts_pallet_index(), 50);
-		assert_eq!(client.get_self_para_id(), 2001);
+		assert_eq!(client.get_idn_para_id(), IDN_PARA_ID_PASEO);
+		assert_eq!(client.get_self_contracts_pallet_index(), CONTRACTS_PALLET_INDEX_PASEO);
+		assert_eq!(client.get_self_para_id(), CONSUMER_PARA_ID_PASEO);
 
 		// Test unimplemented methods return correct errors
 		assert_eq!(client.request_quote(), Err(Error::MethodNotImplemented));
@@ -677,8 +686,14 @@ mod tests {
 
 	#[test]
 	fn test_create_subscription_parameters() {
-		let _client =
-			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+		let _client = IdnClient::new(
+			IDN_PARA_ID_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO,
+			CONSUMER_PARA_ID_PASEO,
+			CONTRACTS_PALLET_INDEX_PASEO,
+			CONTRACTS_CALL_INDEX,
+			1_000_000_000,
+		);
 
 		// Test create subscription with provided sub_id
 		// Note: In real scenarios this would send XCM but we can't test that in unit tests
@@ -707,8 +722,14 @@ mod tests {
 	#[test]
 	fn test_client_encoding_decoding() {
 		// Create a client
-		let client =
-			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+		let client = IdnClient::new(
+			IDN_PARA_ID_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO,
+			CONSUMER_PARA_ID_PASEO,
+			CONTRACTS_PALLET_INDEX_PASEO,
+			CONTRACTS_CALL_INDEX,
+			1_000_000_000,
+		);
 
 		// Encode the client
 		let encoded = client.encode();
@@ -729,8 +750,14 @@ mod tests {
 
 	#[test]
 	fn test_edge_cases() {
-		let client =
-			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+		let client = IdnClient::new(
+			IDN_PARA_ID_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO,
+			CONSUMER_PARA_ID_PASEO,
+			CONTRACTS_PALLET_INDEX_PASEO,
+			CONTRACTS_CALL_INDEX,
+			1_000_000_000,
+		);
 
 		// Test constructor with edge case values
 		let edge_client = IdnClient::new(u32::MAX, u8::MAX, u32::MAX, u8::MAX, u8::MAX, u128::MAX);
@@ -765,8 +792,14 @@ mod tests {
 
 	#[test]
 	fn test_subscription_management_api() {
-		let _client =
-			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+		let _client = IdnClient::new(
+			IDN_PARA_ID_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO,
+			CONSUMER_PARA_ID_PASEO,
+			CONTRACTS_PALLET_INDEX_PASEO,
+			CONTRACTS_CALL_INDEX,
+			1_000_000_000,
+		);
 		let _sub_id = [123u8; 32];
 
 		// Test that the API methods compile and have correct signatures
@@ -796,8 +829,14 @@ mod tests {
 
 	#[test]
 	fn test_update_subscription_api() {
-		let _client =
-			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+		let _client = IdnClient::new(
+			IDN_PARA_ID_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO,
+			CONSUMER_PARA_ID_PASEO,
+			CONTRACTS_PALLET_INDEX_PASEO,
+			CONTRACTS_CALL_INDEX,
+			1_000_000_000,
+		);
 		let _sub_id = [123u8; 32];
 
 		// Test update subscription API with different parameter combinations
@@ -829,8 +868,14 @@ mod tests {
 
 	#[test]
 	fn test_create_subscription_maximum_values() {
-		let _client =
-			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+		let _client = IdnClient::new(
+			IDN_PARA_ID_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO,
+			CONSUMER_PARA_ID_PASEO,
+			CONTRACTS_PALLET_INDEX_PASEO,
+			CONTRACTS_CALL_INDEX,
+			1_000_000_000,
+		);
 
 		// Test create subscription API with maximum values
 		let max_values_result = std::panic::catch_unwind(|| {
@@ -865,8 +910,14 @@ mod tests {
 		let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
 		ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 
-		let client =
-			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+		let client = IdnClient::new(
+			IDN_PARA_ID_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO,
+			CONSUMER_PARA_ID_PASEO,
+			CONTRACTS_PALLET_INDEX_PASEO,
+			CONTRACTS_CALL_INDEX,
+			1_000_000_000,
+		);
 
 		// Test that pulse callback data is generated correctly
 		let callback_data = client.pulse_callback_data();
@@ -891,8 +942,14 @@ mod tests {
 		let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
 		ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 
-		let client =
-			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+		let client = IdnClient::new(
+			IDN_PARA_ID_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO,
+			CONSUMER_PARA_ID_PASEO,
+			CONTRACTS_PALLET_INDEX_PASEO,
+			CONTRACTS_CALL_INDEX,
+			1_000_000_000,
+		);
 
 		// Test sibling IDN location
 		let idn_location = client.sibling_idn_location();
