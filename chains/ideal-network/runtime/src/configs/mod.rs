@@ -311,6 +311,7 @@ impl pallet_idn_manager::Config for Runtime {
 	#[cfg(feature = "runtime-benchmarks")]
 	type Xcm = ();
 	type MaxMetadataLen = types::MaxMetadataLen;
+	type MaxCallDataLen = types::MaxCallDataLen;
 	type Credits = types::Credits;
 	type MaxSubscriptions = types::MaxSubscriptions;
 	type MaxTerminatableSubs = types::MaxTerminatableSubs;

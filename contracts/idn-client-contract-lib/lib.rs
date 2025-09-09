@@ -152,7 +152,7 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::prelude::boxed::Box;
 use sp_idn_traits::pulse::Pulse as TPulse;
 use types::{
-	CallIndex, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata, PalletIndex, ParaId,
+	CallData, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata, PalletIndex, ParaId,
 	Pulse, Quote, SubInfoResponse, SubscriptionId, UpdateSubParams,
 };
 
@@ -203,6 +203,8 @@ pub enum Error {
 	Unauthorized,
 	/// Invalid subscription ID
 	InvalidSubscriptionId,
+	/// Invalid Call Data
+	CallDataTooLong,
 	/// Other error
 	Other,
 }
@@ -319,9 +321,14 @@ impl IdnClient {
 		self.idn_para_id
 	}
 
-	/// Gets the contracts call index for this parachain
-	pub fn get_self_contracts_call_index(&self) -> CallIndex {
-		[self.self_contracts_pallet_index, self.self_contract_call_index].into()
+	/// Gets the contracts pallet index for this parachain
+	pub fn get_self_contracts_pallet_index(&self) -> PalletIndex {
+		self.self_contracts_pallet_index
+	}
+
+	/// Gets the call index for the contracts pallet's `call` dispatchable
+	pub fn get_self_contract_call_index(&self) -> u8 {
+		self.self_contract_call_index
 	}
 
 	/// Gets the parachain ID of this parachain
@@ -357,7 +364,7 @@ impl IdnClient {
 		let mut params = CreateSubParams {
 			credits,
 			target: self.self_para_sibling_location(),
-			call_index: self.pulse_callback_index(),
+			call: self.pulse_callback_data()?,
 			frequency,
 			metadata,
 			sub_id,
@@ -546,17 +553,9 @@ impl IdnClient {
 	fn self_para_sibling_location(&self) -> IdnXcm::Location {
 		IdnXcm::Location {
 			parents: 1, // Go up to the relay chain
-			interior: IdnXcm::Junctions::X3(
-				[
-					IdnXcm::Junction::Parachain(self.get_self_para_id()), /* Target parachain */
-					IdnXcm::Junction::PalletInstance(self.get_self_contracts_pallet_index()), /* Contracts pallet */
-					IdnXcm::Junction::AccountId32 {
-						// Contract address
-						network: None,
-						id: *ink::env::account_id::<ink::env::DefaultEnvironment>().as_ref(),
-					},
-				]
-				.into(),
+			interior: IdnXcm::Junctions::X1(
+				[IdnXcm::Junction::Parachain(self.get_self_para_id()) /* Target parachain */]
+					.into(),
 			),
 		}
 	}
@@ -629,10 +628,24 @@ impl IdnClient {
 			},
 		)
 	}
-	/// Get the call index for the [`IdnConsumer::consume_pulse`] call
-	fn pulse_callback_index(&self) -> CallIndex {
+	/// Get the call data for the [`IdnConsumer::consume_pulse`] call
+	fn pulse_callback_data(&self) -> Result<CallData> {
 		let encoded_selector = (selector_id!("consume_pulse") >> 24) as u8;
-		[self.get_self_contracts_pallet_index(), consume_pulse_id]
+		// We are creating the call with this format: `[pallet_index, call_index, dest, value,
+		// gas_limit, storage_deposit_limit, selector]`
+		// - **pallet_index**: The index of the contracts or revive pallet
+		// - **call_index**: The call index for the `call` dispatchable in the contracts pallet
+		// - **dest**: The AccountId of the target contract
+		// - **value**: The balance to send to the contract (usually 0)
+		// - **gas_limit**: The gas limit allocated for the contract execution
+		// - **storage_deposit_limit**: The maximum storage deposit allowed for the call
+		// - **selector**: The function selector for the `consume_pulse` function in the contract
+		let call = [
+			self.get_self_contracts_pallet_index(),
+			self.get_self_contract_call_index(),
+			// TODO: fill up
+		];
+		CallData::try_from(call.to_vec()).map_err(|_| Error::CallDataTooLong)
 	}
 }
 
@@ -838,20 +851,20 @@ mod tests {
 	}
 
 	#[test]
-	fn test_pulse_callback_index() {
+	fn test_pulse_callback_data() {
 		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000, 50, 2001, 1_000_000_000);
 
 		// Test that pulse callback index is generated correctly
-		let callback_index = client.pulse_callback_index();
+		let callback_data = client.pulse_callback_data();
 
 		// First element should be the contracts pallet index
-		assert_eq!(callback_index[0], 50);
+		assert_eq!(callback_data[0], 50);
 
 		// Second element should be derived from consume_pulse selector
 		// We can't easily test the exact value without knowing the selector calculation
 		// but we can verify it's generated consistently
-		let callback_index_2 = client.pulse_callback_index();
-		assert_eq!(callback_index, callback_index_2);
+		let callback_data_2 = client.pulse_callback_data();
+		assert_eq!(callback_data, callback_data_2);
 	}
 
 	#[test]

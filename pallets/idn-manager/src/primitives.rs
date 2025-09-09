@@ -29,10 +29,40 @@ pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
 /// This contains the SCALE-encoded call data that will be sent to the target chain.
 /// The target chain will decode this according to its runtime configuration.
 ///
-/// Examples:
-/// - Runtime calls: `[pallet_index, call_index].encode()`
-/// - Contract calls: `(pallet_contracts_index, call_index, dest, value, gas_limit,
-///   storage_deposit_limit, selector).encode()`
+/// ## Parameter Details:
+///
+/// ### Runtime Calls
+/// Format: `[pallet_index, call_index].encode()`
+/// - **pallet_index**: The index of the target pallet (idn-consumer pallet or equivalent)
+/// - **call_index**: The dispatchable index (typically `consume_pulse` or equivalent)
+///
+/// ### Contract Calls  
+/// Format: `(pallet_index, call_index, dest, value, gas_limit, storage_deposit_limit,
+/// selector).encode()`
+/// - **pallet_index**: The index of the contracts or revive pallet
+/// - **call_index**: The call index for the `call` dispatchable in the contracts pallet
+/// - **dest**: The AccountId of the target contract
+/// - **value**: The balance to send to the contract (usually 0)
+/// - **gas_limit**: The gas limit allocated for the contract execution
+/// - **storage_deposit_limit**: The maximum storage deposit allowed for the call
+/// - **selector**: The function selector for the `consume_pulse` function in the contract
+///
+/// ## Examples:
+/// ```nocompile
+/// // Runtime call example
+/// let runtime_call = [pallet_idn_consumer_index, consume_pulse_call_index].encode();
+///
+/// // Contract call example  
+/// let contract_call = (
+///     pallet_contracts_index,
+///     call_index,
+///     contract_account_id,
+///     0u128, // value
+///     Weight::from_parts(1_000_000, 0), // gas_limit
+///     None, // storage_deposit_limit
+///     [0x12, 0x34, 0x56, 0x78] // consume_pulse selector
+/// ).encode();
+/// ```
 pub type SubscriptionCallData<L> = BoundedVec<u8, L>;
 
 /// Parameters for creating a new subscription
@@ -44,7 +74,7 @@ pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId, CallDat
 	pub credits: Credits,
 	// XCM multilocation for pulse delivery
 	pub target: Location,
-	// Pre-encoded call data for XCM message
+	// Pre-encoded call data for XCM message. This is usually [`SubscriptionCallData`].
 	pub call: CallData,
 	// Distribution interval for pulses
 	pub frequency: Frequency,

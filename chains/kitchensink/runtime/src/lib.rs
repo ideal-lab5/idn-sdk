@@ -283,7 +283,7 @@ impl ConvertLocation<AccountId32> for MockSiblingConversion {
 
 parameter_types! {
 	pub const BaseFee: u64 = 100;
-	pub const MaxCallDataLen: u32 = 512;
+	pub const MaxCallDataLen: u32 = 8;
 }
 
 impl pallet_idn_manager::Config for Runtime {
