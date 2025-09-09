@@ -481,17 +481,32 @@ pub mod pallet {
 	}
 }
 
+/// The temporal direction between two rounds
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum TemporalDirection {
+	Past = 1,
+	Present = 2,
+	Future = 4,
+	Void = 8,
+}
+
 pub trait RoundAwareListener<T: Config> {
-	fn in_current_round(query: RoundNumber) -> bool {
+	fn check_round(query: RoundNumber) -> TemporalDirection {
 		if let Some(accumulation) = SparseAccumulation::<T>::get() {
-			// check if start <= query
-			let is_not_before = query >= accumulation.start;
-			// check if end >= query
-			let is_not_after = accumulation.end <= query;
-			return is_not_before && is_not_after; 
+			let is_past = query < accumulation.start;
+			let is_future = accumulation.end < query;
+			
+			if !is_past && !is_future {
+				return TemporalDirection::Present;
+			} else if is_past && !is_future {
+				return TemporalDirection::Past;
+			} else if !is_past && is_future {
+				return TemporalDirection::Future;
+			}
 		}
 
-		false
+		TemporalDirection::Void
 	}
 }
 

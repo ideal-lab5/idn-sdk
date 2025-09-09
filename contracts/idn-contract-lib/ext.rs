@@ -15,6 +15,7 @@
  */
 
 use ink::env::Environment;
+use pallet_randomness_beacon::TemporalDirection;
 
 /// Here we define the operations to interact with the Substrate runtime.
 #[ink::chain_extension(extension = 42)]
@@ -25,7 +26,7 @@ pub trait RandExtension {
 	fn fetch_random(subject: [u8; 32]) -> [u8; 32];
 	// 1102 = chain extension func id on the tareget chain (IDN)
 	#[ink(function = 1102)]
-	fn is_current(round_number: u64) -> [u8; 32];
+	fn check_time(round_number: u64) -> TemporalDirection;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

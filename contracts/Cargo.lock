@@ -38,6 +38,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "aes"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b169f7a6d4742236a0a00c541b845991d0ac43e546831af1249753ab4c3aa3a0"
+dependencies = [
+ "cfg-if",
+ "cipher",
+ "cpufeatures",
+]
+
+[[package]]
+name = "aes-gcm"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "831010a0f742e1209b3bcea8fab6a8e149051ba6099432c8cb2cc117dec3ead1"
+dependencies = [
+ "aead",
+ "aes",
+ "cipher",
+ "ctr",
+ "ghash",
+ "subtle",
+]
+
+[[package]]
 name = "ahash"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -338,6 +363,17 @@ dependencies = [
  "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-std 0.4.0",
+]
+
+[[package]]
+name = "ark-bls12-377"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfedac3173d12820a5e0d6cd4de31b49719a74f4a41dc09b6652d0276a3b2cd4"
+dependencies = [
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-std 0.5.0",
 ]
 
 [[package]]
@@ -1187,7 +1223,7 @@ dependencies = [
 name = "bp-idn"
 version = "0.0.1-dev"
 dependencies = [
- "ark-serialize 0.4.2",
+ "ark-serialize 0.5.0",
  "frame-support 40.1.0",
  "pallet-idn-manager",
  "parity-scale-codec",
@@ -1724,6 +1760,15 @@ dependencies = [
  "salsa20",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "ctr"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0369ee1ad671834580515889b80f2ea915f23b8be8d0daa4bbaf2ac5c7590835"
+dependencies = [
+ "cipher",
 ]
 
 [[package]]
@@ -2998,6 +3043,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ghash"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0d8a4362ccb29cb0b265253fb0a2728f592895ee6854fd9bc13f2ffda266ff1"
+dependencies = [
+ "opaque-debug",
+ "polyval",
+]
+
+[[package]]
 name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3546,6 +3601,7 @@ name = "idn-contract-lib"
 version = "0.1.0"
 dependencies = [
  "ink",
+ "pallet-randomness-beacon",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -5026,6 +5082,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-randomness-beacon"
+version = "0.0.1-dev"
+dependencies = [
+ "ark-bls12-381 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "bp-idn",
+ "frame-benchmarking 40.2.1",
+ "frame-support 40.1.0",
+ "frame-system 40.2.0",
+ "hex",
+ "log",
+ "pallet-timelock-transactions",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sha2 0.10.9",
+ "sp-consensus-randomness-beacon",
+ "sp-core 36.1.0",
+ "sp-idn-crypto",
+ "sp-idn-traits",
+ "sp-io 40.0.1",
+ "sp-runtime 41.1.0",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-revive"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5156,6 +5240,31 @@ dependencies = [
  "sp-runtime 35.0.0",
  "sp-staking 30.0.0",
  "sp-std",
+]
+
+[[package]]
+name = "pallet-timelock-transactions"
+version = "4.0.0-dev"
+dependencies = [
+ "ark-bls12-381 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "docify",
+ "frame-benchmarking 40.2.1",
+ "frame-support 40.1.0",
+ "frame-system 40.2.0",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-consensus-randomness-beacon",
+ "sp-idn-crypto",
+ "sp-io 40.0.1",
+ "sp-runtime 41.1.0",
+ "sp-std",
+ "sp-weights",
+ "timelock",
 ]
 
 [[package]]
@@ -5333,9 +5442,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "3.7.4"
+version = "3.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9fde3d0718baf5bc92f577d652001da0f8d54cd03a7974e118d04fc888dc23d"
+checksum = "799781ae679d79a948e13d4824a40970bfa500058d245760dd857301059810fa"
 dependencies = [
  "arrayvec 0.7.6",
  "bitvec",
@@ -5350,9 +5459,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec-derive"
-version = "3.7.4"
+version = "3.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "581c837bb6b9541ce7faa9377c20616e4fb7650f6b0f68bc93c827ee504fb7b3"
+checksum = "34b4653168b563151153c9e4c08ebed57fb8262bebfa79711552fa983c623e7a"
 dependencies = [
  "proc-macro-crate 3.3.0",
  "proc-macro2",
@@ -5844,6 +5953,18 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf"
 dependencies = [
+ "cpufeatures",
+ "opaque-debug",
+ "universal-hash",
+]
+
+[[package]]
+name = "polyval"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d1fe60d06143b2430aa532c94cfe9e29783047f06c0d7fd359a9a51b729fa25"
+dependencies = [
+ "cfg-if",
  "cpufeatures",
  "opaque-debug",
  "universal-hash",
@@ -7904,11 +8025,11 @@ dependencies = [
 name = "sp-idn-crypto"
 version = "0.0.1-dev"
 dependencies = [
- "ark-bls12-381 0.4.0",
- "ark-ec 0.4.2",
- "ark-ff 0.4.2",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
+ "ark-bls12-381 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
  "async-trait",
  "hex",
  "parity-scale-codec",
@@ -7921,6 +8042,7 @@ dependencies = [
  "sp-inherents 36.0.0",
  "sp-runtime 41.1.0",
  "sp-std",
+ "timelock",
 ]
 
 [[package]]
@@ -9121,6 +9243,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "timelock"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d29a7f0467bf6ce7f221b8898f5cef932e97da50afbf98e9225ab7a29b1c5485"
+dependencies = [
+ "aes-gcm",
+ "ark-bls12-377 0.5.0",
+ "ark-bls12-381 0.5.0",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-poly 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "array-bytes",
+ "generic-array",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "scale-info",
+ "serde",
+ "sha2 0.10.9",
+ "sha3",
+]
+
+[[package]]
 name = "tiny-keccak"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9576,7 +9722,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6bfb937b3d12077654a9e43e32a4e9c20177dd9fea0f3aba673e7840bb54f32"
 dependencies = [
- "ark-bls12-377",
+ "ark-bls12-377 0.4.0",
  "ark-bls12-381 0.4.0",
  "ark-ec 0.4.2",
  "ark-ff 0.4.2",
