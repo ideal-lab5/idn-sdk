@@ -2,7 +2,7 @@
 
 ## Features
 
-To enable timelocked transactions, build with the `tlock` feature: `cargo build --features tlock` and ensure that `pallet-randomness-beacon` has the `experimental` feature enabled.
+To enable timelocked transactions, build with the `tlock` feature: `cargo build --features tlock`.
 
 ## Benchmarking
 
