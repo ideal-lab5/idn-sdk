@@ -114,12 +114,12 @@ The IDN Client library allows configuring the following parameters at instantiat
 1. **IDN Manager Pallet Index**: The pallet index for the IDN Manager pallet on the Ideal Network
    ```rust
    // Example value, use the correct value for your network
-   let idn_manager_pallet_index: u8 = 42;
+   let idn_manager_pallet_index: PalletIndex = 42;
     ```
 
 2. **Ideal Network Parachain ID**: The parachain ID of the Ideal Network
    ```rust
-   let ideal_network_para_id: u32 = 2000; // Example value
+   let ideal_network_para_id: ParaId = 2000; // Example value
    ```
 
 ## Subscription Lifecycle Management
@@ -204,7 +204,7 @@ pub struct MyContract {
     idn_client: IdnClient,
     subscription_id: Option<SubscriptionId>,
     subscription_state: SubscriptionState, // Track state locally
-    last_randomness: Option<[u8; 32]>,
+    last_randomness: Option<Rand>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -296,12 +296,12 @@ Configure these parameters for your specific deployment:
 
 ```rust
 // IDN Configuration
-const IDN_PARA_ID: u32 = 2000;              // IDN parachain ID
-const IDN_MANAGER_PALLET_INDEX: u8 = 42;    // IDN Manager pallet index
+const IDN_PARA_ID: ParaId = 2000;              // IDN parachain ID
+const IDN_MANAGER_PALLET_INDEX: PalletIndex = 42;    // IDN Manager pallet index
 
 // Your Parachain Configuration
-const SELF_PARA_ID: u32 = 2001;             // Your parachain ID
-const CONTRACTS_PALLET_INDEX: u8 = 50;      // Contracts pallet index
+const SELF_PARA_ID: ParaId = 2001;             // Your parachain ID
+const CONTRACTS_PALLET_INDEX: PalletIndex = 50;      // Contracts pallet index
 
 // XCM Fee Configuration
 const MAX_XCM_FEES: u128 = 1_000_000_000;   // 1 DOT in Planck units
@@ -363,8 +363,8 @@ Ensure your contract's account has sufficient balance on the IDN chain for:
 Consider implementing additional randomness verification:
 
 ```rust
+use idn_client_contract_lib::constants::BEACON_PUBKEY;
 fn verify_pulse_authenticity(&self, pulse: &Pulse) -> bool {
-    pub const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 
     if pulse
         .authenticate(BEACON_PUBKEY.try_into().expect("The public key is well-defined; qed."))

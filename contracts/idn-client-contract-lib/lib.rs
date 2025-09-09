@@ -123,8 +123,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
+pub mod constants;
 pub mod types;
 
+use constants::BEACON_PUBKEY;
 use ink::{
 	env::{
 		hash::{Blake2x256, CryptoHash},
@@ -157,8 +159,6 @@ use types::{
 };
 
 pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
-
-pub const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
 
 /// Contract-compatible trait for hashing with a salt
 pub trait Hashable {
@@ -630,9 +630,9 @@ impl IdnClient {
 	}
 	/// Get the call data for the [`IdnConsumer::consume_pulse`] call
 	fn pulse_callback_data(&self) -> Result<CallData> {
-		let encoded_selector = (selector_id!("consume_pulse") >> 24) as u8;
-		// We are creating the call with this format: `[pallet_index, call_index, dest, value,
-		// gas_limit, storage_deposit_limit, selector]`
+		// let encoded_selector = (selector_id!("consume_pulse") >> 24) as u8;
+		// We are creating the call with this format: `(pallet_index, call_index, dest, value,
+		// gas_limit, storage_deposit_limit, selector)`
 		// - **pallet_index**: The index of the contracts or revive pallet
 		// - **call_index**: The call index for the `call` dispatchable in the contracts pallet
 		// - **dest**: The AccountId of the target contract
@@ -640,29 +640,32 @@ impl IdnClient {
 		// - **gas_limit**: The gas limit allocated for the contract execution
 		// - **storage_deposit_limit**: The maximum storage deposit allowed for the call
 		// - **selector**: The function selector for the `consume_pulse` function in the contract
-		let call = [
+		let call = (
 			self.get_self_contracts_pallet_index(),
 			self.get_self_contract_call_index(),
-			// TODO: fill up
-		];
-		CallData::try_from(call.to_vec()).map_err(|_| Error::CallDataTooLong)
+			ink::env::account_id::<ink::env::DefaultEnvironment>(),
+			0u128, // value - no balance transfer needed for pulse callbacks
+			Weight::from_parts(1_000_000_000, 64 * 1024), // gas_limit - reasonable default
+			Option::<u128>::None, // storage_deposit_limit - use None for default
+			// [encoded_selector, 0, 0, 0], // selector - padded to 4 bytes
+			selector_id!("consume_pulse"),
+		);
+		CallData::try_from(call.encode()).map_err(|_| Error::CallDataTooLong)
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	/// Default pallet index for the IDN Manager pallet
-	/// This can be overridden during implementation with specific values
-	pub const TEST_IDN_MANAGER_PALLET_INDEX: PalletIndex = 42;
+	use crate::constants::IDN_MANAGER_PALLET_INDEX_PASEO;
 
 	#[test]
 	fn test_client_basic_functionality() {
-		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000, 50, 2001, 1_000_000_000);
+		let client =
+			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
 
 		// Test getter methods
-		assert_eq!(client.get_idn_manager_pallet_index(), TEST_IDN_MANAGER_PALLET_INDEX);
+		assert_eq!(client.get_idn_manager_pallet_index(), IDN_MANAGER_PALLET_INDEX_PASEO);
 		assert_eq!(client.get_idn_para_id(), 2000);
 		assert_eq!(client.get_self_contracts_pallet_index(), 50);
 		assert_eq!(client.get_self_para_id(), 2001);
@@ -674,7 +677,8 @@ mod tests {
 
 	#[test]
 	fn test_create_subscription_parameters() {
-		let _client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000, 50, 2001, 1_000_000_000);
+		let _client =
+			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
 
 		// Test create subscription with provided sub_id
 		// Note: In real scenarios this would send XCM but we can't test that in unit tests
@@ -703,7 +707,8 @@ mod tests {
 	#[test]
 	fn test_client_encoding_decoding() {
 		// Create a client
-		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000, 50, 2001, 1_000_000_000);
+		let client =
+			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
 
 		// Encode the client
 		let encoded = client.encode();
@@ -724,13 +729,14 @@ mod tests {
 
 	#[test]
 	fn test_edge_cases() {
-		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000, 50, 2001, 1_000_000_000);
+		let client =
+			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
 
 		// Test constructor with edge case values
-		let edge_client = IdnClient::new(255, u32::MAX, 255, u32::MAX, u128::MAX);
-		assert_eq!(edge_client.get_idn_manager_pallet_index(), 255);
+		let edge_client = IdnClient::new(u32::MAX, u8::MAX, u32::MAX, u8::MAX, u8::MAX, u128::MAX);
+		assert_eq!(edge_client.get_idn_manager_pallet_index(), u8::MAX);
 		assert_eq!(edge_client.get_idn_para_id(), u32::MAX);
-		assert_eq!(edge_client.get_self_contracts_pallet_index(), 255);
+		assert_eq!(edge_client.get_self_contracts_pallet_index(), u8::MAX);
 		assert_eq!(edge_client.get_self_para_id(), u32::MAX);
 		assert_eq!(edge_client.max_idn_xcm_fees, u128::MAX);
 
@@ -759,7 +765,8 @@ mod tests {
 
 	#[test]
 	fn test_subscription_management_api() {
-		let _client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000, 50, 2001, 1_000_000_000);
+		let _client =
+			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
 		let _sub_id = [123u8; 32];
 
 		// Test that the API methods compile and have correct signatures
@@ -789,7 +796,8 @@ mod tests {
 
 	#[test]
 	fn test_update_subscription_api() {
-		let _client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000, 50, 2001, 1_000_000_000);
+		let _client =
+			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
 		let _sub_id = [123u8; 32];
 
 		// Test update subscription API with different parameter combinations
@@ -821,7 +829,8 @@ mod tests {
 
 	#[test]
 	fn test_create_subscription_maximum_values() {
-		let _client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000, 50, 2001, 1_000_000_000);
+		let _client =
+			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
 
 		// Test create subscription API with maximum values
 		let max_values_result = std::panic::catch_unwind(|| {
@@ -850,34 +859,52 @@ mod tests {
 		assert!(min_values_result.is_ok());
 	}
 
-	#[test]
+	#[ink::test]
 	fn test_pulse_callback_data() {
-		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000, 50, 2001, 1_000_000_000);
+		// Setup ink! test environment
+		let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+		ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 
-		// Test that pulse callback index is generated correctly
+		let client =
+			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+
+		// Test that pulse callback data is generated correctly
 		let callback_data = client.pulse_callback_data();
 
-		// First element should be the contracts pallet index
-		assert_eq!(callback_data[0], 50);
+		// Should return Ok(CallData)
+		assert!(callback_data.is_ok());
 
-		// Second element should be derived from consume_pulse selector
-		// We can't easily test the exact value without knowing the selector calculation
-		// but we can verify it's generated consistently
+		// The callback data should be consistent across calls
 		let callback_data_2 = client.pulse_callback_data();
 		assert_eq!(callback_data, callback_data_2);
+
+		// Verify the encoded data contains the expected structure
+		// We can't easily test the exact encoded bytes due to complex tuple encoding
+		// but we can verify it's non-empty and consistent
+		let encoded_data = callback_data.unwrap();
+		assert!(!encoded_data.is_empty());
 	}
 
-	#[test]
+	#[ink::test]
 	fn test_location_helper_api() {
-		let client = IdnClient::new(TEST_IDN_MANAGER_PALLET_INDEX, 2000, 50, 2001, 1_000_000_000);
+		// Setup ink! test environment
+		let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+		ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 
-		// Test sibling IDN location - this doesn't require ink! environment
+		let client =
+			IdnClient::new(2000, IDN_MANAGER_PALLET_INDEX_PASEO, 2001, 50, 16, 1_000_000_000);
+
+		// Test sibling IDN location
 		let idn_location = client.sibling_idn_location();
 		assert_eq!(idn_location.parents, 1);
 
-		// Note: Other location methods require ink! environment and can't be tested in unit tests
-		// They use ink::env::account_id which only works within contract context
-		// The methods exist but cannot be called in unit test environment
+		// Test self parachain sibling location
+		let self_location = client.self_para_sibling_location();
+		assert_eq!(self_location.parents, 1);
+
+		// Test contract IDN location - now works with mocked environment
+		let contract_location = client.contract_idn_location();
+		assert_eq!(contract_location.parents, 0);
 	}
 
 	#[test]

@@ -49,12 +49,13 @@ To deploy this contract:
 
    ```
    new(
-       idn_account_id: AccountId,
-       idn_para_id: u32,
-       idn_manager_pallet_index: u8,
-       self_para_id: u32,
-       self_contracts_pallet_index: u8,
-       max_idn_xcm_fees: u128
+			idn_account_id: SovereignAccount,
+			idn_para_id: IdnParaId,
+			idn_manager_pallet_index: IdnManagerPalletIndex,
+			self_para_id: ConsumerParaId,
+			self_contracts_pallet_index: ContractsPalletIndex,
+			self_contract_call_index: ContractsCallIndex,
+			max_idn_xcm_fees: Option<IdnBalance>,
    )
    ```
 
@@ -64,7 +65,8 @@ To deploy this contract:
    - `idn_para_id`: The parachain ID of the IDN Network
    - `idn_manager_pallet_index`: The pallet index for the IDN Manager pallet on the IDN Network
    - `self_para_id`: The parachain ID where this contract is deployed
-   - `self_contracts_pallet_index`: The pallet index for the Contracts pallet on the destination chain
+   - `self_contracts_pallet_index`: The pallet index for the Contracts pallet on the target chain
+   - `self_contract_call_index`: The call index for the `call` function in the Contracts pallet on the target chain
    - `max_idn_xcm_fees`: Maximum XCM execution fees in native tokens to prevent unexpected costs
 
 ### Interacting with the Contract
@@ -74,7 +76,7 @@ Once deployed, you can interact with the contract through the following methods:
 #### Creating a Subscription
 
 ```
-create_subscription(credits: u64, frequency: u32, metadata: Option<Vec<u8>>) -> Result<SubscriptionId, ContractError>
+create_subscription(credits: Credits, frequency: IdnBlockNumber, metadata: Option<Metadata>) -> Result<SubscriptionId, ContractError>
 ```
 
 Parameters:
@@ -90,7 +92,7 @@ Returns the newly created subscription ID on success. Requires XCM execution fee
 ```
 pause_subscription() -> Result<(), ContractError>
 reactivate_subscription() -> Result<(), ContractError>
-update_subscription(credits: u64, frequency: u32) -> Result<(), ContractError>
+update_subscription(credits: Credits, frequency: IdnBlockNumber) -> Result<(), ContractError>
 kill_subscription() -> Result<(), ContractError>
 ```
 
@@ -99,15 +101,15 @@ All subscription management methods require owner authorization and XCM executio
 #### Accessing Randomness
 
 ```
-get_last_randomness() -> Option<[u8; 32]>
-get_randomness_history() -> Vec<[u8; 32]>
+get_last_randomness() -> Option<Rand>
+get_randomness_history() -> Vec<Rand>
 ```
 
 #### Accessing Configuration
 
 ```
-get_idn_para_id() -> u32
-get_idn_manager_pallet_index() -> u8
+get_idn_para_id() -> ParaId
+get_idn_manager_pallet_index() -> PalletIndex
 ```
 
 #### Testing Methods

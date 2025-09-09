@@ -111,8 +111,9 @@
 mod example_consumer {
 	use idn_client_contract_lib::{
 		types::{
-			Credits, IdnBalance, IdnBlockNumber, Metadata, PalletIndex, ParaId, Pulse, Quote,
-			SubInfoResponse, SubscriptionId,
+			ConsumerParaId, ContractsCallIndex, ContractsPalletIndex, Credits, IdnBalance,
+			IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
+			Quote, SovereignAccount, SubInfoResponse, SubscriptionId,
 		},
 		Error, IdnClient, IdnConsumer,
 	};
@@ -232,18 +233,20 @@ mod example_consumer {
 		///
 		/// # Arguments
 		///
-		/// * `idn_account_id` - The authorized IDN Network account identifier used to verify that
-		///   incoming randomness pulses originate from legitimate sources. This prevents
-		///   unauthorized accounts from injecting fake randomness into the contract.
 		/// * `idn_para_id` - The parachain ID of the IDN Network in the relay chain ecosystem. This
 		///   must match the actual IDN parachain deployment for XCM routing to succeed.
 		/// * `idn_manager_pallet_index` - The pallet index of the IDN Manager pallet within the IDN
 		///   Network's runtime. This is used for constructing XCM calls that target subscription
-		///   management functions.
+		/// * `idn_account_id` - The authorized IDN Network account identifier used to verify that
+		///   incoming randomness pulses originate from legitimate sources. This prevents
+		///   unauthorized accounts from injecting fake randomness into the contract.
 		/// * `self_para_id` - The parachain ID where this contract is deployed. This enables the
 		///   IDN Network to route randomness delivery messages back to the correct chain.
+		///   management functions.
 		/// * `self_contracts_pallet_index` - The pallet index of the Contracts pallet on this
 		///   parachain's runtime. Required for XCM callback routing to contract methods.
+		/// * `self_contracts_call_index` - The call index of the `call` dispatchable within the
+		///   Contracts pallet.
 		/// * `max_idn_xcm_fees` - The maximum amount of native tokens to spend on XCM execution
 		///   fees for IDN operations. This protects against unexpected fee spikes while ensuring
 		///   sufficient budget for normal operations.
@@ -260,25 +263,27 @@ mod example_consumer {
 		///   abuse
 		#[ink(constructor)]
 		pub fn new(
-			idn_account_id: AccountId,
-			idn_para_id: ParaId,
-			idn_manager_pallet_index: PalletIndex,
-			self_para_id: ParaId,
-			self_contracts_pallet_index: PalletIndex,
-			max_idn_xcm_fees: IdnBalance,
+			idn_account_id: SovereignAccount,
+			idn_para_id: IdnParaId,
+			idn_manager_pallet_index: IdnManagerPalletIndex,
+			self_para_id: ConsumerParaId,
+			self_contracts_pallet_index: ContractsPalletIndex,
+			self_contract_call_index: ContractsCallIndex,
+			max_idn_xcm_fees: Option<IdnBalance>,
 		) -> Self {
 			Self {
 				owner: Self::env().caller(),
-				idn_account_id,
+				idn_account_id: AccountId::from(<[u8; 32]>::from(idn_account_id)),
 				last_randomness: None,
 				subscription_id: None,
 				randomness_history: Vec::new(),
 				idn_client: IdnClient::new(
-					idn_manager_pallet_index,
-					idn_para_id,
-					self_contracts_pallet_index,
-					self_para_id,
-					max_idn_xcm_fees,
+					idn_para_id.into(),
+					idn_manager_pallet_index.into(),
+					self_para_id.into(),
+					self_contracts_pallet_index.into(),
+					self_contract_call_index.into(),
+					max_idn_xcm_fees.unwrap_or(1_000_000_000),
 				),
 			}
 		}
@@ -658,12 +663,13 @@ mod example_consumer {
 			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
 			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 			let mut contract = ExampleConsumer::new(
-				accounts.bob, // idn_account_id
-				2000,         // idn_para_id
-				10,           // idn_manager_pallet_index
-				1000,         // self_para_id
-				50,           // self_contracts_pallet_index
-				1_000_000,    // max_idn_xcm_fees
+				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
+				IdnParaId::OnPaseo,                              // idn_para_id
+				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),                     // self_para_id
+				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),                   // self_contract_call_index
+				Some(1_000_000),                                 // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([1u8; 32]);
 
@@ -687,12 +693,13 @@ mod example_consumer {
 
 			// Create a test contract
 			let mut contract = ExampleConsumer::new(
-				accounts.bob, // idn_account_id
-				2000,         // idn_para_id
-				10,           // idn_manager_pallet_index
-				1000,         // self_para_id
-				50,           // self_contracts_pallet_index
-				1_000_000,    // max_idn_xcm_fees
+				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
+				IdnParaId::OnPaseo,                              // idn_para_id
+				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),                     // self_para_id
+				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),                   // self_contract_call_index
+				Some(1_000_000),                                 // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([1u8; 32]);
 
@@ -727,12 +734,13 @@ mod example_consumer {
 
 			// Create a test contract
 			let mut contract = ExampleConsumer::new(
-				accounts.bob, // idn_account_id
-				2000,         // idn_para_id
-				10,           // idn_manager_pallet_index
-				1000,         // self_para_id
-				50,           // self_contracts_pallet_index
-				1_000_000,    // max_idn_xcm_fees
+				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
+				IdnParaId::OnPaseo,                              // idn_para_id
+				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),                     // self_para_id
+				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),                   // self_contract_call_index
+				Some(1_000_000),                                 // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([5u8; 32]);
 			// idn_account_id is already set to accounts.bob in constructor
@@ -761,12 +769,13 @@ mod example_consumer {
 
 			// Create a test contract
 			let mut contract = ExampleConsumer::new(
-				accounts.bob, // idn_account_id
-				2000,         // idn_para_id
-				10,           // idn_manager_pallet_index
-				1000,         // self_para_id
-				50,           // self_contracts_pallet_index
-				1_000_000,    // max_idn_xcm_fees
+				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
+				IdnParaId::OnPaseo,                              // idn_para_id
+				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),                     // self_para_id
+				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),                   // self_contract_call_index
+				Some(1_000_000),                                 // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([5u8; 32]);
 			// idn_account_id is already set to accounts.bob in constructor
@@ -792,12 +801,13 @@ mod example_consumer {
 			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 
 			let mut contract = ExampleConsumer::new(
-				accounts.bob, // idn_account_id
-				2000,         // idn_para_id
-				10,           // idn_manager_pallet_index
-				1000,         // self_para_id
-				50,           // self_contracts_pallet_index
-				1_000_000,    // max_idn_xcm_fees
+				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
+				IdnParaId::OnPaseo,                              // idn_para_id
+				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),                     // self_para_id
+				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),                   // self_contract_call_index
+				Some(1_000_000),                                 // max_idn_xcm_fees
 			);
 			let result = contract.pause_subscription();
 			assert_eq!(result, Err(ContractError::NoActiveSubscription));
@@ -810,12 +820,13 @@ mod example_consumer {
 			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 
 			let mut contract = ExampleConsumer::new(
-				accounts.bob, // idn_account_id
-				2000,         // idn_para_id
-				10,           // idn_manager_pallet_index
-				1000,         // self_para_id
-				50,           // self_contracts_pallet_index
-				1_000_000,    // max_idn_xcm_fees
+				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
+				IdnParaId::OnPaseo,                              // idn_para_id
+				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),                     // self_para_id
+				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),                   // self_contract_call_index
+				Some(1_000_000),                                 // max_idn_xcm_fees
 			);
 			let result = contract.update_subscription(100, 10);
 			assert_eq!(result, Err(ContractError::NoActiveSubscription));
@@ -828,12 +839,13 @@ mod example_consumer {
 			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice will be owner
 
 			let mut contract = ExampleConsumer::new(
-				accounts.bob, // idn_account_id
-				2000,         // idn_para_id
-				10,           // idn_manager_pallet_index
-				1000,         // self_para_id
-				50,           // self_contracts_pallet_index
-				1_000_000,    // max_idn_xcm_fees
+				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
+				IdnParaId::OnPaseo,                              // idn_para_id
+				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),                     // self_para_id
+				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),                   // self_contract_call_index
+				Some(1_000_000),                                 // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([1u8; 32]);
 
@@ -860,12 +872,13 @@ mod example_consumer {
 			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice is not IDN account
 
 			let mut contract = ExampleConsumer::new(
-				accounts.bob, // idn_account_id
-				2000,         // idn_para_id
-				10,           // idn_manager_pallet_index
-				1000,         // self_para_id
-				50,           // self_contracts_pallet_index
-				1_000_000,    // max_idn_xcm_fees
+				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
+				IdnParaId::OnPaseo,                              // idn_para_id
+				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),                     // self_para_id
+				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),                   // self_contract_call_index
+				Some(1_000_000),                                 // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([5u8; 32]);
 			// idn_account_id is already set to accounts.bob in constructor
@@ -899,12 +912,13 @@ mod example_consumer {
 
 			// Deploy the contract
 			let mut constructor = ExampleConsumerRef::new(
-				ink_e2e::alice().0.clone().into(), // idn_account_id
-				idn_para_id,                       // idn_para_id
-				idn_manager_pallet_index,          // idn_manager_pallet_index
-				destination_para_id,               // self_para_id
-				contracts_pallet_index,            // self_contracts_pallet_index
-				1_000_000,                         // max_idn_xcm_fees
+				SovereignAccount::IdnOnPaseo,                           // idn_account_id
+				IdnParaId::Other(idn_para_id),                          // idn_para_id
+				IdnManagerPalletIndex::Other(idn_manager_pallet_index), // idn_manager_pallet_index
+				ConsumerParaId::Other(destination_para_id),             // self_para_id
+				ContractsPalletIndex::Other(contracts_pallet_index),    /* self_contracts_pallet_index */
+				ContractsCallIndex::Other(16),                          // self_contract_call_index
+				Some(1_000_000),                                        // max_idn_xcm_fees
 			);
 
 			// Verify that the contract can be deployed

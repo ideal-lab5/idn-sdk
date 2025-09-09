@@ -3534,6 +3534,7 @@ version = "0.1.0"
 dependencies = [
  "bp-idn",
  "hex",
+ "hex-literal",
  "ink",
  "parity-scale-codec",
  "scale-info",
