@@ -27,6 +27,7 @@ use frame_system::EnsureSigned;
 use pallet_contracts::chain_extension::{
 	ChainExtension, Environment, Ext, InitState, RetVal, SysConfig,
 };
+use pallet_randomness_beacon::RoundAwareListener;
 use sp_core::{crypto::UncheckedFrom, H256};
 use sp_runtime::DispatchError;
 use sp_std::convert::AsRef;
@@ -50,6 +51,7 @@ impl ChainExtension<Runtime> for RandExtension {
 			func_id
 		);
 		match func_id {
+			// "fetch_random"
 			1101 => {
 				let mut env = env.buf_in_buf_out();
 				let arg: [u8; 32] = env.read_as()?;
@@ -57,6 +59,16 @@ impl ChainExtension<Runtime> for RandExtension {
 				let seed = [caller.encode(), env.ext().address().encode(), arg.encode()].concat();
 				let (rand_hash, _block_number): (H256, _) = RandBeacon::random(&seed);
 				env.write(&rand_hash.encode(), false, None)
+					.map_err(|_| DispatchError::Other("Failed to write output randomness"))?;
+
+				Ok(RetVal::Converging(0))
+			},
+			// "is_in_current_block"
+			1102 => {
+				let mut env = env.buf_in_buf_out();
+				let query_round: u64 = env.read_as()?;
+				let in_round = RandBeacon::in_current_round(query_round);
+				env.write(&in_round.encode(), false, None)
 					.map_err(|_| DispatchError::Other("Failed to write output randomness"))?;
 
 				Ok(RetVal::Converging(0))

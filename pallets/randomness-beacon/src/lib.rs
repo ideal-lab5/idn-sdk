@@ -481,6 +481,22 @@ pub mod pallet {
 	}
 }
 
+pub trait RoundAwareListener<T: Config> {
+	fn in_current_round(query: RoundNumber) -> bool {
+		if let Some(accumulation) = SparseAccumulation::<T>::get() {
+			// check if start <= query
+			let is_not_before = query >= accumulation.start;
+			// check if end >= query
+			let is_not_after = accumulation.end <= query;
+			return is_not_before && is_not_after; 
+		}
+
+		false
+	}
+}
+
+impl<T: Config> RoundAwareListener<T> for Pallet<T> {}
+
 impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T>
 where
 	T::Hash: From<H256>,
