@@ -29,6 +29,9 @@ ark-std = { workspace = true, optional = true }
 ark-ff = { workspace = true, optional = true }
 ark-ec = { workspace = true, optional = true }
 sp-idn-crypto = { workspace = true, optional = true }
+pallet-transaction-payment.workspace = true
+pallet-balances.workspace = true
+pallet-preimage.workspace = true
 
 [dev-dependencies]
 pallet-preimage.workspace = true

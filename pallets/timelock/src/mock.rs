@@ -80,8 +80,14 @@ frame_support::construct_runtime!(
 		Timelock: timelock::{Pallet, Call, Storage, Event<T>},
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>, HoldReason},
 		RandomnessCollectiveFlip: pallet_insecure_randomness_collective_flip,
+		Balances: pallet_balances
 	}
 );
+
+#[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
+impl pallet_balances::Config for Test {
+	type AccountStore = System;
+}
 
 parameter_types! {
 	pub BlockWeights: frame_system::limits::BlockWeights =
@@ -132,6 +138,7 @@ parameter_types! {
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
 impl system::Config for Test {
 	type Block = Block;
+	type AccountData = pallet_balances::AccountData<u64>;
 }
 
 impl Config for Test {
@@ -144,6 +151,9 @@ impl Config for Test {
 	type MaxScheduledPerBlock = ConstU32<10>;
 	type WeightInfo = TestWeightInfo;
 	type Preimages = Preimage;
+	type Currency = Balances;
+	type HoldReason = RuntimeHoldReason;
+	
 }
 
 pub type LoggerCall = logger::Call<Test>;

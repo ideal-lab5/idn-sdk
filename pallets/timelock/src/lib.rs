@@ -149,6 +149,7 @@ pub mod pallet {
 	use super::*;
 	use frame_support::{dispatch::PostDispatchInfo, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
+	use pallet_preimage::HoldReason;
 
 	/// The current storage version.
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
@@ -201,6 +202,7 @@ pub mod pallet {
 
 		/// The preimage provider with which we look up call hashes to get the call.
 		type Preimages: QueryPreimage<H = Self::Hashing> + StorePreimage;
+		type HoldReason: From<HoldReason>;
 	}
 
 	/// Items to be executed, indexed by the block number that they should be executed on.
@@ -255,8 +257,9 @@ pub mod pallet {
 			ciphertext: Ciphertext,
 		) -> DispatchResult {
 			T::ScheduleOrigin::ensure_origin(origin.clone())?;
+			let who = ensure_signed(origin.clone())?;
 			let origin = <T as Config>::RuntimeOrigin::from(origin);
-			Self::do_schedule_sealed(when, origin.caller().clone(), ciphertext)?;
+			Self::do_schedule_sealed(when, origin.caller().clone(), ciphertext, who)?;
 			Ok(())
 		}
 	}
@@ -289,12 +292,15 @@ impl<T: Config> Pallet<T> {
 	fn place_task(
 		when: RoundNumber,
 		what: ScheduledOf<T>,
+		who: T::AccountId
 	) -> Result<TaskAddress<u64>, (DispatchError, ScheduledOf<T>)> {
 		let name = what.id;
 		let index = Self::push_to_agenda(when, what)?;
 		let address = (when, index);
 		Lookup::<T>::insert(name, address);
 		Self::deposit_event(Event::Scheduled { when, index: address.1 });
+		let amount = 3000;
+		DepositHelperImpl::<T>::hold_deposit(amount, who);
 		Ok(address)
 	}
 
@@ -325,6 +331,7 @@ impl<T: Config> Pallet<T> {
 		when: RoundNumber,
 		origin: T::PalletsOrigin,
 		ciphertext: Ciphertext,
+		who: T::AccountId,
 	) -> Result<TaskAddress<RoundNumber>, DispatchError> {
 		let id = blake2_256(&ciphertext[..]);
 		// to enforce FIFO execution, we set the priority here
@@ -338,7 +345,7 @@ impl<T: Config> Pallet<T> {
 			origin,
 			_phantom: PhantomData,
 		};
-		let res = Self::place_task(when, task).map_err(|x| x.0)?;
+		let res = Self::place_task(when, task, who).map_err(|x| x.0)?;
 		Ok(res)
 	}
 }
@@ -528,6 +535,24 @@ impl<T: Config> Pallet<T> {
 		let _ = weight.try_consume(call_weight);
 		Ok(result)
 	}
+}
+
+pub struct DepositHelperImpl<T: Config>(core::marker::PhantomData<T>);
+pub trait DepositHelper {
+	type Amount;
+	type AccountId;
+	fn hold_deposit(amount: Self::Amount, who: Self::AccountId);
+	fn release_deposit(who: Self::AccountId);
+	fn consume_deposit(who: Self::AccountId);
+}
+
+impl<T: Config> DepositHelper for DepositHelperImpl<T> {
+	type Amount = u64;
+	type AccountId = T::AccountId;
+
+	fn hold_deposit(amount: u64, who: T::AccountId) { }
+    fn release_deposit(who: T::AccountId) { }
+    fn consume_deposit(who: T::AccountId) { }
 }
 
 /// A trait for providing timelock transaction capabilities to other pallets.
