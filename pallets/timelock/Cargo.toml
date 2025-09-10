@@ -32,7 +32,6 @@ sp-idn-crypto = { workspace = true, optional = true }
 pallet-transaction-payment.workspace = true
 pallet-balances.workspace = true
 pallet-preimage.workspace = true
-bp-idn.workspace = true
 
 [dev-dependencies]
 pallet-preimage.workspace = true
