@@ -74,12 +74,9 @@ pub use weights::WeightInfo;
 use ark_bls12_381::G1Affine;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
-	dispatch::{DispatchResult, GetDispatchInfo, Parameter},
-	traits::{
-		schedule, Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage,
-		StorageVersion, StorePreimage,
-	},
-	weights::{Weight, WeightMeter},
+	dispatch::{DispatchResult, GetDispatchInfo, Parameter, PostDispatchInfo}, traits::{
+		fungible::{hold::Mutate as HoldMutate, Inspect}, schedule, tokens::{Fortitude, Precision, Restriction}, Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage, StorageVersion, StorePreimage
+	}, weights::{Weight, WeightMeter}
 };
 use frame_system::{self as system};
 pub use pallet::*;
@@ -91,7 +88,7 @@ use sp_runtime::{
 	traits::{ConstU32, Dispatchable},
 	BoundedVec, DispatchError, RuntimeDebug,
 };
-use sp_std::{marker::PhantomData, prelude::*};
+use sp_std::prelude::*;
 use timelock::{
 	block_ciphers::AESGCMBlockCipherProvider,
 	engines::drand::TinyBLS381,
@@ -121,7 +118,8 @@ pub struct Scheduled<Name, Call, Ciphertext, PalletsOrigin, AccountId> {
 	maybe_ciphertext: Option<Ciphertext>,
 	/// The origin with which to dispatch the call.
 	origin: PalletsOrigin,
-	_phantom: PhantomData<AccountId>,
+	// The account that signed the transaction
+	who: AccountId,
 }
 
 pub type ScheduledOf<T> = Scheduled<
@@ -147,9 +145,9 @@ impl<T: WeightInfo> MarginalWeightInfo for T {}
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{dispatch::PostDispatchInfo, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
-	use pallet_preimage::HoldReason;
+	use frame_support::pallet_prelude::*;
+
 
 	/// The current storage version.
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
@@ -202,8 +200,29 @@ pub mod pallet {
 
 		/// The preimage provider with which we look up call hashes to get the call.
 		type Preimages: QueryPreimage<H = Self::Hashing> + StorePreimage;
+		/// Overarching hold reason.
+		type RuntimeHoldReason: From<HoldReason>;
+
+		type Currency: Inspect<<Self as frame_system::pallet::Config>::AccountId>
+			+ HoldMutate<
+				<Self as frame_system::pallet::Config>::AccountId,
+				Reason = Self::RuntimeHoldReason,
+			>;
 		type HoldReason: From<HoldReason>;
+		type TreasuryAccount: Get<<Self as frame_system::pallet::Config>::AccountId>;
 	}
+
+		/// A reason for the IDN Manager Pallet placing a hold on funds.
+	#[pallet::composite_enum]
+	pub enum HoldReason {
+		/// The IDN Manager Pallet holds balance for future charges.
+		#[codec(index = 0)]
+		Fees,
+		/// Storage deposit
+		#[codec(index = 1)]
+		StorageDeposit,
+	}
+
 
 	/// Items to be executed, indexed by the block number that they should be executed on.
 	#[pallet::storage]
@@ -258,6 +277,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::ScheduleOrigin::ensure_origin(origin.clone())?;
 			let who = ensure_signed(origin.clone())?;
+			let amount:u32 = 30_000;
+			DepositHelperImpl::<T>::hold_deposit(amount.into(), &who.clone()); 
 			let origin = <T as Config>::RuntimeOrigin::from(origin);
 			Self::do_schedule_sealed(when, origin.caller().clone(), ciphertext, who)?;
 			Ok(())
@@ -281,7 +302,7 @@ impl<T: Config> Pallet<T> {
 						maybe_call: schedule.maybe_call,
 						maybe_ciphertext: None,
 						origin: schedule.origin.into(),
-						_phantom: Default::default(),
+						who: schedule.who,
 					})
 					.collect::<Vec<_>>(),
 			))
@@ -291,16 +312,13 @@ impl<T: Config> Pallet<T> {
 	#[allow(clippy::result_large_err)]
 	fn place_task(
 		when: RoundNumber,
-		what: ScheduledOf<T>,
-		who: T::AccountId
+		what: ScheduledOf<T>
 	) -> Result<TaskAddress<u64>, (DispatchError, ScheduledOf<T>)> {
 		let name = what.id;
 		let index = Self::push_to_agenda(when, what)?;
 		let address = (when, index);
 		Lookup::<T>::insert(name, address);
-		Self::deposit_event(Event::Scheduled { when, index: address.1 });
-		let amount = 3000;
-		DepositHelperImpl::<T>::hold_deposit(amount, who);
+		Self::deposit_event(Event::Scheduled { when, index: address.1 });	
 		Ok(address)
 	}
 
@@ -343,9 +361,9 @@ impl<T: Config> Pallet<T> {
 			maybe_call: None,
 			maybe_ciphertext: Some(ciphertext),
 			origin,
-			_phantom: PhantomData,
+			who: who,
 		};
-		let res = Self::place_task(when, task, who).map_err(|x| x.0)?;
+		let res = Self::place_task(when, task).map_err(|x| x.0)?;
 		Ok(res)
 	}
 }
@@ -484,8 +502,9 @@ impl<T: Config> Pallet<T> {
 			};
 
 			let _ = weight.try_consume(T::WeightInfo::service_task(lookup_len.map(|x| x as usize)));
+			let who = task.who.clone();
 
-			return match Self::execute_dispatch(weight, task.origin.clone(), call) {
+			return match Self::execute_dispatch(weight, task.origin.clone(), call, who) {
 				Err(()) => Err((Overweight, task)),
 				Ok(result) => {
 					Self::deposit_event(Event::Dispatched {
@@ -514,6 +533,7 @@ impl<T: Config> Pallet<T> {
 		weight: &mut WeightMeter,
 		origin: T::PalletsOrigin,
 		call: <T as Config>::RuntimeCall,
+		who: T::AccountId
 	) -> Result<DispatchResult, ()> {
 		let base_weight = T::WeightInfo::execute_dispatch_signed();
 		let call_weight = call.get_dispatch_info().call_weight;
@@ -521,6 +541,7 @@ impl<T: Config> Pallet<T> {
 		let max_weight = base_weight.saturating_add(call_weight);
 
 		if !weight.can_consume(max_weight) {
+			DepositHelperImpl::<T>::release_deposit(&who);
 			return Err(());
 		}
 
@@ -538,21 +559,34 @@ impl<T: Config> Pallet<T> {
 }
 
 pub struct DepositHelperImpl<T: Config>(core::marker::PhantomData<T>);
+
+/// A trait for handling deposits
 pub trait DepositHelper {
 	type Amount;
 	type AccountId;
-	fn hold_deposit(amount: Self::Amount, who: Self::AccountId);
-	fn release_deposit(who: Self::AccountId);
-	fn consume_deposit(who: Self::AccountId);
+	fn hold_deposit(amount: Self::Amount, who: &Self::AccountId)-> DispatchResult;
+	fn release_deposit(who: &Self::AccountId) -> DispatchResult;
+	fn consume_deposit(who: &Self::AccountId) -> DispatchResult;
 }
 
+
 impl<T: Config> DepositHelper for DepositHelperImpl<T> {
-	type Amount = u64;
+	type Amount = u32;
 	type AccountId = T::AccountId;
 
-	fn hold_deposit(amount: u64, who: T::AccountId) { }
-    fn release_deposit(who: T::AccountId) { }
-    fn consume_deposit(who: T::AccountId) { }
+	fn hold_deposit(amount: Self::Amount, who: &T::AccountId) -> DispatchResult{
+		T::Currency::hold(&HoldReason::Fees.into(), who, amount.into())?;
+		Ok(())
+	}
+    fn release_deposit(who: &T::AccountId) -> DispatchResult { 
+		T::Currency::release(&HoldReason::Fees.into(), who, 30_000u32.into(), Precision::Exact)?;
+		Ok(())
+	}
+    fn consume_deposit(who: &T::AccountId) -> DispatchResult {
+		// let treasury_account = T::AccountId::
+		T::Currency::transfer_on_hold(&HoldReason::Fees.into(), who, &T::TreasuryAccount::get(), 30000u32.into(), Precision::Exact, Restriction::Free, Fortitude::Force)?;
+		Ok(())
+	}
 }
 
 /// A trait for providing timelock transaction capabilities to other pallets.
