@@ -305,6 +305,14 @@ mod runtime {
 	pub type IdnManager = pallet_idn_manager::Pallet<Runtime>;
 	#[runtime::pallet_index(41)]
 	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
+	// timelocked transactions
+	#[cfg(feature = "tlock")]
+	#[runtime::pallet_index(42)]
+	pub type Preimage = pallet_preimage::Pallet<Runtime>;
+
+	#[cfg(feature = "tlock")]
+	#[runtime::pallet_index(43)]
+	pub type Timelock = pallet_timelock_transactions::Pallet<Runtime>;
 
 	// Contracts
 	#[runtime::pallet_index(50)]

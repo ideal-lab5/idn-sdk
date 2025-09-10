@@ -297,7 +297,7 @@ mod tests {
 		let old_credits: u32 = 100;
 		let new_credits: u32 = 101; // 1 value increase
 		let hold = SteppedTieredFeeCalculator::calculate_diff_fees(&old_credits, &new_credits);
-		let expected = 1 * BASE_FEE.saturating_mul(9_000).saturating_div(10_000); // 10% discount on the extra value
+		let expected = BASE_FEE.saturating_mul(9_000).saturating_div(10_000); // 10% discount on the extra value
 		assert_eq!(
 			hold,
 			DiffBalanceImpl::new(expected, BalanceDirection::Collect),
