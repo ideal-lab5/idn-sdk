@@ -30,6 +30,12 @@ pub const PULSE1001: RawPulse = (1001u64, *b"b33bf3667cbd5a82de3a24b4e0e9fe5513c
 pub const PULSE1002: RawPulse = (1002u64, *b"ab066f9c12dd6de1336fca0f925192fb0c72a771c3e4c82ede1fd362c1a770f9eb05843c6308ce2530b53a99c0281a6e");
 pub const PULSE1003: RawPulse = (1003u64, *b"b104c82771698f45fd8dcfead083d482694c31ab519bcef077f126f3736fe98c8392fd5d45d88aeb76b56ccfcb0296d7");
 
+// drand quicknet public key as bytes
+pub fn get_beacon_pk() -> Vec<u8> {
+	let pk_bytes = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+	hex::decode(pk_bytes).unwrap()
+}
+
 // output the asig + amsg
 pub fn get(pulse_data: Vec<RawPulse>) -> (Vec<u8>, Vec<u8>, Vec<(u64, Vec<u8>)>) {
 	let mut amsg = G1Affine::zero();
