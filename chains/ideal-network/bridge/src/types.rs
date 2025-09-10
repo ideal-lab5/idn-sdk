@@ -96,12 +96,14 @@ impl TPulse for RuntimePulse {
 	}
 
 	fn message(&self) -> Self::Sig {
-		let msg = (self.start..self.end)
-			.map(|r| compute_round_on_g1(r).expect("it should be a valid integer"))
+		let msg = (self.start..self.end + 1)
+			.map(|r| compute_round_on_g1(r).unwrap_or(zero_on_g1()))
 			.fold(zero_on_g1(), |amsg, val| (amsg + val).into());
+
 		let mut bytes = Vec::new();
 		msg.serialize_compressed(&mut bytes)
 			.expect("The message should be well formed.");
+
 		bytes.try_into().unwrap_or([0u8; 48])
 	}
 
@@ -211,3 +213,28 @@ pub type SubInfoRequest = MngSubInfoRequest<SubscriptionId>;
 ///
 /// See [`pallet_idn_manager::SubscriptionDetails`] for more details.
 pub type SubscriptionDetails = MngSubscriptionDetails<AccountId>;
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use sp_idn_crypto::test_utils::*;
+
+	#[test]
+	fn test_runtime_pulse_can_authenticate_valid_pulse() {
+		let beacon_pk_bytes = get_beacon_pk();
+		let (asig, _amsg, _pulses) = get(vec![PULSE1000, PULSE1001]);
+		let valid_pulse = RuntimePulse::new(asig.try_into().unwrap(), 1000, 1001);
+		let validity = valid_pulse.authenticate(beacon_pk_bytes.try_into().unwrap());
+		assert!(validity);
+	}
+
+	#[test]
+	fn test_runtime_pulse_can_handle_invalid_pulse() {
+		let beacon_pk_bytes = get_beacon_pk();
+		let (asig, _amsg, _pulses) = get(vec![PULSE1000, PULSE1001]);
+		// the pulse expects sigs for rounds 1000-1004, but only has 1000-1002
+		let valid_pulse = RuntimePulse::new(asig.try_into().unwrap(), 1000, 1004);
+		let validity = valid_pulse.authenticate(beacon_pk_bytes.try_into().unwrap());
+		assert!(!validity);
+	}
+}
