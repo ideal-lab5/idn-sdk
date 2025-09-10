@@ -5,4 +5,5 @@ members = [
     "idn-client-contract-lib",
     "idn-example-consumer-contract",
     "idn-contract-lib",
+    "timelock-macro",
 ]

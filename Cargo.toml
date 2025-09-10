@@ -13,6 +13,7 @@ members = [
     "chains/ideal-network/bridge",
     "chains/idn-consumer-chain/runtime",
     "chains/idn-consumer-chain/node",
+    "contracts/timelock-macro"
 ]
 resolver = "2"
 
