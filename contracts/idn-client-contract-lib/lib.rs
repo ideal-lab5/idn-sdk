@@ -630,7 +630,9 @@ impl IdnClient {
 	}
 	/// Get the call data for the [`IdnConsumer::consume_pulse`] call
 	fn pulse_callback_data(&self) -> Result<CallData> {
-		// let encoded_selector = (selector_id!("consume_pulse") >> 24) as u8;
+		let dummy_pulse = Pulse::default();
+		let dummy_sub_id = SubscriptionId::default();
+
 		// We are creating the call with this format: `(pallet_index, call_index, dest, value,
 		// gas_limit, storage_deposit_limit, selector)`
 		// - **pallet_index**: The index of the contracts or revive pallet
@@ -643,14 +645,20 @@ impl IdnClient {
 		let call = (
 			self.get_self_contracts_pallet_index(),
 			self.get_self_contract_call_index(),
+			0u8,
 			ink::env::account_id::<ink::env::DefaultEnvironment>(),
-			0u128, // value - no balance transfer needed for pulse callbacks
-			Weight::from_parts(1_000_000_000, 64 * 1024), // gas_limit - reasonable default
-			Option::<u128>::None, // storage_deposit_limit - use None for default
-			// [encoded_selector, 0, 0, 0], // selector - padded to 4 bytes
-			selector_id!("consume_pulse"),
+			0u8, // value - no balance transfer needed for pulse callbacks
+			Weight::from_parts(10_000_000_000, 640 * 1024), // gas_limit - reasonable default
+			0u8, // storage_deposit_limit - use None for default
+			// selector with dummy params, these dummy params are needed to get the full encoded
+			// length of the call data, which we will truncate later
+			(selector_id!("consume_pulse"), dummy_pulse.clone(), dummy_sub_id).encode(),
 		);
-		CallData::try_from(call.encode()).map_err(|_| Error::CallDataTooLong)
+
+		let payload_length = dummy_pulse.encode().len().saturating_add(dummy_sub_id.encode().len());
+		let mut encoded_call = call.encode();
+		encoded_call.truncate(encoded_call.len().saturating_sub(payload_length));
+		CallData::try_from(encoded_call).map_err(|_| Error::CallDataTooLong)
 	}
 }
 

@@ -154,7 +154,8 @@ parameter_types! {
 	/// The maximum length of the metadata vector
 	pub const MaxMetadataLen: u32 = 8;
 	/// The maximum length of the call data vector
-	pub const MaxCallDataLen: u32 = 512;
+	// 187 is the largest call data when using the max values
+	pub const MaxCallDataLen: u32 = 187;
 }
 
 /// A type that defines the amount of credits in a subscription

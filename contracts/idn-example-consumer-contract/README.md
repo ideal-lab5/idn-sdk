@@ -115,10 +115,15 @@ get_idn_manager_pallet_index() -> PalletIndex
 #### Testing Methods
 
 ```
-simulate_pulse_received(pulse: Pulse) -> Result<(), ContractError>
+add_authorized_caller(account: AccountId) -> Result<(), ContractError>
 ```
 
-This method simulates randomness delivery for testing purposes. Only the contract owner can call this method.
+The contract owner can add additional authorized caller accounts that are permitted to deliver randomness pulses. This is useful for testing scenarios where you want to simulate pulse delivery from a test account rather than the actual IDN Network account.
+
+For testing pulse consumption, you can:
+1. Add a test account as an authorized caller using `add_authorized_caller`
+2. Switch to that authorized caller account
+3. Call the `consume_pulse` method from the `IdnConsumer` trait to simulate randomness delivery
 
 ### Testing
 
@@ -171,14 +176,19 @@ This multi-layer verification ensures that applications receive only authentic, 
 
 ### Testing Support
 
-For testing purposes, the contract includes a method to simulate receiving randomness:
+For testing purposes, the contract provides flexible authorization management and direct access to the `IdnConsumer` trait methods:
 
-The `simulate_pulse_received` method allows contract owners to test randomness processing logic without requiring actual IDN Network delivery. This method:
+To simulate randomness delivery during testing:
 
-- Verifies that the caller is the contract owner
-- Ensures an active subscription exists
-- Processes the pulse through the same logic used for real IDN deliveries
-- Provides a safe way to test randomness handling during development
+1. **Add Test Caller**: Use `add_authorized_caller(account)` to authorize a test account for pulse delivery
+2. **Switch Account Context**: Change to the authorized test account
+3. **Simulate Pulse**: Call `IdnConsumer::consume_pulse(pulse, subscription_id)` directly to simulate randomness delivery
+
+This approach:
+- Maintains the same authorization checks as real IDN Network delivery
+- Ensures active subscription validation
+- Processes pulses through identical logic used for production IDN deliveries
+- Provides safe and flexible testing without bypassing security controls
 
 ## Error Handling
 

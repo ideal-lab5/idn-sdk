@@ -118,9 +118,20 @@ mod example_consumer {
 		Error, IdnClient, IdnConsumer,
 	};
 	use ink::prelude::vec::Vec;
+	use scale_info::prelude::vec;
 	use sp_idn_traits::pulse::Pulse as TPulse;
 
 	type Rand = <Pulse as TPulse>::Rand;
+
+	/// Maximum number of items to keep in history collections
+	const MAX_HISTORY_SIZE: usize = 100;
+
+	#[derive(Debug, PartialEq, Eq, Clone)]
+	#[ink::scale_derive(Encode, Decode, TypeInfo)]
+	pub enum PulseValidity {
+		Valid,
+		Invalid,
+	}
 
 	/// The Example Consumer contract demonstrates comprehensive IDN integration for randomness
 	/// consumption.
@@ -137,10 +148,10 @@ mod example_consumer {
 		/// The account that deployed the contract and has administrative privileges.
 		/// Only the owner can create, modify, or terminate randomness subscriptions.
 		owner: AccountId,
-		/// The authorized IDN Network account that delivers randomness to this contract.
-		/// This account identifier is used to verify that incoming randomness pulses
-		/// originate from legitimate IDN sources and prevent unauthorized data injection.
-		idn_account_id: AccountId,
+		/// The authorized accounts that deliver randomness to this contract.
+		/// This accounts identifier are used to verify that incoming randomness pulses
+		/// originate from legitimate sources and prevent unauthorized data injection.
+		authorized_deliverers: Vec<AccountId>,
 		/// The most recently received randomness value, computed as SHA256 of the pulse signature.
 		/// This provides quick access to the latest randomness without needing to process
 		/// the complete pulse data structure.
@@ -149,10 +160,14 @@ mod example_consumer {
 		/// When None, the contract has no active subscription and cannot receive randomness.
 		/// This ID is used to validate incoming pulses and manage subscription lifecycle.
 		subscription_id: Option<SubscriptionId>,
-		/// Complete history of all randomness values received by this contract.
+		/// Complete history of all valid randomness values received by this contract.
 		/// Each entry represents the SHA256 hash of a pulse signature, providing a
 		/// chronological record of randomness delivery for application analysis.
+		/// Limited to 100 most recent entries.
 		randomness_history: Vec<Rand>,
+		/// History of all received pulses along with their validity status.
+		/// Limited to 100 most recent entries.
+		pulse_history: Vec<(Pulse, PulseValidity)>,
 		/// The IDN Client instance that handles all cross-chain communication with the IDN
 		/// Network. This client abstracts XCM message construction, fee management, and
 		/// subscription operations, providing a simplified interface for IDN interactions.
@@ -273,10 +288,11 @@ mod example_consumer {
 		) -> Self {
 			Self {
 				owner: Self::env().caller(),
-				idn_account_id: AccountId::from(<[u8; 32]>::from(idn_account_id)),
+				authorized_deliverers: vec![AccountId::from(<[u8; 32]>::from(idn_account_id))],
 				last_randomness: None,
 				subscription_id: None,
 				randomness_history: Vec::new(),
+				pulse_history: Vec::new(),
 				idn_client: IdnClient::new(
 					idn_para_id.into(),
 					idn_manager_pallet_index.into(),
@@ -486,36 +502,77 @@ mod example_consumer {
 			self.last_randomness
 		}
 
+		/// Retrieves the history of all received pulses along with their validity status.
+		///
+		/// This method returns a chronological record of all pulses delivered to this contract
+		/// since deployment. Each entry includes the full pulse data structure and a validity
+		/// flag indicating whether the pulse was verified as authentic.
+		/// Limited to the most recent 100 entries.
+		#[ink(message)]
+		pub fn get_pulse_history(&self) -> Vec<(Pulse, PulseValidity)> {
+			self.pulse_history.clone()
+		}
+
 		/// Retrieves the complete history of all received randomness values.
 		///
 		/// This method returns a chronological record of all randomness values delivered
 		/// to this contract since deployment. Each entry represents the SHA256 hash of
 		/// a pulse signature, providing a verifiable trail of randomness consumption.
 		///
-		/// The history grows with each randomness delivery and is preserved across
-		/// subscription changes, providing long-term randomness analytics capabilities.
+		/// The history is maintained with a maximum of 100 entries, keeping only the
+		/// most recent randomness values for efficient storage and gas optimization.
 		///
 		/// # Returns
 		///
-		/// Returns a vector containing all received randomness values in chronological order,
+		/// Returns a vector containing received randomness values in chronological order,
 		/// with the oldest values first and the most recent values last.
 		#[ink(message)]
 		pub fn get_randomness_history(&self) -> Vec<Rand> {
 			self.randomness_history.clone()
 		}
 
-		/// Simulates receiving a pulse from the IDN Network
+		/// Gets the IDN parachain ID
 		#[ink(message)]
-		pub fn simulate_pulse_received(&mut self, pulse: Pulse) -> Result<(), ContractError> {
-			// Ensure caller is authorized
+		pub fn get_idn_para_id(&self) -> ParaId {
+			self.idn_client.get_idn_para_id()
+		}
+
+		/// Gets the IDN Manager pallet index
+		#[ink(message)]
+		pub fn get_idn_manager_pallet_index(&self) -> PalletIndex {
+			self.idn_client.get_idn_manager_pallet_index()
+		}
+
+		#[ink(message)]
+		pub fn add_authorized_deliverer(
+			&mut self,
+			account: AccountId,
+		) -> Result<(), ContractError> {
 			self.ensure_authorized()?;
+			if !self.authorized_deliverers.contains(&account) {
+				self.authorized_deliverers.push(account);
+			}
+			Ok(())
+		}
 
-			self.ensure_valid_pulse(&pulse)?;
+		#[ink(message)]
+		pub fn remove_authorized_deliverer(
+			&mut self,
+			account: AccountId,
+		) -> Result<(), ContractError> {
+			self.ensure_authorized()?;
+			self.authorized_deliverers.retain(|x| x != &account);
+			Ok(())
+		}
 
-			// Get the active subscription ID
-			let subscription_id = self.ensure_active_sub()?;
+		#[ink(message)]
+		pub fn get_authorized_deliverers(&self) -> Vec<AccountId> {
+			self.authorized_deliverers.clone()
+		}
 
-			self.do_consume_pulse(pulse, subscription_id)
+		#[ink(message)]
+		pub fn get_subscription_id(&self) -> Option<SubscriptionId> {
+			self.subscription_id.clone()
 		}
 
 		/// Internal method to process pulse
@@ -535,21 +592,9 @@ mod example_consumer {
 
 			// Store the randomness for backward compatibility
 			self.last_randomness = Some(randomness);
-			self.randomness_history.push(randomness);
+			self.add_to_randomness_history(randomness);
 
 			Ok(())
-		}
-
-		/// Gets the IDN parachain ID
-		#[ink(message)]
-		pub fn get_idn_para_id(&self) -> ParaId {
-			self.idn_client.get_idn_para_id()
-		}
-
-		/// Gets the IDN Manager pallet index
-		#[ink(message)]
-		pub fn get_idn_manager_pallet_index(&self) -> PalletIndex {
-			self.idn_client.get_idn_manager_pallet_index()
 		}
 
 		fn ensure_authorized(&self) -> Result<(), ContractError> {
@@ -559,8 +604,8 @@ mod example_consumer {
 			Ok(())
 		}
 
-		fn ensure_idn_caller(&self) -> Result<(), ContractError> {
-			if self.idn_account_id != Self::env().caller() {
+		fn ensure_authorized_deliverer(&self) -> Result<(), ContractError> {
+			if !self.authorized_deliverers.contains(&Self::env().caller()) {
 				return Err(ContractError::Unauthorized);
 			}
 			Ok(())
@@ -581,6 +626,24 @@ mod example_consumer {
 				return Err(ContractError::InvalidPulse);
 			}
 			Ok(())
+		}
+
+		/// Adds a randomness value to the history, maintaining max 100 items
+		fn add_to_randomness_history(&mut self, randomness: Rand) {
+			if self.randomness_history.len() >= MAX_HISTORY_SIZE {
+				// Remove the oldest item to make space
+				self.randomness_history.remove(0);
+			}
+			self.randomness_history.push(randomness);
+		}
+
+		/// Adds a pulse to the history, maintaining max 100 items
+		fn add_to_pulse_history(&mut self, pulse: Pulse, validity: PulseValidity) {
+			if self.pulse_history.len() >= MAX_HISTORY_SIZE {
+				// Remove the oldest item to make space
+				self.pulse_history.remove(0);
+			}
+			self.pulse_history.push((pulse, validity));
 		}
 	}
 
@@ -629,11 +692,17 @@ mod example_consumer {
 			subscription_id: SubscriptionId,
 		) -> Result<(), Error> {
 			// Make sure the caller is the IDN account
-			self.ensure_idn_caller()?;
+			self.ensure_authorized_deliverer()?;
 
-			self.ensure_valid_pulse(&pulse)?;
-
-			self.do_consume_pulse(pulse, subscription_id).map_err(|e| e.into())
+			let validity = match self.ensure_valid_pulse(&pulse) {
+				Ok(_) => PulseValidity::Valid,
+				Err(_) => PulseValidity::Invalid,
+			};
+			self.add_to_pulse_history(pulse.clone(), validity.clone());
+			if validity == PulseValidity::Valid {
+				return self.do_consume_pulse(pulse, subscription_id).map_err(|e| e.into());
+			}
+			Ok(())
 		}
 
 		#[ink(message)]
@@ -659,7 +728,7 @@ mod example_consumer {
 			let test_sig = [1u8; 48];
 			let test_pulse = Pulse::new(test_sig, 1, 2);
 
-			// Setup contract with owner as caller
+			// Setup contract with owner as caller first
 			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
 			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 			let mut contract = ExampleConsumer::new(
@@ -673,8 +742,10 @@ mod example_consumer {
 			);
 			contract.subscription_id = Some([1u8; 32]);
 
-			// Simulate receiving pulse (should succeed with owner as caller)
-			let result = contract.simulate_pulse_received(test_pulse.clone());
+			// Change to IDN account caller for consume_pulse
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob);
+
+			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse.clone(), [1u8; 32]);
 			match result {
 				Ok(_) => {},
 				Err(e) => panic!("Expected success but got error: {:?}", e),
@@ -711,12 +782,12 @@ mod example_consumer {
 			let test_pulse1 = Pulse::new([1u8; 48], 1, 2);
 			let test_pulse2 = Pulse::new([2u8; 48], 1, 2);
 
-			// Simulate receiving randomness
-			contract
-				.simulate_pulse_received(test_pulse1.clone())
+			// Change to IDN account caller for consume_pulse
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob);
+
+			IdnConsumer::consume_pulse(&mut contract, test_pulse1.clone(), [1u8; 32])
 				.expect("Should successfully receive first pulse");
-			contract
-				.simulate_pulse_received(test_pulse2.clone())
+			IdnConsumer::consume_pulse(&mut contract, test_pulse2.clone(), [1u8; 32])
 				.expect("Should successfully receive second pulse");
 
 			let expected_rand1 = test_pulse1.rand();
@@ -785,10 +856,11 @@ mod example_consumer {
 
 			// Call with wrong subscription ID
 			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse.clone(), [6u8; 32]);
-			match result {
-				Ok(_) => panic!("Expected error but got success"),
-				Err(_) => {}, // Expected error
-			}
+			assert!(result.is_ok(), "Should succeed but ignore invalid randomness");
+
+			assert_eq!(contract.pulse_history.len(), 1);
+			assert_eq!(contract.pulse_history[0].0, test_pulse);
+			assert_eq!(contract.pulse_history[0].1, PulseValidity::Invalid);
 
 			// Should not have stored anything
 			assert_eq!(contract.get_last_randomness(), None);
@@ -833,7 +905,7 @@ mod example_consumer {
 		}
 
 		#[ink::test]
-		fn test_unauthorized_simulate_pulse() {
+		fn test_unauthorized_consume_pulse() {
 			// Setup test environment with owner as caller first
 			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
 			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice will be owner
@@ -849,19 +921,16 @@ mod example_consumer {
 			);
 			contract.subscription_id = Some([1u8; 32]);
 
-			// Now change caller to non-owner
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob); // Bob is not owner
+			// Set caller to unauthorized account (charlie - not owner, not IDN account)
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.charlie);
 
 			let test_pulse = Pulse::new([1u8; 48], 1, 2);
-			let result = contract.simulate_pulse_received(test_pulse);
+			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse, [1u8; 32]);
 
 			// Should fail with Unauthorized error
 			match result {
 				Ok(_) => panic!("Expected Unauthorized error but got success"),
-				Err(ContractError::Unauthorized) => {}, // Expected
-				Err(ContractError::IdnClientError(_)) =>
-					panic!("Got IDN client error instead of direct unauthorized error"),
-				Err(e) => panic!("Expected Unauthorized error but got: {:?}", e),
+				Err(_) => {}, // Expected error (authorization check fails)
 			}
 		}
 
@@ -891,6 +960,110 @@ mod example_consumer {
 				Ok(_) => panic!("Expected Unauthorized error but got success"),
 				Err(_) => {}, // Expected error (authorization check fails)
 			}
+		}
+
+		#[ink::test]
+		fn test_bounded_history_behavior() {
+			// Setup test environment with owner as caller first
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
+			let mut contract = ExampleConsumer::new(
+				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
+				IdnParaId::OnPaseo,                              // idn_para_id
+				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),                     // self_para_id
+				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),                   // self_contract_call_index
+				Some(1_000_000),                                 // max_idn_xcm_fees
+			);
+			contract.subscription_id = Some([1u8; 32]);
+
+			// Change to IDN account caller for consume_pulse
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob);
+
+			// Add 150 pulses (more than the 100 limit)
+			for i in 0..150u8 {
+				let test_pulse = Pulse::new([i; 48], i as u64, i as u64 + 1000);
+				let result =
+					IdnConsumer::consume_pulse(&mut contract, test_pulse.clone(), [1u8; 32]);
+				assert!(result.is_ok(), "Should successfully receive pulse {}", i);
+			}
+
+			// Check that only 100 items are kept in histories
+			assert_eq!(
+				contract.get_randomness_history().len(),
+				100,
+				"Randomness history should be limited to 100 items"
+			);
+			assert_eq!(
+				contract.get_pulse_history().len(),
+				100,
+				"Pulse history should be limited to 100 items"
+			);
+
+			// Check that the latest items are kept (items 50-149)
+			let randomness_history = contract.get_randomness_history();
+			let pulse_history = contract.get_pulse_history();
+
+			// The first item in history should correspond to pulse with signature [50; 48]
+			let expected_first_pulse = Pulse::new([50u8; 48], 50u64, 1050u64);
+			assert_eq!(
+				randomness_history[0],
+				expected_first_pulse.rand(),
+				"First item should be from pulse 50"
+			);
+			assert_eq!(pulse_history[0].0, expected_first_pulse, "First pulse should be pulse 50");
+			assert_eq!(pulse_history[0].1, PulseValidity::Valid, "First pulse should be valid");
+
+			// The last item in history should correspond to pulse with signature [149; 48]
+			let expected_last_pulse = Pulse::new([149u8; 48], 149u64, 1149u64);
+			assert_eq!(
+				randomness_history[99],
+				expected_last_pulse.rand(),
+				"Last item should be from pulse 149"
+			);
+			assert_eq!(pulse_history[99].0, expected_last_pulse, "Last pulse should be pulse 149");
+			assert_eq!(pulse_history[99].1, PulseValidity::Valid, "Last pulse should be valid");
+		}
+
+		#[ink::test]
+		fn test_add_authorized_deliverer() {
+			// Setup test environment with owner as caller
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice is owner
+
+			let mut contract = ExampleConsumer::new(
+				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
+				IdnParaId::OnPaseo,                              // idn_para_id
+				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),                     // self_para_id
+				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),                   // self_contract_call_index
+				Some(1_000_000),                                 // max_idn_xcm_fees
+			);
+
+			// Initially, only bob (idn_account_id) should be authorized
+			assert_eq!(contract.authorized_deliverers.len(), 1);
+			assert!(contract.authorized_deliverers.contains(&accounts.bob));
+
+			// Add charlie as authorized caller
+			let result = contract.add_authorized_deliverer(accounts.charlie);
+			assert!(result.is_ok());
+
+			// Check that charlie was added
+			assert_eq!(contract.authorized_deliverers.len(), 2);
+			assert!(contract.authorized_deliverers.contains(&accounts.charlie));
+			assert!(contract.authorized_deliverers.contains(&accounts.bob)); // Original still there
+
+			// Try to add the same account again - should not duplicate
+			let result = contract.add_authorized_deliverer(accounts.charlie);
+			assert!(result.is_ok());
+			assert_eq!(contract.authorized_deliverers.len(), 2); // No duplicate
+
+			// Test unauthorized caller
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.eve); // Eve is not owner
+			let result = contract.add_authorized_deliverer(accounts.frank);
+			assert_eq!(result, Err(ContractError::Unauthorized));
 		}
 	}
 
