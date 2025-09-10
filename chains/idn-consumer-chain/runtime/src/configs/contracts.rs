@@ -14,48 +14,22 @@
  * limitations under the License.
  */
 
-use super::xcm_config;
 use crate::{
-	configs::EnsureXcm, weights::ContractsWeightInfo, AccountId, Balance, Balances, BalancesCall,
-	Perbill, RandomnessCollectiveFlip, Runtime, RuntimeCall, RuntimeEvent, RuntimeHoldReason,
-	RuntimeOrigin, Timestamp, MILLIUNIT, UNIT,
+	weights::ContractsWeightInfo, Balance, Balances, BalancesCall, Perbill,
+	RandomnessCollectiveFlip, Runtime, RuntimeCall, RuntimeEvent, RuntimeHoldReason, Timestamp,
+	MILLIUNIT, UNIT,
 };
 use frame_support::{
 	parameter_types,
-	traits::{ConstBool, ConstU32, EnsureOrigin, Equals},
+	traits::{ConstBool, ConstU32},
 };
 use frame_system::EnsureSigned;
-use xcm_executor::traits::ConvertLocation;
 
 pub enum AllowBalancesCall {}
 
 impl frame_support::traits::Contains<RuntimeCall> for AllowBalancesCall {
 	fn contains(call: &RuntimeCall) -> bool {
 		matches!(call, RuntimeCall::Balances(BalancesCall::transfer_allow_death { .. }))
-	}
-}
-
-/// Custom origin type that allows both signed users and XCM from IDN, converting both to AccountId.
-pub struct ContractsInstantiateOrigin;
-
-impl EnsureOrigin<RuntimeOrigin> for ContractsInstantiateOrigin {
-	type Success = AccountId;
-
-	fn try_origin(o: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
-		// Try signed origin first
-		if let Ok(account_id) = EnsureSigned::<AccountId>::try_origin(o.clone()) {
-			return Ok(account_id);
-		}
-
-		// Try XCM origin from IDN location
-		if let Ok(location) = EnsureXcm::<Equals<xcm_config::IdnLocation>>::try_origin(o.clone()) {
-			// Convert IDN location to its sovereign account on this chain
-			if let Some(account_id) = xcm_config::LocationToAccountId::convert_location(&location) {
-				return Ok(account_id);
-			}
-		}
-
-		Err(o)
 	}
 }
 
@@ -124,5 +98,5 @@ impl pallet_contracts::Config for Runtime {
 	type Migrations = pallet_contracts::migration::codegen::BenchMigrations;
 	type Xcm = pallet_xcm::Pallet<Self>;
 	type UploadOrigin = EnsureSigned<Self::AccountId>;
-	type InstantiateOrigin = ContractsInstantiateOrigin;
+	type InstantiateOrigin = EnsureSigned<Self::AccountId>;
 }
