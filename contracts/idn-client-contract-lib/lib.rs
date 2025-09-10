@@ -648,8 +648,14 @@ impl IdnClient {
 			0u8,
 			ink::env::account_id::<ink::env::DefaultEnvironment>(),
 			0u8, // value - no balance transfer needed for pulse callbacks
-			Weight::from_parts(10_000_000_000, 640 * 1024), // gas_limit - reasonable default
-			0u8, // storage_deposit_limit - use None for default
+			// 84_568_821_187
+			// 213_539_323_337
+			// 698_807_000_000
+			// 1_712_944
+			// 1_214_518_917_953
+			Weight::from_parts(2_000_000_000, 200_000), // gas_limit - reasonable default
+			0u8,                                        /* storage_deposit_limit - use None for
+			                                             * default */
 			// selector with dummy params, these dummy params are needed to get the full encoded
 			// length of the call data, which we will truncate later
 			(selector_id!("consume_pulse"), dummy_pulse.clone(), dummy_sub_id).encode(),

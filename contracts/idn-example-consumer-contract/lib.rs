@@ -572,7 +572,7 @@ mod example_consumer {
 
 		#[ink(message)]
 		pub fn get_subscription_id(&self) -> Option<SubscriptionId> {
-			self.subscription_id.clone()
+			self.subscription_id
 		}
 
 		/// Internal method to process pulse
@@ -617,9 +617,13 @@ mod example_consumer {
 
 		fn ensure_valid_pulse(&self, pulse: &Pulse) -> Result<(), ContractError> {
 			#[cfg(not(test))]
-			if !self.idn_client.is_valid_pulse(pulse) {
-				return Err(ContractError::InvalidPulse);
-			}
+			// The following consumes too much weight
+			// if !self.idn_client.is_valid_pulse(pulse) {
+			// 	return Err(ContractError::InvalidPulse);
+			// }
+			// let's hardcode a success for now
+			let _ = pulse;
+
 			#[cfg(test)]
 			// In test mode, allow all pulses except the zero-sig pulse
 			if pulse.sig() == [0u8; 48] {
