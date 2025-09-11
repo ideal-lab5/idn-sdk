@@ -133,7 +133,7 @@ use ink::{
 		Error as EnvError,
 	},
 	prelude::vec,
-	selector_id,
+	selector_bytes,
 	xcm::{
 		lts::{
 			prelude::{
@@ -150,12 +150,12 @@ use ink::{
 		VersionedLocation, VersionedXcm,
 	},
 };
-use parity_scale_codec::{Decode, Encode};
-use scale_info::prelude::boxed::Box;
+use parity_scale_codec::{Compact, Decode, Encode};
+use scale_info::prelude::{boxed::Box, vec::Vec};
 use sp_idn_traits::pulse::Pulse as TPulse;
 use types::{
-	CallData, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata, PalletIndex, ParaId,
-	Pulse, Quote, SubInfoResponse, SubscriptionId, UpdateSubParams,
+	AccountId, Balance, CallData, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata,
+	PalletIndex, ParaId, Pulse, Quote, SubInfoResponse, SubscriptionId, UpdateSubParams,
 };
 
 pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
@@ -163,6 +163,22 @@ pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
 /// Contract-compatible trait for hashing with a salt
 pub trait Hashable {
 	fn hash(&self, salt: &[u8]) -> [u8; 32];
+}
+
+#[derive(Encode, Decode)]
+pub struct ContractsCall {
+	pub dest: MultiAddress,
+	#[codec(compact)]
+	pub value: Balance,
+	pub gas_limit: Weight,
+	pub storage_deposit_limit: Option<Compact<Balance>>,
+	pub data: Vec<u8>,
+}
+
+#[derive(Encode, Decode)]
+pub enum MultiAddress {
+	/// It's an account ID (pubkey).
+	Id(AccountId),
 }
 
 impl<T> Hashable for T
@@ -542,6 +558,7 @@ impl IdnClient {
 	/// - `false` if validation fails (invalid signature, malformed data, etc.)
 	pub fn is_valid_pulse(&self, pulse: &Pulse) -> bool {
 		let pk = hex::decode(BEACON_PUBKEY).unwrap();
+		println!("Pubkey: {:?}", &pk);
 		pulse.authenticate(pk.try_into().expect("The public key is well-defined; qed."))
 	}
 
@@ -630,41 +647,76 @@ impl IdnClient {
 	}
 	/// Get the call data for the [`IdnConsumer::consume_pulse`] call
 	fn pulse_callback_data(&self) -> Result<CallData> {
+		// These dummy params are needed to get the full encoded
+		// length of the call data, which we will truncate later
 		let dummy_pulse = Pulse::default();
+		// let hex_sig =
+		// "922be446cd49ac9a0fac72559092728d55bc00023d8e432af3e78a580b20210b2953509350b5d1f90c3e4a036d5f7e1a"
+		// ; let sig_bytes = hex::decode(hex_sig).map_err(|_| Error::Other)?;
+		// let mut signature = [0u8; 48];
+		// signature.copy_from_slice(&sig_bytes[..48]);
+
+		// let dummy_pulse = Pulse::new(
+		// 	signature,
+		// 	21594552,
+		// 	21599653,
+		// );
 		let dummy_sub_id = SubscriptionId::default();
 
-		// We are creating the call with this format: `(pallet_index, call_index, dest, value,
-		// gas_limit, storage_deposit_limit, selector)`
-		// - **pallet_index**: The index of the contracts or revive pallet
-		// - **call_index**: The call index for the `call` dispatchable in the contracts pallet
-		// - **dest**: The AccountId of the target contract
-		// - **value**: The balance to send to the contract (usually 0)
-		// - **gas_limit**: The gas limit allocated for the contract execution
-		// - **storage_deposit_limit**: The maximum storage deposit allowed for the call
-		// - **selector**: The function selector for the `consume_pulse` function in the contract
-		let call = (
-			self.get_self_contracts_pallet_index(),
-			self.get_self_contract_call_index(),
-			0u8,
-			ink::env::account_id::<ink::env::DefaultEnvironment>(),
-			0u8, // value - no balance transfer needed for pulse callbacks
-			// 84_568_821_187
-			// 213_539_323_337
-			// 698_807_000_000
-			// 1_712_944
-			// 1_214_518_917_953
-			Weight::from_parts(2_000_000_000, 200_000), // gas_limit - reasonable default
-			0u8,                                        /* storage_deposit_limit - use None for
-			                                             * default */
-			// selector with dummy params, these dummy params are needed to get the full encoded
-			// length of the call data, which we will truncate later
-			(selector_id!("consume_pulse"), dummy_pulse.clone(), dummy_sub_id).encode(),
+		// let hex_sub_id = "daaf01df320643fd6bef7f80f98c79e731a46059aee680fe291f881c6cd73eed";
+		// let sig_bytes = hex::decode(hex_sub_id).map_err(|_| Error::Other)?;
+		// let mut dummy_sub_id = [0u8; 32];
+		// dummy_sub_id.copy_from_slice(&sig_bytes[..32]);
+
+		let params = (dummy_pulse, dummy_sub_id).encode();
+		let selector = selector_bytes!("IdnConsumer::consume_pulse");
+		let mut data = Vec::new();
+		data.extend_from_slice(&selector);
+		data.extend_from_slice(&params);
+
+		let mut call = self.generate_call(
+			0,             // value - no balance transfer needed for pulse callbacks
+			2_000_000_000, // gas_limit_ref_time - reasonable default
+			100_000,       // gas_limit_proof_size - reasonable default
+			None,          // storage_deposit_limit - use None for default
+			data,          // data - the encoded selector and params
 		);
 
-		let payload_length = dummy_pulse.encode().len().saturating_add(dummy_sub_id.encode().len());
-		let mut encoded_call = call.encode();
-		encoded_call.truncate(encoded_call.len().saturating_sub(payload_length));
-		CallData::try_from(encoded_call).map_err(|_| Error::CallDataTooLong)
+		// println!("Data: 0x{}", hex::encode(&call));
+
+		// Truncate the call data to remove the dummy params, real params will be provided by the
+		// IDN chain when dispatching the call
+		call.truncate(call.len().saturating_sub(params.len()));
+		CallData::try_from(call).map_err(|_| Error::CallDataTooLong)
+	}
+
+	fn generate_call(
+		&self,
+		value: Balance,
+		gas_limit_ref_time: u64,
+		gas_limit_proof_size: u64,
+		storage_deposit_limit: Option<Balance>,
+		data: Vec<u8>,
+	) -> Vec<u8> {
+		let mut encoded = Vec::new();
+
+		// Pallet and call indices as raw bytes
+		encoded.push(self.get_self_contracts_pallet_index());
+		encoded.push(self.get_self_contract_call_index());
+
+		// Create the call structure
+		let call = ContractsCall {
+			dest: MultiAddress::Id(ink::env::account_id::<ink::env::DefaultEnvironment>()),
+			value,
+			gas_limit: Weight::from_parts(gas_limit_ref_time, gas_limit_proof_size),
+			storage_deposit_limit: storage_deposit_limit.map(Compact),
+			data,
+		};
+
+		// Encode the call parameters
+		encoded.extend_from_slice(&call.encode());
+
+		encoded
 	}
 }
 
@@ -676,16 +728,29 @@ mod tests {
 		IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO,
 	};
 
-	#[test]
-	fn test_client_basic_functionality() {
-		let client = IdnClient::new(
+	fn mock_client() -> IdnClient {
+		IdnClient::new(
 			IDN_PARA_ID_PASEO,
 			IDN_MANAGER_PALLET_INDEX_PASEO,
 			CONSUMER_PARA_ID_PASEO,
 			CONTRACTS_PALLET_INDEX_PASEO,
 			CONTRACTS_CALL_INDEX,
 			1_000_000_000,
-		);
+		)
+	}
+
+	fn mock_pulse() -> Pulse {
+		let hex_sig = "922be446cd49ac9a0fac72559092728d55bc00023d8e432af3e78a580b20210b2953509350b5d1f90c3e4a036d5f7e1a";
+		let sig_bytes = hex::decode(hex_sig).unwrap();
+		let mut signature = [0u8; 48];
+		signature.copy_from_slice(&sig_bytes[..48]);
+
+		Pulse::new(signature, 21594552, 21599653)
+	}
+
+	#[test]
+	fn test_client_basic_functionality() {
+		let client = mock_client();
 
 		// Test getter methods
 		assert_eq!(client.get_idn_manager_pallet_index(), IDN_MANAGER_PALLET_INDEX_PASEO);
@@ -700,14 +765,7 @@ mod tests {
 
 	#[test]
 	fn test_create_subscription_parameters() {
-		let _client = IdnClient::new(
-			IDN_PARA_ID_PASEO,
-			IDN_MANAGER_PALLET_INDEX_PASEO,
-			CONSUMER_PARA_ID_PASEO,
-			CONTRACTS_PALLET_INDEX_PASEO,
-			CONTRACTS_CALL_INDEX,
-			1_000_000_000,
-		);
+		let _client = mock_client();
 
 		// Test create subscription with provided sub_id
 		// Note: In real scenarios this would send XCM but we can't test that in unit tests
@@ -736,14 +794,7 @@ mod tests {
 	#[test]
 	fn test_client_encoding_decoding() {
 		// Create a client
-		let client = IdnClient::new(
-			IDN_PARA_ID_PASEO,
-			IDN_MANAGER_PALLET_INDEX_PASEO,
-			CONSUMER_PARA_ID_PASEO,
-			CONTRACTS_PALLET_INDEX_PASEO,
-			CONTRACTS_CALL_INDEX,
-			1_000_000_000,
-		);
+		let client = mock_client();
 
 		// Encode the client
 		let encoded = client.encode();
@@ -764,14 +815,7 @@ mod tests {
 
 	#[test]
 	fn test_edge_cases() {
-		let client = IdnClient::new(
-			IDN_PARA_ID_PASEO,
-			IDN_MANAGER_PALLET_INDEX_PASEO,
-			CONSUMER_PARA_ID_PASEO,
-			CONTRACTS_PALLET_INDEX_PASEO,
-			CONTRACTS_CALL_INDEX,
-			1_000_000_000,
-		);
+		let client = mock_client();
 
 		// Test constructor with edge case values
 		let edge_client = IdnClient::new(u32::MAX, u8::MAX, u32::MAX, u8::MAX, u8::MAX, u128::MAX);
@@ -806,14 +850,7 @@ mod tests {
 
 	#[test]
 	fn test_subscription_management_api() {
-		let _client = IdnClient::new(
-			IDN_PARA_ID_PASEO,
-			IDN_MANAGER_PALLET_INDEX_PASEO,
-			CONSUMER_PARA_ID_PASEO,
-			CONTRACTS_PALLET_INDEX_PASEO,
-			CONTRACTS_CALL_INDEX,
-			1_000_000_000,
-		);
+		let _client = mock_client();
 		let _sub_id = [123u8; 32];
 
 		// Test that the API methods compile and have correct signatures
@@ -843,14 +880,7 @@ mod tests {
 
 	#[test]
 	fn test_update_subscription_api() {
-		let _client = IdnClient::new(
-			IDN_PARA_ID_PASEO,
-			IDN_MANAGER_PALLET_INDEX_PASEO,
-			CONSUMER_PARA_ID_PASEO,
-			CONTRACTS_PALLET_INDEX_PASEO,
-			CONTRACTS_CALL_INDEX,
-			1_000_000_000,
-		);
+		let _client = mock_client();
 		let _sub_id = [123u8; 32];
 
 		// Test update subscription API with different parameter combinations
@@ -882,14 +912,7 @@ mod tests {
 
 	#[test]
 	fn test_create_subscription_maximum_values() {
-		let _client = IdnClient::new(
-			IDN_PARA_ID_PASEO,
-			IDN_MANAGER_PALLET_INDEX_PASEO,
-			CONSUMER_PARA_ID_PASEO,
-			CONTRACTS_PALLET_INDEX_PASEO,
-			CONTRACTS_CALL_INDEX,
-			1_000_000_000,
-		);
+		let _client = mock_client();
 
 		// Test create subscription API with maximum values
 		let max_values_result = std::panic::catch_unwind(|| {
@@ -924,14 +947,7 @@ mod tests {
 		let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
 		ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 
-		let client = IdnClient::new(
-			IDN_PARA_ID_PASEO,
-			IDN_MANAGER_PALLET_INDEX_PASEO,
-			CONSUMER_PARA_ID_PASEO,
-			CONTRACTS_PALLET_INDEX_PASEO,
-			CONTRACTS_CALL_INDEX,
-			1_000_000_000,
-		);
+		let client = mock_client();
 
 		// Test that pulse callback data is generated correctly
 		let callback_data = client.pulse_callback_data();
@@ -956,14 +972,7 @@ mod tests {
 		let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
 		ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 
-		let client = IdnClient::new(
-			IDN_PARA_ID_PASEO,
-			IDN_MANAGER_PALLET_INDEX_PASEO,
-			CONSUMER_PARA_ID_PASEO,
-			CONTRACTS_PALLET_INDEX_PASEO,
-			CONTRACTS_CALL_INDEX,
-			1_000_000_000,
-		);
+		let client = mock_client();
 
 		// Test sibling IDN location
 		let idn_location = client.sibling_idn_location();
@@ -993,5 +1002,14 @@ mod tests {
 			};
 		});
 		assert!(result.is_ok());
+	}
+
+	#[test]
+	fn test_is_valid_pulse() {
+		// Test with a dummy pulse (invalid)
+		let dummy_pulse = Pulse::default();
+		assert!(!mock_client().is_valid_pulse(&dummy_pulse));
+
+		// assert!(mock_client().is_valid_pulse(&mock_pulse()));
 	}
 }

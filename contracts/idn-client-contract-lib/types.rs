@@ -18,15 +18,19 @@ use crate::constants::{
 	CONSUMER_PARA_ID_PASEO, CONTRACTS_CALL_INDEX, CONTRACTS_PALLET_INDEX_PASEO,
 	IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO, SOVEREIGN_ACCOUNT_IDN_PASEO,
 };
+use ink::env::DefaultEnvironment;
 
 pub use bp_idn::types::{
 	xcm as IdnXcm, Balance as IdnBalance, BlockNumber as IdnBlockNumber, CallData, CreateSubParams,
-	Credits, Metadata, Quote, RuntimePulse as Pulse, SubInfoResponse, SubscriptionId,
-	UpdateSubParams,
+	Credits, Metadata, OpaqueSignature as Pubkey, Quote, RuntimePulse as Pulse, SubInfoResponse,
+	SubscriptionId, UpdateSubParams,
 };
-
 pub type ParaId = u32;
 pub type PalletIndex = u8;
+pub use ink::primitives::AccountId;
+
+// Get the Balance type from the environment
+pub type Balance = <DefaultEnvironment as ink::env::Environment>::Balance;
 
 /// Parachain ID for the Ideal Network on the relay chain
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

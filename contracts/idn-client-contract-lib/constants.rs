@@ -16,7 +16,7 @@
 
 //! Constants for the IDN Client Contract Library
 
-use crate::types::{PalletIndex, ParaId};
+use crate::types::{PalletIndex, ParaId, Pubkey};
 
 /// BLS12-381 beacon public key for drand's Quicknet
 ///
