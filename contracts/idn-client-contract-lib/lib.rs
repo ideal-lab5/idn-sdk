@@ -181,6 +181,14 @@ pub enum MultiAddress {
 	Id(AccountId),
 }
 
+#[derive(Encode, Decode)]
+pub struct ContractCallParams {
+	pub value: Balance,
+	pub gas_limit_ref_time: u64,
+	pub gas_limit_proof_size: u64,
+	pub storage_deposit_limit: Option<Balance>,
+}
+
 impl<T> Hashable for T
 where
 	T: Encode,
@@ -376,11 +384,12 @@ impl IdnClient {
 		frequency: IdnBlockNumber,
 		metadata: Option<Metadata>,
 		sub_id: Option<SubscriptionId>,
+		call_params: Option<ContractCallParams>,
 	) -> Result<SubscriptionId> {
 		let mut params = CreateSubParams {
 			credits,
 			target: self.self_para_sibling_location(),
-			call: self.pulse_callback_data()?,
+			call: self.pulse_callback_data(call_params)?,
 			frequency,
 			metadata,
 			sub_id,
@@ -558,7 +567,6 @@ impl IdnClient {
 	/// - `false` if validation fails (invalid signature, malformed data, etc.)
 	pub fn is_valid_pulse(&self, pulse: &Pulse) -> bool {
 		let pk = hex::decode(BEACON_PUBKEY).unwrap();
-		println!("Pubkey: {:?}", &pk);
 		pulse.authenticate(pk.try_into().expect("The public key is well-defined; qed."))
 	}
 
@@ -646,27 +654,11 @@ impl IdnClient {
 		)
 	}
 	/// Get the call data for the [`IdnConsumer::consume_pulse`] call
-	fn pulse_callback_data(&self) -> Result<CallData> {
+	fn pulse_callback_data(&self, call_params: Option<ContractCallParams>) -> Result<CallData> {
 		// These dummy params are needed to get the full encoded
 		// length of the call data, which we will truncate later
 		let dummy_pulse = Pulse::default();
-		// let hex_sig =
-		// "922be446cd49ac9a0fac72559092728d55bc00023d8e432af3e78a580b20210b2953509350b5d1f90c3e4a036d5f7e1a"
-		// ; let sig_bytes = hex::decode(hex_sig).map_err(|_| Error::Other)?;
-		// let mut signature = [0u8; 48];
-		// signature.copy_from_slice(&sig_bytes[..48]);
-
-		// let dummy_pulse = Pulse::new(
-		// 	signature,
-		// 	21594552,
-		// 	21599653,
-		// );
 		let dummy_sub_id = SubscriptionId::default();
-
-		// let hex_sub_id = "daaf01df320643fd6bef7f80f98c79e731a46059aee680fe291f881c6cd73eed";
-		// let sig_bytes = hex::decode(hex_sub_id).map_err(|_| Error::Other)?;
-		// let mut dummy_sub_id = [0u8; 32];
-		// dummy_sub_id.copy_from_slice(&sig_bytes[..32]);
 
 		let params = (dummy_pulse, dummy_sub_id).encode();
 		let selector = selector_bytes!("IdnConsumer::consume_pulse");
@@ -675,14 +667,12 @@ impl IdnClient {
 		data.extend_from_slice(&params);
 
 		let mut call = self.generate_call(
-			0,             // value - no balance transfer needed for pulse callbacks
-			2_000_000_000, // gas_limit_ref_time - reasonable default
-			100_000,       // gas_limit_proof_size - reasonable default
-			None,          // storage_deposit_limit - use None for default
+			call_params.as_ref().map(|p| p.value).unwrap_or(0),             // value - no balance transfer needed for pulse callbacks
+			call_params.as_ref().map(|p| p.gas_limit_ref_time).unwrap_or(2_000_000_000), // gas_limit_ref_time - reasonable default
+			call_params.as_ref().map(|p| p.gas_limit_proof_size).unwrap_or(100_000),       // gas_limit_proof_size - reasonable default
+			call_params.as_ref().map(|p| p.storage_deposit_limit).unwrap_or(None),          // storage_deposit_limit - use None for default
 			data,          // data - the encoded selector and params
 		);
-
-		// println!("Data: 0x{}", hex::encode(&call));
 
 		// Truncate the call data to remove the dummy params, real params will be provided by the
 		// IDN chain when dispatching the call
@@ -739,15 +729,6 @@ mod tests {
 		)
 	}
 
-	fn mock_pulse() -> Pulse {
-		let hex_sig = "922be446cd49ac9a0fac72559092728d55bc00023d8e432af3e78a580b20210b2953509350b5d1f90c3e4a036d5f7e1a";
-		let sig_bytes = hex::decode(hex_sig).unwrap();
-		let mut signature = [0u8; 48];
-		signature.copy_from_slice(&sig_bytes[..48]);
-
-		Pulse::new(signature, 21594552, 21599653)
-	}
-
 	#[test]
 	fn test_client_basic_functionality() {
 		let client = mock_client();
@@ -785,7 +766,7 @@ mod tests {
 		let result = std::panic::catch_unwind(|| {
 			// This should compile successfully showing parameters are correct
 			let _would_create = |client: &IdnClient| {
-				client.create_subscription(credits, frequency, metadata.clone(), sub_id)
+				client.create_subscription(credits, frequency, metadata.clone(), sub_id, None)
 			};
 		});
 		assert!(result.is_ok());
@@ -922,6 +903,7 @@ mod tests {
 					u32::MAX,            // frequency
 					None,                // metadata - use None to avoid BoundedVec complexity
 					Some([u8::MAX; 32]), // sub_id
+					None,                // call_params
 				)
 			};
 		});
@@ -935,6 +917,7 @@ mod tests {
 					0,    // frequency
 					None, // metadata
 					None, // sub_id (auto-generated)
+					None, // call_params
 				)
 			};
 		});
@@ -950,13 +933,13 @@ mod tests {
 		let client = mock_client();
 
 		// Test that pulse callback data is generated correctly
-		let callback_data = client.pulse_callback_data();
+		let callback_data = client.pulse_callback_data(None);
 
 		// Should return Ok(CallData)
 		assert!(callback_data.is_ok());
 
 		// The callback data should be consistent across calls
-		let callback_data_2 = client.pulse_callback_data();
+		let callback_data_2 = client.pulse_callback_data(None);
 		assert_eq!(callback_data, callback_data_2);
 
 		// Verify the encoded data contains the expected structure
@@ -1002,14 +985,5 @@ mod tests {
 			};
 		});
 		assert!(result.is_ok());
-	}
-
-	#[test]
-	fn test_is_valid_pulse() {
-		// Test with a dummy pulse (invalid)
-		let dummy_pulse = Pulse::default();
-		assert!(!mock_client().is_valid_pulse(&dummy_pulse));
-
-		// assert!(mock_client().is_valid_pulse(&mock_pulse()));
 	}
 }

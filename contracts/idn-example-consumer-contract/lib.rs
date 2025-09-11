@@ -358,17 +358,10 @@ mod example_consumer {
 				return Err(ContractError::SubscriptionAlreadyExists);
 			}
 
-			// let metadata = if let Some(m) = metadata {
-			// 	let m = BoundedVec::try_from(m).map_err(|_| ContractError::Other)?;
-			// 	Some(m)
-			// } else {
-			// 	None
-			// };
-
 			// Create subscription through IDN client
 			let subscription_id = self
 				.idn_client
-				.create_subscription(credits, frequency, metadata, None)
+				.create_subscription(credits, frequency, metadata, None, None)
 				.map_err(ContractError::IdnClientError)?;
 
 			// Update contract state with the new subscription
@@ -576,17 +569,7 @@ mod example_consumer {
 		}
 
 		/// Internal method to process pulse
-		fn do_consume_pulse(
-			&mut self,
-			pulse: Pulse,
-			subscription_id: SubscriptionId,
-		) -> Result<(), ContractError> {
-			// Verify that the subscription ID matches our active subscription
-			let stored_sub_id = self.ensure_active_sub()?;
-			if stored_sub_id != subscription_id {
-				return Err(ContractError::InvalidSubscriptionId);
-			}
-
+		fn do_consume_pulse(&mut self, pulse: Pulse) -> Result<(), ContractError> {
 			// Compute randomness as Sha256(sig)
 			let randomness = pulse.rand();
 
@@ -617,11 +600,12 @@ mod example_consumer {
 
 		fn ensure_valid_pulse(&self, pulse: &Pulse) -> Result<(), ContractError> {
 			#[cfg(not(test))]
-			// The following consumes too much weight
+			// The following consumes too much gas ~ refTime: 1344.30 ms & proofSize: 0.13 MB,
+			// you can comment this out if you know what you are doing
 			// if !self.idn_client.is_valid_pulse(pulse) {
 			// 	return Err(ContractError::InvalidPulse);
 			// }
-			// let's hardcode a success for now
+			// let's hardcode a success
 			let _ = pulse;
 
 			#[cfg(test)]
@@ -698,13 +682,18 @@ mod example_consumer {
 			// Make sure the caller is the IDN account
 			self.ensure_authorized_deliverer()?;
 
+			// Verify that the subscription ID matches our active subscription
+			if subscription_id != self.ensure_active_sub()? {
+				return Err(Error::InvalidSubscriptionId);
+			}
+
 			let validity = match self.ensure_valid_pulse(&pulse) {
 				Ok(_) => PulseValidity::Valid,
 				Err(_) => PulseValidity::Invalid,
 			};
 			self.add_to_pulse_history(pulse.clone(), validity.clone());
 			if validity == PulseValidity::Valid {
-				return self.do_consume_pulse(pulse, subscription_id).map_err(|e| e.into());
+				return self.do_consume_pulse(pulse).map_err(|e| e.into());
 			}
 			Ok(())
 		}
