@@ -92,16 +92,32 @@
 //!
 //! ### Fee Management
 //!
-//! XCM execution requires fees paid in the target chain's native asset:
+//! XCM execution requires fees paid in relay chain native tokens and involves bilateral funding
+//! requirements:
 //!
 //! - **Fees**: The `max_idn_xcm_fees` parameter sets the maximum fees to pay for the execution of a
-//!   single XCM message sent to the IDN chain, expressed in the IDN asset.
-//! - **Asset Handling**: Fees are automatically withdrawn from the contract's account
+//!   single XCM message sent to the IDN chain, expressed in relay chain native tokens (DOT/PAS).
+//! - **Asset Handling**: Fees are automatically withdrawn from the contract's sovereign account
 //! - **Surplus Refund**: Unused fees are refunded back to the contract after execution
 //! - **Fee Assets**: Uses the relay chain's native token (DOT/PAS) for XCM execution
 //!
-//! The library handles all fee-related XCM instructions automatically, ensuring contracts
-//! only need to maintain sufficient balance for their subscription operations.
+//! #### Bilateral Funding Requirements
+//!
+//! IDN contract integration requires **two separate accounts** to be funded for proper operation:
+//!
+//! 1. **Contract's Sovereign Account on IDN Chain**: Required for subscription operations
+//!    - Used for: `create_subscription`, `pause_subscription`, `update_subscription`, etc.
+//!    - Must be funded with: Relay chain native tokens (DOT/PAS)
+//!    - Derivation: `Location(1, [Parachain(consumer_para_id), AccountId32(contract_account)])`
+//!
+//! 2. **IDN's Sovereign Account on Consumer Chain**: Required for randomness delivery
+//!    - Used for: Executing contract calls to deliver randomness pulses
+//!    - Must be funded with: Consumer chain's native tokens
+//!    - Derivation: `Location(1, [Parachain(idn_para_id)])`
+//!    - Paseo address: `5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n`
+//!
+//! The library handles all fee-related XCM instructions automatically, but both accounts
+//! must be adequately funded or operations will fail with "Funds are unavailable" errors.
 //!
 //! ### Metadata Management
 //!
@@ -161,38 +177,85 @@ use types::{
 pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
 
 /// Contract-compatible trait for hashing with a salt
+///
+/// This trait provides a standardized way to hash data with a salt value,
+/// commonly used for generating deterministic identifiers in contract contexts.
 pub trait Hashable {
+	/// Generates a 32-byte hash of the implementor combined with a salt
+	///
+	/// # Parameters
+	/// - `salt`: Additional entropy to include in the hash calculation
+	///
+	/// # Returns
+	/// A 32-byte Blake2x256 hash of the encoded data and salt
 	fn hash(&self, salt: &[u8]) -> [u8; 32];
 }
 
+/// Parameters for a contract call within the XCM execution context
+///
+/// This struct represents the parameters needed to execute a contract call
+/// via XCM messaging, mirroring the contracts pallet's call interface.
 #[derive(Encode, Decode)]
 pub struct ContractsCall {
+	/// Target contract address for the call
 	pub dest: MultiAddress,
+	/// Native token value to transfer with the call
 	#[codec(compact)]
 	pub value: Balance,
+	/// Maximum computational and storage weight for the call
 	pub gas_limit: Weight,
+	/// Optional limit for storage deposits required by the call
 	pub storage_deposit_limit: Option<Compact<Balance>>,
+	/// Encoded call data including selector and parameters
 	pub data: Vec<u8>,
 }
 
+/// Address format for contract calls
+///
+/// Represents different ways to address an account in the runtime.
+/// Currently only supports direct account ID addressing.
 #[derive(Encode, Decode)]
 pub enum MultiAddress {
-	/// It's an account ID (pubkey).
+	/// Direct account ID (32-byte public key)
 	Id(AccountId),
 }
 
+/// Parameters for configuring contract call execution
+///
+/// These parameters control the execution environment and resource limits
+/// for contract calls initiated through the IDN client.
 #[derive(Encode, Decode)]
 pub struct ContractCallParams {
+	/// Native token value to transfer with the call
 	pub value: Balance,
+	/// Maximum reference time (computational cycles) for call execution
 	pub gas_limit_ref_time: u64,
+	/// Maximum proof size (storage proof bytes) for call execution
 	pub gas_limit_proof_size: u64,
+	/// Optional limit for storage deposits required by the call
 	pub storage_deposit_limit: Option<Balance>,
 }
 
+/// Default implementation of Hashable for any encodable type
+///
+/// This implementation combines the encoded form of the implementor with
+/// the provided salt and produces a Blake2x256 hash.
 impl<T> Hashable for T
 where
 	T: Encode,
 {
+	/// Generates a deterministic hash by encoding the value with salt
+	///
+	/// The implementation:
+	/// 1. Creates a tuple of (self, salt)
+	/// 2. Encodes the tuple using SCALE codec
+	/// 3. Computes Blake2x256 hash of the encoded data
+	///
+	/// # Parameters
+	/// - `salt`: Additional entropy for hash uniqueness
+	///
+	/// # Returns
+	/// 32-byte Blake2x256 hash digest
 	fn hash(&self, salt: &[u8]) -> [u8; 32] {
 		let id_tuple = (self, salt);
 		// Encode the tuple using SCALE codec
@@ -233,7 +296,17 @@ pub enum Error {
 	Other,
 }
 
+/// Automatic conversion from ink! environment errors to IDN client errors
+///
+/// This implementation provides seamless error handling between the ink! runtime
+/// environment and the IDN client library, particularly for XCM-related operations.
 impl From<EnvError> for Error {
+	/// Converts ink! environment errors into IDN-specific error types
+	///
+	/// # Error Mapping
+	/// - `XcmExecutionFailed` → [`Error::XcmExecutionFailed`]
+	/// - `XcmSendFailed` → [`Error::XcmSendFailed`]
+	/// - All other errors → [`Error::NonXcmEnvError`]
 	fn from(env_error: EnvError) -> Self {
 		use ink::env::ReturnErrorCode;
 		match env_error {
@@ -245,6 +318,9 @@ impl From<EnvError> for Error {
 }
 
 /// Result type for IDN client operations
+///
+/// This type alias simplifies error handling throughout the IDN client library.
+/// All public methods return this Result type with library-specific [`Error`] variants.
 pub type Result<T> = core::result::Result<T, Error>;
 
 /// Trait for contracts that receive data from the IDN Network
@@ -290,7 +366,23 @@ pub trait IdnConsumer {
 	fn consume_sub_info(&mut self, sub_info: SubInfoResponse) -> Result<()>;
 }
 
-/// Implementation of the IDN Client
+/// Implementation of the IDN Client for cross-chain randomness operations
+///
+/// The `IdnClient` serves as the primary interface for ink! smart contracts to interact
+/// with the Ideal Network's randomness beacon services. It encapsulates all necessary
+/// configuration parameters and provides methods for subscription management, randomness
+/// consumption, and cross-chain communication via XCM.
+///
+/// # Configuration Parameters
+/// - IDN network identification (parachain ID, pallet indices)
+/// - Consumer chain identification (parachain ID, pallet indices)
+/// - XCM fee management settings
+///
+/// # Key Capabilities
+/// - Create, pause, reactivate, and terminate randomness subscriptions
+/// - Handle cross-chain message construction and dispatch
+/// - Validate cryptographic authenticity of randomness pulses
+/// - Manage XCM execution fees and refunds
 #[derive(Clone, Copy, Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
 pub struct IdnClient {
@@ -306,17 +398,23 @@ pub struct IdnClient {
 	/// on
 	pub self_contract_call_index: u8,
 	/// The maximum fees to pay for the execution of a single XCM message sent to the
-	/// IDN chain, expressed in the IDN asset.
+	/// IDN chain, expressed in relay chain native tokens (DOT/PAS).
 	pub max_idn_xcm_fees: u128,
 }
 
 impl IdnClient {
-	/// Creates a new IdnClient with the specified IDN Manager pallet index and parachain ID
+	/// Creates a new IdnClient with the specified configuration parameters
 	///
 	/// # Arguments
-	///
-	/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet
 	/// * `idn_para_id` - The parachain ID of the IDN network
+	/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet
+	/// * `self_para_id` - The parachain ID where this contract is deployed
+	/// * `self_contracts_pallet_index` - The contracts pallet index on this parachain
+	/// * `self_contract_call_index` - The call index for the contracts pallet's call dispatchable
+	/// * `max_idn_xcm_fees` - Maximum fees to pay for XCM execution (in relay chain native tokens)
+	///
+	/// # Returns
+	/// A new `IdnClient` instance configured for cross-chain randomness operations
 	pub fn new(
 		idn_para_id: ParaId,
 		idn_manager_pallet_index: PalletIndex,
@@ -336,26 +434,41 @@ impl IdnClient {
 	}
 
 	/// Gets the pallet index for the IDN Manager pallet
+	///
+	/// # Returns
+	/// The pallet index used to construct XCM calls to the IDN Manager
 	pub fn get_idn_manager_pallet_index(&self) -> PalletIndex {
 		self.idn_manager_pallet_index
 	}
 
 	/// Gets the parachain ID of the IDN network
+	///
+	/// # Returns
+	/// The parachain ID where IDN services are hosted
 	pub fn get_idn_para_id(&self) -> ParaId {
 		self.idn_para_id
 	}
 
 	/// Gets the contracts pallet index for this parachain
+	///
+	/// # Returns
+	/// The pallet index for the contracts pallet on the consumer parachain
 	pub fn get_self_contracts_pallet_index(&self) -> PalletIndex {
 		self.self_contracts_pallet_index
 	}
 
 	/// Gets the call index for the contracts pallet's `call` dispatchable
+	///
+	/// # Returns
+	/// The call index used to construct contract invocation calls via XCM
 	pub fn get_self_contract_call_index(&self) -> u8 {
 		self.self_contract_call_index
 	}
 
 	/// Gets the parachain ID of this parachain
+	///
+	/// # Returns
+	/// The parachain ID where this contract is deployed
 	pub fn get_self_para_id(&self) -> ParaId {
 		self.self_para_id
 	}
@@ -574,11 +687,13 @@ impl IdnClient {
 		pulse.authenticate(pk.try_into().expect("The public key is well-defined; qed."))
 	}
 
-	/// Get this parachain's Location as a sibling of the IDN chain.
+	/// Get this parachain's Location as a sibling of the IDN chain
+	///
+	/// Constructs an XCM Location that identifies this parachain from the perspective
+	/// of the IDN chain, used for targeting XCM messages back to this contract.
 	///
 	/// # Returns
-	///
-	/// * A MultiLocation targeting the contract via XCM
+	/// An XCM Location with `parents: 1` (relay chain) and interior `Parachain(self_para_id)`
 	fn self_para_sibling_location(&self) -> IdnXcm::Location {
 		IdnXcm::Location {
 			parents: 1, // Go up to the relay chain
@@ -593,23 +708,25 @@ impl IdnClient {
 	///
 	/// This function constructs and dispatches an XCM message using the provided `RuntimeCall`.
 	/// The message includes the following instructions:
-	/// - `WithdrawAsset`: Withdraws the specified asset (IDN fee) from the sender's account.
+	/// - `WithdrawAsset`: Withdraws relay chain native tokens (DOT/PAS) from the contract's
+	///   sovereign account on the IDN chain for XCM execution fees.
 	/// - `BuyExecution`: Pays for the execution of the XCM message with the withdrawn asset.
-	/// - `Transact`: Executes the provided `RuntimeCall` on the target chain.
-	/// - `RefundSurplus`: Refunds any surplus fees to the sender.
-	/// - `DepositAsset`: Deposits the refunded asset back into the sender's account.
+	/// - `Transact`: Executes the provided `RuntimeCall` on the IDN chain.
+	/// - `RefundSurplus`: Refunds any surplus fees back to the contract's sovereign account.
+	/// - `DepositAsset`: Deposits the refunded asset back into the contract's sovereign account.
 	///
-	/// The function ensures that the XCM message is properly versioned and sent to the target
-	/// location (`SiblingIdnLocation`). If the message fails to send, an `XcmSendError` is
-	/// returned.
+	/// # Funding Requirements
+	///
+	/// The contract's sovereign account on the IDN chain must be funded with sufficient relay chain
+	/// native tokens before calling this method. The sovereign account is derived from:
+	/// `Location(1, [Parachain(consumer_para_id), AccountId32(contract_account)])`
 	///
 	/// # Parameters
-	/// - `origin`: The origin of the call.
-	/// - `call`: The `RuntimeCall` to be executed on the target chain.
+	/// - `call`: The `RuntimeCall` to be executed on the IDN chain.
 	///
 	/// # Returns
 	/// - `Ok(())` if the message is successfully sent.
-	/// - `Err(Error<T>)` if the message fails to send.
+	/// - `Err(Error::XcmSendFailed)` if the message fails to send.
 	fn xcm_send(&self, call: RuntimeCall) -> Result<()> {
 		let idn_fee_asset = Asset {
 			id: AssetId(Location { parents: 1, interior: Junctions::Here }),
@@ -643,11 +760,24 @@ impl IdnClient {
 	}
 
 	/// Helper function to get the sibling location of the IDN parachain
+	///
+	/// Creates an XCM Location targeting the IDN parachain from this parachain's perspective.
+	/// Used as the destination for XCM messages sent to IDN services.
+	///
+	/// # Returns
+	/// Location with `parents: 1` (relay chain) and junction `Parachain(idn_para_id)`
 	fn sibling_idn_location(&self) -> Location {
 		Location::new(1, Junction::Parachain(self.get_idn_para_id()))
 	}
 
 	/// Helper function to get the location of this contract's address on the IDN parachain
+	///
+	/// Creates an XCM Location representing this contract's account from the IDN chain's
+	/// perspective. Used for XCM fee refunds and asset deposits back to the contract's sovereign
+	/// account.
+	///
+	/// # Returns
+	/// Location with `parents: 0` (local to IDN) and junction `AccountId32(contract_account)`
 	fn contract_idn_location(&self) -> Location {
 		Location::new(
 			0,
@@ -658,6 +788,26 @@ impl IdnClient {
 		)
 	}
 	/// Get the call data for the [`IdnConsumer::consume_pulse`] call
+	///
+	/// Constructs the encoded call data needed for the IDN chain to invoke the
+	/// `consume_pulse` method on this contract when delivering randomness pulses.
+	/// The call data includes the method selector and placeholder parameters that
+	/// will be replaced with actual pulse data during XCM execution.
+	///
+	/// # Process
+	/// 1. Creates dummy pulse and subscription ID for call data sizing
+	/// 2. Encodes the method selector for `IdnConsumer::consume_pulse`
+	/// 3. Generates a complete contract call with gas limits and parameters
+	/// 4. Truncates dummy parameters, leaving space for real data injection
+	///
+	/// # Parameters
+	/// - `call_params`: Optional execution parameters (gas limits, storage deposits)
+	///
+	/// # Returns
+	/// Encoded call data ready for XCM contract invocation
+	///
+	/// # Errors
+	/// - [`Error::CallDataTooLong`]: If the generated call data exceeds size limits
 	fn pulse_callback_data(&self, call_params: Option<ContractCallParams>) -> Result<CallData> {
 		// These dummy params are needed to get the full encoded
 		// length of the call data, which we will truncate later
@@ -684,6 +834,26 @@ impl IdnClient {
 		CallData::try_from(call).map_err(|_| Error::CallDataTooLong)
 	}
 
+	/// Generates encoded call data for contract invocation via XCM
+	///
+	/// This internal method constructs the complete encoded call data needed for the
+	/// IDN chain to invoke contract methods through XCM. It combines pallet/call indices
+	/// with the contract call parameters to create a dispatchable runtime call.
+	///
+	/// # Call Structure
+	/// The generated call follows the format:
+	/// `[pallet_index][call_index][ContractsCall(dest, value, gas_limit, storage_deposit_limit,
+	/// data)]`
+	///
+	/// # Parameters
+	/// - `value`: Native tokens to transfer with the call
+	/// - `gas_limit_ref_time`: Maximum computational time for execution
+	/// - `gas_limit_proof_size`: Maximum storage proof size
+	/// - `storage_deposit_limit`: Optional storage deposit limit
+	/// - `data`: Method selector and encoded parameters
+	///
+	/// # Returns
+	/// Complete encoded call data ready for XCM `Transact` instruction
 	fn generate_call(
 		&self,
 		value: Balance,
