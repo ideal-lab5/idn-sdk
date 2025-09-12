@@ -116,7 +116,11 @@ impl pallet_contracts::Config for Runtime {
 	// if a too-large contract is uploaded. We noticed that it poses
 	// less friction during development when the requirement here is
 	// just more lax.
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	type MaxCodeLen = ConstU32<{ 256 * 1024 }>;
+	// benchmarking exceeds the standard MaxCodeLen when running.
+	#[cfg(feature = "runtime-benchmarks")]
+	type MaxCodeLen = ConstU32<{ 128 * 1024 * 1024 }>;
 	type MaxDebugBufferLen = ConstU32<{ 2 * 1024 * 1024 }>;
 	type MaxDelegateDependencies = ConstU32<32>;
 	type MaxStorageKeyLen = ConstU32<128>;
