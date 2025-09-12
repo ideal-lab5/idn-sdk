@@ -1075,7 +1075,7 @@ impl<T: Config> Pallet<T> {
 	fn xcm_send(target: &Location, call: DoubleEncoded<()>) -> DispatchResult {
 		let msg = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
-			Transact { origin_kind: OriginKind::Xcm, fallback_max_weight: None, call },
+			Transact { origin_kind: OriginKind::SovereignAccount, fallback_max_weight: None, call },
 		]);
 		let versioned_target: Box<VersionedLocation> =
 			Box::new(VersionedLocation::V5(target.clone()));

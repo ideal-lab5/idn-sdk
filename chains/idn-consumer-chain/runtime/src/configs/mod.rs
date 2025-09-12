@@ -52,6 +52,7 @@ use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
 use xcm::latest::prelude::BodyId;
+use xcm_executor::traits::ConvertLocation;
 
 // Local module imports
 use super::{
@@ -315,23 +316,36 @@ parameter_types! {
 	pub IdnConsumerParaId: ParaId = ParachainInfo::parachain_id();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 	pub const MaxIdnXcmFees: u128 = 1_000_000_000_000;
+	pub IdnSovereignAccount: AccountId = {
+		let idn_location = xcm::v5::Location::new(1, xcm::v5::Junction::Parachain(crate::constants::IDN_PARACHAIN_ID));
+		xcm_config::LocationToAccountId::convert_location(&idn_location)
+			.expect("IDN sovereign account derivation failed")
+	};
 }
 
-#[cfg(feature = "runtime-benchmarks")]
-mod bench_ensure_origin {
-	use crate::RuntimeOrigin;
-	use frame_support::pallet_prelude::EnsureOrigin;
-	use xcm::v5::{prelude::Junction, Location};
+pub struct EnsureIdnSovereignAccount;
+impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for EnsureIdnSovereignAccount {
+	type Success = AccountId;
 
-	pub struct BenchEnsureOrigin;
-	impl EnsureOrigin<RuntimeOrigin> for BenchEnsureOrigin {
-		type Success = Location;
-		fn try_origin(_origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
-			Ok(Location::new(1, Junction::Parachain(88)))
+	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+		match frame_system::ensure_signed(origin.clone()) {
+			Ok(account_id) => {
+				#[cfg(feature = "runtime-benchmarks")]
+				return Ok(account_id);
+				#[cfg(not(feature = "runtime-benchmarks"))]
+				if account_id == IdnSovereignAccount::get() {
+					Ok(account_id)
+				} else {
+					Err(origin)
+				}
+			},
+			Err(_) => Err(origin),
 		}
-		fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
-			Ok(RuntimeOrigin::root())
-		}
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+		Ok(RuntimeOrigin::signed(IdnSovereignAccount::get()))
 	}
 }
 
@@ -341,10 +355,7 @@ impl pallet_idn_consumer::Config for Runtime {
 	type QuoteConsumer = QuoteConsumerImpl;
 	type SubInfoConsumer = SubInfoConsumerImpl;
 	type SiblingIdnLocation = xcm_config::IdnLocation;
-	#[cfg(not(feature = "runtime-benchmarks"))]
-	type IdnOrigin = EnsureXcm<frame_support::traits::Equals<xcm_config::IdnLocation>>;
-	#[cfg(feature = "runtime-benchmarks")]
-	type IdnOrigin = bench_ensure_origin::BenchEnsureOrigin;
+	type IdnOrigin = EnsureIdnSovereignAccount;
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	type Xcm = PolkadotXcm;
 	#[cfg(feature = "runtime-benchmarks")]

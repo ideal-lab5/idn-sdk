@@ -86,6 +86,7 @@ struct SubFeesQuote {
 
 #[frame_support::pallet]
 pub mod pallet {
+
 	use super::*;
 
 	#[pallet::config]
@@ -126,7 +127,10 @@ pub mod pallet {
 		/// ```nocompile
 		/// type IdnOrigin = EnsureXcm<Equals<Self::SiblingIdnLocation>>
 		/// ```
-		type IdnOrigin: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
+		type IdnOrigin: EnsureOrigin<
+			Self::RuntimeOrigin,
+			Success = <Self as frame_system::Config>::AccountId,
+		>;
 
 		/// A type that exposes XCM APIs, allowing contracts to interact with other parachains and
 		/// execute XCM programs.

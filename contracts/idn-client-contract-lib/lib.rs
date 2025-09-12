@@ -565,6 +565,10 @@ impl IdnClient {
 	/// # Returns
 	/// - `true` if the pulse signature is cryptographically valid
 	/// - `false` if validation fails (invalid signature, malformed data, etc.)
+	///
+	/// # Warning
+	/// This function consumes too much gas ~ refTime: 1344.30 ms & proofSize: 0.13 MB
+	/// See https://github.com/ideal-lab5/idn-sdk/issues/360
 	pub fn is_valid_pulse(&self, pulse: &Pulse) -> bool {
 		let pk = hex::decode(BEACON_PUBKEY).unwrap();
 		pulse.authenticate(pk.try_into().expect("The public key is well-defined; qed."))

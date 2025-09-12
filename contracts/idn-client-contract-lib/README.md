@@ -59,7 +59,14 @@ impl MyContract {
     #[ink(constructor)]
     pub fn new() -> Self {
         Self {
-            idn_client: IdnClient::new(42, 2000, 50, 2001, 1_000_000_000),
+            idn_client: IdnClient::new(
+                4502,          // idn_para_id: IDN parachain ID
+                40,            // idn_manager_pallet_index: IDN Manager pallet index
+                4594,          // self_para_id: Your parachain ID  
+                16,            // self_contracts_pallet_index: Contracts pallet index
+                6,             // self_contract_call_index: Contract callback call index
+                1_000_000_000, // max_idn_xcm_fees: Maximum XCM execution fees
+            ),
             subscription_id: None,
         }
     }
@@ -71,32 +78,6 @@ impl MyContract {
 Implement the `IdnConsumer` trait to receive randomness:
 - `consume_pulse`: Validate pulse with `is_valid_pulse()` then use `pulse.rand()` for randomness
 - `consume_quote` and `consume_sub_info`: Handle subscription quotes and info responses
-
-## Subscription Lifecycle Management
-
-### Creating a Subscription
-
-```rust
-#[ink(message)]
-pub fn create_subscription(&mut self) -> Result<()> {
-    let sub_id = self.idn_client.create_subscription(
-        100,  // Credits
-        10,   // Frequency (every 10 IDN blocks)
-        None, // Optional metadata
-        None, // Auto-generate ID
-    )?;
-    self.subscription_id = Some(sub_id);
-    Ok(())
-}
-```
-
-### Subscription Management
-
-Available subscription operations:
-- `pause_subscription(sub_id)` - Temporarily pause randomness delivery
-- `reactivate_subscription(sub_id)` - Resume paused subscription  
-- `update_subscription(sub_id, credits, frequency, metadata)` - Modify subscription parameters
-- `kill_subscription(sub_id)` - Permanently terminate subscription
 
 ## Call Index Configuration
 
@@ -135,98 +116,31 @@ Subscriptions progress through three main states:
                ↓
           [Finalized] (direct termination)
 ```
+## Subscription Lifecycle Management
 
-#### Active State
-- **Behavior**: Delivers randomness pulses according to frequency settings
-- **Transitions**: Can be paused or terminated
-- **Operations**: Update parameters, pause, kill
+### Creating a Subscription
 
 ```rust
-// Subscription is active and receiving randomness
 #[ink(message)]
-pub fn pause_subscription(&mut self) -> Result<()> {
-    if let Some(sub_id) = self.subscription_id {
-        // Transition: Active → Paused
-        self.idn_client.pause_subscription(sub_id)
-    } else {
-        Err(Error::InvalidSubscriptionId)
-    }
+pub fn create_subscription(&mut self) -> Result<()> {
+    let sub_id = self.idn_client.create_subscription(
+        100,  // Credits
+        10,   // Frequency (every 10 IDN blocks)
+        None, // Optional metadata
+        None, // Auto-generate ID
+    )?;
+    self.subscription_id = Some(sub_id);
+    Ok(())
 }
 ```
 
-#### Paused State  
-- **Behavior**: Exists in storage but no randomness delivery
-- **Transitions**: Can be reactivated or terminated
-- **Operations**: Update parameters, reactivate, kill
+### Subscription Management
 
-```rust
-// Reactivate a paused subscription
-#[ink(message)]  
-pub fn reactivate_subscription(&mut self) -> Result<()> {
-    if let Some(sub_id) = self.subscription_id {
-        // Transition: Paused → Active
-        self.idn_client.reactivate_subscription(sub_id)
-    } else {
-        Err(Error::InvalidSubscriptionId)
-    }
-}
-```
-
-#### Finalized State
-- **Behavior**: Permanently removed from storage
-- **Transitions**: None (terminal state)
-- **Operations**: None (subscription no longer exists)
-
-```rust
-// Permanently terminate subscription
-#[ink(message)]
-pub fn terminate_subscription(&mut self) -> Result<()> {
-    if let Some(sub_id) = self.subscription_id {
-        self.subscription_id = None; // Clear local state first
-        // Transition: Active/Paused → Finalized
-        self.idn_client.kill_subscription(sub_id)
-    } else {
-        Err(Error::InvalidSubscriptionId)
-    }
-}
-```
-
-### State Management Best Practices
-
-1. **Track State Locally**: Store subscription state in your contract storage
-2. **Handle State Errors**: Invalid state transitions will fail at the IDN level
-3. **Clean Up Resources**: Clear local state when subscriptions are finalized
-4. **Monitor Credits**: Low credits can affect subscription behavior
-
-```rust
-#[ink(storage)]
-pub struct MyContract {
-    idn_client: IdnClient,
-    subscription_id: Option<SubscriptionId>,
-    subscription_state: SubscriptionState, // Track state locally
-    last_randomness: Option<Rand>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum SubscriptionState {
-    None,
-    Active,
-    Paused,
-    Finalized,
-}
-
-impl MyContract {
-    #[ink(message)]
-    pub fn get_subscription_state(&self) -> SubscriptionState {
-        self.subscription_state
-    }
-
-    #[ink(message)]
-    pub fn can_receive_randomness(&self) -> bool {
-        self.subscription_state == SubscriptionState::Active
-    }
-}
-```
+Available subscription operations:
+- `pause_subscription(sub_id)` - Temporarily pause randomness delivery
+- `reactivate_subscription(sub_id)` - Resume paused subscription  
+- `update_subscription(sub_id, credits, frequency, metadata)` - Modify subscription parameters
+- `kill_subscription(sub_id)` - Permanently terminate subscription
 
 ## Metadata Usage Patterns
 
@@ -292,19 +206,20 @@ impl IdnConsumer for MyContract {
 
 ### Network Parameters
 
-Configure these parameters for your specific deployment:
+Configure these parameters for your specific deployment, or import them from the `constants.rs` file:
 
 ```rust
-// IDN Configuration
-const IDN_PARA_ID: ParaId = 2000;              // IDN parachain ID
-const IDN_MANAGER_PALLET_INDEX: PalletIndex = 42;    // IDN Manager pallet index
+// IDN Configuration (Paseo Testnet)
+const IDN_PARA_ID: ParaId = 4502;              // IDN parachain ID
+const IDN_MANAGER_PALLET_INDEX: PalletIndex = 40;    // IDN Manager pallet index
 
-// Your Parachain Configuration
-const SELF_PARA_ID: ParaId = 2001;             // Your parachain ID
-const CONTRACTS_PALLET_INDEX: PalletIndex = 50;      // Contracts pallet index
+// Your Parachain Configuration (Example Consumer Chain)
+const SELF_PARA_ID: ParaId = 4594;             // Your parachain ID
+const CONTRACTS_PALLET_INDEX: PalletIndex = 16;      // Contracts pallet index
+const CONTRACT_CALL_INDEX: u8 = 6;             // Contract call index
 
 // XCM Fee Configuration
-const MAX_XCM_FEES: u128 = 1_000_000_000;   // 1 DOT in Planck units
+const MAX_XCM_FEES: u128 = 1_000_000_000;   // 1 DOT/PAS in Planck units
 ```
 
 ### XCM Fee Estimation and Optimization
@@ -343,10 +258,10 @@ Ensure HRMP channels are established between your parachain and IDN:
 ```bash
 # Example channel setup (adjust for your network)
 # From your parachain to IDN
-hrmp.hrmp_init_open_channel(2000, 1000, 1000)
+hrmp.hrmp_init_open_channel(4502, 1000, 1000)
 
-# From IDN to your parachain
-hrmp.hrmp_accept_open_channel(2001)
+# From IDN to your parachain  
+hrmp.hrmp_accept_open_channel(4594)
 ```
 
 ## Security Considerations
@@ -363,25 +278,15 @@ Ensure your contract's account has sufficient balance on the IDN chain for:
 Consider implementing additional randomness verification:
 
 ```rust
-use idn_client_contract_lib::constants::BEACON_PUBKEY;
-fn verify_pulse_authenticity(&self, pulse: &Pulse) -> bool {
-
-    if pulse
-        .authenticate(BEACON_PUBKEY.try_into().expect("The public key is well-defined; qed."))
-    {
-        // Randomness consumption logic goes here.
-        log::info!("IDN Consumer: Verified pulse: {:?} with sub id: {:?}", pulse, sub_id);
-    } else {
-        log::error!(
-            "IDN Consumer: Unverified pulse ingested: {:?} with sub id: {:?}",
-            pulse,
-            sub_id
-        );
-        return false;
+fn ensure_valid_pulse(&self, pulse: &Pulse) -> Result<(), ContractError> {
+    if !self.idn_client.is_valid_pulse(pulse) {
+        return Err(ContractError::InvalidPulse);
     }
-    true
+    Ok(())
 }
 ```
+*Warning: This function consumes too much gas ~ refTime: 1344.30 ms & proofSize: 0.13 MB*
+*See https://github.com/ideal-lab5/idn-sdk/issues/360*
 
 ### 3. Subscription Management
 
@@ -389,21 +294,26 @@ fn verify_pulse_authenticity(&self, pulse: &Pulse) -> bool {
 - Implement access control for subscription management
 - Monitor credit consumption and refill proactively
 
-## Contract Account Funding Requirements
+## Account Funding Requirements
+
+### Bilateral Funding Requirements
+
+IDN contract integration requires **TWO separate funding requirements** for proper XCM operation:
+
+1. **Contract's Sovereign Account on IDN Chain**: For subscription operations (create, pause, update, etc.)
+2. **IDN's Sovereign Account on Consumer Chain**: For randomness delivery via contract calls
+
+**⚠️ CRITICAL**: Both accounts must be funded with local tokens or operations will fail with "Funds are unavailable" errors.
 
 ### Understanding Sovereign Accounts
 
-When your contract sends XCM messages to the IDN chain, it operates through a **sovereign account** - a derived account that represents your contract on the destination chain. This account must be funded with relay chain native tokens (DOT/PAS) to pay for XCM execution fees.
-
-### Critical Setup Requirement
-
-**⚠️ IMPORTANT**: Before calling any subscription methods (`create_subscription`, `pause_subscription`, etc.), you **must fund your contract's sovereign account** on the IDN chain, or you will get "Funds are unavailable" errors.
+When your contract sends XCM messages to the IDN chain, it operates through a **sovereign account** - a derived account that represents your contract on the destination chain. Similarly, when IDN sends randomness back to your contract, it operates through its own **sovereign account** on your consumer chain.
 
 ### Finding Your Contract's Sovereign Account
 
 To determine your contract's sovereign account address on the IDN chain:
 
-1. **Using Polkadot.js Apps (Recommended for Documentation)**
+**Using Polkadot.js Apps (Recommended for Documentation)**
    - Open [Polkadot.js Apps](https://polkadot.js.org/apps/)
    - Connect to the IDN node (e.g. `wss://idn-0.idealabs.network:443`)
    - Navigate to **Developer → Runtime calls**
@@ -420,18 +330,103 @@ To determine your contract's sovereign account address on the IDN chain:
 
    *Try different ParaIds to test: Asset Hub (`1000`), your parachain ID, etc.*
 
+### Finding IDN's Sovereign Account on Your Consumer Chain
+
+The IDN sovereign account on your consumer chain must be funded for randomness delivery.
+
+#### For Paseo Testnet
+
+On Paseo testnet, the IDN sovereign account is: `5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n`
+
+This account must be funded on your consumer chain to allow IDN to execute contract calls for randomness delivery.
+
+#### For Other Networks
+
+To determine IDN's sovereign account address on your consumer chain:
+
+**Using Polkadot.js Apps on Your Consumer Chain**
+   - Connect to your consumer chain node
+   - Navigate to **Developer → Runtime calls**
+   - Select **locationToAccountApi → convertLocation**
+   - Configure the IDN location:
+     - **Version**: `V4`
+     - **Parents**: `1` (for sibling parachain)
+     - **Interior**: `X1`
+     - **Junction 1**: `Parachain` → Enter IDN's parachain ID (see `constants.rs`)
+   - Click "Submit" to see IDN's sovereign account address on your chain
+
+#### Funding Requirements
+
+- This account needs Consumer chain's native tokens to execute contract calls
+- Without funding, IDN cannot deliver randomness to your contract
+- The amount depends on your contract's call complexity
+
+### Comprehensive Funding Guide Summary
+
+**Both accounts must be funded for proper operation:**
+
+```text
+Subscription Operations (Contract → IDN):
+┌─────────────────────┐    XCM     ┌─────────────────────┐
+│   Your Contract     │ ---------> │    IDN Chain        │
+│   (Consumer Chain)  │            │                     │
+└─────────────────────┘            └─────────────────────┘
+                                             ↑
+                                   ┌───────────────────┐
+                                   │  Contract's       │
+                                   │  Sovereign        │
+                                   │  Account (FUND!)  │
+                                   └───────────────────┘
+
+Randomness Delivery (IDN → Contract):
+┌─────────────────────┐    XCM     ┌─────────────────────┐
+│    IDN Chain        │ ---------> │   Your Contract     │
+│                     │            │   (Consumer Chain)  │
+└─────────────────────┘            └─────────────────────┘
+                                             ↑
+                                    ┌───────────────────┐
+                                    │  IDN's Sovereign  │
+                                    │  Account (FUND!)  │
+                                    └───────────────────┘
+```
+
+#### Quick Setup Checklist
+
+- [ ] **Fund Contract's Sovereign Account on IDN Chain**
+  - Use Polkadot.js to derive: `Location(1, [Parachain(consumer_para_id), AccountId32(contract_account)])`
+  - Fund with relay chain tokens (DOT/PAS) for subscription operations
+  
+- [ ] **Fund IDN's Sovereign Account on Your Consumer Chain**
+  - **Paseo**: Fund `5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n`
+  - **Other networks**: Use Polkadot.js to derive `Location(1, [Parachain(idn_para_id)])`
+  - Fund with Consumer chain tokens for contract call execution
+
 ## Troubleshooting
 
 ### Common Issues
 
-1. **"Funds are unavailable" Error**
+1. **"Funds are unavailable" Error (Subscription Operations)**
 
-   **Symptoms**: XCM execution fails at `WithdrawAsset` instruction with "Funds are unavailable"
+   **Symptoms**: XCM execution fails at `WithdrawAsset` instruction with "Funds are unavailable" when calling `create_subscription`, `pause_subscription`, etc.
    
    **Cause**: Contract's sovereign account on IDN chain lacks sufficient relay chain tokens
    
    **Solution**:
+   - Fund the contract's sovereign account on IDN chain with relay chain tokens (DOT/PAS)
+   - Use Polkadot.js to derive: `Location(1, [Parachain(consumer_para_id), AccountId32(contract_account)])`
    - Verify funding before retrying subscription operations
+
+1a. **"Funds are unavailable" Error (Randomness Delivery)**
+
+   **Symptoms**: Subscription is created successfully but randomness pulses are not delivered to your contract
+   
+   **Cause**: IDN's sovereign account on your consumer chain lacks sufficient native tokens to execute contract calls
+   
+   **Solution**:
+   - **Paseo**: Fund `5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n` on your consumer chain
+   - **Other networks**: Use Polkadot.js to derive IDN's sovereign account: `Location(1, [Parachain(idn_para_id)])`
+   - Fund with your consumer chain's native tokens, not relay chain tokens
+   - Verify balance using your consumer chain's block explorer or node query
 
 2. **XCM Send Failed**
 
@@ -452,7 +447,9 @@ To determine your contract's sovereign account address on the IDN chain:
    
    - Increase `max_idn_xcm_fees` parameter
    - Monitor network fee fluctuations and adjust accordingly
-   - Check sovereign account balance is sufficient for fee amount
+   - Check **both** sovereign account balances are sufficient:
+     - Contract's sovereign account on IDN chain (for subscription operations)
+     - IDN's sovereign account on consumer chain (for randomness delivery)
    - Implement dynamic fee adjustment mechanisms based on network conditions
 
 5. **Subscription State Issues**
