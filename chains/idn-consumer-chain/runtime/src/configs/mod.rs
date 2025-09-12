@@ -51,7 +51,10 @@ use polkadot_runtime_common::{
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
-use xcm::latest::prelude::BodyId;
+use xcm::{
+	latest::prelude::BodyId,
+	v5::{Junction, Location},
+};
 use xcm_executor::traits::ConvertLocation;
 
 // Local module imports
@@ -317,7 +320,7 @@ parameter_types! {
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 	pub const MaxIdnXcmFees: u128 = 1_000_000_000_000;
 	pub IdnSovereignAccount: AccountId = {
-		let idn_location = xcm::v5::Location::new(1, xcm::v5::Junction::Parachain(crate::constants::IDN_PARACHAIN_ID));
+		let idn_location = Location::new(1, Junction::Parachain(crate::constants::IDN_PARACHAIN_ID));
 		xcm_config::LocationToAccountId::convert_location(&idn_location)
 			.expect("IDN sovereign account derivation failed")
 	};
