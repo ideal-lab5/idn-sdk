@@ -221,7 +221,6 @@ pub type SubInfoRequest = MngSubInfoRequest<SubscriptionId, CallData>;
 /// Details specific to a subscription for pulse delivery.
 ///
 /// See [`pallet_idn_manager::SubscriptionDetails`] for more details.
-
 pub type SubscriptionDetails = MngSubscriptionDetails<AccountId, CallData>;
 
 #[cfg(test)]
