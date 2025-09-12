@@ -683,7 +683,11 @@ impl IdnClient {
 	/// This function consumes too much gas ~ refTime: 1344.30 ms & proofSize: 0.13 MB
 	/// See https://github.com/ideal-lab5/idn-sdk/issues/360
 	pub fn is_valid_pulse(&self, pulse: &Pulse) -> bool {
+		// Safe to unwrap: BEACON_PUBKEY is a compile-time constant, if invalid the contract
+		// shouldn't work
 		let pk = hex::decode(BEACON_PUBKEY).unwrap();
+		// Safe to panic: The public key is a well-defined constant, contract is unusable if this
+		// fails
 		pulse.authenticate(pk.try_into().expect("The public key is well-defined; qed."))
 	}
 
