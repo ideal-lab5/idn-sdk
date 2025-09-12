@@ -20,9 +20,6 @@ async function run(nodeName, networkInfo, args) {
         throw new Error('Constructor not found in contract metadata.');
     }
 
-    // console.log('constructorAbi')
-    // console.log(constructorAbi)
-
     const selector = api.registry.createType('Bytes', constructorAbi.selector).toU8a();
     
     // Create the constructor data as hex string
@@ -46,25 +43,27 @@ async function run(nodeName, networkInfo, args) {
     console.log('sending contract initiate with code tx')
     const unsub = await api.tx.contracts
         .instantiateWithCode(value, gasLimit, storageDepositLimit, wasm, data, salt)
-        .signAndSend(alice, ({ status, events }) => {
-            console.log('sent, waiting to be included in a block')
-            if (status.isInBlock || status.isFinalized) {
-                const instantiateEvent = events.find(({ event }) =>
-                    api.events.contracts.Instantiated.is(event)
-                );
+        .signAndSend(alice, (result) => {
+            console.log(result.toHuman())
+            // console.log('sent, waiting to be included in a block')
+            // console.log('status is ' + JSON.stringify(status) + JSON.stringify(events))
+            // if (status.isInBlock || status.isFinalized) {
+            //     const instantiateEvent = events.find(({ event }) =>
+            //         api.events.contracts.Instantiated.is(event)
+            //     );
 
-                if (instantiateEvent) {
-                    const [, contractAddress] = instantiateEvent.event.data;
-                    console.log(`Contract deployed at: ${contractAddress.toString()}`);
-                    console.log('Contract deployment successful!');
-                    process.exit(0);
-                } else {
-                    console.error('Contract deployment failed: Instantiation event not found.');
-                    console.log('Events:', events.map(e => e.event.method));
-                    process.exit(1);
-                }
-                unsub();
-            }
+            //     if (instantiateEvent) {
+            //         const [, contractAddress] = instantiateEvent.event.data;
+            //         console.log(`Contract deployed at: ${contractAddress.toString()}`);
+            //         console.log('Contract deployment successful!');
+            //         process.exit(0);
+            //     } else {
+            //         console.error('Contract deployment failed: Instantiation event not found.');
+            //         console.log('Events:', events.map(e => e.event.method));
+            //         process.exit(1);
+            //     }
+            //     unsub();
+            // }
         });
 }
 
