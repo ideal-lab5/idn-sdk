@@ -24,23 +24,27 @@ use frame_support::sp_runtime::AccountId32;
 use frame_system::{Pallet as System, RawOrigin};
 
 pub const MOCK_QUOTE: Quote = Quote { req_ref: [0u8; 32], deposit: 1_000_000_000, fees: 1_000_000 };
-pub const MOCK_SUB: Subscription = Subscription {
-	id: [1u8; 32],
-	state: SubscriptionState::Active,
-	credits_left: 0,
-	details: SubscriptionDetails {
-		subscriber: AccountId32::new([0u8; 32]),
-		target: Location::here(),
-		call_index: [0, 0],
-	},
-	created_at: 0,
-	updated_at: 0,
-	credits: 0,
-	frequency: 0,
-	metadata: None,
-	last_delivered: None,
-};
-pub const MOCK_SUB_INFO: SubInfoResponse = SubInfoResponse { req_ref: [0u8; 32], sub: MOCK_SUB };
+fn mock_sub() -> Subscription {
+	Subscription {
+		id: [1u8; 32],
+		state: SubscriptionState::Active,
+		credits_left: 0,
+		details: SubscriptionDetails {
+			subscriber: AccountId32::new([0u8; 32]),
+			target: Location::here(),
+			call: [0, 0].encode().try_into().unwrap(),
+		},
+		created_at: 0,
+		updated_at: 0,
+		credits: 0,
+		frequency: 0,
+		metadata: None,
+		last_delivered: None,
+	}
+}
+fn mock_sub_info() -> SubInfoResponse {
+	SubInfoResponse { req_ref: [0u8; 32], sub: mock_sub() }
+}
 
 #[benchmarks(
 	where
@@ -78,13 +82,13 @@ mod benchmarks {
 	fn consume_sub_info() {
 		let sibling_account: T::AccountId = [88u8; 32].into();
 		let origin = RawOrigin::Signed(sibling_account.clone());
+		let mock_sub_info = mock_sub_info();
+		let sub_id = mock_sub_info.sub.id;
 
 		#[extrinsic_call]
-		_(origin, MOCK_SUB_INFO);
+		_(origin, mock_sub_info);
 
-		System::<T>::assert_last_event(
-			Event::<T>::SubInfoConsumed { sub_id: MOCK_SUB_INFO.sub.id }.into(),
-		);
+		System::<T>::assert_last_event(Event::<T>::SubInfoConsumed { sub_id }.into());
 	}
 
 	#[benchmark]

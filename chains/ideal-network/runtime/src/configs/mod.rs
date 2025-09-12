@@ -311,15 +311,16 @@ impl pallet_idn_manager::Config for Runtime {
 	#[cfg(feature = "runtime-benchmarks")]
 	type Xcm = ();
 	type MaxMetadataLen = types::MaxMetadataLen;
+	type MaxCallDataLen = types::MaxCallDataLen;
 	type Credits = types::Credits;
 	type MaxSubscriptions = types::MaxSubscriptions;
 	type MaxTerminatableSubs = types::MaxTerminatableSubs;
 	type SubscriptionId = types::SubscriptionId;
 	type DiffBalance = impls::DiffBalanceImpl<BalanceOf<Runtime>>;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type SiblingOrigin = EnsureXcm<AllowSiblingsOnly>;
+	type XcmOriginFilter = EnsureXcm<AllowSiblingsOnly>;
 	#[cfg(feature = "runtime-benchmarks")]
-	type SiblingOrigin = bench_ensure_origin::BenchEnsureOrigin;
+	type XcmOriginFilter = bench_ensure_origin::BenchEnsureOrigin;
 	type XcmLocationToAccountId = xcm_config::LocationToAccountId;
 }
 

@@ -24,6 +24,7 @@ use crate::{
 	Config, CreateSubParamsOf, Error, Event, HoldReason, SubInfoRequestOf, SubscriptionState,
 	Subscriptions, UpdateSubParamsOf,
 };
+use codec::Encode;
 use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::Zero,
@@ -71,7 +72,7 @@ fn update_subscription(
 		CreateSubParamsOf::<Test> {
 			credits: original_credits,
 			target: target.clone(),
-			call_index: [1; 2],
+			call: [1u8, 2u8].encode().try_into().unwrap(),
 			frequency: original_frequency,
 			metadata,
 			sub_id: None,
@@ -185,7 +186,7 @@ fn create_subscription_works() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -238,7 +239,7 @@ fn create_subscription_with_custom_id_works() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: Some(custom_id),
@@ -274,7 +275,7 @@ fn create_subscription_fails_if_insufficient_balance() {
 				CreateSubParamsOf::<Test> {
 					credits,
 					target,
-					call_index: [1; 2],
+					call: [1u8, 2u8].encode().try_into().unwrap(),
 					frequency,
 					metadata: None,
 					sub_id: None,
@@ -306,7 +307,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -322,7 +323,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 				CreateSubParamsOf::<Test> {
 					credits,
 					target,
-					call_index: [1; 2],
+					call: [1u8, 2u8].encode().try_into().unwrap(),
 					frequency,
 					metadata: None,
 					sub_id: None,
@@ -356,7 +357,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 				CreateSubParamsOf::<Test> {
 					credits: credits + i as u64,
 					target: target.clone(),
-					call_index: [i as u8; 2],
+					call: [i as u8, i as u8].encode().try_into().unwrap(),
 					frequency,
 					metadata: None,
 					sub_id: None,
@@ -375,7 +376,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 				CreateSubParamsOf::<Test> {
 					credits,
 					target: target.clone(),
-					call_index: [1, 2],
+					call: [1u8, 2u8].encode().try_into().unwrap(),
 					frequency,
 					metadata: None,
 					sub_id: None,
@@ -399,7 +400,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target,
-				call_index: [1, 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -425,7 +426,7 @@ fn test_kill_subscription() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: None,
@@ -486,7 +487,7 @@ fn on_finalize_removes_finalized_subscriptions() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -609,7 +610,7 @@ fn update_does_not_update_when_params_are_none() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: metadata.clone(),
 				sub_id: None,
@@ -686,7 +687,7 @@ fn test_credits_consumption_and_cleanup() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -809,7 +810,7 @@ fn test_credits_consumption_not_enough_balance() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -867,7 +868,7 @@ fn test_credits_consumption_xcm_send_fails() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -928,7 +929,7 @@ fn test_credits_consumption_frequency() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -1010,7 +1011,7 @@ fn test_sub_state_is_finalized_when_credits_left_goes_low() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -1060,7 +1061,7 @@ fn test_pause_reactivate_subscription() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: None,
@@ -1126,7 +1127,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: None,
@@ -1181,7 +1182,7 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: None,
@@ -1220,7 +1221,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: None,
@@ -1294,7 +1295,7 @@ fn test_on_finalize_removes_finished_subscriptions() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -1487,7 +1488,7 @@ fn test_get_subscription() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -1534,7 +1535,7 @@ fn test_get_subscriptions_for_subscriber() {
 			CreateSubParamsOf::<Test> {
 				credits: 50,
 				target: target1.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency: 10,
 				metadata: None,
 				sub_id: None,
@@ -1546,7 +1547,7 @@ fn test_get_subscriptions_for_subscriber() {
 			CreateSubParamsOf::<Test> {
 				credits: 100,
 				target: target2.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency: 20,
 				metadata: None,
 				sub_id: None,
@@ -1559,7 +1560,7 @@ fn test_get_subscriptions_for_subscriber() {
 			CreateSubParamsOf::<Test> {
 				credits: 75,
 				target: target3.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency: 15,
 				metadata: None,
 				sub_id: None,
@@ -1644,7 +1645,7 @@ fn test_runtime_api_get_subscription() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -1691,7 +1692,7 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 			CreateSubParamsOf::<Test> {
 				credits: 50,
 				target: target1.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency: 10,
 				metadata: None,
 				sub_id: None,
@@ -1703,7 +1704,7 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 			CreateSubParamsOf::<Test> {
 				credits: 100,
 				target: target2.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency: 20,
 				metadata: None,
 				sub_id: None,
@@ -1716,7 +1717,7 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 			CreateSubParamsOf::<Test> {
 				credits: 75,
 				target: target3.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency: 15,
 				metadata: None,
 				sub_id: None,
@@ -1782,7 +1783,7 @@ fn test_quote_subscription_works() {
 		let create_sub_params = CreateSubParamsOf::<Test> {
 			credits,
 			target: Location::new(1, [Junction::PalletInstance(1)]),
-			call_index: pulse_callback_index,
+			call: pulse_callback_index.encode().try_into().unwrap(),
 			frequency,
 			metadata: None,
 			sub_id: None,
@@ -1791,13 +1792,16 @@ fn test_quote_subscription_works() {
 		let req_ref = [1; 32];
 
 		let quote_request = QuoteRequest { req_ref, create_sub_params, lifetime_pulses };
-		let quote_sub_params = QuoteSubParams { quote_request, call_index: quote_callback_index };
+		let quote_sub_params = QuoteSubParams {
+			quote_request,
+			call: quote_callback_index.encode().try_into().unwrap(),
+		};
 		// Call the function
 		assert_ok!(IdnManager::quote_subscription(origin, quote_sub_params));
 		// Verify the XCM message was sent
 		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubQuoted {
 			requester: Location::new(1, [Junction::Parachain(mock::SIBLING_PARA_ID)]),
-			quote: Quote { req_ref, fees, deposit: 1130 },
+			quote: Quote { req_ref, fees, deposit: 1200 },
 		}));
 	});
 }
@@ -1815,7 +1819,7 @@ fn test_quote_subscription_fails_for_invalid_origin() {
 		let create_sub_params = CreateSubParamsOf::<Test> {
 			credits,
 			target: Location::new(1, [Junction::PalletInstance(1)]),
-			call_index: pulse_callback_index,
+			call: pulse_callback_index.encode().try_into().unwrap(),
 			frequency: 10,
 			metadata: None,
 			sub_id: None,
@@ -1825,7 +1829,10 @@ fn test_quote_subscription_fails_for_invalid_origin() {
 		let lifetime_pulses = 10;
 
 		let quote_request = QuoteRequest { req_ref, create_sub_params, lifetime_pulses };
-		let quote_sub_params = QuoteSubParams { quote_request, call_index: quote_callback_index };
+		let quote_sub_params = QuoteSubParams {
+			quote_request,
+			call: quote_callback_index.encode().try_into().unwrap(),
+		};
 
 		// Call the function and expect it to fail
 		assert_noop!(IdnManager::quote_subscription(invalid_origin, quote_sub_params), BadOrigin);
@@ -1851,7 +1858,7 @@ fn test_get_subscription_xcm_works() {
 			CreateSubParamsOf::<Test> {
 				credits,
 				target: target.clone(),
-				call_index: [1; 2],
+				call: [1u8, 2u8].encode().try_into().unwrap(),
 				frequency,
 				metadata: None,
 				sub_id: None,
@@ -1862,7 +1869,11 @@ fn test_get_subscription_xcm_works() {
 		let (sub_id, _) = Subscriptions::<Test>::iter().next().unwrap();
 
 		// Prepare the request
-		let req = SubInfoRequestOf::<Test> { sub_id, req_ref, call_index };
+		let req = SubInfoRequestOf::<Test> {
+			sub_id,
+			req_ref,
+			call: call_index.encode().try_into().unwrap(),
+		};
 
 		// Call the function
 		assert_ok!(IdnManager::get_subscription_info(
@@ -1885,7 +1896,11 @@ fn test_get_subscription_xcm_fails_invalid_origin() {
 		let call_index = [1, 1];
 
 		// Prepare the request
-		let req = SubInfoRequestOf::<Test> { sub_id, req_ref, call_index };
+		let req = SubInfoRequestOf::<Test> {
+			sub_id,
+			req_ref,
+			call: call_index.encode().try_into().unwrap(),
+		};
 
 		// Call the function with an invalid origin
 		assert_noop!(
@@ -1903,7 +1918,11 @@ fn test_get_subscription_xcm_fails_subscription_not_found() {
 		let call_index = [1, 1];
 
 		// Prepare the request
-		let req = SubInfoRequestOf::<Test> { sub_id, req_ref, call_index };
+		let req = SubInfoRequestOf::<Test> {
+			sub_id,
+			req_ref,
+			call: call_index.encode().try_into().unwrap(),
+		};
 
 		// Call the function with a non-existent subscription ID
 		assert_noop!(

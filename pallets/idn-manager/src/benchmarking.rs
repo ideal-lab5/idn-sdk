@@ -23,7 +23,10 @@ use crate::{
 };
 use frame_benchmarking::v2::*;
 use frame_support::{
-	traits::{fungible::Mutate, OriginTrait},
+	traits::{
+		fungible::{Inspect, Mutate},
+		OriginTrait,
+	},
 	BoundedVec,
 };
 use frame_system::{Pallet as System, RawOrigin};
@@ -48,7 +51,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -61,7 +63,7 @@ mod benchmarks {
 		let params = CreateSubParamsOf::<T> {
 			credits,
 			target: target.clone(),
-			call_index,
+			call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 			frequency,
 			metadata,
 			sub_id,
@@ -71,7 +73,7 @@ mod benchmarks {
 		_(origin, params);
 
 		// assert that the subscription details are correct
-		let (_, sub) = Subscriptions::<T>::iter().next().unwrap();
+		let (_, sub) = Subscriptions::<T>::iter().next().expect("Subscription should exist");
 		assert_eq!(sub.details.subscriber, subscriber);
 		assert_eq!(sub.details.target, target);
 		assert_eq!(sub.credits, credits);
@@ -85,7 +87,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -95,27 +96,28 @@ mod benchmarks {
 			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
 		);
 
-		let _ = IdnManager::<T>::create_subscription(
+		let result = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
 			},
 		);
+		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
 
 		// assert that the subscription state is correct
-		let (sub_id, sub) = Subscriptions::<T>::iter().next().unwrap();
+		let (sub_id, sub) = Subscriptions::<T>::iter().next().expect("Subscription should exist");
 		assert_eq!(sub.state, SubscriptionState::Active);
 
 		#[extrinsic_call]
 		_(origin, sub_id);
 
 		// assert that the subscription state is correct
-		let sub = Subscriptions::<T>::get(sub_id).unwrap();
+		let sub = Subscriptions::<T>::get(sub_id).expect("Subscription should exist");
 		assert_eq!(sub.state, SubscriptionState::Paused);
 	}
 
@@ -125,7 +127,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -135,20 +136,21 @@ mod benchmarks {
 			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
 		);
 
-		let _ = IdnManager::<T>::create_subscription(
+		let result = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
 			},
 		);
+		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
 
 		// assert that the subscription was created
-		let (sub_id, sub) = Subscriptions::<T>::iter().next().unwrap();
+		let (sub_id, sub) = Subscriptions::<T>::iter().next().expect("Subscription should exist");
 		assert_eq!(sub.state, SubscriptionState::Active);
 
 		#[extrinsic_call]
@@ -164,7 +166,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -174,20 +175,21 @@ mod benchmarks {
 			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
 		);
 
-		let _ = IdnManager::<T>::create_subscription(
+		let result = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
 			},
 		);
+		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
 
 		// assert that the subscription state is correct
-		let (sub_id, sub) = Subscriptions::<T>::iter().next().unwrap();
+		let (sub_id, sub) = Subscriptions::<T>::iter().next().expect("Subscription should exist");
 		assert_eq!(sub.state, SubscriptionState::Active);
 
 		let new_credits: T::Credits = 200u64.into();
@@ -197,7 +199,7 @@ mod benchmarks {
 			None
 		} else {
 			let metadata_vec = (0..m).map(|_| 1u8).collect::<Vec<_>>();
-			Some(BoundedVec::try_from(metadata_vec).unwrap())
+			Some(BoundedVec::try_from(metadata_vec).expect("Metadata vector should fit in bounds"))
 		};
 
 		let params = UpdateSubParamsOf::<T> {
@@ -211,7 +213,7 @@ mod benchmarks {
 		_(origin, params);
 
 		// assert that the subscription state is correct
-		let sub = Subscriptions::<T>::get(sub_id).unwrap();
+		let sub = Subscriptions::<T>::get(sub_id).expect("Subscription should exist");
 		assert_eq!(sub.credits, new_credits);
 		assert_eq!(sub.frequency, new_frequency);
 	}
@@ -222,7 +224,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(subscriber.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -232,35 +233,37 @@ mod benchmarks {
 			IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
 		);
 
-		let _ = IdnManager::<T>::create_subscription(
+		let result = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id,
 			},
 		);
+		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
 
 		// assert that the subscription state is correct
-		let (sub_id, sub) = Subscriptions::<T>::iter().next().unwrap();
+		let (sub_id, sub) = Subscriptions::<T>::iter().next().expect("Subscription should exist");
 		assert_eq!(sub.state, SubscriptionState::Active);
 
-		let _ = IdnManager::<T>::pause_subscription(
+		let pause_result = IdnManager::<T>::pause_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
 			sub_id,
 		);
+		assert!(pause_result.is_ok(), "Failed to pause subscription: {:?}", pause_result);
 
-		let sub = Subscriptions::<T>::get(sub_id).unwrap();
+		let sub = Subscriptions::<T>::get(sub_id).expect("Subscription should exist");
 		assert_eq!(sub.state, SubscriptionState::Paused);
 
 		#[extrinsic_call]
 		_(origin, sub_id);
 
 		// assert that the subscription state is correct
-		let sub = Subscriptions::<T>::get(sub_id).unwrap();
+		let sub = Subscriptions::<T>::get(sub_id).expect("Subscription should exist");
 		assert_eq!(sub.state, SubscriptionState::Active);
 	}
 
@@ -271,7 +274,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(sibling_account.clone());
 		let credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id = None;
@@ -279,7 +281,7 @@ mod benchmarks {
 		let params = CreateSubParamsOf::<T> {
 			credits,
 			target: target.clone(),
-			call_index,
+			call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 			frequency,
 			metadata,
 			sub_id,
@@ -290,7 +292,10 @@ mod benchmarks {
 
 		let quote_request =
 			QuoteRequest { req_ref, create_sub_params: params.clone(), lifetime_pulses };
-		let quote_sub_params = QuoteSubParams { quote_request, call_index };
+		let quote_sub_params = QuoteSubParams {
+			quote_request,
+			call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
+		};
 
 		#[extrinsic_call]
 		_(origin, quote_sub_params);
@@ -315,7 +320,6 @@ mod benchmarks {
 		let origin = RawOrigin::Signed(sibling_account.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1, 0];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id: T::SubscriptionId = H256::default().into();
@@ -326,19 +330,24 @@ mod benchmarks {
 		);
 
 		// Create first subscription
-		let _ = IdnManager::<T>::create_subscription(
+		let result = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(sibling_account.clone()),
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: Some(sub_id),
 			},
 		);
+		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
 
-		let req = SubInfoRequestOf::<T> { sub_id, req_ref: [1; 32], call_index: [1, 1] };
+		let req = SubInfoRequestOf::<T> {
+			sub_id,
+			req_ref: [1; 32],
+			call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
+		};
 
 		#[extrinsic_call]
 		_(origin, req);
@@ -352,7 +361,6 @@ mod benchmarks {
 		let subscriber: T::AccountId = whitelisted_caller();
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 		let metadata = None;
 		let sub_id: T::SubscriptionId = H256::default().into();
@@ -363,21 +371,24 @@ mod benchmarks {
 		);
 
 		// Create first subscription
-		let _ = IdnManager::<T>::create_subscription(
+		let result = IdnManager::<T>::create_subscription(
 			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
-				call_index,
+				call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 				frequency,
 				metadata,
 				sub_id: Some(sub_id),
 			},
 		);
+		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
 
 		// Fill up the subscriptions with the given number of subscriptions (minus the already
 		// created one)
-		fill_up_subscriptions::<T>(s - 1);
+		if s > 1 {
+			fill_up_subscriptions::<T>(s - 1);
+		}
 
 		assert_eq!(Subscriptions::<T>::iter().count(), s as usize);
 
@@ -390,7 +401,7 @@ mod benchmarks {
 		}
 
 		// Verify the first subscription was updated
-		let sub = Subscriptions::<T>::get(sub_id).unwrap();
+		let sub = Subscriptions::<T>::get(sub_id).expect("Subscription should exist");
 		assert!(sub.last_delivered.is_some());
 	}
 
@@ -434,10 +445,10 @@ mod benchmarks {
 		T::Credits: From<u64>,
 		T::Currency: Mutate<T::AccountId>,
 		T::AccountId: From<[u8; 32]>,
+		<<T as Config>::Currency as Inspect<T::AccountId>>::Balance: From<u64>,
 	{
 		let credits: T::Credits = 100_000u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
-		let call_index = [1; 2];
 		let frequency: BlockNumberFor<T> = 1u32.into();
 
 		// Create s subscriptions
@@ -450,14 +461,16 @@ mod benchmarks {
 				CreateSubParamsOf::<T> {
 					credits,
 					target: target.clone(),
-					call_index,
+					call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
 					frequency,
 					metadata: None,
 					sub_id: None,
 				},
 			);
 
-			assert!(res.is_ok(), "{:?}", res.unwrap_err());
+			if res.is_err() {
+				panic!("Failed to create subscription {}: {:?}", i, res.unwrap_err());
+			}
 
 			frame_system::Pallet::<T>::set_block_number(
 				frame_system::Pallet::<T>::block_number() + 1u32.into(),

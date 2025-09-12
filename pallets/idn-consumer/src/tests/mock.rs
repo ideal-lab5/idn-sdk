@@ -20,6 +20,7 @@ use crate::{
 	Pulse, Quote, SubInfoResponse, SubscriptionId,
 };
 use bp_idn::types::{Subscription, SubscriptionDetails, SubscriptionState};
+use codec::Encode;
 use cumulus_primitives_core::ParaId;
 use frame_support::{
 	construct_runtime, derive_impl, parameter_types, traits::OriginTrait, PalletId,
@@ -38,24 +39,25 @@ construct_runtime!(
 	}
 );
 pub const IDN_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
-pub const IDN_PARA_ID: u32 = 88;
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-pub const MOCK_SUB: Subscription = Subscription {
-	id: [1u8; 32],
-	state: SubscriptionState::Active,
-	credits_left: 0,
-	details: SubscriptionDetails {
-		subscriber: AccountId32::new([0u8; 32]),
-		target: Location::here(),
-		call_index: [0, 0],
-	},
-	created_at: 0,
-	updated_at: 0,
-	credits: 0,
-	frequency: 0,
-	metadata: None,
-	last_delivered: None,
-};
+pub fn mock_sub() -> Subscription {
+	Subscription {
+		id: [1u8; 32],
+		state: SubscriptionState::Active,
+		credits_left: 0,
+		details: SubscriptionDetails {
+			subscriber: AccountId32::new([0u8; 32]),
+			target: Location::here(),
+			call: [0u8, 0u8].encode().try_into().unwrap(),
+		},
+		created_at: 0,
+		updated_at: 0,
+		credits: 0,
+		frequency: 0,
+		metadata: None,
+		last_delivered: None,
+	}
+}
 
 #[derive_impl(frame_system::config_preludes::ParaChainDefaultConfig)]
 impl frame_system::Config for Test {
@@ -117,11 +119,11 @@ pub mod sub_info_consumer_impl {
 pub struct MockEnsureXcmIdn;
 
 impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for MockEnsureXcmIdn {
-	type Success = Location;
+	type Success = AccountId32;
 
 	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
 		if origin.clone().into_signer().unwrap() == IDN_PARA_ACCOUNT {
-			return Ok(Location::new(1, [Parachain(IDN_PARA_ID)]));
+			return Ok(IDN_PARA_ACCOUNT);
 		}
 		Err(origin)
 	}
