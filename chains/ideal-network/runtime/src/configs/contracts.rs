@@ -98,7 +98,10 @@ impl pallet_contracts::Config for Runtime {
 	type ApiVersion = ();
 	// IMPORTANT: only runtime calls through the api are allowed.
 	type CallFilter = Nothing;
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	type CallStack = [pallet_contracts::Frame<Self>; 23];
+	#[cfg(feature = "runtime-benchmarks")]
+	type CallStack = [pallet_contracts::Frame<Self>; 5];
 	type ChainExtension = RandExtension;
 	type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
 	type Currency = Balances;
@@ -120,7 +123,7 @@ impl pallet_contracts::Config for Runtime {
 	type MaxCodeLen = ConstU32<{ 256 * 1024 }>;
 	// benchmarking exceeds the standard MaxCodeLen when running.
 	#[cfg(feature = "runtime-benchmarks")]
-	type MaxCodeLen = ConstU32<{ 128 * 1024 * 1024 }>;
+	type MaxCodeLen = ConstU32<{ 123 * 1024 }>;
 	type MaxDebugBufferLen = ConstU32<{ 2 * 1024 * 1024 }>;
 	type MaxDelegateDependencies = ConstU32<32>;
 	type MaxStorageKeyLen = ConstU32<128>;
