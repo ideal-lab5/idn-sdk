@@ -43,19 +43,19 @@ To deploy this contract:
 
 2. Deploy to your parachain using your preferred method (e.g., Contracts UI)
 
-3. **⚠️ CRITICAL**: Fund your contract's sovereign account on the IDN chain with relay chain native tokens (DOT/PAS) before calling any subscription methods, or you'll get "Funds are unavailable" errors. See the [detailed funding guide](../idn-client-contract-lib/README.md#contract-account-funding-requirements) for step-by-step instructions.
+3. **⚠️ CRITICAL**: Fund your contract's sovereign account on the IDN chain and the IDN sovereign account on the consumer chain. See the [detailed funding guide](../idn-client-contract-lib/README.md#account-funding-requirements) for step-by-step instructions.
 
 4. Initialize with the required parameters:
 
    ```
    new(
-			idn_account_id: SovereignAccount,
-			idn_para_id: IdnParaId,
-			idn_manager_pallet_index: IdnManagerPalletIndex,
-			self_para_id: ConsumerParaId,
-			self_contracts_pallet_index: ContractsPalletIndex,
-			self_contract_call_index: ContractsCallIndex,
-			max_idn_xcm_fees: Option<IdnBalance>,
+   		idn_account_id: SovereignAccount,
+   		idn_para_id: IdnParaId,
+   		idn_manager_pallet_index: IdnManagerPalletIndex,
+   		self_para_id: ConsumerParaId,
+   		self_contracts_pallet_index: ContractsPalletIndex,
+   		self_contract_call_index: ContractsCallIndex,
+   		max_idn_xcm_fees: Option<IdnBalance>,
    )
    ```
 
@@ -82,10 +82,55 @@ create_subscription(credits: Credits, frequency: IdnBlockNumber, metadata: Optio
 Parameters:
 
 - `credits`: Payment budget for randomness delivery (IDN Network credits)
-- `frequency`: Distribution interval measured in IDN Network block numbers  
+- `frequency`: Distribution interval measured in IDN Network block numbers
 - `metadata`: Optional application-specific data for the subscription
 
 Returns the newly created subscription ID on success. Requires XCM execution fees.
+
+### Contract Gas Configuration
+
+This example contract uses the IDN Client library's fallback gas configuration by passing `None` as the `call_params` parameter to the `create_subscription` function. This approach uses the library's built-in default values for contract call execution.
+
+#### Fallback Configuration Values
+
+When `None` is passed as `call_params`, the library uses these default values:
+
+- **Gas Limit Ref Time**: `2_000_000_000` (2 billion reference time units)
+- **Gas Limit Proof Size**: `100_000` (100 KB proof size)  
+- **Storage Deposit Limit**: `None` (unlimited/default handling)
+- **Value Transfer**: `0` (no token transfer with pulse delivery)
+
+#### When to Use Custom Gas Configuration
+
+**Use the fallback configuration (pass `None`) when:**
+- Prototyping or testing your contract
+- Your contract's pulse processing logic is simple and lightweight
+- You want to rely on the library's tested defaults
+
+**Use custom `ContractCallParams` when:**
+- Your contract performs complex computations during pulse processing
+- You need to optimize gas costs for production deployment
+- Your contract requires specific storage deposit limits
+- You want to transfer tokens as part of the pulse delivery
+
+#### Custom Configuration Example
+
+```rust
+let custom_gas_config = Some(ContractCallParams {
+    value: 0,
+    gas_limit_ref_time: 1_000_000_000,  // Reduce for simpler logic
+    gas_limit_proof_size: 50_000,       // Reduce proof size limit
+    storage_deposit_limit: Some(1_000_000), // Set explicit storage limit
+});
+
+let subscription_id = self.idn_client.create_subscription(
+    credits,
+    frequency, 
+    metadata,
+    None,
+    custom_gas_config,  // Use custom configuration instead of None
+)?;
+```
 
 #### Managing Subscriptions
 
@@ -121,6 +166,7 @@ add_authorized_caller(account: AccountId) -> Result<(), ContractError>
 The contract owner can add additional authorized caller accounts that are permitted to deliver randomness pulses. This is useful for testing scenarios where you want to simulate pulse delivery from a test account rather than the actual IDN Network account.
 
 For testing pulse consumption, you can:
+
 1. Add a test account as an authorized caller using `add_authorized_caller`
 2. Switch to that authorized caller account
 3. Call the `consume_pulse` method from the `IdnConsumer` trait to simulate randomness delivery
@@ -168,7 +214,7 @@ The contract implements the IdnConsumer trait to receive randomness via XCM call
 Before processing any randomness, the contract performs comprehensive validation:
 
 1. **Caller Authentication**: Confirms the pulse originates from the authorized IDN account
-2. **Cryptographic Verification**: Validates the BLS signature against the known beacon public key
+2. **Cryptographic Verification**: This is skipped as it consumes too much gas. See issue [#360](https://github.com/ideal-lab5/idn-sdk/issues/360) for details.
 3. **Subscription Matching**: Ensures the pulse corresponds to the contract's active subscription
 4. **Data Integrity**: Processes only verified pulses, rejecting any corrupted or tampered data
 
@@ -185,6 +231,7 @@ To simulate randomness delivery during testing:
 3. **Simulate Pulse**: Call `IdnConsumer::consume_pulse(pulse, subscription_id)` directly to simulate randomness delivery
 
 This approach:
+
 - Maintains the same authorization checks as real IDN Network delivery
 - Ensures active subscription validation
 - Processes pulses through identical logic used for production IDN deliveries
@@ -197,7 +244,7 @@ The contract uses a comprehensive Result-based error handling system that provid
 ### ContractError Types
 
 - **IdnClientError**: Wraps errors from XCM operations and IDN Network communication
-- **NoActiveSubscription**: Indicates operations attempted without an active subscription  
+- **NoActiveSubscription**: Indicates operations attempted without an active subscription
 - **Unauthorized**: Caller lacks permission for the requested operation
 - **SubscriptionAlreadyExists**: Attempted to create a subscription when one already exists
 - **InvalidSubscriptionId**: Subscription ID mismatch in randomness delivery
@@ -267,14 +314,15 @@ To adapt this contract for your needs:
 
 When deploying on a real network:
 
-1. **Fund Sovereign Account**: **MOST IMPORTANT** - Fund your contract's sovereign account on the IDN chain with relay chain native tokens before any operations. Follow the [detailed funding guide](../idn-client-contract-lib/README.md#contract-account-funding-requirements) to calculate and fund the correct account.
+1. **Fund Sovereign Accounts**: **MOST IMPORTANT** - Follow the [detailed funding guide](../idn-client-contract-lib/README.md#contractaccount-funding-requirements)
 2. **Configure IDN Account**: Set the correct `idn_account_id` for the authorized IDN Network account
 3. **Set Network Parameters**: Configure `idn_para_id` and `self_para_id` to match your deployment environment
 4. **Configure Pallet Indices**: Set correct `idn_manager_pallet_index` and `self_contracts_pallet_index` values
 5. **Set Fee Limits**: Configure `max_idn_xcm_fees` appropriately for your network's fee structure
-6. **Verify HRMP Channels**: Ensure HRMP channels are established between your parachain and IDN
-7. **Implement Error Handling**: Set up proper error handling for production use with Result types
-8. **Test Thoroughly**: Use the comprehensive test suite to validate your deployment configuration
+6. **Configure Gas Parameters**: Replace the fallback gas configuration (`None`) with production-appropriate `ContractCallParams` values based on your contract's complexity and network conditions
+7. **Verify HRMP Channels**: Ensure HRMP channels are established between your parachain and IDN
+8. **Implement Error Handling**: Set up proper error handling for production use with Result types
+9. **Test Thoroughly**: Use the comprehensive test suite to validate your deployment configuration
 
 ## License
 

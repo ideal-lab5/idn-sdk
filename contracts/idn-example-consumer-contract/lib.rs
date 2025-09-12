@@ -700,12 +700,12 @@ mod example_consumer {
 
 		#[ink(message)]
 		fn consume_quote(&mut self, _quote: Quote) -> Result<(), Error> {
-			// TODO: Implement quote consumption logic
+			// TODO: Implement quote consumption logic https://github.com/ideal-lab5/idn-sdk/issues/361
 			Ok(())
 		}
 		#[ink(message)]
 		fn consume_sub_info(&mut self, _sub_info: SubInfoResponse) -> Result<(), Error> {
-			// TODO: Implement subscription info consumption logic
+			// TODO: Implement subscription info consumption logic https://github.com/ideal-lab5/idn-sdk/issues/361
 			Ok(())
 		}
 	}
