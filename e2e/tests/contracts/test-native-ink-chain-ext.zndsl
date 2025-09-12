@@ -1,0 +1,26 @@
+Description: native ink! smart contracts chain extension works
+Network: ./zombienet.toml
+Creds: config
+
+# Ensure Nodes and Collators are running
+alice: is up
+bob: is up
+idn-alice: is up
+idn-bob: is up
+
+# Ensure Blocks are being produced
+alice: parachain 4502 block height is at least 10 within 6000 seconds
+
+# Fund Sovereign Account
+idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,1000000" within 120 seconds
+# Pause to allow next transaction to go through
+sleep 7 seconds
+
+###############################################################
+# 1. deploy a new contract
+# 2. get a pulse of randomness in the contract: 
+###############################################################
+# SETUP
+########################################################
+idn-alice: js-script ../../scripts/contracts/deploy-contract.js within 120 seconds
+# idn-alice: js-script ../../scripts/contracts/call-chain-ext.js within 120 seconds
