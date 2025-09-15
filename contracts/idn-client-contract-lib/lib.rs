@@ -29,10 +29,11 @@
 //!
 //! ### Randomness Pulses
 //!
-//! Randomness pulses are cryptographically verifiable random values delivered by the IDN's
-//! randomness beacon. Each pulse contains:
-//! - A 48-byte randomness value derived from drand's Quicknet
-//! - A round number for temporal ordering
+//! Pulses of randomness delivered by the IDN are cryptographically verifiable for authenticity and
+//! correctness, each containing:
+//! - A 48-byte signature computed by Drand's Quicknet
+//! - Two round numbers, a `start` and `end`, which indicate the initial and terminal rounds of the
+//!   randomness beacon for which the signatures were aggregated.
 //! - Associated metadata for subscription context
 //!
 //! Contracts receive these pulses through the [`IdnConsumer::consume_pulse`] callback method,
@@ -148,17 +149,21 @@ use ink::{
 		hash::{Blake2x256, CryptoHash},
 		Error as EnvError,
 	},
-	prelude::vec,
 	selector_bytes,
+	xcm::lts::prelude::Weight,
+};
+
+#[cfg(not(test))]
+use ink::{
+	prelude::vec,
 	xcm::{
 		lts::{
 			prelude::{
-				BuyExecution, DepositAsset, OriginKind, RefundSurplus, Transact, Weight,
-				WithdrawAsset, Xcm,
+				BuyExecution, DepositAsset, OriginKind, RefundSurplus, Transact, WithdrawAsset, Xcm,
 			},
 			Asset,
 			AssetFilter::Wild,
-			AssetId, Junction, Junctions, Location,
+			AssetId, Junctions,
 			WeightLimit::Unlimited,
 			WildAsset::AllOf,
 			WildFungibility,
@@ -166,8 +171,13 @@ use ink::{
 		VersionedLocation, VersionedXcm,
 	},
 };
+
+// These are needed for both test and non-test
+use ink::xcm::lts::{Junction, Location};
 use parity_scale_codec::{Compact, Decode, Encode};
-use scale_info::prelude::{boxed::Box, vec::Vec};
+#[cfg(not(test))]
+use scale_info::prelude::boxed::Box;
+use scale_info::prelude::vec::Vec;
 use sp_idn_traits::pulse::Pulse as TPulse;
 use types::{
 	AccountId, Balance, CallData, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata,
@@ -187,7 +197,7 @@ pub trait Hashable {
 	/// - `salt`: Additional entropy to include in the hash calculation
 	///
 	/// # Returns
-	/// A 32-byte Blake2x256 hash of the encoded data and salt
+	/// A 32-byte hash of the encoded data and salt
 	fn hash(&self, salt: &[u8]) -> [u8; 32];
 }
 
@@ -267,7 +277,7 @@ where
 	}
 }
 
-/// Represents possible errors that can occur when interacting with the IDN network
+/// Represents possible errors that can occur when interacting with the IDN
 #[allow(clippy::cast_possible_truncation)]
 #[derive(Debug, PartialEq, Eq)]
 #[ink::scale_derive(Encode, Decode, TypeInfo)]
@@ -292,6 +302,8 @@ pub enum Error {
 	InvalidSubscriptionId,
 	/// Invalid Call Data
 	CallDataTooLong,
+	/// Invalid parameters
+	InvalidParams,
 	/// Other error
 	Other,
 }
@@ -323,7 +335,7 @@ impl From<EnvError> for Error {
 /// All public methods return this Result type with library-specific [`Error`] variants.
 pub type Result<T> = core::result::Result<T, Error>;
 
-/// Trait for contracts that receive data from the IDN Network
+/// Trait for contracts that receive data from the IDN
 #[ink::trait_definition]
 pub trait IdnConsumer {
 	/// Consumes a randomness pulse from the IDN chain.
@@ -374,23 +386,23 @@ pub trait IdnConsumer {
 /// consumption, and cross-chain communication via XCM.
 ///
 /// # Configuration Parameters
-/// - IDN network identification (parachain ID, pallet indices)
+/// - IDN identification (parachain ID, pallet indices)
 /// - Consumer chain identification (parachain ID, pallet indices)
 /// - XCM fee management settings
 ///
 /// # Key Capabilities
 /// - Create, pause, reactivate, and terminate randomness subscriptions
 /// - Handle cross-chain message construction and dispatch
-/// - Validate cryptographic authenticity of randomness pulses
+/// - Validate cryptographic authenticity and correctness of randomness pulses
 /// - Manage XCM execution fees and refunds
 #[derive(Clone, Copy, Encode, Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
 pub struct IdnClient {
-	/// Parachain ID of the IDN network
+	/// Parachain ID of the IDN
 	pub idn_para_id: ParaId,
 	/// Pallet index for the IDN Manager pallet
 	pub idn_manager_pallet_index: PalletIndex,
-	/// ID of this parachain this contract is deployed on
+	/// ID of the parachain this contract is deployed on
 	pub self_para_id: ParaId,
 	/// Index for the contracts pallet in the parachain this contract is deployed on
 	pub self_contracts_pallet_index: PalletIndex,
@@ -406,7 +418,7 @@ impl IdnClient {
 	/// Creates a new IdnClient with the specified configuration parameters
 	///
 	/// # Arguments
-	/// * `idn_para_id` - The parachain ID of the IDN network
+	/// * `idn_para_id` - The parachain ID of the IDN
 	/// * `idn_manager_pallet_index` - The pallet index for the IDN Manager pallet
 	/// * `self_para_id` - The parachain ID where this contract is deployed
 	/// * `self_contracts_pallet_index` - The contracts pallet index on this parachain
@@ -441,7 +453,7 @@ impl IdnClient {
 		self.idn_manager_pallet_index
 	}
 
-	/// Gets the parachain ID of the IDN network
+	/// Gets the parachain ID of the IDN
 	///
 	/// # Returns
 	/// The parachain ID where IDN services are hosted
@@ -473,7 +485,7 @@ impl IdnClient {
 		self.self_para_id
 	}
 
-	/// Creates a new randomness subscription with the IDN network.
+	/// Creates a new randomness subscription with the IDN.
 	///
 	/// This method sends an XCM message to the IDN Manager pallet to create a subscription
 	/// for receiving randomness pulses. If no subscription ID is provided, one will be
@@ -499,6 +511,10 @@ impl IdnClient {
 		sub_id: Option<SubscriptionId>,
 		call_params: Option<ContractCallParams>,
 	) -> Result<SubscriptionId> {
+		if credits == 0 || frequency == 0 {
+			return Err(Error::InvalidParams);
+		}
+
 		let mut params = CreateSubParams {
 			credits,
 			target: self.self_para_sibling_location(),
@@ -608,7 +624,7 @@ impl IdnClient {
 		self.xcm_send(call)
 	}
 
-	/// Requests a subscription fee quote from the IDN network.
+	/// Requests a subscription fee quote from the IDN.
 	///
 	/// This method sends an XCM message to request current subscription pricing
 	/// information. The quote response is delivered via the [`IdnConsumer::consume_quote`]
@@ -624,7 +640,7 @@ impl IdnClient {
 		Err(Error::MethodNotImplemented)
 	}
 
-	/// Requests information about a subscription from the IDN network.
+	/// Requests information about a subscription from the IDN.
 	///
 	/// This method sends an XCM message to request detailed information about
 	/// a subscription's current state, remaining credits, and other parameters.
@@ -640,12 +656,13 @@ impl IdnClient {
 		Err(Error::MethodNotImplemented)
 	}
 
-	/// Validates the cryptographic authenticity of a randomness pulse.
+	/// Validates the cryptographic authenticity and correctness of a randomness pulse.
 	///
-	/// This method verifies that a pulse was legitimately generated by the IDN's randomness beacon
-	/// by checking its BLS12-381 signature against the known beacon public key. This provides
-	/// cryptographic proof that the randomness originates from the drand network and hasn't been
-	/// tampered with during cross-chain delivery.
+	/// This method verifies that a pulse was legitimately generated by the Drand Quicknet's
+	/// randomness beacon by checking its BLS12-381 signature against the known beacon public key
+	/// and the message we expect the beacon to have signed. This provides cryptographic proof that
+	/// the randomness originates from the drand network and hasn't been tampered with during
+	/// cross-chain delivery.
 	///
 	/// # Verification Process
 	///
@@ -731,6 +748,7 @@ impl IdnClient {
 	/// # Returns
 	/// - `Ok(())` if the message is successfully sent.
 	/// - `Err(Error::XcmSendFailed)` if the message fails to send.
+	#[cfg(not(test))]
 	fn xcm_send(&self, call: RuntimeCall) -> Result<()> {
 		let idn_fee_asset = Asset {
 			id: AssetId(Location { parents: 1, interior: Junctions::Here }),
@@ -763,6 +781,18 @@ impl IdnClient {
 		Ok(())
 	}
 
+	/// Mock version of xcm_send for testing
+	///
+	/// In test mode, this function simulates XCM sending without actually
+	/// calling the ink! environment XCM functions, which aren't available
+	/// in unit test environments.
+	#[cfg(test)]
+	fn xcm_send(&self, _call: RuntimeCall) -> Result<()> {
+		// In tests, we just return success to allow testing of
+		// parameter validation and call construction logic
+		Ok(())
+	}
+
 	/// Helper function to get the sibling location of the IDN parachain
 	///
 	/// Creates an XCM Location targeting the IDN parachain from this parachain's perspective.
@@ -783,14 +813,22 @@ impl IdnClient {
 	/// # Returns
 	/// Location with `parents: 0` (local to IDN) and junction `AccountId32(contract_account)`
 	fn contract_idn_location(&self) -> Location {
-		Location::new(
-			0,
-			Junction::AccountId32 {
-				network: None,
-				id: *ink::env::account_id::<ink::env::DefaultEnvironment>().as_ref(),
-			},
-		)
+		Location::new(0, Junction::AccountId32 { network: None, id: *self.account_id().as_ref() })
 	}
+
+	/// Gets the account ID of this contract
+	#[cfg(not(test))]
+	fn account_id(&self) -> AccountId {
+		ink::env::account_id::<ink::env::DefaultEnvironment>()
+	}
+
+	/// Mock version of account_id for testing
+	#[cfg(test)]
+	fn account_id(&self) -> AccountId {
+		// Return a dummy account ID for testing
+		[88u8; 32].into()
+	}
+
 	/// Get the call data for the [`IdnConsumer::consume_pulse`] call
 	///
 	/// Constructs the encoded call data needed for the IDN chain to invoke the
@@ -817,6 +855,10 @@ impl IdnClient {
 		// length of the call data, which we will truncate later
 		let dummy_pulse = Pulse::default();
 		let dummy_sub_id = SubscriptionId::default();
+		const DEF_VALUE: Balance = 0;
+		const DEF_REF_TIME: u64 = 2_000_000_000;
+		const DEF_PROOF_SIZE: u64 = 100_000;
+		const DEF_STORAGE_DEPOSIT: Option<Balance> = None;
 
 		let params = (dummy_pulse, dummy_sub_id).encode();
 		let selector = selector_bytes!("IdnConsumer::consume_pulse");
@@ -825,10 +867,10 @@ impl IdnClient {
 		data.extend_from_slice(&params);
 
 		let mut call = self.generate_call(
-			call_params.as_ref().map(|p| p.value).unwrap_or(0),             // value - no balance transfer needed for pulse callbacks
-			call_params.as_ref().map(|p| p.gas_limit_ref_time).unwrap_or(2_000_000_000), // gas_limit_ref_time - reasonable default
-			call_params.as_ref().map(|p| p.gas_limit_proof_size).unwrap_or(100_000),       // gas_limit_proof_size - reasonable default
-			call_params.as_ref().map(|p| p.storage_deposit_limit).unwrap_or(None),          // storage_deposit_limit - use None for default
+			call_params.as_ref().map(|p| p.value).unwrap_or(DEF_VALUE),            // value - no balance transfer needed for pulse callbacks
+			call_params.as_ref().map(|p| p.gas_limit_ref_time).unwrap_or(DEF_REF_TIME), // gas_limit_ref_time - reasonable default
+			call_params.as_ref().map(|p| p.gas_limit_proof_size).unwrap_or(DEF_PROOF_SIZE),       // gas_limit_proof_size - reasonable default
+			call_params.as_ref().map(|p| p.storage_deposit_limit).unwrap_or(DEF_STORAGE_DEPOSIT),          // storage_deposit_limit - use None for default
 			data,          // data - the encoded selector and params
 		);
 
@@ -858,6 +900,7 @@ impl IdnClient {
 	///
 	/// # Returns
 	/// Complete encoded call data ready for XCM `Transact` instruction
+	#[cfg(not(test))]
 	fn generate_call(
 		&self,
 		value: Balance,
@@ -875,6 +918,37 @@ impl IdnClient {
 		// Create the call structure
 		let call = ContractsCall {
 			dest: MultiAddress::Id(ink::env::account_id::<ink::env::DefaultEnvironment>()),
+			value,
+			gas_limit: Weight::from_parts(gas_limit_ref_time, gas_limit_proof_size),
+			storage_deposit_limit: storage_deposit_limit.map(Compact),
+			data,
+		};
+
+		// Encode the call parameters
+		encoded.extend_from_slice(&call.encode());
+
+		encoded
+	}
+
+	/// Mock version of generate_call for testing
+	#[cfg(test)]
+	fn generate_call(
+		&self,
+		value: Balance,
+		gas_limit_ref_time: u64,
+		gas_limit_proof_size: u64,
+		storage_deposit_limit: Option<Balance>,
+		data: Vec<u8>,
+	) -> Vec<u8> {
+		let mut encoded = Vec::new();
+
+		// Pallet and call indices as raw bytes
+		encoded.push(self.get_self_contracts_pallet_index());
+		encoded.push(self.get_self_contract_call_index());
+
+		// Create the call structure with dummy account ID
+		let call = ContractsCall {
+			dest: MultiAddress::Id(AccountId::from([42u8; 32])), // Dummy account ID for testing
 			value,
 			gas_limit: Weight::from_parts(gas_limit_ref_time, gas_limit_proof_size),
 			storage_deposit_limit: storage_deposit_limit.map(Compact),
@@ -907,6 +981,15 @@ mod tests {
 		)
 	}
 
+	fn create_subscription(client: &IdnClient) -> Result<SubscriptionId> {
+		let credits = 100u64;
+		let frequency = 10u32;
+		let metadata: Option<types::Metadata> = None; // Use None since BoundedVec creation is complex in tests
+		let sub_id = Some([1u8; 32]);
+
+		client.create_subscription(credits, frequency, metadata, sub_id, None)
+	}
+
 	#[test]
 	fn test_client_basic_functionality() {
 		let client = mock_client();
@@ -920,34 +1003,6 @@ mod tests {
 		// Test unimplemented methods return correct errors
 		assert_eq!(client.request_quote(), Err(Error::MethodNotImplemented));
 		assert_eq!(client.request_sub_info(), Err(Error::MethodNotImplemented));
-	}
-
-	#[test]
-	fn test_create_subscription_parameters() {
-		let _client = mock_client();
-
-		// Test create subscription with provided sub_id
-		// Note: In real scenarios this would send XCM but we can't test that in unit tests
-		// We can test parameter validation and function behavior
-
-		// Test with various parameter combinations
-		let credits = 100u64;
-		let frequency = 10u32;
-		let metadata: Option<types::Metadata> = None; // Use None since BoundedVec creation is complex in tests
-		let sub_id = Some([1u8; 32]);
-
-		// This would normally create a subscription, but we can't test XCM sending in unit tests
-		// The method would return the subscription ID or an error
-		// We can verify the method signature accepts the parameters correctly
-
-		// Test parameter validation happens at compile time through type system
-		let result = std::panic::catch_unwind(|| {
-			// This should compile successfully showing parameters are correct
-			let _would_create = |client: &IdnClient| {
-				client.create_subscription(credits, frequency, metadata.clone(), sub_id, None)
-			};
-		});
-		assert!(result.is_ok());
 	}
 
 	#[test]
@@ -1009,97 +1064,82 @@ mod tests {
 
 	#[test]
 	fn test_subscription_management_api() {
-		let _client = mock_client();
-		let _sub_id = [123u8; 32];
+		let client = mock_client();
 
-		// Test that the API methods compile and have correct signatures
-		// Note: We can't test actual XCM sending in unit tests, but we can verify the method
-		// signatures
+		let sub_id = create_subscription(&client).unwrap();
 
 		// Test pause subscription API
-		let pause_result = std::panic::catch_unwind(|| {
-			let _would_pause =
-				|client: &IdnClient, id: SubscriptionId| client.pause_subscription(id);
-		});
+		let pause_result = client.pause_subscription(sub_id);
+
 		assert!(pause_result.is_ok());
 
 		// Test reactivate subscription API
-		let reactivate_result = std::panic::catch_unwind(|| {
-			let _would_reactivate =
-				|client: &IdnClient, id: SubscriptionId| client.reactivate_subscription(id);
-		});
+		let reactivate_result = client.reactivate_subscription(sub_id);
+
 		assert!(reactivate_result.is_ok());
 
 		// Test kill subscription API
-		let kill_result = std::panic::catch_unwind(|| {
-			let _would_kill = |client: &IdnClient, id: SubscriptionId| client.kill_subscription(id);
-		});
+		let kill_result = client.kill_subscription(sub_id);
+
 		assert!(kill_result.is_ok());
 	}
 
 	#[test]
 	fn test_update_subscription_api() {
-		let _client = mock_client();
-		let _sub_id = [123u8; 32];
+		let mut client = mock_client();
+
+		let sub_id = create_subscription(&client).unwrap();
 
 		// Test update subscription API with different parameter combinations
-		let update_result = std::panic::catch_unwind(|| {
-			let _would_update = |client: &mut IdnClient, id: SubscriptionId| {
-				// Test updating all parameters
-				client.update_subscription(id, Some(100), Some(20), Some(None)) // Use None to avoid BoundedVec
-				                                                    // complexity
-			};
-		});
+		let update_result = client.update_subscription(sub_id, Some(100), Some(20), Some(None));
+
 		assert!(update_result.is_ok());
 
 		// Test updating only credits
-		let credits_only_result = std::panic::catch_unwind(|| {
-			let _would_update_credits = |client: &mut IdnClient, id: SubscriptionId| {
-				client.update_subscription(id, Some(200), None, None)
-			};
-		});
+		let credits_only_result = client.update_subscription(sub_id, Some(200), None, None);
 		assert!(credits_only_result.is_ok());
 
 		// Test updating only frequency
-		let frequency_only_result = std::panic::catch_unwind(|| {
-			let _would_update_frequency = |client: &mut IdnClient, id: SubscriptionId| {
-				client.update_subscription(id, None, Some(5), None)
-			};
-		});
+		let frequency_only_result = client.update_subscription(sub_id, None, Some(5), None);
 		assert!(frequency_only_result.is_ok());
 	}
 
 	#[test]
-	fn test_create_subscription_maximum_values() {
-		let _client = mock_client();
+	fn test_create_subscription_edge_values() {
+		let client = mock_client();
 
 		// Test create subscription API with maximum values
-		let max_values_result = std::panic::catch_unwind(|| {
-			let _would_create = |client: &IdnClient| {
-				client.create_subscription(
-					u64::MAX,            // credits
-					u32::MAX,            // frequency
-					None,                // metadata - use None to avoid BoundedVec complexity
-					Some([u8::MAX; 32]), // sub_id
-					None,                // call_params
-				)
-			};
-		});
+		let max_values_result = client.create_subscription(
+			u64::MAX,            // credits
+			u32::MAX,            // frequency
+			None,                // metadata - use None to avoid BoundedVec complexity
+			Some([u8::MAX; 32]), // sub_id
+			None,                // call_params
+		);
+
 		assert!(max_values_result.is_ok());
 
 		// Test with minimum values
-		let min_values_result = std::panic::catch_unwind(|| {
-			let _would_create = |client: &IdnClient| {
-				client.create_subscription(
-					0,    // credits
-					0,    // frequency
-					None, // metadata
-					None, // sub_id (auto-generated)
-					None, // call_params
-				)
-			};
-		});
+		let min_values_result = client.create_subscription(
+			1,    // credits
+			1,    // frequency
+			None, // metadata
+			None, // sub_id (auto-generated)
+			None, // call_params
+		);
+
 		assert!(min_values_result.is_ok());
+
+		// Test with invalid 0 values
+		let zero_values_result = client.create_subscription(
+			0,    // credits
+			0,    // frequency
+			None, // metadata
+			None, // sub_id (auto-generated)
+			None, // call_params
+		);
+
+		assert!(matches!(zero_values_result, Err(Error::InvalidParams)));
 	}
 
 	#[ink::test]

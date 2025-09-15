@@ -1,11 +1,11 @@
 # Example Consumer Contract
 
-This contract demonstrates how to use the IDN Client Contract Library to interact with the Ideal Network's randomness subscription service. It serves as a reference implementation that can be used as a starting point for developing your own contracts that consume randomness from the IDN Network.
+This contract demonstrates how to use the IDN Client Contract Library to interact with the Ideal Network's randomness subscription service. It serves as a reference implementation that can be used as a starting point for developing your own contracts that consume randomness from the IDN.
 
 ## Features
 
 - Creates and manages randomness subscriptions via XCM
-- Receives and processes randomness from the IDN Network using the Pulse trait
+- Receives and processes randomness from the IDN using the Pulse trait
 - Stores both raw randomness and complete pulse objects (with round numbers and signatures)
 - Maintains randomness history for application use
 - Includes comprehensive tests for all functionality
@@ -61,9 +61,9 @@ To deploy this contract:
 
    Parameters:
 
-   - `idn_account_id`: The authorized IDN Network account that will deliver randomness to this contract
-   - `idn_para_id`: The parachain ID of the IDN Network
-   - `idn_manager_pallet_index`: The pallet index for the IDN Manager pallet on the IDN Network
+   - `idn_account_id`: The authorized IDN account that will deliver randomness to this contract
+   - `idn_para_id`: The parachain ID of the IDN
+   - `idn_manager_pallet_index`: The pallet index for the IDN Manager pallet on the IDN
    - `self_para_id`: The parachain ID where this contract is deployed
    - `self_contracts_pallet_index`: The pallet index for the Contracts pallet on the target chain
    - `self_contract_call_index`: The call index for the `call` function in the Contracts pallet on the target chain
@@ -81,8 +81,8 @@ create_subscription(credits: Credits, frequency: IdnBlockNumber, metadata: Optio
 
 Parameters:
 
-- `credits`: Payment budget for randomness delivery (IDN Network credits)
-- `frequency`: Distribution interval measured in IDN Network block numbers
+- `credits`: Payment budget for randomness delivery (IDN credits)
+- `frequency`: Distribution interval measured in IDN block numbers
 - `metadata`: Optional application-specific data for the subscription
 
 Returns the newly created subscription ID on success. Requires XCM execution fees.
@@ -96,18 +96,20 @@ This example contract uses the IDN Client library's fallback gas configuration b
 When `None` is passed as `call_params`, the library uses these default values:
 
 - **Gas Limit Ref Time**: `2_000_000_000` (2 billion reference time units)
-- **Gas Limit Proof Size**: `100_000` (100 KB proof size)  
+- **Gas Limit Proof Size**: `100_000` (100 KB proof size)
 - **Storage Deposit Limit**: `None` (unlimited/default handling)
 - **Value Transfer**: `0` (no token transfer with pulse delivery)
 
 #### When to Use Custom Gas Configuration
 
 **Use the fallback configuration (pass `None`) when:**
+
 - Prototyping or testing your contract
 - Your contract's pulse processing logic is simple and lightweight
 - You want to rely on the library's tested defaults
 
 **Use custom `ContractCallParams` when:**
+
 - Your contract performs complex computations during pulse processing
 - You need to optimize gas costs for production deployment
 - Your contract requires specific storage deposit limits
@@ -125,7 +127,7 @@ let custom_gas_config = Some(ContractCallParams {
 
 let subscription_id = self.idn_client.create_subscription(
     credits,
-    frequency, 
+    frequency,
     metadata,
     None,
     custom_gas_config,  // Use custom configuration instead of None
@@ -163,7 +165,7 @@ get_idn_manager_pallet_index() -> PalletIndex
 add_authorized_caller(account: AccountId) -> Result<(), ContractError>
 ```
 
-The contract owner can add additional authorized caller accounts that are permitted to deliver randomness pulses. This is useful for testing scenarios where you want to simulate pulse delivery from a test account rather than the actual IDN Network account.
+The contract owner can add additional authorized caller accounts that are permitted to deliver randomness pulses. This is useful for testing scenarios where you want to simulate pulse delivery from a test account rather than the actual IDN account.
 
 For testing pulse consumption, you can:
 
@@ -204,7 +206,7 @@ Note: The idn-consumer-node must have the contracts pallet enabled for these tes
 The contract implements the IdnConsumer trait to receive randomness via XCM callbacks. The implementation includes:
 
 - **Authorization Verification**: Ensures only the configured IDN account can deliver randomness
-- **Pulse Authentication**: Verifies the cryptographic integrity of incoming pulses using the IDN beacon's public key
+- **Pulse Authentication**: Verifies the cryptographic integrity of incoming pulses using the Drand Quicknet's public key
 - **Subscription Validation**: Verifies that incoming pulses match the active subscription
 - **Randomness Processing**: Computes SHA256 of the BLS signature to derive the final randomness value
 - **State Management**: Updates contract storage with new randomness values and history
@@ -218,7 +220,7 @@ Before processing any randomness, the contract performs comprehensive validation
 3. **Subscription Matching**: Ensures the pulse corresponds to the contract's active subscription
 4. **Data Integrity**: Processes only verified pulses, rejecting any corrupted or tampered data
 
-This multi-layer verification ensures that applications receive only authentic, untampered randomness from the IDN Network. The consume_pulse method is automatically called by the IDN Network when delivering randomness, making the integration seamless for applications while maintaining security.
+This multi-layer verification ensures that applications receive only authentic, untampered randomness from the IDN. The consume_pulse method is automatically called by the IDN when delivering randomness, making the integration seamless for applications while maintaining security.
 
 ### Testing Support
 
@@ -232,7 +234,7 @@ To simulate randomness delivery during testing:
 
 This approach:
 
-- Maintains the same authorization checks as real IDN Network delivery
+- Maintains the same authorization checks as real IDN delivery
 - Ensures active subscription validation
 - Processes pulses through identical logic used for production IDN deliveries
 - Provides safe and flexible testing without bypassing security controls
@@ -243,7 +245,7 @@ The contract uses a comprehensive Result-based error handling system that provid
 
 ### ContractError Types
 
-- **IdnClientError**: Wraps errors from XCM operations and IDN Network communication
+- **IdnClientError**: Wraps errors from XCM operations and IDN communication
 - **NoActiveSubscription**: Indicates operations attempted without an active subscription
 - **Unauthorized**: Caller lacks permission for the requested operation
 - **SubscriptionAlreadyExists**: Attempted to create a subscription when one already exists
@@ -272,7 +274,7 @@ The contract owner (the account that deploys the contract) has exclusive rights 
 - Simulate randomness delivery for testing purposes
 - Access all subscription management functionality
 
-### IDN Network Authorization
+### IDN Authorization
 
 Only the configured IDN account can:
 
@@ -315,7 +317,7 @@ To adapt this contract for your needs:
 When deploying on a real network:
 
 1. **Fund Sovereign Accounts**: **MOST IMPORTANT** - Follow the [detailed funding guide](../idn-client-contract-lib/README.md#contractaccount-funding-requirements)
-2. **Configure IDN Account**: Set the correct `idn_account_id` for the authorized IDN Network account
+2. **Configure IDN Account**: Set the correct `idn_account_id` for the authorized IDN account
 3. **Set Network Parameters**: Configure `idn_para_id` and `self_para_id` to match your deployment environment
 4. **Configure Pallet Indices**: Set correct `idn_manager_pallet_index` and `self_contracts_pallet_index` values
 5. **Set Fee Limits**: Configure `max_idn_xcm_fees` appropriately for your network's fee structure

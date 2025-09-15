@@ -24,7 +24,7 @@
 //! ## Overview
 //!
 //! The Example Consumer contract showcases the complete lifecycle of randomness
-//! subscriptions with the IDN Network:
+//! subscriptions with the IDN:
 //!
 //! - **Subscription Management**: Create, pause, reactivate, update, and terminate subscriptions
 //! - **Randomness Reception**: Receive and process randomness pulses via XCM callbacks
@@ -155,6 +155,8 @@ mod example_consumer {
 		/// The most recently received randomness value, computed as SHA256 of the pulse signature.
 		/// This provides quick access to the latest randomness without needing to process
 		/// the complete pulse data structure.
+		/// /// Note that randomness can be derived from stored pulses directly, this would save
+		/// storage but could increase computation, depending on the use case.
 		last_randomness: Option<Rand>,
 		/// The subscription ID for the currently active randomness subscription.
 		/// When None, the contract has no active subscription and cannot receive randomness.
@@ -163,7 +165,9 @@ mod example_consumer {
 		/// Complete history of all valid randomness values received by this contract.
 		/// Each entry represents the SHA256 hash of a pulse signature, providing a
 		/// chronological record of randomness delivery for application analysis.
-		/// Limited to 100 most recent entries.
+		/// Note that randomness can be derived from stored pulses directly, this would save
+		/// storage but could increase computation, depending on the use case. Limited to 100
+		/// most recent entries.
 		randomness_history: Vec<Rand>,
 		/// History of all received pulses along with their validity status.
 		/// Limited to 100 most recent entries.
@@ -184,7 +188,7 @@ mod example_consumer {
 	pub enum ContractError {
 		/// An error occurred in the underlying IDN Client during XCM operations or IDN
 		/// communication. This wraps errors from cross-chain message sending, execution
-		/// failures, or IDN Network response processing. Check the inner Error for specific
+		/// failures, or IDN response processing. Check the inner Error for specific
 		/// failure details.
 		IdnClientError(Error),
 		/// Attempted to perform a subscription operation when no active subscription exists.
@@ -213,7 +217,7 @@ mod example_consumer {
 
 	/// Converts IDN Client library errors into contract errors.
 	///
-	/// This allows seamless propagation of XCM and IDN Network errors through
+	/// This allows seamless propagation of XCM and IDN errors through
 	/// the contract's error system, providing unified error handling for callers.
 	impl From<Error> for ContractError {
 		fn from(error: Error) -> Self {
@@ -240,7 +244,7 @@ mod example_consumer {
 		/// Creates a new ExampleConsumer contract with the specified network configuration.
 		///
 		/// This constructor initializes the contract with all necessary parameters for cross-chain
-		/// communication with the IDN Network. The configuration must be accurate for the target
+		/// communication with the IDN. The configuration must be accurate for the target
 		/// deployment environment to ensure proper XCM message routing and fee handling.
 		///
 		/// The contract owner is automatically set to the account that calls this constructor,
@@ -248,16 +252,16 @@ mod example_consumer {
 		///
 		/// # Arguments
 		///
-		/// * `idn_para_id` - The parachain ID of the IDN Network in the relay chain ecosystem. This
-		///   must match the actual IDN parachain deployment for XCM routing to succeed.
+		/// * `idn_para_id` - The parachain ID of the IDN in the relay chain ecosystem. This must
+		///   match the actual IDN parachain deployment for XCM routing to succeed.
 		/// * `idn_manager_pallet_index` - The pallet index of the IDN Manager pallet within the IDN
 		///   Network's runtime. This is used for constructing XCM calls that target subscription
-		/// * `idn_account_id` - The authorized IDN Network account identifier used to verify that
-		///   incoming randomness pulses originate from legitimate sources. This prevents
-		///   unauthorized accounts from injecting fake randomness into the contract.
+		/// * `idn_account_id` - The authorized IDN account identifier used to verify that incoming
+		///   randomness pulses originate from legitimate sources. This prevents unauthorized
+		///   accounts from injecting fake randomness into the contract.
 		/// * `self_para_id` - The parachain ID where this contract is deployed. This enables the
-		///   IDN Network to route randomness delivery messages back to the correct chain.
-		///   management functions.
+		///   IDN to route randomness delivery messages back to the correct chain. management
+		///   functions.
 		/// * `self_contracts_pallet_index` - The pallet index of the Contracts pallet on this
 		///   parachain's runtime. Required for XCM callback routing to contract methods.
 		/// * `self_contracts_call_index` - The call index of the `call` dispatchable within the
@@ -272,7 +276,7 @@ mod example_consumer {
 		///
 		/// # Security Considerations
 		///
-		/// - Ensure `idn_account_id` corresponds to a legitimate IDN Network account
+		/// - Ensure `idn_account_id` corresponds to a legitimate IDN account
 		/// - Verify all parachain IDs and pallet indices match your deployment environment
 		/// - Set `max_idn_xcm_fees` high enough for normal operations but low enough to prevent
 		///   abuse
@@ -304,10 +308,10 @@ mod example_consumer {
 			}
 		}
 
-		/// Creates a new randomness subscription with the IDN Network.
+		/// Creates a new randomness subscription with the IDN.
 		///
 		/// This method initiates a cross-chain subscription request that establishes ongoing
-		/// randomness delivery to this contract. The IDN Network will automatically deliver
+		/// randomness delivery to this contract. The IDN will automatically deliver
 		/// randomness pulses based on the specified frequency until the subscription is
 		/// paused, exhausted, or terminated.
 		///
@@ -317,12 +321,12 @@ mod example_consumer {
 		///
 		/// # Arguments
 		///
-		/// * `credits` - The payment budget for randomness delivery, denominated in IDN Network
-		///   credits. Higher credit amounts enable longer subscription duration and more randomness
+		/// * `credits` - The payment budget for randomness delivery, denominated in IDN credits.
+		///   Higher credit amounts enable longer subscription duration and more randomness
 		///   deliveries before the subscription is automatically terminated.
-		/// * `frequency` - The delivery interval measured in IDN Network block numbers. Smaller
-		///   values result in more frequent randomness delivery, while larger values space out
-		///   deliveries to preserve credits and reduce cross-chain traffic.
+		/// * `frequency` - The delivery interval measured in IDN block numbers. Smaller values
+		///   result in more frequent randomness delivery, while larger values space out deliveries
+		///   to preserve credits and reduce cross-chain traffic.
 		/// * `metadata` - Optional application-specific data associated with this subscription.
 		///   This can be used to store context information, configuration parameters, or other data
 		///   relevant to your randomness consumption logic.
@@ -635,27 +639,26 @@ mod example_consumer {
 		}
 	}
 
-	/// Implementation of the IdnConsumer trait for receiving IDN Network callbacks.
+	/// Implementation of the IdnConsumer trait for receiving IDN callbacks.
 	///
-	/// This implementation handles all incoming cross-chain messages from the IDN Network,
+	/// This implementation handles all incoming cross-chain messages from the IDN,
 	/// including randomness pulses, subscription quotes, and subscription information.
-	/// The methods in this trait are automatically invoked by XCM when the IDN Network
+	/// The methods in this trait are automatically invoked by XCM when the IDN
 	/// sends data to this contract.
 	impl IdnConsumer for ExampleConsumer {
-		/// Processes randomness pulses delivered by the IDN Network via XCM.
+		/// Processes randomness pulses delivered by the IDN via XCM.
 		///
 		/// This method is the primary callback for randomness consumption and is automatically
-		/// invoked when the IDN Network delivers randomness to this contract. It performs
+		/// invoked when the IDN delivers randomness to this contract. It performs
 		/// authorization checks, validates the subscription, processes the randomness data,
 		/// and updates the contract's state.
 		///
 		/// The randomness value is derived by computing SHA256 of the BLS signature contained
-		/// in the pulse, providing a deterministic 32-byte random value for application use.
+		/// in the pulse, providing an unpredictable 32-byte value for application use.
 		///
 		/// # Arguments
 		///
-		/// * `pulse` - The randomness pulse containing the BLS signature, round number, and
-		///   metadata
+		/// * `pulse` - The pulse containing the BLS signature, round number, and metadata
 		/// * `subscription_id` - The subscription ID associated with this randomness delivery
 		///
 		/// # Returns
@@ -671,7 +674,7 @@ mod example_consumer {
 		///
 		/// # Security
 		///
-		/// This method enforces strict authorization to ensure only legitimate IDN Network
+		/// This method enforces strict authorization to ensure only legitimate IDN
 		/// accounts can deliver randomness, preventing unauthorized data injection attacks.
 		#[ink(message)]
 		fn consume_pulse(
@@ -679,13 +682,19 @@ mod example_consumer {
 			pulse: Pulse,
 			subscription_id: SubscriptionId,
 		) -> Result<(), Error> {
+			println!(
+				"consume_pulse called with pulse: {:?}, subscription_id: {:?}",
+				pulse, subscription_id
+			);
 			// Make sure the caller is the IDN account
 			self.ensure_authorized_deliverer()?;
+			println!("Authorized deliverer");
 
 			// Verify that the subscription ID matches our active subscription
 			if subscription_id != self.ensure_active_sub()? {
 				return Err(Error::InvalidSubscriptionId);
 			}
+			println!("Authorized deliverer and valid subscription ID");
 
 			let validity = match self.ensure_valid_pulse(&pulse) {
 				Ok(_) => PulseValidity::Valid,
@@ -841,14 +850,15 @@ mod example_consumer {
 				ContractsCallIndex::Other(16),                   // self_contract_call_index
 				Some(1_000_000),                                 // max_idn_xcm_fees
 			);
-			contract.subscription_id = Some([5u8; 32]);
+			let sub_id = [1u8; 32];
+			contract.subscription_id = Some(sub_id);
 			// idn_account_id is already set to accounts.bob in constructor
 
 			// Create a test pulse
 			let test_pulse = Pulse::new([0u8; 48], 1, 2);
 
 			// Call with wrong subscription ID
-			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse.clone(), [6u8; 32]);
+			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse.clone(), sub_id);
 			assert!(result.is_ok(), "Should succeed but ignore invalid randomness");
 
 			assert_eq!(contract.pulse_history.len(), 1);
