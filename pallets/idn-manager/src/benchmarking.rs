@@ -484,7 +484,10 @@ mod benchmarks {
 			let id: [u8; 32] = i.hash(&[i as u8]).into();
 			let account_id: T::AccountId = id.into();
 			let (subscriber, origin) = create_subscriber::<T>(Some(account_id));
-			T::Currency::set_balance(&subscriber, IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()));
+			T::Currency::set_balance(
+				&subscriber,
+				IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
+			);
 			let res = IdnManager::<T>::create_subscription(
 				origin.into(),
 				CreateSubParamsOf::<T> {

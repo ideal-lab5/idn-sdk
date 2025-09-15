@@ -563,18 +563,10 @@ fn test_update_subscription() {
 			},
 			SubUpdate {
 				old: SubParams { credits: 100, frequency: 1, metadata: Some(vec![0x1, 0xa]) },
-				new: SubParams {
-					credits: 500,
-					frequency: 1,
-					metadata: Some(vec![0x1, 0xa]),
-				},
+				new: SubParams { credits: 500, frequency: 1, metadata: Some(vec![0x1, 0xa]) },
 			},
 			SubUpdate {
-				old: SubParams {
-					credits: 500,
-					frequency: 1,
-					metadata: Some(vec![0x1, 0xa]),
-				},
+				old: SubParams { credits: 500, frequency: 1, metadata: Some(vec![0x1, 0xa]) },
 				new: SubParams { credits: 100, frequency: 1, metadata: Some(vec![0x1, 0xa, 0x10]) },
 			},
 		];
@@ -1453,12 +1445,13 @@ fn test_calculate_subscription_fees() {
 		// Test with different credit amounts
 		// The tuples in these cases are (credits, expected_fee)
 		let test_cases = vec![
-			(0, 0),                  // Zero credits
-			(1_000, 2_900_000_000),        // 1k credits
-			(10_000, 29_000_000_000),     // 10k credits
-			(50_000, 139_200_000_000),     // 50k credits, 5% off over 10k
+			(0, 0),                         // Zero credits
+			(1_000, 2_900_000_000),         // 1k credits
+			(10_000, 29_000_000_000),       // 10k credits
+			(50_000, 139_200_000_000),      // 50k credits, 5% off over 10k
 			(1_000_000, 2_625_950_000_000), // 1M credits, 5% off over 50k, 10% over 10k
-			(1_000_001, 2_625_952_320_000), // 1M + 1credits, 5% off over 50k, 10% over 10k, 20% over 1M
+			(1_000_001, 2_625_952_320_000), /* 1M + 1credits, 5% off over 50k, 10% over 10k, 20%
+			                                 * over 1M */
 		];
 
 		for (credits, expected_fee) in test_cases {
@@ -1610,14 +1603,14 @@ fn test_runtime_api_calculate_subscription_fees() {
 	ExtBuilder::build().execute_with(|| {
 		// Test with different credit amounts
 		let test_cases = vec![
-			(0, 0),                  // Zero credits
-			(1_000, 2_900_000_000),        // 1k credits
-			(10_000, 29_000_000_000),     // 10k credits
-			(50_000, 139_200_000_000),     // 50k credits, 5% off over 10k
+			(0, 0),                         // Zero credits
+			(1_000, 2_900_000_000),         // 1k credits
+			(10_000, 29_000_000_000),       // 10k credits
+			(50_000, 139_200_000_000),      // 50k credits, 5% off over 10k
 			(1_000_000, 2_625_950_000_000), // 1M credits, 5% off over 50k, 10% over 10k
-			(1_000_001, 2_625_952_320_000), // 1M + 1credits, 5% off over 50k, 10% over 10k, 20% over 1M
+			(1_000_001, 2_625_952_320_000), /* 1M + 1credits, 5% off over 50k, 10% over 10k, 20%
+			                                 * over 1M */
 		];
-
 
 		for (credits, expected_fee) in test_cases {
 			let fee = Test::calculate_subscription_fees(credits);
