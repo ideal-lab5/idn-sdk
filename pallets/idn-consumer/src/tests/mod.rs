@@ -82,8 +82,8 @@ fn test_create_subscription_correct_sub_id_multiple_blocks() {
 			)
 			.unwrap(),
 			[
-				60, 38, 11, 40, 232, 2, 169, 90, 244, 253, 51, 146, 68, 107, 91, 0, 137, 27, 237,
-				90, 149, 192, 239, 28, 52, 245, 72, 109, 220, 233, 170, 9
+				178, 117, 254, 41, 171, 62, 62, 226, 86, 105, 136, 96, 187, 23, 29, 116, 166, 208,
+				159, 190, 137, 157, 228, 249, 225, 131, 199, 160, 151, 144, 43, 133
 			]
 		);
 
@@ -101,8 +101,8 @@ fn test_create_subscription_correct_sub_id_multiple_blocks() {
 			)
 			.unwrap(),
 			[
-				200, 125, 122, 224, 54, 0, 16, 36, 229, 241, 41, 22, 147, 61, 28, 117, 58, 231,
-				142, 94, 238, 65, 37, 75, 78, 157, 148, 26, 120, 136, 225, 39
+				85, 122, 213, 233, 200, 12, 191, 4, 119, 177, 182, 206, 37, 65, 56, 19, 77, 106,
+				197, 167, 90, 162, 63, 114, 101, 210, 89, 185, 181, 35, 219, 206
 			]
 		);
 	});
@@ -410,7 +410,7 @@ fn test_consume_pulse_bubbles_up_consumer_trait_failure() {
 fn test_consume_sub_info_success() {
 	ExtBuilder::build().execute_with(|| {
 		// Mock inputs
-		let sub_info = SubInfoResponse { sub: MOCK_SUB, req_ref: [1; 32] };
+		let sub_info = SubInfoResponse { sub: mock_sub(), req_ref: [1; 32] };
 
 		// Call the function and assert success
 		assert_ok!(crate::Pallet::<Test>::consume_sub_info(
@@ -427,7 +427,7 @@ fn test_consume_sub_info_success() {
 fn test_consume_sub_info_fails_wrong_origin() {
 	ExtBuilder::build().execute_with(|| {
 		// Mock inputs
-		let sub_info = SubInfoResponse { sub: MOCK_SUB, req_ref: [1; 32] };
+		let sub_info = SubInfoResponse { sub: mock_sub(), req_ref: [1; 32] };
 
 		// Call the function and assert failure
 		let result = crate::Pallet::<Test>::consume_sub_info(
@@ -441,7 +441,7 @@ fn test_consume_sub_info_fails_wrong_origin() {
 #[test]
 fn test_consume_sub_info_bubbles_up_consumer_trait_failure() {
 	ExtBuilder::build().execute_with(|| {
-		let mut sub = MOCK_SUB.clone();
+		let mut sub = mock_sub().clone();
 		sub.id = [123; 32]; // This sub_id triggers a failure in the consumer
 
 		// Mock inputs
