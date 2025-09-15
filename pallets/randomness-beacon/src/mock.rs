@@ -70,11 +70,11 @@ impl sp_idn_traits::pulse::Pulse for MockPulse {
 	}
 
 	fn authenticate(&self, pubkey: Self::Pubkey) -> bool {
-		if let Ok(_) = sp_idn_crypto::verifier::QuicknetVerifier::verify(
+		if sp_idn_crypto::verifier::QuicknetVerifier::verify(
 			pubkey.as_ref().to_vec(),
 			self.sig().as_ref().to_vec(),
 			self.message().as_ref().to_vec(),
-		) {
+		).is_ok() {
 			return true;
 		}
 
