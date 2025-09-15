@@ -1427,7 +1427,7 @@ fn manage_diff_deposit_works() {
 #[test]
 fn hold_deposit_fails_with_insufficient_balance() {
 	ExtBuilder::build().execute_with(|| {
-		let initial_balance = 500;
+		let initial_balance = 1_000_000;
 		let deposit_credits = 1_000;
 
 		// Setup account with insufficient balance

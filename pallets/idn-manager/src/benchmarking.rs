@@ -475,7 +475,7 @@ mod benchmarks {
 		T::AccountId: From<[u8; 32]>,
 		<<T as Config>::Currency as Inspect<T::AccountId>>::Balance: From<u64>,
 	{
-		let credits: T::Credits = 100_000u64.into();
+		let credits: T::Credits = 1u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
 
@@ -484,7 +484,7 @@ mod benchmarks {
 			let id: [u8; 32] = i.hash(&[i as u8]).into();
 			let account_id: T::AccountId = id.into();
 			let (subscriber, origin) = create_subscriber::<T>(Some(account_id));
-			T::Currency::set_balance(&subscriber, u64::MAX.into());
+			T::Currency::set_balance(&subscriber, IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()));
 			let res = IdnManager::<T>::create_subscription(
 				origin.into(),
 				CreateSubParamsOf::<T> {
