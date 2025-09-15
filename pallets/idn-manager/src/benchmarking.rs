@@ -39,21 +39,24 @@ use xcm::prelude::Junction;
 /// Therefore when setting up funds we fund the wrong account. This only happens
 /// when running benchmarks directly and does not happen when running
 /// cargo test --features runtime-benchmarks
-pub fn create_subscriber<T: Config>(sub_id: Option<T::AccountId>) -> (T::AccountId, RawOrigin<T::AccountId>) {
+pub fn create_subscriber<T: Config>(
+	sub_id: Option<T::AccountId>,
+) -> (T::AccountId, RawOrigin<T::AccountId>) {
 	match sub_id {
 		Some(sub_id) => {
 			let origin = RawOrigin::Signed(sub_id);
-			let subscriber = IdnManager::<T>::ensure_signed_or_xcm_sibling(origin.clone().into()).unwrap();
+			let subscriber =
+				IdnManager::<T>::ensure_signed_or_xcm_sibling(origin.clone().into()).unwrap();
 			(subscriber, origin)
-		}
+		},
 		None => {
 			let subscriber: T::AccountId = whitelisted_caller();
 			let origin = RawOrigin::Signed(subscriber.clone());
-			let subscriber = IdnManager::<T>::ensure_signed_or_xcm_sibling(origin.clone().into()).unwrap();
+			let subscriber =
+				IdnManager::<T>::ensure_signed_or_xcm_sibling(origin.clone().into()).unwrap();
 			(subscriber, origin)
-		}
+		},
 	}
-	
 }
 
 #[benchmarks(
@@ -456,7 +459,8 @@ mod benchmarks {
 	where
 		T::Credits: From<u64>,
 		T::Currency: Mutate<T::AccountId>,
-		<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance: From<u64>,
+		<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance:
+			From<u64>,
 		T::AccountId: From<[u8; 32]>,
 	{
 		let credits: T::Credits = 100_000u64.into();

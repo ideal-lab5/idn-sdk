@@ -188,8 +188,9 @@ impl TracingEvent {
 	fn value(&self) -> &str {
 		match *self {
 			TracingEvent::NewPulse => "🎲 New pulse received and stored.",
-			TracingEvent::NondecodableMessage =>
-				"❓A message was received but we could not decode it.",
+			TracingEvent::NondecodableMessage => {
+				"❓A message was received but we could not decode it."
+			},
 			TracingEvent::PongFailed => "💀 Peer failed to pong!",
 			TracingEvent::PingSuccess => "🏓 Ping to peer succeeded.",
 			TracingEvent::RedialFailure => "❌ Failed to redial peer.",
