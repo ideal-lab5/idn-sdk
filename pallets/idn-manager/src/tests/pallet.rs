@@ -40,7 +40,6 @@ use xcm::prelude::{Junction, Location};
 
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 pub const BOB: AccountId32 = AccountId32::new([2u8; 32]);
-use log;
 
 fn event_not_emitted(event: Event<Test>) -> bool {
 	!System::events().iter().any(|record| {
