@@ -160,7 +160,7 @@ impl ConvertLocation<AccountId32> for MockSiblingConversion {
 }
 
 parameter_types! {
-	pub const BaseFee : u64 = 100;
+	pub const BaseFee : u64 = 2_900_000;
 }
 
 impl pallet_idn_manager::Config for Test {
