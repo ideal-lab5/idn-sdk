@@ -74,7 +74,9 @@ impl sp_idn_traits::pulse::Pulse for MockPulse {
 			pubkey.as_ref().to_vec(),
 			self.sig().as_ref().to_vec(),
 			self.message().as_ref().to_vec(),
-		).is_ok() {
+		)
+		.is_ok()
+		{
 			return true;
 		}
 

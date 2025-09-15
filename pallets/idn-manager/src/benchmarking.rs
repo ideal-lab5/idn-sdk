@@ -31,8 +31,8 @@ use sp_core::H256;
 use sp_idn_traits::Hashable;
 use xcm::prelude::Junction;
 
-/// This function was created because when creating the subscriber using whitelisted_caller we get the accountId:
-/// d861ea1ebf4800d4b89f4ff787ad79ee96d9a708c85b57da7eb8f9ddeda61291 (5GxRHbYf...)
+/// This function was created because when creating the subscriber using whitelisted_caller we get
+/// the accountId: d861ea1ebf4800d4b89f4ff787ad79ee96d9a708c85b57da7eb8f9ddeda61291 (5GxRHbYf...)
 /// However, in the pallet when we call Self::ensure_signed_or_xcm_sibling(origin)?;
 /// we get back that the subscriber id is :
 /// 7369626c58000000000000000000000000000000000000000000000000000000 (5Eg2fnss...).

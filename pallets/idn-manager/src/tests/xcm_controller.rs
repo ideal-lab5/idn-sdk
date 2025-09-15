@@ -77,7 +77,9 @@ where
 		message: Box<VersionedXcm<()>>,
 	) -> Result<XcmHash, DispatchError> {
 		let mut loc: Option<TestXcm<()>> = None;
-		if let V5(xcm) = *message { loc = Some(xcm) }
+		if let V5(xcm) = *message {
+			loc = Some(xcm)
+		}
 		let (ticket, _assets) = <Self as SendXcm>::validate(
 			&mut Some(destination.as_ref().try_as::<Location>().unwrap().clone()),
 			&mut loc,
