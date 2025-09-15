@@ -49,14 +49,14 @@ pub fn create_subscriber<T: Config>(
 		Some(sub_id) => {
 			let origin = RawOrigin::Signed(sub_id);
 			let subscriber =
-				IdnManager::<T>::ensure_signed_or_xcm_sibling(origin.clone().into()).unwrap();
+				IdnManager::<T>::ensure_signed_or_valid_xcm_origin(origin.clone().into()).unwrap();
 			(subscriber, origin)
 		},
 		None => {
 			let subscriber: T::AccountId = whitelisted_caller();
 			let origin = RawOrigin::Signed(subscriber.clone());
 			let subscriber =
-				IdnManager::<T>::ensure_signed_or_xcm_sibling(origin.clone().into()).unwrap();
+				IdnManager::<T>::ensure_signed_or_valid_xcm_origin(origin.clone().into()).unwrap();
 			(subscriber, origin)
 		},
 	}
@@ -397,7 +397,7 @@ mod benchmarks {
 		);
 
 		// Create first subscription
-		let _ = IdnManager::<T>::create_subscription(
+		let result = IdnManager::<T>::create_subscription(
 			origin.into(),
 			CreateSubParamsOf::<T> {
 				credits,
