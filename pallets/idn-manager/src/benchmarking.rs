@@ -145,8 +145,6 @@ mod benchmarks {
 		// assert that the subscription state is correct
 		let sub = Subscriptions::<T>::get(sub_id).expect("Subscription should exist");
 		assert_eq!(sub.state, SubscriptionState::Paused);
-		// let (sub_id, sub) = Subscriptions::<T>::iter().next().unwrap();
-		// IdnManager::<T>::kill_subscription(origin.into(), sub_id).unwrap();
 	}
 
 	#[benchmark]
@@ -343,7 +341,6 @@ mod benchmarks {
 	fn get_subscription_info() {
 		let sibling_id: T::AccountId = [88u8; 32].into();
 		let (sibling_account, origin) = create_subscriber::<T>(Some(sibling_id));
-		// let origin = RawOrigin::Signed(sibling_account.clone());
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
