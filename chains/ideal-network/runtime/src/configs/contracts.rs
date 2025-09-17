@@ -98,10 +98,7 @@ impl pallet_contracts::Config for Runtime {
 	type ApiVersion = ();
 	// IMPORTANT: only runtime calls through the api are allowed.
 	type CallFilter = Nothing;
-	#[cfg(not(feature = "runtime-benchmarks"))]
 	type CallStack = [pallet_contracts::Frame<Self>; 23];
-	#[cfg(feature = "runtime-benchmarks")]
-	type CallStack = [pallet_contracts::Frame<Self>; 5];
 	type ChainExtension = RandExtension;
 	type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
 	type Currency = Balances;
@@ -111,19 +108,7 @@ impl pallet_contracts::Config for Runtime {
 	type DepositPerItem = DepositPerItem;
 	type Environment = ();
 	type InstantiateOrigin = EnsureSigned<Self::AccountId>;
-	// This node is geared towards development and testing of contracts.
-	// We decided to increase the default allowed contract size for this
-	// reason (the default is `128 * 1024`).
-	//
-	// Our reasoning is that the error code `CodeTooLarge` is thrown
-	// if a too-large contract is uploaded. We noticed that it poses
-	// less friction during development when the requirement here is
-	// just more lax.
-	#[cfg(not(feature = "runtime-benchmarks"))]
-	type MaxCodeLen = ConstU32<{ 256 * 1024 }>;
-	// benchmarking exceeds the standard MaxCodeLen when running.
-	#[cfg(feature = "runtime-benchmarks")]
-	type MaxCodeLen = ConstU32<{ 123 * 1024 }>;
+	type MaxCodeLen = ConstU32<{ 128 * 1024 }>;
 	type MaxDebugBufferLen = ConstU32<{ 2 * 1024 * 1024 }>;
 	type MaxDelegateDependencies = ConstU32<32>;
 	type MaxStorageKeyLen = ConstU32<128>;
