@@ -269,16 +269,50 @@ impl pallet_collator_selection::Config for Runtime {
 }
 
 #[cfg(feature = "runtime-benchmarks")]
+mod bench_sibling_conversion{
+	use sp_runtime::AccountId32;
+	use xcm::prelude::{Junction::Parachain, Location};
+	use xcm_executor::traits::ConvertLocation;
+	pub struct MockSiblingConversion;
+	pub const SIBLING_PARA_ID: u32 = 88;
+	pub const SIBLING_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+	impl ConvertLocation<AccountId32> for MockSiblingConversion {
+		fn convert_location(location: &Location) -> Option<AccountId32> {
+			match location.unpack() {
+				(1, [Parachain(SIBLING_PARA_ID)]) => Some(SIBLING_PARA_ACCOUNT),
+				_ => None,
+			}
+		}
+	}
+}
+
+
+#[cfg(feature = "runtime-benchmarks")]
 mod bench_ensure_origin {
 	use crate::RuntimeOrigin;
 	use frame_support::pallet_prelude::EnsureOrigin;
+	use frame_system::ensure_signed;
 	use xcm::prelude::{Junction, Location};
+	use sp_runtime::AccountId32;
+	use log;
+
+	pub const SIBLING_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+	pub const SIBLING_PARA_ID: u32 = 88;
 
 	pub struct BenchEnsureOrigin;
 	impl EnsureOrigin<RuntimeOrigin> for BenchEnsureOrigin {
 		type Success = Location;
-		fn try_origin(_origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
-			Ok(Location::new(1, Junction::Parachain(88)))
+
+		fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+
+			let caller:AccountId32  = ensure_signed(origin.clone()).unwrap();
+
+			if caller == SIBLING_PARA_ACCOUNT {
+				log::info!("yeah that was a good id you used: {:?}", caller);
+				return Ok(Location::new(1, Junction::Parachain(SIBLING_PARA_ID)));
+			}
+			log::info!("not that great tbh");
+			Err(origin)
 		}
 		fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
 			Ok(RuntimeOrigin::root())
@@ -321,7 +355,10 @@ impl pallet_idn_manager::Config for Runtime {
 	type XcmOriginFilter = EnsureXcm<AllowSiblingsOnly>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type XcmOriginFilter = bench_ensure_origin::BenchEnsureOrigin;
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	type XcmLocationToAccountId = xcm_config::LocationToAccountId;
+	#[cfg(feature = "runtime-benchmarks")]
+	type XcmLocationToAccountId = bench_sibling_conversion::MockSiblingConversion;
 }
 
 parameter_types! {

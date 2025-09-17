@@ -34,30 +34,18 @@ use sp_core::H256;
 use sp_idn_traits::Hashable;
 use xcm::prelude::Junction;
 
-/// This function was created because when creating the subscriber using whitelisted_caller we get
-/// the accountId: d861ea1ebf4800d4b89f4ff787ad79ee96d9a708c85b57da7eb8f9ddeda61291 (5GxRHbYf...)
-/// However, in the pallet when we call Self::ensure_signed_or_xcm_sibling(origin)?;
-/// we get back that the subscriber id is :
-/// 7369626c58000000000000000000000000000000000000000000000000000000 (5Eg2fnss...).
-/// Therefore when setting up funds we fund the wrong account. This only happens
-/// when running benchmarks directly and does not happen when running
-/// cargo test --features runtime-benchmarks
 pub fn create_subscriber<T: Config>(
 	sub_id: Option<T::AccountId>,
 ) -> (T::AccountId, RawOrigin<T::AccountId>) {
 	match sub_id {
 		Some(sub_id) => {
-			let origin = RawOrigin::Signed(sub_id);
-			let subscriber =
-				IdnManager::<T>::ensure_signed_or_valid_xcm_origin(origin.clone().into()).unwrap();
-			(subscriber, origin)
+			let origin = RawOrigin::Signed(sub_id.clone());
+			(sub_id, origin)
 		},
 		None => {
 			let subscriber: T::AccountId = whitelisted_caller();
 			let origin = RawOrigin::Signed(subscriber.clone());
-			let subscriber =
-				IdnManager::<T>::ensure_signed_or_valid_xcm_origin(origin.clone().into()).unwrap();
-			(subscriber, origin)
+			(subscriber, origin) 
 		},
 	}
 }
@@ -294,7 +282,7 @@ mod benchmarks {
 	fn quote_subscription() {
 		let sibling_account: T::AccountId = [88u8; 32].into();
 		let sibling_para_id = 88;
-		let origin = RawOrigin::Signed(sibling_account.clone());
+		let (subscriber, origin) = create_subscriber::<T>(Some(sibling_account));
 		let credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
@@ -324,7 +312,7 @@ mod benchmarks {
 		_(origin, quote_sub_params);
 
 		let deposit = IdnManager::<T>::calculate_storage_deposit_from_create_params(
-			&sibling_account,
+			&subscriber,
 			&params,
 		);
 
@@ -354,7 +342,7 @@ mod benchmarks {
 
 		// Create first subscription
 		let result = IdnManager::<T>::create_subscription(
-			<T as frame_system::Config>::RuntimeOrigin::signed(sibling_account.clone()),
+			origin.clone().into(),
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
