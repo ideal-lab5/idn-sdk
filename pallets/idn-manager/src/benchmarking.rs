@@ -45,7 +45,7 @@ pub fn create_subscriber<T: Config>(
 		None => {
 			let subscriber: T::AccountId = whitelisted_caller();
 			let origin = RawOrigin::Signed(subscriber.clone());
-			(subscriber, origin) 
+			(subscriber, origin)
 		},
 	}
 }
@@ -311,10 +311,8 @@ mod benchmarks {
 		#[extrinsic_call]
 		_(origin, quote_sub_params);
 
-		let deposit = IdnManager::<T>::calculate_storage_deposit_from_create_params(
-			&subscriber,
-			&params,
-		);
+		let deposit =
+			IdnManager::<T>::calculate_storage_deposit_from_create_params(&subscriber, &params);
 
 		System::<T>::assert_last_event(
 			Event::<T>::SubQuoted {

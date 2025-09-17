@@ -269,7 +269,7 @@ impl pallet_collator_selection::Config for Runtime {
 }
 
 #[cfg(feature = "runtime-benchmarks")]
-mod bench_sibling_conversion{
+mod bench_sibling_conversion {
 	use sp_runtime::AccountId32;
 	use xcm::prelude::{Junction::Parachain, Location};
 	use xcm_executor::traits::ConvertLocation;
@@ -286,15 +286,14 @@ mod bench_sibling_conversion{
 	}
 }
 
-
 #[cfg(feature = "runtime-benchmarks")]
 mod bench_ensure_origin {
 	use crate::RuntimeOrigin;
 	use frame_support::pallet_prelude::EnsureOrigin;
 	use frame_system::ensure_signed;
-	use xcm::prelude::{Junction, Location};
-	use sp_runtime::AccountId32;
 	use log;
+	use sp_runtime::AccountId32;
+	use xcm::prelude::{Junction, Location};
 
 	pub const SIBLING_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
 	pub const SIBLING_PARA_ID: u32 = 88;
@@ -304,8 +303,7 @@ mod bench_ensure_origin {
 		type Success = Location;
 
 		fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
-
-			let caller:AccountId32  = ensure_signed(origin.clone()).unwrap();
+			let caller: AccountId32 = ensure_signed(origin.clone()).unwrap();
 
 			if caller == SIBLING_PARA_ACCOUNT {
 				log::info!("yeah that was a good id you used: {:?}", caller);

@@ -1566,17 +1566,17 @@ fn test_get_subscriptions_for_subscriber() {
 
 		// Verify subscription details
 		let has_sub1 = alice_subs.iter().any(|sub| {
-			sub.details.subscriber == ALICE &&
-				sub.credits == 50 &&
-				sub.frequency == 10 &&
-				sub.details.target == target1
+			sub.details.subscriber == ALICE
+				&& sub.credits == 50
+				&& sub.frequency == 10
+				&& sub.details.target == target1
 		});
 
 		let has_sub2 = alice_subs.iter().any(|sub| {
-			sub.details.subscriber == ALICE &&
-				sub.credits == 100 &&
-				sub.frequency == 20 &&
-				sub.details.target == target2
+			sub.details.subscriber == ALICE
+				&& sub.credits == 100
+				&& sub.frequency == 20
+				&& sub.details.target == target2
 		});
 
 		assert!(has_sub1, "ALICE's first subscription not found");
@@ -1588,10 +1588,10 @@ fn test_get_subscriptions_for_subscriber() {
 
 		// Verify subscription details
 		let has_sub3 = bob_subs.iter().any(|sub| {
-			sub.details.subscriber == BOB &&
-				sub.credits == 75 &&
-				sub.frequency == 15 &&
-				sub.details.target == target3
+			sub.details.subscriber == BOB
+				&& sub.credits == 75
+				&& sub.frequency == 15
+				&& sub.details.target == target3
 		});
 
 		assert!(has_sub3, "BOB's subscription not found");
@@ -1724,17 +1724,17 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 
 		// Verify subscription details
 		let has_sub1 = alice_subs.iter().any(|sub| {
-			sub.details.subscriber == ALICE &&
-				sub.credits == 50 &&
-				sub.frequency == 10 &&
-				sub.details.target == target1
+			sub.details.subscriber == ALICE
+				&& sub.credits == 50
+				&& sub.frequency == 10
+				&& sub.details.target == target1
 		});
 
 		let has_sub2 = alice_subs.iter().any(|sub| {
-			sub.details.subscriber == ALICE &&
-				sub.credits == 100 &&
-				sub.frequency == 20 &&
-				sub.details.target == target2
+			sub.details.subscriber == ALICE
+				&& sub.credits == 100
+				&& sub.frequency == 20
+				&& sub.details.target == target2
 		});
 
 		assert!(has_sub1, "ALICE's first subscription not found");
@@ -1746,10 +1746,10 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 
 		// Verify subscription details
 		let has_sub3 = bob_subs.iter().any(|sub| {
-			sub.details.subscriber == BOB &&
-				sub.credits == 75 &&
-				sub.frequency == 15 &&
-				sub.details.target == target3
+			sub.details.subscriber == BOB
+				&& sub.credits == 75
+				&& sub.frequency == 15
+				&& sub.details.target == target3
 		});
 
 		assert!(has_sub3, "BOB's subscription not found");
