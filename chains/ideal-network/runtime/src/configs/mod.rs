@@ -269,7 +269,7 @@ impl pallet_collator_selection::Config for Runtime {
 }
 
 /// This function helps to keep benchmarks in line with the test mock
-/// environemnt. When running benchmarks without this mock, when a request is made
+/// environment. When running benchmarks without this mock, when a request is made
 /// that matches the sibling account id, the id is translated to that of the
 /// sibling's account on the IDN.
 #[cfg(feature = "runtime-benchmarks")]
@@ -295,7 +295,6 @@ mod bench_ensure_origin {
 	use crate::RuntimeOrigin;
 	use frame_support::pallet_prelude::EnsureOrigin;
 	use frame_system::ensure_signed;
-	use log;
 	use sp_runtime::AccountId32;
 	use xcm::prelude::{Junction, Location};
 
@@ -310,10 +309,8 @@ mod bench_ensure_origin {
 			let caller: AccountId32 = ensure_signed(origin.clone()).unwrap();
 
 			if caller == SIBLING_PARA_ACCOUNT {
-				log::info!("yeah that was a good id you used: {:?}", caller);
 				return Ok(Location::new(1, Junction::Parachain(SIBLING_PARA_ID)));
 			}
-			log::info!("not that great tbh");
 			Err(origin)
 		}
 		fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
