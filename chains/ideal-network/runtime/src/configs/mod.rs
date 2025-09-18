@@ -268,6 +268,10 @@ impl pallet_collator_selection::Config for Runtime {
 	type WeightInfo = CollatorSelectionWeightInfo<Runtime>;
 }
 
+/// This function helps to keep benchmarks in line with the test mock
+/// environemnt. When running benchmarks without this mock, when a request is made
+/// that matches the sibling account id, the id is translated to that of the
+/// sibling's account on the IDN.
 #[cfg(feature = "runtime-benchmarks")]
 mod bench_sibling_conversion {
 	use sp_runtime::AccountId32;
