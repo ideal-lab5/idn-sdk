@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "contracts/idn-contracts",
     "client/consensus/randomness-beacon",
     "primitives/consensus/randomness-beacon",
     "primitives/crypto",

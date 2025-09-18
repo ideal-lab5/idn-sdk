@@ -1,13 +1,13 @@
 [package]
-name = "rand-extension-example"
+name = "rand-extension-example-contract"
 version = "0.1.0"
-authors = ["Parity Technologies <admin@parity.io>", "Ideal Network <admin@idealnetwork.io>"]
+authors = ["Ideal Network <admin@idealnetwork.io>"]
 edition = "2021"
 publish = false
 
 [dependencies]
 ink = { version = "5.1.1", default-features = false }
-idn-contract-lib = { path = "../idn-contract-lib", default-features = false }
+idn-contracts = { package = "idn-contracts", path = "../../", default-features = false }
 
 [lib]
 path = "lib.rs"
@@ -16,6 +16,6 @@ path = "lib.rs"
 default = ["std"]
 std = [
     "ink/std",
-    "idn-contract-lib/std",
+    "idn-contracts/std",
 ]
 ink-as-dependency = []

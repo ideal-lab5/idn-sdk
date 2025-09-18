@@ -20,7 +20,7 @@
 #[ink::contract]
 mod example_consumer {
 	use frame_support::BoundedVec;
-	use idn_client_contract_lib::{
+	use idn_contracts::xcm::{
 		types::{CallIndex, CreateSubParams, Pulse, SubscriptionId, UpdateSubParams},
 		Error, IdnClient, IdnClientImpl, IdnConsumer, Result,
 	};

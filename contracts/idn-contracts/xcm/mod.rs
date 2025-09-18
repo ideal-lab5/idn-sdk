@@ -16,6 +16,7 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
 pub mod types;
+// pub use types::*;
 
 use ink::{
 	env::Error as EnvError,

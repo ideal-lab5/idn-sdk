@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 
-use idn_contract_lib::ext::{IDNEnvironment, RandomReadErr};
+use idn_contracts::ext::{IDNEnvironment, RandomReadErr};
 
 #[ink::contract(env = IDNEnvironment)]
 mod rand_extension {

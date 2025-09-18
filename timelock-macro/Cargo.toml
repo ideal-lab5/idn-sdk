@@ -11,4 +11,4 @@ proc-macro = true
 proc-macro2 = "1.0.95"
 quote = "1.0.40"
 syn = { version = "2.0.106", features=["full", "fold", "printing"] }
-pallet-randomness-beacon.workspace = true
+pallet-randomness-beacon = { path = "../../pallets/randomness-beacon", default-features = false}
