@@ -23,12 +23,12 @@ use rand_chacha::ChaCha12Rng;
 /// * `env`: The ink Environment
 /// * `list`: The list to shuffle
 /// * `ctx`: A context to be xor'd with the runtime randomness
-pub fn shuffle(
+pub fn shuffle<T>(
 	env: EnvAccess<IDNEnvironment>,
-	list: &mut Vec<u8>,
+	list: &mut Vec<T>,
 	ctx: [u8; 32],
 ) -> Result<(), RandomReadErr>
-where
+// where
 {
 	let seed = env.extension().fetch_random(ctx)?;
 	let mut rng = ChaCha12Rng::from_seed(seed);

@@ -14,20 +14,24 @@
  * limitations under the License.
  */
 
- // how would contracts use it?
- // let r = self.env().extension().fetch_random().unwrap();
- // // use r to randomly select from the list
- // would become
- // let list = ...
- // timelock!(1000000120);
- // let rand_list = select!(&self, list, k);
- // let shuffled = shuffle!(&self, list);
+// how would contracts use it?
+// let r = self.env().extension().fetch_random().unwrap();
+// // use r to randomly select from the list
+// would become
+// let list = ...
+// timelock!(1000000120);
+// let rand_list = select!(&self, list, k);
+// let shuffled = shuffle!(&self, list);
 
-use ink::env::Environment;
+use crate::ext::{IDNEnvironment, RandomReadErr};
+use ink::EnvAccess;
+use rand::{seq::SliceRandom, SeedableRng};
+use rand_chacha::ChaCha12Rng;
 
-pub fn select(env: &Environment, list: &[T], count: usize) -> &[T] {
-    // 32 bytes
-    let rand = self.env().extension().fetch_random().unwrap();
-    
+pub fn select(env: EnvAccess<IDNEnvironment>, list: Vec<T>, n: usize) -> Result<Vec<T>, RandomReadErr> {
+	// let rand = self.env().extension().fetch_random().unwrap();
+	// let size = list.len();
+	// let selected: Vec<&i32> = list.choose_multiple(&mut rng, n).collect();
+
+	Ok(selected)
 }
-
