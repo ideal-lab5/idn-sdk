@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#![cfg_attr(not(feature = "std"), no_std, no_main)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod types;
-// pub use types::*;
 
+use codec::{Decode, Encode};
 use ink::{
 	env::Error as EnvError,
 	prelude::vec,
@@ -29,7 +29,6 @@ use ink::{
 		VersionedLocation, VersionedXcm,
 	},
 };
-use parity_scale_codec::{Decode, Encode};
 use sp_idn_traits::Hashable;
 use types::{CreateSubParams, IdnXcm, PalletIndex, ParaId, Pulse, SubscriptionId, UpdateSubParams};
 
@@ -632,7 +631,7 @@ mod tests {
 
 	#[test]
 	fn test_contract_pulse_encode_decode() {
-		use crate::Pulse;
+		// use crate::Pulse;
 		let pulse = Pulse::new([4u8; 48], 1, 2);
 		let encoded = pulse.encode();
 		let decoded = Pulse::decode(&mut &encoded[..]).unwrap();
