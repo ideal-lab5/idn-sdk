@@ -14,5 +14,8 @@
  * limitations under the License.
  */
 
-pub mod select;
-pub mod shuffle;
+mod select;
+pub use select::select;
+
+mod shuffle;
+pub use shuffle::shuffle;

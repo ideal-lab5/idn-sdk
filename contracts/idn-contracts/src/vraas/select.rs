@@ -15,19 +15,20 @@
  */
 
 use crate::ext::{IDNEnvironment, RandomReadErr};
+use alloc::vec::Vec;
 use ink::EnvAccess;
 use rand::{seq::IteratorRandom, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 
-pub fn select<T>(
-	env: EnvAccess<IDNEnvironment>,
-	list: Vec<T>,
-	ctx: [u8; 32],
-	n: usize,
+pub fn select<T: Clone>(
+    env: EnvAccess<IDNEnvironment>,
+    list: Vec<T>,
+    ctx: [u8; 32],
+    n: usize,
 ) -> Result<Vec<T>, RandomReadErr> {
-	let seed = env.extension().fetch_random(ctx)?;
-	let mut rng = ChaCha12Rng::from_seed(seed);
-	Ok(list.into_iter().choose_multiple(&mut rng, n))
+    let seed = env.extension().fetch_random(ctx)?;
+    let mut rng = ChaCha12Rng::from_seed(seed);
+    Ok(list.into_iter().choose_multiple(&mut rng, n))
 }
 
 #[cfg(test)]

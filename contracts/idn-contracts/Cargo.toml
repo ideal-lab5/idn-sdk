@@ -14,10 +14,9 @@ scale-info.workspace = true
 sha2.workspace = true
 sp-idn-traits.workspace = true
 bp-idn.workspace = true
-shuffle.workspace = true
-rand.workspace = true
+rand = { workspace = true, default-features = false, features = ["alloc"] }
 rand_chacha.workspace = true
-rand_core.workspace = true
+# rand_core.workspace = true
 # pallet-randomness-beacon.workspace = true
 
 [dev-dependencies]
@@ -34,6 +33,6 @@ std = [
     "bp-idn/std",
     "rand/std",
     "rand_chacha/std",
-    "rand_core/std"
+    # "rand_core/std"
     # "pallet-randomness-beacon/std "
 ]
