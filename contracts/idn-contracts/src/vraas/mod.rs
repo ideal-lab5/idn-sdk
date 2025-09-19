@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-// pub mod select;
+pub mod select;
 pub mod shuffle;

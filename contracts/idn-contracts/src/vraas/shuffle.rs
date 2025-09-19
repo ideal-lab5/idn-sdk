@@ -27,9 +27,7 @@ pub fn shuffle<T>(
 	env: EnvAccess<IDNEnvironment>,
 	list: &mut Vec<T>,
 	ctx: [u8; 32],
-) -> Result<(), RandomReadErr>
-// where
-{
+) -> Result<(), RandomReadErr> {
 	let seed = env.extension().fetch_random(ctx)?;
 	let mut rng = ChaCha12Rng::from_seed(seed);
 	list.shuffle(&mut rng);
@@ -42,7 +40,6 @@ mod tests {
 	use codec::Encode;
 	use ink::{env::test, EnvAccess};
 
-	/// Our mock chain extension that simulates `RandExtension`.
 	pub struct MockRandExtension {
 		pub seed: [u8; 32],
 		pub should_fail: bool,
@@ -57,7 +54,6 @@ mod tests {
 			if self.should_fail {
 				return 1;
 			}
-			// fixed seed returned by `fetch_random`
 			output.extend(self.seed.encode());
 			0
 		}
