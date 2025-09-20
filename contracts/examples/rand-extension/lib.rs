@@ -6,13 +6,13 @@ use idn_contracts::ext::IDNEnvironment;
 mod rand_extension {
 	use super::*;
 	use idn_contracts::{
-		ext::RandomReadErr, 
-		vraas::{select, shuffle}
+		ext::RandomReadErr,
+		vraas::{select, shuffle},
 	};
 
 	#[ink(storage)]
 	pub struct RandExtension {
-		// the currently stored set of bytes 
+		// the currently stored set of bytes
 		value: [u8; 32],
 		// a 'selected' value
 		selected: Option<u8>,
@@ -53,7 +53,7 @@ mod rand_extension {
 		#[ink(message)]
 		pub fn shuffle(&mut self) -> Result<(), RandomReadErr> {
 			let caller = self.env().caller();
-            let acct_id_bytes: &[u8] = caller.as_ref();
+			let acct_id_bytes: &[u8] = caller.as_ref();
 			shuffle(self.env(), &mut self.value.to_vec(), acct_id_bytes.try_into().unwrap());
 			Ok(())
 		}
@@ -71,61 +71,62 @@ mod rand_extension {
 		}
 	}
 
- #[cfg(test)]
-    mod tests {
-        use super::*;
-        use ink::env::{test, Default};
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+		use ink::env::{test, Default};
 
-        /// Helper to set up a contract instance.
-        fn setup() -> RandExtension {
-            let initial_value = [0xde; 32];
-            RandExtension::new(initial_value)
-        }
+		/// Helper to set up a contract instance.
+		fn setup() -> RandExtension {
+			let initial_value = [0xde; 32];
+			RandExtension::new(initial_value)
+		}
 
-        #[ink::test]
-        fn default_works() {
-            let rand_extension = RandExtension::new_default();
-            assert_eq!(rand_extension.get(), [0; 32]);
-        }
+		#[ink::test]
+		fn default_works() {
+			let rand_extension = RandExtension::new_default();
+			assert_eq!(rand_extension.get(), [0; 32]);
+		}
 
-        #[ink::test]
-        fn manual_update_works() {
-            let mut contract = setup();
-            let initial_value = contract.get();
-            let context = [0xab; 32];
-            let result = contract.manual_update(context);
-            
-            // 1. Verify the call was successful
-            assert!(result.is_ok());
+		#[ink::test]
+		fn manual_update_works() {
+			let mut contract = setup();
+			let initial_value = contract.get();
+			let context = [0xab; 32];
+			let result = contract.manual_update(context);
 
-            // 2. Check that the value has changed
-            assert_ne!(contract.get(), initial_value);
+			// 1. Verify the call was successful
+			assert!(result.is_ok());
 
-            // 3. Verify that the correct event was emitted
-            let emitted_events = test::recorded_events();
-            assert_eq!(emitted_events.len(), 1);
+			// 2. Check that the value has changed
+			assert_ne!(contract.get(), initial_value);
 
-            let event = &emitted_events[0];
-            let decoded_event = <RandomUpdated as scale::Decode>::decode(&mut &event.data[..]).unwrap();
-            
-            // Check if the event's new value matches the contract's new value
-            assert_eq!(decoded_event.new, contract.get());
-        }
+			// 3. Verify that the correct event was emitted
+			let emitted_events = test::recorded_events();
+			assert_eq!(emitted_events.len(), 1);
 
-        #[ink::test]
-        fn shuffle_works() {
-            let mut contract = setup();
-            let initial_value = contract.get();
-            
-            // Simulate a call to a random extension
-            // We can't predict the outcome, but we can assert the result is different
-            let result = contract.shuffle();
+			let event = &emitted_events.collect::<Vec<_>>()[0];
+			let decoded_event =
+				<RandomUpdated as scale::Decode>::decode(&mut &event.data[..]).unwrap();
 
-            // 1. Verify the call was successful
-            assert!(result.is_ok());
+			// Check if the event's new value matches the contract's new value
+			assert_eq!(decoded_event.new, contract.get());
+		}
 
-            // 2. Check that the value has changed after shuffling
-            assert_ne!(contract.get(), initial_value);
-        }
-    }
+		#[ink::test]
+		fn shuffle_works() {
+			let mut contract = setup();
+			let initial_value = contract.get();
+
+			// Simulate a call to a random extension
+			// We can't predict the outcome, but we can assert the result is different
+			let result = contract.shuffle();
+
+			// 1. Verify the call was successful
+			assert!(result.is_ok());
+
+			// 2. Check that the value has changed after shuffling
+			assert_ne!(contract.get(), initial_value);
+		}
+	}
 }

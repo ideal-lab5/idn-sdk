@@ -158,15 +158,17 @@ where
 				break;
 			}
 
-			let next_tier_start = TIERS.get(i + 1).map(|&(start, _)| start).unwrap_or(u64::MAX);
+			let next_tier_start =
+				TIERS.get(i.saturating_add(1)).map(|&(start, _)| start).unwrap_or(u64::MAX);
 
-			let credits_in_tier =
-				(credits.min(&next_tier_start.saturating_sub(1)) - current_tier_start + 1)
-					.min(remaining_credits);
+			let credits_in_tier = (credits
+				.min(&next_tier_start.saturating_sub(1))
+				.saturating_sub(current_tier_start.saturating_add(1)))
+			.min(remaining_credits);
 
 			let tier_fee = Fee::get()
 				.saturating_mul(credits_in_tier)
-				.saturating_mul(100 - current_tier_discount)
+				.saturating_mul(100.saturating_sub(current_tier_discount))
 				.saturating_div(100);
 
 			total_fee = total_fee.saturating_add(tier_fee);
@@ -195,11 +197,11 @@ where
 		let fees = match new_fees.cmp(&old_fees) {
 			Ordering::Greater => {
 				direction = BalanceDirection::Collect;
-				new_fees - old_fees
+				new_fees.saturating_sub(old_fees)
 			},
 			Ordering::Less => {
 				direction = BalanceDirection::Release;
-				old_fees - new_fees
+				old_fees.saturating_sub(new_fees)
 			},
 			Ordering::Equal => Zero::zero(),
 		};

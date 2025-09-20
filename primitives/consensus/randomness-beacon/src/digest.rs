@@ -19,6 +19,7 @@ use sp_core::RuntimeDebug;
 use sp_runtime::generic::DigestItem;
 
 /// Custom header digest items, inserted as DigestItem::Other
+#[allow(clippy::cast_possible_truncation)]
 #[derive(Encode, Decode, Copy, Clone, Eq, PartialEq, RuntimeDebug)]
 pub enum ConsensusLog<T>
 where

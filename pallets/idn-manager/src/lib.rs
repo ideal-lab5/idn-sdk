@@ -369,7 +369,7 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A new subscription was created (includes single-block subscriptions)
+		/// A new subscription was created - includes single-block subscriptions
 		SubscriptionCreated { sub_id: T::SubscriptionId },
 		/// A subscription has terminated
 		SubscriptionTerminated { sub_id: T::SubscriptionId },
@@ -445,6 +445,7 @@ pub mod pallet {
 		}
 	}
 
+	#[allow(clippy::cast_possible_truncation)]
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Creates a subscription in the pallet.
@@ -855,7 +856,7 @@ impl<T: Config> Pallet<T> {
 			sub.state ==  SubscriptionState::Active   &&
 					// And either never delivered before, or enough blocks have passed since last delivery
 					(sub.last_delivered.is_none() ||
-					current_block >= sub.last_delivered.unwrap() + sub.frequency)
+					current_block >= sub.last_delivered.unwrap().saturating_add(sub.frequency))
 			{
 				// Make sure credits are consumed before sending the XCM message
 				let consume_credits = T::FeesManager::get_consume_credits(Some(&sub));

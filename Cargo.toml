@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "contracts/idn-contracts",
+    "contracts/examples/rand-extension",
     "client/consensus/randomness-beacon",
     "primitives/consensus/randomness-beacon",
     "primitives/crypto",
@@ -14,9 +15,10 @@ members = [
     "chains/ideal-network/bridge",
     "chains/idn-consumer-chain/runtime",
     "chains/idn-consumer-chain/node",
-    "contracts/timelock-macro"
+    # "contracts/timelock-macro"
 ]
 resolver = "2"
+
 
 [workspace.package]
 edition = "2021"
@@ -207,7 +209,7 @@ substrate-test-utils = { version = "3.0.0" }
 
 
 # Parity SCALE Codec
-codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = [
+codec = { package = "parity-scale-codec", version = "3.7.5", default-features = false, features = [
     "derive",
 ] }
 scale-info = { version = "2.11.6", default-features = false, features = [
