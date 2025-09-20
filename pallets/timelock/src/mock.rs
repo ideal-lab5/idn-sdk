@@ -20,7 +20,7 @@ use super::*;
 use crate as timelock;
 use frame_support::{derive_impl, ord_parameter_types, parameter_types, traits::ConstU32};
 use frame_system::{EnsureRoot, EnsureSigned};
-use sp_runtime::BuildStorage;
+use sp_runtime::{AccountId32, BuildStorage, traits::IdentityLookup};
 
 // Logger module to track execution.
 #[frame_support::pallet]
@@ -78,7 +78,7 @@ frame_support::construct_runtime!(
 		System: frame_system,
 		Logger: logger::{Pallet, Call, Event<T>},
 		Timelock: timelock::{Pallet, Call, Storage, Event<T>},
-		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>, HoldReason},
+		// Preimage: 1::{Pallet, Call, Storage, Event<T>, HoldReason},
 		RandomnessCollectiveFlip: pallet_insecure_randomness_collective_flip,
 		Balances: pallet_balances
 	}
@@ -99,17 +99,18 @@ parameter_types! {
 impl logger::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 }
-ord_parameter_types! {
-	pub const One: u64 = 1;
-}
 
-impl pallet_preimage::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = ();
-	type Currency = ();
-	type ManagerOrigin = EnsureRoot<u64>;
-	type Consideration = ();
-}
+// ord_parameter_types! {
+// 	pub const One: u64 = 1;
+// }
+
+// impl pallet_preimage::Config for Test {
+// 	type RuntimeEvent = RuntimeEvent;
+// 	type WeightInfo = ();
+// 	type Currency = ();
+// 	type ManagerOrigin = EnsureRoot<u64>;
+// 	type Consideration = ();
+// }
 
 impl pallet_insecure_randomness_collective_flip::Config for Test {}
 
@@ -136,9 +137,15 @@ parameter_types! {
 }
 
 #[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
-impl system::Config for Test {
+impl frame_system::Config for Test {
 	type Block = Block;
+	type AccountId = AccountId32;
+	type Lookup = IdentityLookup<Self::AccountId>;
 	type AccountData = pallet_balances::AccountData<u64>;
+}
+
+parameter_types! {
+	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 }
 
 impl Config for Test {
@@ -147,12 +154,13 @@ impl Config for Test {
 	type PalletsOrigin = OriginCaller;
 	type RuntimeCall = RuntimeCall;
 	type MaximumWeight = MaximumTimelockWeight;
-	type ScheduleOrigin = EnsureSigned<u64>;
+	type ScheduleOrigin = EnsureSigned<AccountId32>;
 	type MaxScheduledPerBlock = ConstU32<10>;
 	type WeightInfo = TestWeightInfo;
 	type Preimages = Preimage;
 	type Currency = Balances;
-	type HoldReason = RuntimeHoldReason;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type TreasuryAccount = TreasuryAccount;
 	
 }
 

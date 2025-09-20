@@ -21,9 +21,8 @@
 //!
 //! ## Overview
 //!
-//! This Pallet exposes capabilities for scheduling runtime calls as timelock encrypted ciphertexts
-//! to be decrypt by signatures output in a future Drand pulse. Each scheduled call contains a
-//! timelocked ciphertext and round number when they unlock. T he
+//! This Pallet exposes capabilities for scheduling runtime calls in the future by submitting timelock encrypted ciphertexts.
+//!   Each scheduled call contains a timelocked ciphertext and round number when they unlock.
 //!
 //! __NOTE:__ Instead of using the filter contained in the origin to call `fn schedule`, scheduled
 //! runtime calls will be dispatched with the default filter for the origin: namely
@@ -74,9 +73,15 @@ pub use weights::WeightInfo;
 use ark_bls12_381::G1Affine;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
-	dispatch::{DispatchResult, GetDispatchInfo, Parameter, PostDispatchInfo}, traits::{
-		fungible::{hold::Mutate as HoldMutate, Inspect}, schedule, tokens::{Fortitude, Precision, Restriction}, Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage, StorageVersion, StorePreimage
-	}, weights::{Weight, WeightMeter}
+	dispatch::{DispatchResult, GetDispatchInfo, Parameter, PostDispatchInfo},
+	traits::{
+		fungible::{hold::Mutate as HoldMutate, Inspect},
+		schedule,
+		tokens::{Fortitude, Precision, Restriction},
+		Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage,
+		StorageVersion, StorePreimage,
+	},
+	weights::{Weight, WeightMeter},
 };
 use frame_system::{self as system};
 pub use pallet::*;
@@ -96,10 +101,10 @@ use timelock::{
 };
 
 /// The location of a scheduled task that can be used to remove it.
-pub type TaskAddress<BlockNumber> = (BlockNumber, u32);
-/// A bounded call representation
-pub type BoundedCallOf<T> =
-	Bounded<<T as Config>::RuntimeCall, <T as frame_system::Config>::Hashing>;
+pub type TaskAddress = (RoundNumber, u32);
+// /// A bounded call representation
+// pub type BoundedCallOf<T> =
+// 	Bounded<<T as Config>::RuntimeCall, <T as frame_system::Config>::Hashing>;
 // TODO: ciphertexts can't exceed 4048 (arbitrarily)
 // This will be addressed in https://github.com/ideal-lab5/idn-sdk/issues/342
 pub type Ciphertext = BoundedVec<u8, ConstU32<4048>>;
@@ -107,24 +112,21 @@ pub type Ciphertext = BoundedVec<u8, ConstU32<4048>>;
 /// Information regarding an item to be executed in the future.
 #[cfg_attr(any(feature = "std", test), derive(PartialEq, Eq))]
 #[derive(Clone, RuntimeDebug, Encode, Decode, MaxEncodedLen, TypeInfo)]
-pub struct Scheduled<Name, Call, Ciphertext, PalletsOrigin, AccountId> {
-	/// The unique identity for this task, if there is one.
+pub struct Scheduled<Name, Ciphertext, PalletsOrigin, AccountId> {
+	/// The unique identity for this task (hash of ciphertext)
 	id: Name,
-	/// This task's priority.
+	/// FIFO priority (order in agenda)
 	priority: schedule::Priority,
-	/// The call to be dispatched. If none, then delayed transactions are used
-	maybe_call: Option<Call>,
-	/// the delayed call ciphertext
-	maybe_ciphertext: Option<Ciphertext>,
-	/// The origin with which to dispatch the call.
+	/// The timelock encrypted ciphertext containing the call
+	ciphertext: Ciphertext,
+	/// The origin with which to dispatch the decrypted call
 	origin: PalletsOrigin,
-	// The account that signed the transaction
+	/// The account that submitted this transaction
 	who: AccountId,
 }
 
 pub type ScheduledOf<T> = Scheduled<
 	TaskName,
-	BoundedCallOf<T>,
 	Ciphertext,
 	<T as Config>::PalletsOrigin,
 	<T as frame_system::Config>::AccountId,
@@ -145,9 +147,8 @@ impl<T: WeightInfo> MarginalWeightInfo for T {}
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_system::pallet_prelude::*;
 	use frame_support::pallet_prelude::*;
-
+	use frame_system::pallet_prelude::*;
 
 	/// The current storage version.
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
@@ -198,8 +199,8 @@ pub mod pallet {
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 
-		/// The preimage provider with which we look up call hashes to get the call.
-		type Preimages: QueryPreimage<H = Self::Hashing> + StorePreimage;
+		// / The preimage provider with which we look up call hashes to get the call.
+		// type Preimages: QueryPreimage<H = Self::Hashing> + StorePreimage;
 		/// Overarching hold reason.
 		type RuntimeHoldReason: From<HoldReason>;
 
@@ -208,11 +209,11 @@ pub mod pallet {
 				<Self as frame_system::pallet::Config>::AccountId,
 				Reason = Self::RuntimeHoldReason,
 			>;
-		type HoldReason: From<HoldReason>;
+		// type HoldReason: From<HoldReason>;
 		type TreasuryAccount: Get<<Self as frame_system::pallet::Config>::AccountId>;
 	}
 
-		/// A reason for the IDN Manager Pallet placing a hold on funds.
+	/// A reason for the IDN Manager Pallet placing a hold on funds.
 	#[pallet::composite_enum]
 	pub enum HoldReason {
 		/// The IDN Manager Pallet holds balance for future charges.
@@ -222,7 +223,6 @@ pub mod pallet {
 		#[codec(index = 1)]
 		StorageDeposit,
 	}
-
 
 	/// Items to be executed, indexed by the block number that they should be executed on.
 	#[pallet::storage]
@@ -239,7 +239,8 @@ pub mod pallet {
 	/// For v3 -> v4 the previously unbounded identities are Blake2-256 hashed to form the v4
 	/// identities.
 	#[pallet::storage]
-	pub(crate) type Lookup<T: Config> = StorageMap<_, Twox64Concat, TaskName, TaskAddress<u64>>;
+	pub(crate) type Lookup<T: Config> =
+		StorageMap<_, Twox64Concat, TaskName, TaskAddress, ValueQuery>;
 
 	/// Events type.
 	#[pallet::event]
@@ -248,11 +249,11 @@ pub mod pallet {
 		/// Scheduled some task.
 		Scheduled { when: RoundNumber, index: u32 },
 		/// Dispatched some task.
-		Dispatched { task: TaskAddress<RoundNumber>, id: TaskName, result: DispatchResult },
+		Dispatched { task: TaskAddress, id: TaskName, result: DispatchResult },
 		/// Something went wrong and the task could not be decrypted
 		CallUnavailable { id: TaskName },
 		/// The given task can never be executed since it is overweight.
-		PermanentlyOverweight { task: TaskAddress<RoundNumber>, id: TaskName },
+		PermanentlyOverweight { task: TaskAddress, id: TaskName },
 	}
 
 	// #[pallet::error]
@@ -277,8 +278,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::ScheduleOrigin::ensure_origin(origin.clone())?;
 			let who = ensure_signed(origin.clone())?;
-			let amount:u32 = 30_000;
-			DepositHelperImpl::<T>::hold_deposit(amount.into(), &who.clone()); 
+			let amount: u32 = 30_000;
+			DepositHelperImpl::<T>::hold_deposit(amount.into(), &who.clone())?;
 			let origin = <T as Config>::RuntimeOrigin::from(origin);
 			Self::do_schedule_sealed(when, origin.caller().clone(), ciphertext, who)?;
 			Ok(())
@@ -287,38 +288,37 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Helper to migrate scheduler when the pallet origin type has changed.
-	pub fn migrate_origin<OldOrigin: Into<T::PalletsOrigin> + codec::Decode>() {
-		Agenda::<T>::translate::<
-			Vec<Scheduled<TaskName, BoundedCallOf<T>, Ciphertext, OldOrigin, T::AccountId>>,
-			_,
-		>(|_, agenda| {
-			Some(BoundedVec::truncate_from(
-				agenda
-					.into_iter()
-					.map(|schedule| Scheduled {
-						id: schedule.id,
-						priority: schedule.priority,
-						maybe_call: schedule.maybe_call,
-						maybe_ciphertext: None,
-						origin: schedule.origin.into(),
-						who: schedule.who,
-					})
-					.collect::<Vec<_>>(),
-			))
-		});
-	}
+	// /// Helper to migrate scheduler when the pallet origin type has changed.
+	// pub fn migrate_origin<OldOrigin: Into<T::PalletsOrigin> + codec::Decode>() {
+	// 	Agenda::<T>::translate::<
+	// 		Vec<Scheduled<TaskName, Ciphertext, OldOrigin, T::AccountId>>,
+	// 		_,
+	// 	>(|_, agenda| {
+	// 		Some(BoundedVec::truncate_from(
+	// 			agenda
+	// 				.into_iter()
+	// 				.map(|schedule| Scheduled {
+	// 					id: schedule.id,
+	// 					priority: schedule.priority,
+	// 					ciphertext: None,
+	// 					origin: schedule.origin.into(),
+	// 					who: schedule.who,
+	// 				})
+	// 				.collect::<Vec<_>>(),
+	// 		))
+	// 	});
+	// }
 
 	#[allow(clippy::result_large_err)]
 	fn place_task(
 		when: RoundNumber,
-		what: ScheduledOf<T>
-	) -> Result<TaskAddress<u64>, (DispatchError, ScheduledOf<T>)> {
+		what: ScheduledOf<T>,
+	) -> Result<TaskAddress, (DispatchError, ScheduledOf<T>)> {
 		let name = what.id;
 		let index = Self::push_to_agenda(when, what)?;
 		let address = (when, index);
 		Lookup::<T>::insert(name, address);
-		Self::deposit_event(Event::Scheduled { when, index: address.1 });	
+		Self::deposit_event(Event::Scheduled { when, index: address.1 });
 		Ok(address)
 	}
 
@@ -350,7 +350,7 @@ impl<T: Config> Pallet<T> {
 		origin: T::PalletsOrigin,
 		ciphertext: Ciphertext,
 		who: T::AccountId,
-	) -> Result<TaskAddress<RoundNumber>, DispatchError> {
+	) -> Result<TaskAddress, DispatchError> {
 		let id = blake2_256(&ciphertext[..]);
 		// to enforce FIFO execution, we set the priority here
 		let priority = (Agenda::<T>::get(when).len() + 1) as u8;
@@ -358,10 +358,9 @@ impl<T: Config> Pallet<T> {
 		let task = Scheduled {
 			id,
 			priority,
-			maybe_call: None,
-			maybe_ciphertext: Some(ciphertext),
+			ciphertext,
 			origin,
-			who: who,
+			who,
 		};
 		let res = Self::place_task(when, task).map_err(|x| x.0)?;
 		Ok(res)
@@ -378,6 +377,7 @@ enum ServiceTaskError {
 use ServiceTaskError::*;
 
 impl<T: Config> Pallet<T> {
+	/// This function runs off-chain.
 	/// Given a decryption key (signature) and identity (a message derived from `when`),
 	/// attempt to decrypt ciphertexts locked for the given round number.
 	/// For now, it acts as a FIFO queue for decryption.
@@ -396,23 +396,19 @@ impl<T: Config> Pallet<T> {
 			T::MaxScheduledPerBlock,
 		> = BoundedVec::new();
 		let agenda = Agenda::<T>::get(when);
-		// Collect and decrypt all scheduled calls.
+		// Collect and decrypt all scheduled callss.
 		for task in agenda.into_iter() {
 			if *remaining_decrypts > 0 {
-				if let Some(ref ciphertext_bytes) = task.maybe_ciphertext {
-					if let Ok(ciphertext) = TLECiphertext::<TinyBLS381>::deserialize_compressed(
-						ciphertext_bytes.as_slice(),
-					) {
-						if let Ok(bare) = tld::<TinyBLS381, AESGCMBlockCipherProvider>(
-							ciphertext,
-							signature.into(),
-						) {
-							*remaining_decrypts -= 1;
-							if let Ok(call) =
-								<T as Config>::RuntimeCall::decode(&mut bare.as_slice())
-							{
-								recovered_calls.try_push((task.id, call)).ok();
-							}
+				let ciphertext_bytes = task.ciphertext;
+				if let Ok(ciphertext) =
+					TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
+				{
+					if let Ok(bare) =
+						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
+					{
+						*remaining_decrypts -= 1;
+						if let Ok(call) = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()) {
+							recovered_calls.try_push((task.id, call)).ok();
 						}
 					}
 				}
@@ -422,6 +418,9 @@ impl<T: Config> Pallet<T> {
 		recovered_calls
 	}
 
+	/// This function is executed on-chain.
+	///
+	/// Note: this requires trust that the collator has properly decrypted a call and also mapped the correct index
 	/// Services the agenda by executing the call_data as a FIFO queue
 	/// by first matching it up with its associated entry in the Agenda,
 	/// ensuring priority ordering by list index order.
@@ -437,88 +436,44 @@ impl<T: Config> Pallet<T> {
 		// iterate over the agenda and fill in call data
 		// for now we just match on id
 		// but in the future we will implement https://github.com/ideal-lab5/idn-sdk/issues/339
-		let mut agenda = Agenda::<T>::get(when);
-		let mut ordered: Vec<(u32, _)> = agenda
-			.iter_mut()
-			.enumerate()
-			.map(|(index, item)| {
-				// Find matching call data by id and bind preimage
-				item.maybe_call = call_data
-					.iter()
-					.find(|data| data.0 == item.id)
-					.and_then(|call| T::Preimages::bound(call.1.clone()).ok());
+		// let mut agenda = Agenda::<T>::get(when);
+		for (task_name, call) in call_data.into_iter() {
+			let agenda = Agenda::<T>::get(when);
+			let idx = Lookup::<T>::get(task_name).1;
+			let task = agenda[idx as usize].clone();
+			let who = task.who.clone();
+			// let lookup_len = call.lookup_len().map(|x| x as usize);
 
-				(index as u32, item.priority)
-			})
-			.collect();
-		ordered.sort_by_key(|k| k.1);
-
-		for (agenda_index, _) in ordered.into_iter() {
-			let task = agenda[agenda_index as usize].clone();
-			// If call data was found, then proceed as normal, otherwise do nothing and continue
-			// to other executions
-			if let Some(ref maybe_call) = task.maybe_call {
-				let base_weight =
-					T::WeightInfo::service_task(maybe_call.lookup_len().map(|x| x as usize));
-				if !meter.can_consume(base_weight) {
+			// let base_weight = T::WeightInfo::service_task(lookup_len);
+			// if !meter.can_consume(base_weight) {
+			// 	break;
+			// }
+			let result = Self::execute_dispatch(&mut meter, task.origin.clone(), call, who.clone());
+			match result {
+				Ok(dispatch_result) => {
+					// Success - consume the deposit as payment
+					let _ = DepositHelperImpl::<T>::consume_deposit(&who.clone());
+					Self::deposit_event(Event::Dispatched {
+						task: (when, idx as u32),
+						id: task_name,
+						result: dispatch_result,
+					});
+				},
+				Err(()) => {
+					// Overweight (shouldn't happen due to check above, but just in case)
+					let _ = DepositHelperImpl::<T>::release_deposit(&who);
+					Self::deposit_event(Event::PermanentlyOverweight {
+						task: (when, idx as u32),
+						id: task_name,
+					});
 					break;
-				}
-				let _result = Self::service_task(&mut meter, when, agenda_index, task);
+				},
 			}
+			// Remove from lookup table
+			Lookup::<T>::remove(task_name);
 		}
 
 		Agenda::<T>::remove(when);
-	}
-
-	/// Service (i.e. execute) the given task, being careful not to overflow the `weight` counter.
-	///
-	/// This involves:
-	/// - removing and potentially replacing the `Lookup` entry for the task.
-	/// - realizing the task's call which can include a preimage lookup.
-	#[allow(clippy::result_large_err)]
-	fn service_task(
-		weight: &mut WeightMeter,
-		when: RoundNumber,
-		agenda_index: u32,
-		task: ScheduledOf<T>,
-	) -> Result<(), (ServiceTaskError, ScheduledOf<T>)> {
-		if let Some(ref call) = task.maybe_call {
-			Lookup::<T>::remove(task.id);
-			let (call, lookup_len) = match T::Preimages::peek(call) {
-				Ok(c) => c,
-				Err(_) => {
-					Self::deposit_event(Event::CallUnavailable { id: task.id });
-					// It was not available when we needed it, so we don't need to have requested it
-					// anymore.
-					T::Preimages::drop(call);
-					// We don't know why `peek` failed, thus we most account here for the "full
-					// weight".
-					let _ = weight.try_consume(T::WeightInfo::service_task(
-						call.lookup_len().map(|x| x as usize),
-					));
-
-					return Err((Unavailable, task));
-				},
-			};
-
-			let _ = weight.try_consume(T::WeightInfo::service_task(lookup_len.map(|x| x as usize)));
-			let who = task.who.clone();
-
-			return match Self::execute_dispatch(weight, task.origin.clone(), call, who) {
-				Err(()) => Err((Overweight, task)),
-				Ok(result) => {
-					Self::deposit_event(Event::Dispatched {
-						task: (when, agenda_index),
-						id: task.id,
-						result,
-					});
-
-					return Ok(());
-				},
-			}?;
-		};
-
-		Ok(())
 	}
 
 	/// Make a dispatch to the given `call` from the given `origin`, ensuring that the `weight`
@@ -533,7 +488,7 @@ impl<T: Config> Pallet<T> {
 		weight: &mut WeightMeter,
 		origin: T::PalletsOrigin,
 		call: <T as Config>::RuntimeCall,
-		who: T::AccountId
+		who: T::AccountId,
 	) -> Result<DispatchResult, ()> {
 		let base_weight = T::WeightInfo::execute_dispatch_signed();
 		let call_weight = call.get_dispatch_info().call_weight;
@@ -541,15 +496,17 @@ impl<T: Config> Pallet<T> {
 		let max_weight = base_weight.saturating_add(call_weight);
 
 		if !weight.can_consume(max_weight) {
-			DepositHelperImpl::<T>::release_deposit(&who);
+			// TODO: how should this be handled?
+			let _ = DepositHelperImpl::<T>::release_deposit(&who);
 			return Err(());
 		}
 
 		let dispatch_origin = origin.into();
 		let (maybe_actual_call_weight, result) = match call.dispatch(dispatch_origin) {
 			Ok(post_info) => (post_info.actual_weight, Ok(())),
-			Err(error_and_info) =>
-				(error_and_info.post_info.actual_weight, Err(error_and_info.error)),
+			Err(error_and_info) => {
+				(error_and_info.post_info.actual_weight, Err(error_and_info.error))
+			},
 		};
 		let call_weight = maybe_actual_call_weight.unwrap_or(call_weight);
 		let _ = weight.try_consume(base_weight);
@@ -564,27 +521,34 @@ pub struct DepositHelperImpl<T: Config>(core::marker::PhantomData<T>);
 pub trait DepositHelper {
 	type Amount;
 	type AccountId;
-	fn hold_deposit(amount: Self::Amount, who: &Self::AccountId)-> DispatchResult;
+	fn hold_deposit(amount: Self::Amount, who: &Self::AccountId) -> DispatchResult;
 	fn release_deposit(who: &Self::AccountId) -> DispatchResult;
 	fn consume_deposit(who: &Self::AccountId) -> DispatchResult;
 }
-
 
 impl<T: Config> DepositHelper for DepositHelperImpl<T> {
 	type Amount = u32;
 	type AccountId = T::AccountId;
 
-	fn hold_deposit(amount: Self::Amount, who: &T::AccountId) -> DispatchResult{
+	fn hold_deposit(amount: Self::Amount, who: &T::AccountId) -> DispatchResult {
 		T::Currency::hold(&HoldReason::Fees.into(), who, amount.into())?;
 		Ok(())
 	}
-    fn release_deposit(who: &T::AccountId) -> DispatchResult { 
+	fn release_deposit(who: &T::AccountId) -> DispatchResult {
 		T::Currency::release(&HoldReason::Fees.into(), who, 30_000u32.into(), Precision::Exact)?;
 		Ok(())
 	}
-    fn consume_deposit(who: &T::AccountId) -> DispatchResult {
+	fn consume_deposit(who: &T::AccountId) -> DispatchResult {
 		// let treasury_account = T::AccountId::
-		T::Currency::transfer_on_hold(&HoldReason::Fees.into(), who, &T::TreasuryAccount::get(), 30000u32.into(), Precision::Exact, Restriction::Free, Fortitude::Force)?;
+		T::Currency::transfer_on_hold(
+			&HoldReason::Fees.into(),
+			who,
+			&T::TreasuryAccount::get(),
+			30000u32.into(),
+			Precision::Exact,
+			Restriction::Free,
+			Fortitude::Force,
+		)?;
 		Ok(())
 	}
 }

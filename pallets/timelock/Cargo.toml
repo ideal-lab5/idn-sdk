@@ -31,10 +31,10 @@ ark-ec = { workspace = true, optional = true }
 sp-idn-crypto = { workspace = true, optional = true }
 pallet-transaction-payment.workspace = true
 pallet-balances.workspace = true
-pallet-preimage.workspace = true
+# pallet-preimage.workspace = true 
 
 [dev-dependencies]
-pallet-preimage.workspace = true
+# pallet-preimage.workspace = true
 pallet-timestamp.workspace = true
 sp-core.workspace = true
 substrate-test-utils.workspace = true
@@ -45,19 +45,6 @@ ark-bls12-381.workspace = true
 pallet-insecure-randomness-collective-flip.workspace = true
 
 [features]
-default = [ "std" ]
-runtime-benchmarks = [
-	"frame-benchmarking",
-	"frame-benchmarking/runtime-benchmarks",
-	"frame-support/runtime-benchmarks",
-	"frame-system/runtime-benchmarks",
-	"pallet-preimage/runtime-benchmarks",
-	"sp-runtime/runtime-benchmarks",
-	"ark-std",
-	"ark-ff",
-	"ark-ec",
-	"sp-idn-crypto"
-]
 std = [
 	"sp-idn-crypto",
 	"ark-serialize/std",
@@ -67,7 +54,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"log/std",
-	"pallet-preimage/std",
+	# "pallet-preimage/std",
 	"scale-info/std",
 	"sp-consensus-randomness-beacon/std",
 	"sp-core/std",
@@ -75,16 +62,31 @@ std = [
 	"sp-runtime/std",
 	"sp-std/std",
 	"sp-weights/std",
+	"pallet-balances/std",
 	"pallet-timestamp/std",
+	"pallet-transaction-payment/std",
 	"timelock/std",
 	"ark-std/std",
 	"ark-ff/std",
 	"ark-ec/std",
-	"pallet-insecure-randomness-collective-flip/std"
+	"pallet-insecure-randomness-collective-flip/std",
+]
+default = ["std"]
+runtime-benchmarks = [
+	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	# "pallet-preimage/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"ark-std",
+	"ark-ff",
+	"ark-ec",
+	"sp-idn-crypto",
 ]
 try-runtime = [
 	"frame-support/try-runtime",
 	"frame-system/try-runtime",
-	"pallet-preimage/try-runtime",
+	# "pallet-preimage/try-runtime",
 	"sp-runtime/try-runtime",
 ]
