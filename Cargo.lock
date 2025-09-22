@@ -9189,7 +9189,6 @@ dependencies = [
  "log",
  "pallet-balances",
  "pallet-insecure-randomness-collective-flip",
- "pallet-preimage",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
