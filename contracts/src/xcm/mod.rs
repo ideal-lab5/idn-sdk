@@ -170,8 +170,8 @@ use ink::{
 };
 
 // These are needed for both test and non-test
-use ink::xcm::lts::{Junction, Location};
 use codec::{Compact, Decode, Encode};
+use ink::xcm::lts::{Junction, Location};
 #[cfg(not(test))]
 use scale_info::prelude::boxed::Box;
 use scale_info::prelude::vec::Vec;
@@ -961,10 +961,12 @@ impl IdnClient {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-	use super::constants::{
-		CONSUMER_PARA_ID_PASEO, CONTRACTS_CALL_INDEX, CONTRACTS_PALLET_INDEX_PASEO,
-		IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO,
+	use super::{
+		constants::{
+			CONSUMER_PARA_ID_PASEO, CONTRACTS_CALL_INDEX, CONTRACTS_PALLET_INDEX_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO,
+		},
+		*,
 	};
 
 	fn mock_client() -> IdnClient {

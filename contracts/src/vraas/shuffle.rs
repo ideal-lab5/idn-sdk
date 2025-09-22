@@ -28,7 +28,10 @@ pub fn shuffle<T>(
 	env: EnvAccess<IDNEnvironment>,
 	list: &mut Vec<T>,
 	ctx: [u8; 32],
-) -> Result<(), RandomReadErr> where T: alloc::fmt::Debug {
+) -> Result<(), RandomReadErr>
+where
+	T: alloc::fmt::Debug,
+{
 	let seed = env.extension().fetch_random(ctx)?;
 	let mut rng = ChaCha12Rng::from_seed(seed);
 	list.shuffle(&mut rng);
