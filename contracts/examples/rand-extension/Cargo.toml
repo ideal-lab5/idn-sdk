@@ -1,0 +1,29 @@
+[package]
+name = "rand-extension-example-contract"
+version = "0.1.0"
+authors = ["Ideal Network <admin@idealnetwork.io>"]
+edition = "2021"
+publish = false
+
+[dependencies]
+# Parity SCALE Codec
+codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = [
+    "derive",
+] }
+ink = { version = "5.1.1", default-features = false }
+idn-contracts = { path = "../../idn-contracts", default-features = false }
+
+[dev-dependencies]
+rand = "0.8.5"
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "codec/std",
+    "ink/std",
+    "idn-contracts/std",
+]
+ink-as-dependency = []

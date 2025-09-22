@@ -11,10 +11,14 @@ description = "An example consumer contract for Ideal Network services"
 
 [dependencies]
 ink = { version = "5.1.1", default-features = false }
-parity-scale-codec = { version = "3.7.4", default-features = false, features = ["derive"] }
+# codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = [
+#     "derive",
+# ] }
 scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
-idn-client-contract-lib = { path = "../idn-client-contract-lib", default-features = false }
-sp-idn-traits = { path = "../../primitives/traits", default-features = false }
+sha2 = { version = "0.10.8", default-features = false }
+idn-contracts = { path = "../../idn-contracts", default-features = false }
+sp-idn-traits = { path = "../../../../primitives/traits", default-features = false }
+frame-support = { version = "40.1.0", default-features = false }
 
 [dev-dependencies]
 serde = { version = "1.0", optional = false }
@@ -27,10 +31,12 @@ path = "lib.rs"
 default = ["std"]
 std = [
     "ink/std",
-    "parity-scale-codec/std",
+    # "codec/std",
     "scale-info/std",
-    "idn-client-contract-lib/std",
+    "sha2/std",
+    "idn-contracts/std",
     "sp-idn-traits/std",
+    "frame-support/std",
 ]
 
 ink-as-dependency = []
