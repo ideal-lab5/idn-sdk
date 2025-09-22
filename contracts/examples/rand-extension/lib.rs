@@ -9,6 +9,7 @@ mod rand_extension {
 		ext::RandomReadErr,
 		vraas::{select, shuffle},
 	};
+	use ink::prelude::vec::Vec;
 
 	#[ink(storage)]
 	pub struct RandExtension {
@@ -57,7 +58,7 @@ mod rand_extension {
 			let acct_id_bytes: &[u8] = caller.as_ref();
 			let mut data = self.value.to_vec();
 			// shuffle self.value with the latest runtime randomness xor'd with the acct_id_bytes (32 bytes)
-			let _ = shuffle(self.env(), &mut data, acct_id_bytes.try_into().unwrap())?;
+			shuffle(self.env(), &mut data, acct_id_bytes.try_into().unwrap())?;
 			self.value = data.try_into().unwrap();
 			Ok(())
 		}

@@ -1,40 +1,39 @@
-[workspace]
-resolver = "2"
-members = [
-    "idn-contracts",
-    "examples/rand-extension",
-]
+[package]
+name = "idn-contracts"
+version = "0.1.0"
 
-[workspace.dependencies]
+# [lib]
+# crate-type = ["cdylib"]  # This forces wasm32 target
+
+edition = "2021"
+
+[dependencies]
 ink = { version = "5.1.1", default-features = false }
-# Parity SCALE Codec
-codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = [
-    "derive",
-] }
-scale-info = { version = "2.11.6", default-features = false, features = [
-    "derive",
-] }
-sha2 = { version = "0.10.2", default-features = false }
-bp-idn = { path = "../chains/ideal-network/bridge", default-features = false }
-sp-idn-traits = { path = "../primitives/traits", default-features = false }
-idn-contracts = { path = "./idn-contracts", default-features = false }
-rand = { version = "0.9.2", default-features = false }
-rand_chacha = { version = "0.9.0", default-features = false }
-# rand_core = { version = "0.9.3", default-features = false }
-# shuffle = { version = "0.1.7", default-features = false}
+codec.workspace = true
+hex.workspace = true
+hex-literal.workspace = true
+scale-info.workspace = true
+sha2.workspace = true
+sp-idn-traits.workspace = true
+bp-idn.workspace = true
+rand = { workspace = true, default-features = false, features = ["alloc"] }
+rand_chacha.workspace = true
+# rand_core.workspace = true
 # pallet-randomness-beacon.workspace = true
 
-# [dev-dependencies]
-# serde = { version = "1.0", optional = false }
+[dev-dependencies]
+serde = { version = "1.0", optional = false }
 
-# [features]
-# default = ["std"]
-# std = [
-#     "ink/std",
-#     "codec/std",
-#     "scale-info/std",
-#     "sha2/std",
-#     "sp-idn-traits/std",
-#     "bp-idn/std",
-#     # "pallet-randomness-beacon/std "
-# ]
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "codec/std",
+    "hex/std",
+    "scale-info/std",
+    "sha2/std",
+    "sp-idn-traits/std",
+    "bp-idn/std",
+    "rand/std",
+    "rand_chacha/std",
+]

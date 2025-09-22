@@ -9,6 +9,8 @@ edition = "2021"
 readme = "README.md"
 description = "An example consumer contract for Ideal Network services"
 
+[workspace]
+
 [dependencies]
 ink = { version = "5.1.1", default-features = false }
 # codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = [
@@ -16,8 +18,8 @@ ink = { version = "5.1.1", default-features = false }
 # ] }
 scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
 sha2 = { version = "0.10.8", default-features = false }
-idn-contracts = { path = "../../idn-contracts", default-features = false }
-sp-idn-traits = { path = "../../../../primitives/traits", default-features = false }
+idn-contracts = { path = "../..", default-features = false }
+sp-idn-traits = { path = "../../../primitives/traits", default-features = false }
 frame-support = { version = "40.1.0", default-features = false }
 
 [dev-dependencies]
