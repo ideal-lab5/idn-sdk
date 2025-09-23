@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 use crate::ext::{IDNEnvironment, RandomReadErr};
-use alloc::vec::Vec;
 use ink::EnvAccess;
 use rand::{seq::SliceRandom, SeedableRng};
 use rand_chacha::ChaCha12Rng;
