@@ -16,12 +16,9 @@
 
 //! Constants for the IDN Client Contract Library
 
-// use crate::types::{PalletIndex, ParaId};
+use super::types::{PalletIndex, ParaId};
 
 pub use bp_idn::constants::*;
-
-pub type ParaId = u32;
-pub type PalletIndex = u8;
 
 /// Parachain ID for the Ideal Network on the Paseo relay chain
 pub const IDN_PARA_ID_PASEO: ParaId = 4502;

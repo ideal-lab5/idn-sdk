@@ -9,7 +9,7 @@ This example is based on the [rand-extension example](https://github.com/use-ink
 ## What it demonstrates
 
 - **Chain Extension Integration**: Shows how to define and use a custom chain extension (`RandExtension`) to retrieve randomness from the runtime
-- **IDN Randomness Consumption**: Demonstrates how smart contracts can consume verifiable randomness from the IDN network
+- **IDN Randomness Consumption**: Demonstrates how smart contracts can consume verifiable randomness from the IDN
 - **Event Emission**: Emits events when new randomness is fetched and stored
 - **Error Handling**: Proper error handling for randomness retrieval failures
 
