@@ -34,6 +34,22 @@ use sp_core::H256;
 use sp_idn_traits::Hashable;
 use xcm::prelude::Junction;
 
+pub fn create_subscriber<T: Config>(
+	sub_id: Option<T::AccountId>,
+) -> (T::AccountId, RawOrigin<T::AccountId>) {
+	match sub_id {
+		Some(sub_id) => {
+			let origin = RawOrigin::Signed(sub_id.clone());
+			(sub_id, origin)
+		},
+		None => {
+			let subscriber: T::AccountId = whitelisted_caller();
+			let origin = RawOrigin::Signed(subscriber.clone());
+			(subscriber, origin)
+		},
+	}
+}
+
 #[benchmarks(
     where
         T::Credits: From<u64>,
@@ -47,8 +63,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn create_subscription() {
-		let subscriber: T::AccountId = whitelisted_caller();
-		let origin = RawOrigin::Signed(subscriber.clone());
+		let (subscriber, origin) = create_subscriber::<T>(None);
 		let credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
@@ -83,8 +98,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn pause_subscription() {
-		let subscriber: T::AccountId = whitelisted_caller();
-		let origin = RawOrigin::Signed(subscriber.clone());
+		let (subscriber, origin) = create_subscriber::<T>(None);
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
@@ -114,7 +128,7 @@ mod benchmarks {
 		assert_eq!(sub.state, SubscriptionState::Active);
 
 		#[extrinsic_call]
-		_(origin, sub_id);
+		_(origin.clone(), sub_id);
 
 		// assert that the subscription state is correct
 		let sub = Subscriptions::<T>::get(sub_id).expect("Subscription should exist");
@@ -123,8 +137,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn kill_subscription() {
-		let subscriber: T::AccountId = whitelisted_caller();
-		let origin = RawOrigin::Signed(subscriber.clone());
+		let (subscriber, origin) = create_subscriber::<T>(None);
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
@@ -162,8 +175,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn update_subscription(m: Linear<0, { T::MaxMetadataLen::get() }>) {
-		let subscriber: T::AccountId = whitelisted_caller();
-		let origin = RawOrigin::Signed(subscriber.clone());
+		let (subscriber, origin) = create_subscriber::<T>(None);
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
@@ -220,8 +232,7 @@ mod benchmarks {
 
 	#[benchmark]
 	fn reactivate_subscription() {
-		let subscriber: T::AccountId = whitelisted_caller();
-		let origin = RawOrigin::Signed(subscriber.clone());
+		let (subscriber, origin) = create_subscriber::<T>(None);
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
@@ -271,7 +282,7 @@ mod benchmarks {
 	fn quote_subscription() {
 		let sibling_account: T::AccountId = [88u8; 32].into();
 		let sibling_para_id = 88;
-		let origin = RawOrigin::Signed(sibling_account.clone());
+		let (subscriber, origin) = create_subscriber::<T>(Some(sibling_account));
 		let credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
@@ -300,15 +311,13 @@ mod benchmarks {
 		#[extrinsic_call]
 		_(origin, quote_sub_params);
 
-		let deposit = IdnManager::<T>::calculate_storage_deposit_from_create_params(
-			&sibling_account,
-			&params,
-		);
+		let deposit =
+			IdnManager::<T>::calculate_storage_deposit_from_create_params(&subscriber, &params);
 
 		System::<T>::assert_last_event(
 			Event::<T>::SubQuoted {
 				requester: Location::new(1, [Junction::Parachain(sibling_para_id)]),
-				quote: Quote { req_ref, fees: 2000u64.into(), deposit },
+				quote: Quote { req_ref, fees: 58000000u64.into(), deposit },
 			}
 			.into(),
 		);
@@ -316,8 +325,8 @@ mod benchmarks {
 
 	#[benchmark]
 	fn get_subscription_info() {
-		let sibling_account: T::AccountId = [88u8; 32].into();
-		let origin = RawOrigin::Signed(sibling_account.clone());
+		let sibling_id: T::AccountId = [88u8; 32].into();
+		let (sibling_account, origin) = create_subscriber::<T>(Some(sibling_id));
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
@@ -331,7 +340,7 @@ mod benchmarks {
 
 		// Create first subscription
 		let result = IdnManager::<T>::create_subscription(
-			<T as frame_system::Config>::RuntimeOrigin::signed(sibling_account.clone()),
+			origin.clone().into(),
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
@@ -358,7 +367,7 @@ mod benchmarks {
 	/// Benchmark dispatching a single pulse to `p` subscriptions
 	#[benchmark]
 	fn dispatch_pulse(s: Linear<1, { T::MaxSubscriptions::get() }>) {
-		let subscriber: T::AccountId = whitelisted_caller();
+		let (subscriber, origin) = create_subscriber::<T>(None);
 		let credits: T::Credits = 100u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
@@ -372,7 +381,7 @@ mod benchmarks {
 
 		// Create first subscription
 		let result = IdnManager::<T>::create_subscription(
-			<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
+			origin.into(),
 			CreateSubParamsOf::<T> {
 				credits,
 				target: target.clone(),
@@ -444,20 +453,26 @@ mod benchmarks {
 	where
 		T::Credits: From<u64>,
 		T::Currency: Mutate<T::AccountId>,
+		<<T as Config>::Currency as Inspect<<T as frame_system::Config>::AccountId>>::Balance:
+			From<u64>,
 		T::AccountId: From<[u8; 32]>,
 		<<T as Config>::Currency as Inspect<T::AccountId>>::Balance: From<u64>,
 	{
-		let credits: T::Credits = 100_000u64.into();
+		let credits: T::Credits = 1u64.into();
 		let target = Location::new(1, [Junction::PalletInstance(1)]);
 		let frequency: BlockNumberFor<T> = 1u32.into();
 
 		// Create s subscriptions
 		for i in 0..s {
 			let id: [u8; 32] = i.hash(&[i as u8]).into();
-			let subscriber: T::AccountId = id.into();
-			T::Currency::set_balance(&subscriber, u32::MAX.into());
+			let account_id: T::AccountId = id.into();
+			let (subscriber, origin) = create_subscriber::<T>(Some(account_id));
+			T::Currency::set_balance(
+				&subscriber,
+				IdnManager::<T>::min_balance().saturating_mul(100_000u64.into()),
+			);
 			let res = IdnManager::<T>::create_subscription(
-				<T as frame_system::Config>::RuntimeOrigin::signed(subscriber.clone()),
+				origin.into(),
 				CreateSubParamsOf::<T> {
 					credits,
 					target: target.clone(),
