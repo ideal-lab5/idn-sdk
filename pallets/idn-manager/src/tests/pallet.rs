@@ -173,7 +173,7 @@ fn create_subscription_works() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
@@ -225,7 +225,7 @@ fn create_subscription_with_custom_id_works() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 		let custom_id = [7u8; 32];
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -300,7 +300,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
+		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000_000);
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
@@ -343,11 +343,11 @@ fn create_subscription_fails_if_sub_already_exists() {
 #[test]
 fn create_subscription_fails_if_too_many_subscriptions() {
 	ExtBuilder::build().execute_with(|| {
-		let credits: u64 = 50;
+		let credits: u64 = 1;
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let initial_balance = 2 * u32::MAX as u64;
+		let initial_balance = 29_000_000_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
@@ -417,7 +417,7 @@ fn test_kill_subscription() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let metadata = None;
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
@@ -478,7 +478,7 @@ fn on_finalize_removes_finalized_subscriptions() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
@@ -563,18 +563,10 @@ fn test_update_subscription() {
 			},
 			SubUpdate {
 				old: SubParams { credits: 100, frequency: 1, metadata: Some(vec![0x1, 0xa]) },
-				new: SubParams {
-					credits: 9_999_999_999_999,
-					frequency: 1,
-					metadata: Some(vec![0x1, 0xa]),
-				},
+				new: SubParams { credits: 500, frequency: 1, metadata: Some(vec![0x1, 0xa]) },
 			},
 			SubUpdate {
-				old: SubParams {
-					credits: 9_999_999_999_999,
-					frequency: 1,
-					metadata: Some(vec![0x1, 0xa]),
-				},
+				old: SubParams { credits: 500, frequency: 1, metadata: Some(vec![0x1, 0xa]) },
 				new: SubParams { credits: 100, frequency: 1, metadata: Some(vec![0x1, 0xa, 0x10]) },
 			},
 		];
@@ -601,7 +593,7 @@ fn update_does_not_update_when_params_are_none() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 		let metadata = Some(BoundedVec::try_from(vec![1, 2, 3]).unwrap());
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
 
@@ -718,7 +710,7 @@ fn test_credits_consumption_and_cleanup() {
 			System::set_block_number(System::block_number() + 1);
 
 			// Dispatch randomness
-			IdnManager::dispatch(pulse.into());
+			IdnManager::dispatch(pulse);
 
 			System::assert_last_event(RuntimeEvent::IdnManager(
 				Event::<Test>::RandomnessDistributed { sub_id },
@@ -745,7 +737,7 @@ fn test_credits_consumption_and_cleanup() {
 			treasury_balance += fees;
 
 			assert_eq!(
-				Balances::free_balance(&TreasuryAccount::get()),
+				Balances::free_balance(TreasuryAccount::get()),
 				treasury_balance,
 				"Fees not moved to treasury correctly"
 			);
@@ -779,7 +771,7 @@ fn test_credits_consumption_and_cleanup() {
 		assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
 		assert_eq!(Balances::balance_on_hold(&HoldReason::StorageDeposit.into(), &ALICE), 0);
 		assert_eq!(
-			Balances::free_balance(&TreasuryAccount::get()) - initial_treasury_balance,
+			Balances::free_balance(TreasuryAccount::get()) - initial_treasury_balance,
 			initial_fees
 		);
 
@@ -798,7 +790,7 @@ fn test_credits_consumption_not_enough_balance() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
-		let initial_balance = 10_000_000_000;
+		let initial_balance = u64::MAX;
 		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
@@ -832,14 +824,14 @@ fn test_credits_consumption_not_enough_balance() {
 					&sub,
 				);
 				assert_eq!(Balances::balance_on_hold(&HoldReason::Fees.into(), &ALICE), 0);
-				IdnManager::dispatch(pulse.into());
+				IdnManager::dispatch(pulse);
 
 				let updated_sub = Subscriptions::<Test>::get(sub_id).unwrap();
 				assert_eq!(updated_sub.state, SubscriptionState::Paused);
 				break;
 			} else {
 				// Dispatch randomness
-				IdnManager::dispatch(pulse.into());
+				IdnManager::dispatch(pulse);
 			}
 
 			// finalize block
@@ -856,7 +848,7 @@ fn test_credits_consumption_xcm_send_fails() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 1;
-		let initial_balance = 10_000_000_000;
+		let initial_balance = u64::MAX;
 		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
@@ -891,13 +883,13 @@ fn test_credits_consumption_xcm_send_fails() {
 				sub.details.target = bad_location;
 				Subscriptions::<Test>::insert(sub_id, sub);
 
-				IdnManager::dispatch(pulse.into());
+				IdnManager::dispatch(pulse);
 				let updated_sub = Subscriptions::<Test>::get(sub_id).unwrap();
 				assert_eq!(updated_sub.state, SubscriptionState::Paused);
 				break;
 			} else {
 				// Dispatch randomness
-				IdnManager::dispatch(pulse.into());
+				IdnManager::dispatch(pulse);
 			}
 
 			// finalize block
@@ -917,7 +909,7 @@ fn test_credits_consumption_frequency() {
 
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
@@ -956,7 +948,7 @@ fn test_credits_consumption_frequency() {
 			let credits_left = sub.credits_left;
 
 			// Dispatch randomness
-			IdnManager::dispatch(pulse.into());
+			IdnManager::dispatch(pulse);
 
 			// Check the subscription state
 			let sub = Subscriptions::<Test>::get(sub_id).unwrap();
@@ -999,7 +991,7 @@ fn test_sub_state_is_finalized_when_credits_left_goes_low() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 3; // ignored
-		let initial_balance = 10_000_000;
+		let initial_balance = u64::MAX;
 		let pulse = mock::Pulse { rand: [0u8; 32], start: 0, end: 1, sig: [1u8; 48] };
 
 		// Set up account
@@ -1030,7 +1022,7 @@ fn test_sub_state_is_finalized_when_credits_left_goes_low() {
 		Subscriptions::<Test>::insert(sub_id, sub);
 
 		// Dispatch randomness
-		IdnManager::dispatch(pulse.into());
+		IdnManager::dispatch(pulse);
 
 		let sub = Subscriptions::<Test>::get(sub_id).unwrap();
 
@@ -1054,7 +1046,7 @@ fn test_pause_reactivate_subscription() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let metadata = None;
 
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
+		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000_000);
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
@@ -1120,7 +1112,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let metadata = None;
 
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
+		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000_000);
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
@@ -1167,7 +1159,7 @@ fn reactivate_subscription_fails_if_sub_does_not_exists() {
 }
 
 #[test]
-fn reactivate_subscriptio_fails_if_sub_already_active() {
+fn reactivate_subscription_fails_if_sub_already_active() {
 	ExtBuilder::build().execute_with(|| {
 		let credits = 10;
 		let frequency = 2;
@@ -1175,7 +1167,7 @@ fn reactivate_subscriptio_fails_if_sub_already_active() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let metadata = None;
 
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
+		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000_000);
 
 		assert_ok!(IdnManager::create_subscription(
 			RuntimeOrigin::signed(ALICE.clone()),
@@ -1209,7 +1201,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 		let metadata = None;
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 
 		// Set balance for Alice and Bob
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -1286,7 +1278,7 @@ fn test_on_finalize_removes_finished_subscriptions() {
 		let target =
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 
 		// Create subscription
 		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
@@ -1330,7 +1322,7 @@ fn test_on_finalize_removes_finished_subscriptions() {
 #[docify::export_content]
 fn hold_deposit_works() {
 	ExtBuilder::build().execute_with(|| {
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 		let deposit_credits = 1_000;
 
 		// Setup account with initial balance
@@ -1353,7 +1345,7 @@ fn hold_deposit_works() {
 #[docify::export_content]
 fn release_deposit_works() {
 	ExtBuilder::build().execute_with(|| {
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 		let deposit_credits = 1_000;
 
 		// Setup account and hold deposit
@@ -1373,7 +1365,7 @@ fn release_deposit_works() {
 #[test]
 fn manage_diff_deposit_works() {
 	ExtBuilder::build().execute_with(|| {
-		let initial_balance = 10_000_000;
+		let initial_balance = 10_000_000_000;
 		let original_deposit = 1_000;
 		let additional_deposit = 1_500;
 		let excess_deposit = 500;
@@ -1427,7 +1419,7 @@ fn manage_diff_deposit_works() {
 #[test]
 fn hold_deposit_fails_with_insufficient_balance() {
 	ExtBuilder::build().execute_with(|| {
-		let initial_balance = 500;
+		let initial_balance = 1_000_000;
 		let deposit_credits = 1_000;
 
 		// Setup account with insufficient balance
@@ -1453,12 +1445,13 @@ fn test_calculate_subscription_fees() {
 		// Test with different credit amounts
 		// The tuples in these cases are (credits, expected_fee)
 		let test_cases = vec![
-			(0, 0),                  // Zero credits
-			(1_000, 100_000),        // 1k credits
-			(10_000, 1_000_000),     // 10k credits
-			(50_000, 4_800_000),     // 50k credits, 5% off over 10k
-			(1_000_000, 90_550_000), // 1M credits, 5% off over 50k, 10% over 10k
-			(1_000_001, 90_550_080), // 1M + 1credits, 5% off over 50k, 10% over 10k, 20% over 1M
+			(0, 0),                         // Zero credits
+			(1_000, 2_900_000_000),         // 1k credits
+			(10_000, 29_000_000_000),       // 10k credits
+			(50_000, 139_200_000_000),      // 50k credits, 5% off over 10k
+			(1_000_000, 2_625_950_000_000), // 1M credits, 5% off over 50k, 10% over 10k
+			(1_000_001, 2_625_952_320_000), /* 1M + 1credits, 5% off over 50k, 10% over 10k, 20%
+			                                 * over 1M */
 		];
 
 		for (credits, expected_fee) in test_cases {
@@ -1480,7 +1473,7 @@ fn test_get_subscription() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
+		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000_000);
 
 		// Create a subscription
 		assert_ok!(IdnManager::create_subscription(
@@ -1519,8 +1512,8 @@ fn test_get_subscription() {
 fn test_get_subscriptions_for_subscriber() {
 	ExtBuilder::build().execute_with(|| {
 		// Set up accounts
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
-		<Test as Config>::Currency::set_balance(&BOB, 10_000_000);
+		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000_000);
+		<Test as Config>::Currency::set_balance(&BOB, 10_000_000_000);
 
 		// Create subscriptions for ALICE
 		let target1 =
@@ -1610,16 +1603,17 @@ fn test_runtime_api_calculate_subscription_fees() {
 	ExtBuilder::build().execute_with(|| {
 		// Test with different credit amounts
 		let test_cases = vec![
-			(0, 0),                  // Zero credits
-			(1_000, 100_000),        // 1k credits
-			(10_000, 1_000_000),     // 10k credits
-			(50_000, 4_800_000),     // 50k credits, 5% off over 10k
-			(1_000_000, 90_550_000), // 1M credits, 5% off over 50k, 10% over 10k
-			(1_000_001, 90_550_080), // 1M + 1credits, 5% off over 50k, 10% over 10k, 20% over 1M
+			(0, 0),                         // Zero credits
+			(1_000, 2_900_000_000),         // 1k credits
+			(10_000, 29_000_000_000),       // 10k credits
+			(50_000, 139_200_000_000),      // 50k credits, 5% off over 10k
+			(1_000_000, 2_625_950_000_000), // 1M credits, 5% off over 50k, 10% over 10k
+			(1_000_001, 2_625_952_320_000), /* 1M + 1credits, 5% off over 50k, 10% over 10k, 20%
+			                                 * over 1M */
 		];
 
 		for (credits, expected_fee) in test_cases {
-			let fee = Test::calculate_subscription_fees(credits.clone());
+			let fee = Test::calculate_subscription_fees(credits);
 			assert_eq!(
 				fee, expected_fee,
 				"Fee calculation incorrect for {} credits, expected {}, got {}",
@@ -1637,7 +1631,7 @@ fn test_runtime_api_get_subscription() {
 			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 		let frequency: u64 = 10;
 
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
+		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000_000);
 
 		// Create a subscription
 		assert_ok!(IdnManager::create_subscription(
@@ -1676,8 +1670,8 @@ fn test_runtime_api_get_subscription() {
 fn test_runtime_api_get_subscriptions_for_subscriber() {
 	ExtBuilder::build().execute_with(|| {
 		// Set up accounts
-		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000);
-		<Test as Config>::Currency::set_balance(&BOB, 10_000_000);
+		<Test as Config>::Currency::set_balance(&ALICE, 10_000_000_000);
+		<Test as Config>::Currency::set_balance(&BOB, 10_000_000_000);
 
 		// Create subscriptions for ALICE
 		let target1 =
@@ -1850,7 +1844,7 @@ fn test_get_subscription_xcm_works() {
 		let call_index = [1, 1];
 
 		// Set balance for the sibling parachain account
-		<Test as Config>::Currency::set_balance(&SIBLING_PARA_ACCOUNT, 10_000_000);
+		<Test as Config>::Currency::set_balance(&SIBLING_PARA_ACCOUNT, 10_000_000_000);
 
 		// Create a subscription
 		assert_ok!(IdnManager::create_subscription(
