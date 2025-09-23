@@ -15,7 +15,6 @@
  */
 
 use ink::env::Environment;
-// use pallet_randomness_beacon::TemporalDirection;
 
 #[ink::chain_extension(extension = 42)]
 pub trait RandExtension {
@@ -23,9 +22,6 @@ pub trait RandExtension {
 	// 1101 = chain extension func id on the target runtime (IDN)
 	#[ink(function = 1101)]
 	fn fetch_random(subject: [u8; 32]) -> [u8; 32];
-	// // 1102 = chain extension func id on the tareget chain (IDN)
-	// #[ink(function = 1102)]
-	// fn check_time(round_number: u64) -> TemporalDirection;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

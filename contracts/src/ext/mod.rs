@@ -15,5 +15,5 @@
  */
 
 #[allow(clippy::cast_possible_truncation)]
-mod ext;
-pub use ext::*;
+mod chain_ext;
+pub use chain_ext::*;

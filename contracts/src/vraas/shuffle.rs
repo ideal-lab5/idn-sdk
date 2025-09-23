@@ -26,7 +26,7 @@ use rand_chacha::ChaCha12Rng;
 /// * `ctx`: A context to be xor'd with the runtime randomness
 pub fn shuffle<T>(
 	env: EnvAccess<IDNEnvironment>,
-	list: &mut Vec<T>,
+	list: &mut [T],
 	ctx: [u8; 32],
 ) -> Result<(), RandomReadErr>
 where
@@ -35,7 +35,6 @@ where
 	let seed = env.extension().fetch_random(ctx)?;
 	let mut rng = ChaCha12Rng::from_seed(seed);
 	list.shuffle(&mut rng);
-	// panic!("{:?}, {:?}", list, seed);
 	Ok(())
 }
 

@@ -20,6 +20,12 @@ use ink::EnvAccess;
 use rand::{seq::IteratorRandom, SeedableRng};
 use rand_chacha::ChaCha12Rng;
 
+/// Select `n` random elements from a list
+///
+/// * `env`: The ink Environment
+/// * `list`: The list to shuffle
+/// * `ctx`: A context to be xor'd with the runtime randomness
+/// * `n`: The number of elements to select.
 pub fn select<T: Clone>(
 	env: EnvAccess<IDNEnvironment>,
 	list: Vec<T>,
