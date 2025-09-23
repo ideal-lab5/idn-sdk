@@ -43,6 +43,7 @@ use xcm::prelude::{Junction::Parachain, Location};
 use xcm_executor::traits::ConvertLocation;
 
 type Block = frame_system::mocking::MockBlock<Test>;
+type Balance = u64;
 
 construct_runtime!(
 	pub enum Test
@@ -64,9 +65,14 @@ impl frame_system::Config for Test {
 	type AccountData = pallet_balances::AccountData<u64>;
 }
 
+parameter_types! {
+	pub const ExistentialDeposit: Balance = 1_000_000;
+}
+
 #[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
 impl pallet_balances::Config for Test {
 	type AccountStore = System;
+	type ExistentialDeposit = ExistentialDeposit;
 }
 
 parameter_types! {
@@ -160,7 +166,7 @@ impl ConvertLocation<AccountId32> for MockSiblingConversion {
 }
 
 parameter_types! {
-	pub const BaseFee : u64 = 100;
+	pub const BaseFee : u64 = 2_900_000;
 }
 
 impl pallet_idn_manager::Config for Test {
