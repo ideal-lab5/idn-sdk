@@ -140,13 +140,13 @@
 pub mod constants;
 pub mod types;
 
+use bp_idn::types::{RequestReference, SubInfoRequest};
 use constants::BEACON_PUBKEY;
 use ink::{
 	env::{
 		hash::{Blake2x256, CryptoHash},
 		Error as EnvError,
 	},
-	selector_bytes,
 	xcm::lts::prelude::Weight,
 };
 
@@ -182,6 +182,8 @@ use types::{
 };
 
 pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
+
+use crate::xcm::constants::{CONSUME_PULSE_SEL, CONSUME_SUB_INFO_SEL};
 
 /// Contract-compatible trait for hashing with a salt
 ///
@@ -512,10 +514,15 @@ impl IdnClient {
 			return Err(Error::InvalidParams);
 		}
 
+		let dummy_pulse = Pulse::default();
+		let dummy_sub_id = SubscriptionId::default();
+
+		let dummy_params = (dummy_pulse, dummy_sub_id).encode();
+
 		let mut params = CreateSubParams {
 			credits,
 			target: self.self_para_sibling_location(),
-			call: self.pulse_callback_data(call_params)?,
+			call: self.create_callback_data(CONSUME_PULSE_SEL, dummy_params, call_params)?,
 			frequency,
 			metadata,
 			sub_id,
@@ -648,9 +655,19 @@ impl IdnClient {
 	///
 	/// # Errors
 	/// - [`Error::MethodNotImplemented`]: This method is not yet implemented
-	pub fn request_sub_info(&self) -> Result<()> {
-		// TODO: implement
-		Err(Error::MethodNotImplemented)
+	pub fn request_sub_info(&self, sub_id: SubscriptionId, req_ref: Option<RequestReference>) -> Result<()> {
+			let req_ref = match req_ref {
+				Some(req_ref) => req_ref,
+				None => {
+					let salt = ink::env::block_number::<ink::env::DefaultEnvironment>().encode();
+					sub_id.hash(&salt).into()
+				},
+			};
+			let dummy_params = Vec::new();
+			let req = SubInfoRequest { sub_id, req_ref, call: self.create_callback_data(CONSUME_SUB_INFO_SEL, dummy_params, None)? };
+			let call = RuntimeCall::IdnManager(IdnManagerCall::get_subscription_info { req });
+
+			self.xcm_send(call)
 	}
 
 	/// Validates the cryptographic authenticity and correctness of a randomness pulse.
@@ -826,42 +843,37 @@ impl IdnClient {
 		[88u8; 32].into()
 	}
 
-	/// Get the call data for the [`IdnConsumer::consume_pulse`] call
+	/// Get the call data for the [`IdnConsumer`] calls
 	///
 	/// Constructs the encoded call data needed for the IDN chain to invoke the
-	/// `consume_pulse` method on this contract when delivering randomness pulses.
+	/// designated method on this contract when delivering subscription related data.
 	/// The call data includes the method selector and placeholder parameters that
-	/// will be replaced with actual pulse data during XCM execution.
+	/// will be replaced with actual data during XCM execution.
 	///
 	/// # Process
-	/// 1. Creates dummy pulse and subscription ID for call data sizing
-	/// 2. Encodes the method selector for `IdnConsumer::consume_pulse`
+	/// 1. Uses dummy params for call data sizing
+	/// 2. Encodes the method selector
 	/// 3. Generates a complete contract call with gas limits and parameters
 	/// 4. Truncates dummy parameters, leaving space for real data injection
 	///
 	/// # Parameters
 	/// - `call_params`: Optional execution parameters (gas limits, storage deposits)
+	/// - `dummy_params`:  These dummy params are needed to get the full encoded length of the call data, which we will truncate later
 	///
 	/// # Returns
 	/// Encoded call data ready for XCM contract invocation
 	///
 	/// # Errors
 	/// - [`Error::CallDataTooLong`]: If the generated call data exceeds size limits
-	fn pulse_callback_data(&self, call_params: Option<ContractCallParams>) -> Result<CallData> {
-		// These dummy params are needed to get the full encoded
-		// length of the call data, which we will truncate later
-		let dummy_pulse = Pulse::default();
-		let dummy_sub_id = SubscriptionId::default();
+	fn create_callback_data(&self, selector: [u8; 4], dummy_params: Vec<u8>, call_params: Option<ContractCallParams>) -> Result<CallData> {
 		const DEF_VALUE: Balance = 0;
 		const DEF_REF_TIME: u64 = 2_000_000_000;
 		const DEF_PROOF_SIZE: u64 = 100_000;
 		const DEF_STORAGE_DEPOSIT: Option<Balance> = None;
 
-		let params = (dummy_pulse, dummy_sub_id).encode();
-		let selector = selector_bytes!("IdnConsumer::consume_pulse");
 		let mut data = Vec::new();
 		data.extend_from_slice(&selector);
-		data.extend_from_slice(&params);
+		data.extend_from_slice(&dummy_params);
 
 		let mut call = self.generate_call(
 			call_params.as_ref().map(|p| p.value).unwrap_or(DEF_VALUE),            // value - no balance transfer needed for pulse callbacks
@@ -873,7 +885,9 @@ impl IdnClient {
 
 		// Truncate the call data to remove the dummy params, real params will be provided by the
 		// IDN chain when dispatching the call
-		call.truncate(call.len().saturating_sub(params.len()));
+		// We truncate the call before actually trying to create the CallData
+		// nullifying adding the dummy data to the generated call
+		call.truncate(call.len().saturating_sub(dummy_params.len()));
 		CallData::try_from(call).map_err(|_| Error::CallDataTooLong)
 	}
 
@@ -998,10 +1012,10 @@ mod tests {
 		assert_eq!(client.get_idn_para_id(), IDN_PARA_ID_PASEO);
 		assert_eq!(client.get_self_contracts_pallet_index(), CONTRACTS_PALLET_INDEX_PASEO);
 		assert_eq!(client.get_self_para_id(), CONSUMER_PARA_ID_PASEO);
+		assert!(client.request_sub_info([0;32], None).is_ok());
 
 		// Test unimplemented methods return correct errors
 		assert_eq!(client.request_quote(), Err(Error::MethodNotImplemented));
-		assert_eq!(client.request_sub_info(), Err(Error::MethodNotImplemented));
 	}
 
 	#[test]
@@ -1037,10 +1051,11 @@ mod tests {
 		assert_eq!(edge_client.get_self_contracts_pallet_index(), u8::MAX);
 		assert_eq!(edge_client.get_self_para_id(), u32::MAX);
 		assert_eq!(edge_client.max_idn_xcm_fees, u128::MAX);
+		let sub_id = [0;32];
+		assert!(edge_client.request_sub_info(sub_id, None).is_ok());
 
 		// Test that methods still return the expected errors for unimplemented functionality
 		assert_eq!(client.request_quote(), Err(Error::MethodNotImplemented));
-		assert_eq!(edge_client.request_sub_info(), Err(Error::MethodNotImplemented));
 	}
 
 	#[test]
@@ -1150,13 +1165,13 @@ mod tests {
 		let client = mock_client();
 
 		// Test that pulse callback data is generated correctly
-		let callback_data = client.pulse_callback_data(None);
+		let callback_data = client.create_callback_data(CONSUME_PULSE_SEL, Vec::new(), None);
 
 		// Should return Ok(CallData)
 		assert!(callback_data.is_ok());
 
 		// The callback data should be consistent across calls
-		let callback_data_2 = client.pulse_callback_data(None);
+		let callback_data_2 = client.create_callback_data(CONSUME_PULSE_SEL, Vec::new(), None);
 		assert_eq!(callback_data, callback_data_2);
 
 		// Verify the encoded data contains the expected structure
