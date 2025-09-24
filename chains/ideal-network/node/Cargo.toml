@@ -14,6 +14,9 @@ build = "build.rs"
 [build-dependencies]
 substrate-build-script-utils.workspace = true
 
+[patch.crates-io]
+hickory-resolver = { version = "0.25.2" }
+
 [dependencies]
 clap.workspace = true
 codec.workspace = true

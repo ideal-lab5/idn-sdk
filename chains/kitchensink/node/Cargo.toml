@@ -13,6 +13,9 @@ build = "build.rs"
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
+[patch.crates-io]
+hickory-resolver = { version = "0.25.0-alpha.4", features = ["tokio-runtime"] }
+
 [dependencies]
 docify.workspace = true
 codec.workspace = true
