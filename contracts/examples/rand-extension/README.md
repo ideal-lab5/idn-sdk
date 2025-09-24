@@ -16,14 +16,12 @@ This example is based on the [rand-extension example](https://github.com/use-ink
 ## Key Components
 
 ### RandExtension Chain Extension
-
 - Extension ID: `666`
 - Function ID: `1101` for `fetch_random`
 - Takes a 32-byte subject as input and returns 32 bytes of randomness
 - Interfaces with the runtime's randomness source
 
 ### RandExtension Contract
-
 - Stores the latest fetched random value
 - Provides `update()` method to fetch new randomness using a subject seed
 - Provides `get()` method to retrieve the current stored random value

@@ -16,7 +16,7 @@
 
 //! Constants for the IDN Client Contract Library
 
-use crate::types::{PalletIndex, ParaId};
+use super::types::{PalletIndex, ParaId};
 
 pub use bp_idn::constants::*;
 

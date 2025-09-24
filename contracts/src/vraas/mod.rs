@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
-#![cfg_attr(not(feature = "std"), no_std, no_main)]
-#[allow(clippy::cast_possible_truncation)]
-pub mod ext;
+mod select;
+pub use select::select;
+
+mod shuffle;
+pub use shuffle::shuffle;
