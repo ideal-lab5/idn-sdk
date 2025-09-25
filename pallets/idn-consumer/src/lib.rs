@@ -51,12 +51,11 @@ use bp_idn::{
 use cumulus_primitives_core::{Instruction::WithdrawAsset, ParaId};
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
-	pallet_prelude::{Decode, DecodeWithMemTracking, Encode, EnsureOrigin, Get, IsType, Pays},
+	pallet_prelude::{Encode, EnsureOrigin, Get, Pays},
 };
 use frame_system::{ensure_root, pallet_prelude::OriginFor};
 use scale_info::{
 	prelude::{boxed::Box, sync::Arc, vec},
-	TypeInfo,
 };
 use sp_idn_traits::Hashable;
 use traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer};
@@ -78,12 +77,6 @@ pub use bp_idn::types::{Quote, RuntimePulse as Pulse, SubInfoResponse, Subscript
 pub use pallet::*;
 pub use weights::WeightInfo;
 
-#[derive(Clone, PartialEq, Debug, Encode, Decode, TypeInfo, DecodeWithMemTracking)]
-struct SubFeesQuote {
-	quote_id: u8,
-	fees: Credits,
-}
-
 #[frame_support::pallet]
 pub mod pallet {
 
@@ -94,9 +87,7 @@ pub mod pallet {
 	///
 	/// This trait defines the types and constants required to configure the pallet.
 	pub trait Config: frame_system::Config {
-		/// The overarching event type.
-		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-
+		
 		/// An implementation of the [`PulseConsumer`] trait, which defines how to consume a pulse.
 		type PulseConsumer: PulseConsumer<Pulse, SubscriptionId, (), ()>;
 

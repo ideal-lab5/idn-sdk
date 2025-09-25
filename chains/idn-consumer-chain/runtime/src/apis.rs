@@ -253,7 +253,7 @@ impl_runtime_apis! {
 			Revive::bare_call(
 				RuntimeOrigin::signed(origin),
 				dest,
-				value,
+				value.into(),
 				gas_limit.unwrap_or(RuntimeBlockWeights::get().max_block),
 				pallet_revive::DepositLimit::Balance(storage_deposit_limit.unwrap_or(u128::MAX)),
 				input_data,

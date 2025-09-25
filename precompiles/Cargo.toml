@@ -43,4 +43,5 @@ std = [
     "sp-core/std",
     "sp-idn-crypto/std",
     "sp-io/std",
+    "sp-runtime/std",
 ]

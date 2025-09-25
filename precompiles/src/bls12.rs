@@ -1,12 +1,10 @@
 use alloc::vec::Vec;
-use codec::{DecodeAll, DecodeLimit};
-use core::{fmt, marker::PhantomData, num::NonZero};
+use core::{marker::PhantomData, num::NonZero};
 use pallet_revive::{
 	precompiles::{
 		alloy::{self, sol_types::SolValue},
 		AddressMatcher, Error, Ext, Precompile,
 	},
-	Config, DispatchInfo, Origin,
 };
 use sp_idn_crypto::prelude::*;
 
@@ -33,7 +31,7 @@ where
 	fn call(
 		_address: &[u8; 20],
 		input: &Self::Interface,
-		env: &mut impl Ext<T = Self::T>,
+		_env: &mut impl Ext<T = Self::T>,
 	) -> Result<Vec<u8>, Error> {
 		match input {
 			IBls12_381Calls::verify(IBls12_381::verifyCall { pubkey, signature, message }) => {
@@ -49,15 +47,12 @@ where
 					return Err(Error::Panic(alloy::sol_types::PanicKind::ResourceError));
 				}
 
-				let valid =
+				let is_valid =
 					QuicknetVerifier::verify(pubkey.to_vec(), signature.to_vec(), message.to_vec())
 						.is_ok();
-				let is_valid = true;
 
 				return Ok(is_valid.abi_encode());
 			},
 		}
-		
-		Ok(vec![])
 	}
 }

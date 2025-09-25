@@ -17,12 +17,12 @@
 //! # Fee Calculators Examples
 //!
 //! This module contains examples of fee calculators that can be used in the IDN Manager pallet.
-
 use crate::traits::{BalanceDirection, DiffBalance, FeesError, FeesManager};
 use sp_runtime::traits::Zero;
 use sp_std::cmp::Ordering;
 
 /// A simple implementation of the `DiffBalance` trait.
+#[allow(dead_code)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct DiffBalanceImpl<Balance> {
 	balance: Balance,
@@ -42,8 +42,9 @@ impl<Balance: Copy> DiffBalance<Balance> for DiffBalanceImpl<Balance> {
 }
 
 /// Linear fee calculator with no discount
+#[allow(dead_code)]
 pub struct LinearFeeCalculator;
-
+#[allow(dead_code)]
 const BASE_FEE: u32 = 100;
 
 #[docify::export_content]
@@ -87,6 +88,7 @@ mod linear_fee_calculator {
 	}
 }
 
+#[allow(dead_code)]
 /// Tiered fee calculator with predefined discount tiers
 pub struct SteppedTieredFeeCalculator;
 

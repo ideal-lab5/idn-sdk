@@ -101,7 +101,6 @@ impl frame_support::traits::Randomness<H256, BlockNumberFor<Test>> for MockFallb
 }
 
 impl pallet_randomness_beacon::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type SignatureVerifier = QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<3>;
