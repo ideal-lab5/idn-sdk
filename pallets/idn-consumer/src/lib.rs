@@ -53,12 +53,13 @@ use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
 	pallet_prelude::{Decode, DecodeWithMemTracking, Encode, EnsureOrigin, Get, IsType, Pays},
 };
-use frame_system::{ensure_root, pallet_prelude::OriginFor};
+use frame_system::{ensure_signed, pallet_prelude::OriginFor};
 use scale_info::{
 	prelude::{boxed::Box, sync::Arc, vec},
 	TypeInfo,
 };
 use sp_idn_traits::Hashable;
+use sp_runtime::traits::TryConvert;
 use traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer};
 use xcm::{
 	v5::{
@@ -156,6 +157,9 @@ pub mod pallet {
 
 		/// The weight information for this pallet.
 		type WeightInfo: WeightInfo;
+
+		/// A type that can convert the local origin to a `Location`.
+		type LocalOriginToLocation: TryConvert<Self::RuntimeOrigin, Location>;
 	}
 
 	#[pallet::pallet]
@@ -311,25 +315,24 @@ pub mod pallet {
 		///
 		/// # Errors
 		/// - Fails if the origin is not root.
-		/// - Fails if subscription creation fails (see [`Self::create_subscription`]).
+		/// - Fails if subscription creation fails (see [`Self::do_create_subscription`]).
 		///
 		/// # Usage
 		/// This function is intended for privileged (sudo) operations, such as testing or
 		/// administrative tasks, to create a subscription directly on the consumer chain.
 		#[pallet::call_index(3)]
-		#[pallet::weight(T::WeightInfo::sudo_create_subscription())]
+		#[pallet::weight(T::WeightInfo::create_subscription())]
 		#[allow(clippy::useless_conversion)]
-		pub fn sudo_create_subscription(
+		pub fn create_subscription(
 			origin: OriginFor<T>,
 			credits: Credits,
 			frequency: IdnBlockNumber,
 			metadata: Option<Metadata>,
 			sub_id: Option<SubscriptionId>,
 		) -> DispatchResultWithPostInfo {
-			// Ensure the origin is a sudo origin
-			ensure_root(origin.clone())?;
+			ensure_signed(origin.clone())?;
 
-			Self::create_subscription(origin, credits, frequency, metadata, sub_id)?;
+			Self::do_create_subscription(origin, credits, frequency, metadata, sub_id)?;
 			Ok(Pays::No.into())
 		}
 
@@ -351,14 +354,14 @@ pub mod pallet {
 		/// This function is intended for privileged (sudo) operations, such as testing or
 		/// administrative tasks, to create a subscription directly on the consumer chain.
 		#[pallet::call_index(4)]
-		#[pallet::weight(T::WeightInfo::sudo_pause_subscription())]
+		#[pallet::weight(T::WeightInfo::pause_subscription())]
 		#[allow(clippy::useless_conversion)]
-		pub fn sudo_pause_subscription(
+		pub fn pause_subscription(
 			origin: OriginFor<T>,
 			sub_id: SubscriptionId,
 		) -> DispatchResultWithPostInfo {
-			ensure_root(origin.clone())?;
-			Self::pause_subscription(origin, sub_id)?;
+			ensure_signed(origin.clone())?;
+			Self::do_pause_subscription(origin, sub_id)?;
 			Ok(Pays::No.into())
 		}
 
@@ -379,14 +382,14 @@ pub mod pallet {
 		/// This function is intended for privileged (sudo) operations, such as testing or
 		/// administrative tasks, to kill a subscription directly on the consumer chain.
 		#[pallet::call_index(5)]
-		#[pallet::weight(T::WeightInfo::sudo_kill_subscription())]
+		#[pallet::weight(T::WeightInfo::kill_subscription())]
 		#[allow(clippy::useless_conversion)]
-		pub fn sudo_kill_subscription(
+		pub fn kill_subscription(
 			origin: OriginFor<T>,
 			sub_id: SubscriptionId,
 		) -> DispatchResultWithPostInfo {
-			ensure_root(origin.clone())?;
-			Self::kill_subscription(origin, sub_id)?;
+			ensure_signed(origin.clone())?;
+			Self::do_kill_subscription(origin, sub_id)?;
 			Ok(Pays::No.into())
 		}
 
@@ -411,17 +414,17 @@ pub mod pallet {
 		/// This function is intended for privileged (sudo) operations, such as testing or
 		/// administrative tasks, to update a subscription directly on the consumer chain.
 		#[pallet::call_index(6)]
-		#[pallet::weight(T::WeightInfo::sudo_update_subscription())]
+		#[pallet::weight(T::WeightInfo::update_subscription())]
 		#[allow(clippy::useless_conversion)]
-		pub fn sudo_update_subscription(
+		pub fn update_subscription(
 			origin: OriginFor<T>,
 			sub_id: SubscriptionId,
 			credits: Option<Credits>,
 			frequency: Option<IdnBlockNumber>,
 			metadata: Option<Option<Metadata>>,
 		) -> DispatchResultWithPostInfo {
-			ensure_root(origin.clone())?;
-			Self::update_subscription(origin, sub_id, credits, frequency, metadata)?;
+			ensure_signed(origin.clone())?;
+			Self::do_update_subscription(origin, sub_id, credits, frequency, metadata)?;
 			Ok(Pays::No.into())
 		}
 
@@ -443,14 +446,14 @@ pub mod pallet {
 		/// This function is intended for privileged (sudo) operations, such as testing or
 		/// administrative tasks, to reactivate a subscription directly on the consumer chain.
 		#[pallet::call_index(7)]
-		#[pallet::weight(T::WeightInfo::sudo_reactivate_subscription())]
+		#[pallet::weight(T::WeightInfo::reactivate_subscription())]
 		#[allow(clippy::useless_conversion)]
-		pub fn sudo_reactivate_subscription(
+		pub fn reactivate_subscription(
 			origin: OriginFor<T>,
 			sub_id: SubscriptionId,
 		) -> DispatchResultWithPostInfo {
-			ensure_root(origin.clone())?;
-			Self::reactivate_subscription(origin, sub_id)?;
+			ensure_signed(origin.clone())?;
+			Self::do_reactivate_subscription(origin, sub_id)?;
 			Ok(Pays::No.into())
 		}
 
@@ -476,9 +479,9 @@ pub mod pallet {
 		/// This function is intended for privileged (sudo) operations, such as testing or
 		/// administrative tasks, to request a quote directly on the consumer chain.
 		#[pallet::call_index(8)]
-		#[pallet::weight(T::WeightInfo::sudo_request_quote())]
+		#[pallet::weight(T::WeightInfo::request_quote())]
 		#[allow(clippy::useless_conversion)]
-		pub fn sudo_request_quote(
+		pub fn request_quote(
 			origin: OriginFor<T>,
 			number_of_pulses: IdnBlockNumber,
 			frequency: IdnBlockNumber,
@@ -486,8 +489,8 @@ pub mod pallet {
 			sub_id: Option<SubscriptionId>,
 			req_ref: Option<RequestReference>,
 		) -> DispatchResultWithPostInfo {
-			ensure_root(origin.clone())?;
-			Self::request_quote(origin, number_of_pulses, frequency, metadata, sub_id, req_ref)?;
+			ensure_signed(origin.clone())?;
+			Self::do_request_quote(origin, number_of_pulses, frequency, metadata, sub_id, req_ref)?;
 			Ok(Pays::No.into())
 		}
 
@@ -510,15 +513,15 @@ pub mod pallet {
 		/// This function is intended for privileged (sudo) operations, such as testing or
 		/// administrative tasks, to request subscription info directly on the consumer chain.
 		#[pallet::call_index(9)]
-		#[pallet::weight(T::WeightInfo::sudo_request_sub_info())]
+		#[pallet::weight(T::WeightInfo::request_sub_info())]
 		#[allow(clippy::useless_conversion)]
-		pub fn sudo_request_sub_info(
+		pub fn request_sub_info(
 			origin: OriginFor<T>,
 			sub_id: SubscriptionId,
 			req_ref: Option<RequestReference>,
 		) -> DispatchResultWithPostInfo {
-			ensure_root(origin.clone())?;
-			Self::request_sub_info(origin, sub_id, req_ref)?;
+			ensure_signed(origin.clone())?;
+			Self::do_request_sub_info(origin, sub_id, req_ref)?;
 			Ok(Pays::No.into())
 		}
 	}
@@ -526,7 +529,7 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Creates a subscription.
-	pub fn create_subscription(
+	pub fn do_create_subscription(
 		// Origin of the call, must be acceptable by the IDN XCM barrier
 		origin: OriginFor<T>,
 		// Number of random values to receive
@@ -566,7 +569,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Pauses a subscription.
-	pub fn pause_subscription(
+	pub fn do_pause_subscription(
 		// Origin of the call, must be accetable by the IDN XCM barrier
 		origin: OriginFor<T>,
 		sub_id: SubscriptionId,
@@ -576,7 +579,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Kills a subscription.
-	pub fn kill_subscription(
+	pub fn do_kill_subscription(
 		// Origin of the call, must be accetable by the IDN XCM barrier
 		origin: OriginFor<T>,
 		sub_id: SubscriptionId,
@@ -586,7 +589,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Updates a subscription.
-	pub fn update_subscription(
+	pub fn do_update_subscription(
 		// Origin of the call, must be accetable by the IDN XCM barrier
 		origin: OriginFor<T>,
 		sub_id: SubscriptionId,
@@ -602,7 +605,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Reactivates a subscription.
-	pub fn reactivate_subscription(
+	pub fn do_reactivate_subscription(
 		// Origin of the call, must be accetable by the IDN XCM barrier
 		origin: OriginFor<T>,
 		sub_id: SubscriptionId,
@@ -617,7 +620,7 @@ impl<T: Config> Pallet<T> {
 	/// The request should then be handled by the IDN chain and return the fee quote to the
 	/// [`Pallet::consume_quote`] function along with the `req_ref`.
 	/// The `req_ref` is generated by this function and used to identify the request when returned.
-	pub fn request_quote(
+	pub fn do_request_quote(
 		// Origin of the call, must be accetable by the IDN XCM barrier
 		origin: OriginFor<T>,
 		// Number of random values to receive
@@ -668,7 +671,7 @@ impl<T: Config> Pallet<T> {
 	/// The request should then be handled by the IDN chain and return the subscription info to the
 	/// [`Pallet::consume_sub_info`] function along with the `req_ref`.
 	/// The `req_ref` is generated by this function and used to identify the request when returned.
-	pub fn request_sub_info(
+	pub fn do_request_sub_info(
 		// Origin of the call, must be accetable by the IDN XCM barrier
 		origin: OriginFor<T>,
 		sub_id: SubscriptionId,
@@ -722,15 +725,16 @@ impl<T: Config> Pallet<T> {
 			WithdrawAsset(idn_fee_asset.clone().into()),
 			BuyExecution { weight_limit: Unlimited, fees: idn_fee_asset.clone() },
 			Transact {
-				origin_kind: OriginKind::Xcm,
+				origin_kind: OriginKind::Native,
 				fallback_max_weight: None,
 				call: call.encode().into(),
 			},
 			RefundSurplus,
 			DepositAsset {
 				assets: Wild(AllOf { id: idn_fee_asset.id, fun: WildFungibility::Fungible }),
-				// refund any surplus back to the chain's sovereign account
-				beneficiary: Self::self_para_sibling_location()?,
+				// refund any surplus back to the origin's account
+				beneficiary: T::LocalOriginToLocation::try_convert(origin.clone())
+					.map_err(|_| Error::<T>::XcmSendError)?,
 			},
 		]);
 

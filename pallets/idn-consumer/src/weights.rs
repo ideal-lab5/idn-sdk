@@ -60,13 +60,13 @@ pub trait WeightInfo {
 	fn reactivate_subscription() -> Weight;
 	fn request_quote() -> Weight;
 	fn request_sub_info() -> Weight;
-	fn sudo_create_subscription() -> Weight;
-	fn sudo_pause_subscription() -> Weight;
-	fn sudo_kill_subscription() -> Weight;
-	fn sudo_update_subscription() -> Weight;
-	fn sudo_reactivate_subscription() -> Weight;
-	fn sudo_request_quote() -> Weight;
-	fn sudo_request_sub_info() -> Weight;
+	fn do_create_subscription() -> Weight;
+	fn do_pause_subscription() -> Weight;
+	fn do_kill_subscription() -> Weight;
+	fn do_update_subscription() -> Weight;
+	fn do_reactivate_subscription() -> Weight;
+	fn do_request_quote() -> Weight;
+	fn do_request_sub_info() -> Weight;
 }
 
 /// Weights for `pallet_idn_consumer` using the IDN SDK Kitchensink Runtime and recommended hardware.
@@ -93,98 +93,98 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		// Minimum execution time: 22_000_000 picoseconds.
 		Weight::from_parts(26_000_000, 0)
 	}
+	fn do_create_subscription() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 3_000_000 picoseconds.
+		Weight::from_parts(3_000_000, 0)
+	}
+	fn do_pause_subscription() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_000_000 picoseconds.
+		Weight::from_parts(2_000_000, 0)
+	}
+	fn do_kill_subscription() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_000_000 picoseconds.
+		Weight::from_parts(2_000_000, 0)
+	}
+	fn do_update_subscription() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 2_000_000 picoseconds.
+		Weight::from_parts(2_000_000, 0)
+	}
+	fn do_reactivate_subscription() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_000_000 picoseconds.
+		Weight::from_parts(2_000_000, 0)
+	}
+	fn do_request_quote() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 3_000_000 picoseconds.
+		Weight::from_parts(3_000_000, 0)
+	}
+	fn do_request_sub_info() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 2_000_000 picoseconds.
+		Weight::from_parts(3_000_000, 0)
+	}
 	fn create_subscription() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 3_000_000 picoseconds.
-		Weight::from_parts(3_000_000, 0)
-	}
-	fn pause_subscription() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 1_000_000 picoseconds.
-		Weight::from_parts(2_000_000, 0)
-	}
-	fn kill_subscription() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 1_000_000 picoseconds.
-		Weight::from_parts(2_000_000, 0)
-	}
-	fn update_subscription() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 2_000_000 picoseconds.
-		Weight::from_parts(2_000_000, 0)
-	}
-	fn reactivate_subscription() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 1_000_000 picoseconds.
-		Weight::from_parts(2_000_000, 0)
-	}
-	fn request_quote() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 3_000_000 picoseconds.
-		Weight::from_parts(3_000_000, 0)
-	}
-	fn request_sub_info() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 2_000_000 picoseconds.
-		Weight::from_parts(3_000_000, 0)
-	}
-	fn sudo_create_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 4_000_000 picoseconds.
 		Weight::from_parts(5_000_000, 0)
 	}
-	fn sudo_pause_subscription() -> Weight {
+	fn pause_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
 		Weight::from_parts(4_000_000, 0)
 	}
-	fn sudo_kill_subscription() -> Weight {
+	fn kill_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
 		Weight::from_parts(3_000_000, 0)
 	}
-	fn sudo_update_subscription() -> Weight {
+	fn update_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
 		Weight::from_parts(3_000_000, 0)
 	}
-	fn sudo_reactivate_subscription() -> Weight {
+	fn reactivate_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
 		Weight::from_parts(3_000_000, 0)
 	}
-	fn sudo_request_quote() -> Weight {
+	fn request_quote() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 4_000_000 picoseconds.
 		Weight::from_parts(5_000_000, 0)
 	}
-	fn sudo_request_sub_info() -> Weight {
+	fn request_sub_info() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
@@ -216,98 +216,98 @@ impl WeightInfo for () {
 		// Minimum execution time: 22_000_000 picoseconds.
 		Weight::from_parts(26_000_000, 0)
 	}
+	fn do_create_subscription() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 3_000_000 picoseconds.
+		Weight::from_parts(3_000_000, 0)
+	}
+	fn do_pause_subscription() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_000_000 picoseconds.
+		Weight::from_parts(2_000_000, 0)
+	}
+	fn do_kill_subscription() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_000_000 picoseconds.
+		Weight::from_parts(2_000_000, 0)
+	}
+	fn do_update_subscription() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 2_000_000 picoseconds.
+		Weight::from_parts(2_000_000, 0)
+	}
+	fn do_reactivate_subscription() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 1_000_000 picoseconds.
+		Weight::from_parts(2_000_000, 0)
+	}
+	fn do_request_quote() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 3_000_000 picoseconds.
+		Weight::from_parts(3_000_000, 0)
+	}
+	fn do_request_sub_info() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `0`
+		//  Estimated: `0`
+		// Minimum execution time: 2_000_000 picoseconds.
+		Weight::from_parts(3_000_000, 0)
+	}
 	fn create_subscription() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 3_000_000 picoseconds.
-		Weight::from_parts(3_000_000, 0)
-	}
-	fn pause_subscription() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 1_000_000 picoseconds.
-		Weight::from_parts(2_000_000, 0)
-	}
-	fn kill_subscription() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 1_000_000 picoseconds.
-		Weight::from_parts(2_000_000, 0)
-	}
-	fn update_subscription() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 2_000_000 picoseconds.
-		Weight::from_parts(2_000_000, 0)
-	}
-	fn reactivate_subscription() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 1_000_000 picoseconds.
-		Weight::from_parts(2_000_000, 0)
-	}
-	fn request_quote() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 3_000_000 picoseconds.
-		Weight::from_parts(3_000_000, 0)
-	}
-	fn request_sub_info() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `0`
-		//  Estimated: `0`
-		// Minimum execution time: 2_000_000 picoseconds.
-		Weight::from_parts(3_000_000, 0)
-	}
-	fn sudo_create_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 4_000_000 picoseconds.
 		Weight::from_parts(5_000_000, 0)
 	}
-	fn sudo_pause_subscription() -> Weight {
+	fn pause_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
 		Weight::from_parts(4_000_000, 0)
 	}
-	fn sudo_kill_subscription() -> Weight {
+	fn kill_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
 		Weight::from_parts(3_000_000, 0)
 	}
-	fn sudo_update_subscription() -> Weight {
+	fn update_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
 		Weight::from_parts(3_000_000, 0)
 	}
-	fn sudo_reactivate_subscription() -> Weight {
+	fn reactivate_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_000_000 picoseconds.
 		Weight::from_parts(3_000_000, 0)
 	}
-	fn sudo_request_quote() -> Weight {
+	fn request_quote() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 4_000_000 picoseconds.
 		Weight::from_parts(5_000_000, 0)
 	}
-	fn sudo_request_sub_info() -> Weight {
+	fn request_sub_info() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`

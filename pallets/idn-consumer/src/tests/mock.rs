@@ -130,7 +130,7 @@ impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for MockEnsureXcmIdn {
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
-		Ok(RuntimeOrigin::root())
+		Ok(RuntimeOrigin::signed(ALICE))
 	}
 }
 pub struct MockXcm;
@@ -158,6 +158,7 @@ parameter_types! {
 	pub IdnConsumerParaId: ParaId = 2001.into();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 	pub const MaxIdnXcmFees: u128 = 1_000;
+	pub const AccountNetwork: Option<NetworkId> = Some(NetworkId::Polkadot);
 }
 
 impl pallet_idn_consumer::Config for Test {
@@ -172,6 +173,8 @@ impl pallet_idn_consumer::Config for Test {
 	type ParaId = IdnConsumerParaId;
 	type MaxIdnXcmFees = MaxIdnXcmFees;
 	type WeightInfo = ();
+	type LocalOriginToLocation =
+		xcm_builder::SignedToAccountId32<Self::RuntimeOrigin, AccountId32, AccountNetwork>;
 }
 
 pub struct ExtBuilder;
