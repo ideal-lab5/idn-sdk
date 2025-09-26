@@ -72,8 +72,7 @@ use codec::{Codec, Decode, DecodeWithMemTracking, Encode, EncodeLike, MaxEncoded
 use frame_support::{
 	pallet_prelude::{
 		ensure, Blake2_128Concat, DispatchError, DispatchResult, DispatchResultWithPostInfo,
-		EnsureOrigin, Hooks, OptionQuery, StorageMap, StorageValue, ValueQuery, Weight,
-		Zero,
+		EnsureOrigin, Hooks, OptionQuery, StorageMap, StorageValue, ValueQuery, Weight, Zero,
 	},
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
@@ -256,7 +255,6 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-
 		/// The currency type for handling subscription payments
 		type Currency: Inspect<<Self as frame_system::pallet::Config>::AccountId>
 			+ HoldMutate<

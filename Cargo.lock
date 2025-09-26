@@ -5916,6 +5916,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "color-print",
+ "cumulus-client-bootnodes",
  "cumulus-client-cli",
  "cumulus-client-collator",
  "cumulus-client-consensus-aura",

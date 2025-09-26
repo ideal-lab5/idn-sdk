@@ -14,15 +14,9 @@
 // // You should have received a copy of the GNU General Public License
 // // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{
-	construct_runtime, derive_impl, parameter_types,
-	traits::Everything,
-};
+use frame_support::{construct_runtime, derive_impl, parameter_types, traits::Everything};
 use sp_core::H256;
-use sp_runtime::{
-	traits::IdentityLookup,
-	AccountId32, BuildStorage,
-};
+use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 
 use crate::bls12::Bls12_381;
 

@@ -1,10 +1,8 @@
 use alloc::vec::Vec;
 use core::{marker::PhantomData, num::NonZero};
-use pallet_revive::{
-	precompiles::{
-		alloy::{self, sol_types::SolValue},
-		AddressMatcher, Error, Ext, Precompile,
-	},
+use pallet_revive::precompiles::{
+	alloy::{self, sol_types::SolValue},
+	AddressMatcher, Error, Ext, Precompile,
 };
 use sp_idn_crypto::prelude::*;
 

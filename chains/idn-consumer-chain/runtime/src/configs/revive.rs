@@ -1,6 +1,6 @@
 use crate::{
-	weights::ReviveWeightInfo, Balance, Balances, Perbill, Runtime, RuntimeCall,
-	RuntimeEvent, RuntimeHoldReason, Timestamp, MILLIUNIT, UNIT,
+	weights::ReviveWeightInfo, Balance, Balances, Perbill, Runtime, RuntimeCall, RuntimeEvent,
+	RuntimeHoldReason, Timestamp, MILLIUNIT, UNIT,
 };
 
 use frame_support::{
@@ -38,7 +38,7 @@ impl pallet_revive::Config for Runtime {
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
 	type ChainId = ConstU64<420_420_420>;
-	// TODO: confirm 
+	// TODO: confirm
 	type NativeToEthRatio = ConstU32<1_000_000>; // 10^(18 - 12) Eth is 10^18, Native is 10^12.
 	type EthGasEncoder = ();
 	type FindAuthor = <Runtime as pallet_authorship::Config>::FindAuthor;

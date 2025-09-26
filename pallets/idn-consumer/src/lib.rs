@@ -54,9 +54,7 @@ use frame_support::{
 	pallet_prelude::{Encode, EnsureOrigin, Get, Pays},
 };
 use frame_system::{ensure_root, pallet_prelude::OriginFor};
-use scale_info::{
-	prelude::{boxed::Box, sync::Arc, vec},
-};
+use scale_info::prelude::{boxed::Box, sync::Arc, vec};
 use sp_idn_traits::Hashable;
 use traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer};
 use xcm::{
@@ -87,7 +85,6 @@ pub mod pallet {
 	///
 	/// This trait defines the types and constants required to configure the pallet.
 	pub trait Config: frame_system::Config {
-		
 		/// An implementation of the [`PulseConsumer`] trait, which defines how to consume a pulse.
 		type PulseConsumer: PulseConsumer<Pulse, SubscriptionId, (), ()>;
 
