@@ -756,14 +756,14 @@ impl IdnClient {
 			WithdrawAsset(idn_fee_asset.clone().into()),
 			BuyExecution { weight_limit: Unlimited, fees: idn_fee_asset.clone() },
 			Transact {
-				origin_kind: OriginKind::SovereignAccount,
+				origin_kind: OriginKind::Native,
 				require_weight_at_most: Weight::MAX,
 				call: call.encode().into(),
 			},
 			RefundSurplus,
 			DepositAsset {
 				assets: Wild(AllOf { id: idn_fee_asset.id, fun: WildFungibility::Fungible }),
-				// refund any surplus back to the chain's sovereign account
+				// refund any surplus back to the contract's account
 				beneficiary: self.contract_idn_location(),
 			},
 		]);

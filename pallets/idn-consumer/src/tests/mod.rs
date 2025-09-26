@@ -30,7 +30,7 @@ fn test_create_subscription_success() {
 		let sub_id = None;
 
 		// Call the function and assert success
-		assert_ok!(crate::Pallet::<Test>::create_subscription(
+		assert_ok!(crate::Pallet::<Test>::do_create_subscription(
 			RuntimeOrigin::signed(ALICE),
 			credits,
 			frequency,
@@ -50,7 +50,7 @@ fn test_create_subscription_with_id() {
 
 		// Call the function and assert success
 		assert_eq!(
-			crate::Pallet::<Test>::create_subscription(
+			crate::Pallet::<Test>::do_create_subscription(
 				RuntimeOrigin::signed(ALICE),
 				credits,
 				frequency,
@@ -73,7 +73,7 @@ fn test_create_subscription_correct_sub_id_multiple_blocks() {
 
 		// Call the function and assert success
 		assert_eq!(
-			crate::Pallet::<Test>::create_subscription(
+			crate::Pallet::<Test>::do_create_subscription(
 				RuntimeOrigin::signed(ALICE),
 				credits,
 				frequency,
@@ -92,7 +92,7 @@ fn test_create_subscription_correct_sub_id_multiple_blocks() {
 
 		// Call the function again in a different block should generate a different sub_id
 		assert_eq!(
-			crate::Pallet::<Test>::create_subscription(
+			crate::Pallet::<Test>::do_create_subscription(
 				RuntimeOrigin::signed(ALICE),
 				credits,
 				frequency,
@@ -120,7 +120,7 @@ fn test_create_subscription_fails() {
 		System::set_block_number(1_234_567);
 
 		// Call the function and assert failure
-		let result = crate::Pallet::<Test>::create_subscription(
+		let result = crate::Pallet::<Test>::do_create_subscription(
 			RuntimeOrigin::signed(ALICE),
 			credits,
 			frequency,
@@ -138,7 +138,10 @@ fn test_pause_subscription_success() {
 		let sub_id = [1; 32];
 
 		// Call the function and assert success
-		assert_ok!(crate::Pallet::<Test>::pause_subscription(RuntimeOrigin::signed(ALICE), sub_id));
+		assert_ok!(crate::Pallet::<Test>::do_pause_subscription(
+			RuntimeOrigin::signed(ALICE),
+			sub_id
+		));
 	});
 }
 
@@ -148,7 +151,10 @@ fn test_kill_subscription_success() {
 		let sub_id = [1; 32];
 
 		// Call the function and assert success
-		assert_ok!(crate::Pallet::<Test>::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id));
+		assert_ok!(crate::Pallet::<Test>::do_kill_subscription(
+			RuntimeOrigin::signed(ALICE),
+			sub_id
+		));
 	});
 }
 
@@ -161,7 +167,7 @@ fn test_update_subscription_success() {
 		let metadata = Some(None);
 
 		// Call the function and assert success
-		assert_ok!(crate::Pallet::<Test>::update_subscription(
+		assert_ok!(crate::Pallet::<Test>::do_update_subscription(
 			RuntimeOrigin::signed(ALICE),
 			sub_id,
 			credits,
@@ -177,7 +183,7 @@ fn test_reactivate_subscription_success() {
 		let sub_id = [1; 32];
 
 		// Call the function and assert success
-		assert_ok!(crate::Pallet::<Test>::reactivate_subscription(
+		assert_ok!(crate::Pallet::<Test>::do_reactivate_subscription(
 			RuntimeOrigin::signed(ALICE),
 			sub_id
 		));
@@ -194,7 +200,7 @@ fn test_pause_subscription_fails() {
 
 		// Call the function and assert failure
 		let result =
-			crate::Pallet::<Test>::pause_subscription(RuntimeOrigin::signed(ALICE), sub_id);
+			crate::Pallet::<Test>::do_pause_subscription(RuntimeOrigin::signed(ALICE), sub_id);
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
 }
@@ -208,7 +214,8 @@ fn test_kill_subscription_fails() {
 		System::set_block_number(1_234_567);
 
 		// Call the function and assert failure
-		let result = crate::Pallet::<Test>::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id);
+		let result =
+			crate::Pallet::<Test>::do_kill_subscription(RuntimeOrigin::signed(ALICE), sub_id);
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
 }
@@ -225,7 +232,7 @@ fn test_update_subscription_fails() {
 		System::set_block_number(1_234_567);
 
 		// Call the function and assert failure
-		let result = crate::Pallet::<Test>::update_subscription(
+		let result = crate::Pallet::<Test>::do_update_subscription(
 			RuntimeOrigin::signed(ALICE),
 			sub_id,
 			credits,
@@ -246,7 +253,7 @@ fn test_reactivate_subscription_fails() {
 
 		// Call the function and assert failure
 		let result =
-			crate::Pallet::<Test>::reactivate_subscription(RuntimeOrigin::signed(ALICE), sub_id);
+			crate::Pallet::<Test>::do_reactivate_subscription(RuntimeOrigin::signed(ALICE), sub_id);
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
 }
@@ -262,7 +269,7 @@ fn test_quote_subscription() {
 		let req_ref = None;
 
 		// Call the function
-		let result = crate::Pallet::<Test>::request_quote(
+		let result = crate::Pallet::<Test>::do_request_quote(
 			RuntimeOrigin::signed(ALICE),
 			credits,
 			frequency,
@@ -290,7 +297,7 @@ fn test_quote_subscription_fails() {
 		System::set_block_number(1_234_567);
 
 		// Call the function and assert failure
-		let result = crate::Pallet::<Test>::request_quote(
+		let result = crate::Pallet::<Test>::do_request_quote(
 			RuntimeOrigin::signed(ALICE),
 			credits,
 			frequency,
@@ -464,7 +471,7 @@ fn test_get_subscription_success() {
 		let req_ref = None;
 
 		// Call the function and assert success
-		assert_ok!(crate::Pallet::<Test>::request_sub_info(
+		assert_ok!(crate::Pallet::<Test>::do_request_sub_info(
 			RuntimeOrigin::signed(ALICE),
 			sub_id,
 			req_ref
@@ -483,8 +490,11 @@ fn test_get_subscription_fails() {
 		System::set_block_number(1_234_567);
 
 		// Call the function and assert failure
-		let result =
-			crate::Pallet::<Test>::request_sub_info(RuntimeOrigin::signed(ALICE), sub_id, req_ref);
+		let result = crate::Pallet::<Test>::do_request_sub_info(
+			RuntimeOrigin::signed(ALICE),
+			sub_id,
+			req_ref,
+		);
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
 }
@@ -497,8 +507,8 @@ fn test_sudo_create_subscription_success() {
 		let metadata = None;
 		let sub_id = None;
 		// Call the sudo dispatchable and assert success
-		assert_ok!(crate::Pallet::<Test>::sudo_create_subscription(
-			RuntimeOrigin::root(),
+		assert_ok!(crate::Pallet::<Test>::create_subscription(
+			RuntimeOrigin::signed(ALICE),
 			credits,
 			frequency,
 			metadata,
@@ -511,7 +521,7 @@ fn test_sudo_create_subscription_success() {
 fn test_sudo_pause_subscription_success() {
 	ExtBuilder::build().execute_with(|| {
 		let sub_id = [1; 32];
-		assert_ok!(crate::Pallet::<Test>::sudo_pause_subscription(RuntimeOrigin::root(), sub_id));
+		assert_ok!(crate::Pallet::<Test>::pause_subscription(RuntimeOrigin::signed(ALICE), sub_id));
 	});
 }
 
@@ -519,7 +529,7 @@ fn test_sudo_pause_subscription_success() {
 fn test_sudo_kill_subscription_success() {
 	ExtBuilder::build().execute_with(|| {
 		let sub_id = [1; 32];
-		assert_ok!(crate::Pallet::<Test>::sudo_kill_subscription(RuntimeOrigin::root(), sub_id));
+		assert_ok!(crate::Pallet::<Test>::kill_subscription(RuntimeOrigin::signed(ALICE), sub_id));
 	});
 }
 
@@ -530,8 +540,8 @@ fn test_sudo_update_subscription_success() {
 		let credits = Some(20);
 		let frequency = Some(10);
 		let metadata = Some(None);
-		assert_ok!(crate::Pallet::<Test>::sudo_update_subscription(
-			RuntimeOrigin::root(),
+		assert_ok!(crate::Pallet::<Test>::update_subscription(
+			RuntimeOrigin::signed(ALICE),
 			sub_id,
 			credits,
 			frequency,
@@ -544,8 +554,8 @@ fn test_sudo_update_subscription_success() {
 fn test_sudo_reactivate_subscription_success() {
 	ExtBuilder::build().execute_with(|| {
 		let sub_id = [1; 32];
-		assert_ok!(crate::Pallet::<Test>::sudo_reactivate_subscription(
-			RuntimeOrigin::root(),
+		assert_ok!(crate::Pallet::<Test>::reactivate_subscription(
+			RuntimeOrigin::signed(ALICE),
 			sub_id
 		));
 	});
@@ -559,8 +569,8 @@ fn test_sudo_request_quote_success() {
 		let metadata = None;
 		let sub_id = None;
 		let req_ref = None;
-		assert_ok!(crate::Pallet::<Test>::sudo_request_quote(
-			RuntimeOrigin::root(),
+		assert_ok!(crate::Pallet::<Test>::request_quote(
+			RuntimeOrigin::signed(ALICE),
 			number_of_pulses,
 			frequency,
 			metadata,
@@ -575,8 +585,8 @@ fn test_sudo_request_sub_info_success() {
 	ExtBuilder::build().execute_with(|| {
 		let sub_id = [1; 32];
 		let req_ref = None;
-		assert_ok!(crate::Pallet::<Test>::sudo_request_sub_info(
-			RuntimeOrigin::root(),
+		assert_ok!(crate::Pallet::<Test>::request_sub_info(
+			RuntimeOrigin::signed(ALICE),
 			sub_id,
 			req_ref
 		));

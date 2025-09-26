@@ -78,7 +78,7 @@ use frame_support::{
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
 		tokens::Precision,
-		Get, OriginTrait,
+		Get,
 	},
 };
 use frame_system::{ensure_signed, pallet_prelude::OriginFor};
@@ -742,6 +742,12 @@ pub mod pallet {
 			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
 
 			Self::xcm_send(
+				// TODO: check how this is interpreted by the consumer, as this is a location
+				// origin. Should we instead translate it to an account and generate a Signed
+				// origin?
+				origin,
+				// TODO: this should be an actual target location, not the requester, as this
+				// wouldn't work for contracts
 				&requester,
 				// Simple concatenation: pre-encoded call data + pulse data
 				{
@@ -772,6 +778,12 @@ pub mod pallet {
 
 			let response = SubInfoResponse { sub, req_ref: req.req_ref };
 			Self::xcm_send(
+				// TODO: check how this is interpreted by the consumer, as this is a location
+				// origin. Should we instead translate it to an account and generate a Signed
+				// origin?
+				origin,
+				// TODO: this should be an actual target location, not the requester, as this
+				// wouldn't work for contracts
 				&requester,
 				// Simple concatenation: pre-encoded call data + pulse data
 				{
@@ -897,8 +909,12 @@ impl<T: Config> Pallet<T> {
 				sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
 				sub.last_delivered = Some(current_block);
 
+				let subscriber = sub.subscriber();
+				let origin = T::RuntimeOrigin::from(Some(subscriber.clone()).into());
+
 				// Send the XCM message
 				if let Err(e) = Self::xcm_send(
+					origin,
 					&sub.details.target,
 					// Simple concatenation: pre-encoded call data + pulse data
 					{
@@ -1072,7 +1088,11 @@ impl<T: Config> Pallet<T> {
 	/// consumption fees) to any target on a chain that honors `UnpaidExecution` requests from IDN.
 	/// Though the attacker would not be able to manipulate the call's parameters.
 	// TODO: Solve this issue https://github.com/ideal-lab5/idn-sdk/issues/290
-	fn xcm_send(target: &Location, call: DoubleEncoded<()>) -> DispatchResult {
+	fn xcm_send(
+		origin: OriginFor<T>,
+		target: &Location,
+		call: DoubleEncoded<()>,
+	) -> DispatchResult {
 		let msg = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			Transact { origin_kind: OriginKind::SovereignAccount, fallback_max_weight: None, call },
@@ -1080,11 +1100,7 @@ impl<T: Config> Pallet<T> {
 		let versioned_target: Box<VersionedLocation> =
 			Box::new(VersionedLocation::V5(target.clone()));
 		let versioned_msg: Box<VersionedXcm<()>> = Box::new(VersionedXcm::V5(msg.into()));
-		// TODO: do not use root origin, instead bring down the origin all the way from
-		// `try_submit_asig` to here https://github.com/ideal-lab5/idn-sdk/issues/289
-		let origin = T::RuntimeOrigin::root();
-		let xcm_hash =
-			T::Xcm::send(origin.clone(), versioned_target.clone(), versioned_msg.clone())?;
+		let xcm_hash = T::Xcm::send(origin, versioned_target.clone(), versioned_msg.clone())?;
 		log::trace!(
 			target: LOG_TARGET,
 			"XCM message sent with hash: {:?}. Target: {:?}. Msg: {:?}",
