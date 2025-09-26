@@ -271,13 +271,14 @@ pub mod pallet {
 		/// * `ciphertext`: The timelock encrypted ciphertext
 		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::schedule_sealed(T::MaxScheduledPerBlock::get()))]
-		pub fn schedule_sealed(
+		pub fn reserve_execution(
 			origin: OriginFor<T>,
 			when: RoundNumber,
 			ciphertext: Ciphertext,
 		) -> DispatchResult {
 			T::ScheduleOrigin::ensure_origin(origin.clone())?;
 			let who = ensure_signed(origin.clone())?;
+			// hold a deposit based on ciphertext_size X hold_time
 			let amount: u32 = 30_000;
 			DepositHelperImpl::<T>::hold_deposit(amount.into(), &who.clone())?;
 			let origin = <T as Config>::RuntimeOrigin::from(origin);
@@ -288,26 +289,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	// /// Helper to migrate scheduler when the pallet origin type has changed.
-	// pub fn migrate_origin<OldOrigin: Into<T::PalletsOrigin> + codec::Decode>() {
-	// 	Agenda::<T>::translate::<
-	// 		Vec<Scheduled<TaskName, Ciphertext, OldOrigin, T::AccountId>>,
-	// 		_,
-	// 	>(|_, agenda| {
-	// 		Some(BoundedVec::truncate_from(
-	// 			agenda
-	// 				.into_iter()
-	// 				.map(|schedule| Scheduled {
-	// 					id: schedule.id,
-	// 					priority: schedule.priority,
-	// 					ciphertext: None,
-	// 					origin: schedule.origin.into(),
-	// 					who: schedule.who,
-	// 				})
-	// 				.collect::<Vec<_>>(),
-	// 		))
-	// 	});
-	// }
 
 	#[allow(clippy::result_large_err)]
 	fn place_task(
@@ -362,6 +343,7 @@ impl<T: Config> Pallet<T> {
 			origin,
 			who,
 		};
+
 		let res = Self::place_task(when, task).map_err(|x| x.0)?;
 		Ok(res)
 	}

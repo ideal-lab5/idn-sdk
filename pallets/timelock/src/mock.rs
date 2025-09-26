@@ -76,10 +76,8 @@ frame_support::construct_runtime!(
 	pub enum Test
 	{
 		System: frame_system,
-		Logger: logger::{Pallet, Call, Event<T>},
-		Timelock: timelock::{Pallet, Call, Storage, Event<T>},
-		// Preimage: 1::{Pallet, Call, Storage, Event<T>, HoldReason},
-		RandomnessCollectiveFlip: pallet_insecure_randomness_collective_flip,
+		Logger: logger,
+		Timelock: timelock,
 		Balances: pallet_balances
 	}
 );
@@ -99,20 +97,6 @@ parameter_types! {
 impl logger::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 }
-
-// ord_parameter_types! {
-// 	pub const One: u64 = 1;
-// }
-
-// impl pallet_preimage::Config for Test {
-// 	type RuntimeEvent = RuntimeEvent;
-// 	type WeightInfo = ();
-// 	type Currency = ();
-// 	type ManagerOrigin = EnsureRoot<u64>;
-// 	type Consideration = ();
-// }
-
-impl pallet_insecure_randomness_collective_flip::Config for Test {}
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
@@ -157,7 +141,6 @@ impl Config for Test {
 	type ScheduleOrigin = EnsureSigned<AccountId32>;
 	type MaxScheduledPerBlock = ConstU32<10>;
 	type WeightInfo = TestWeightInfo;
-	type Preimages = Preimage;
 	type Currency = Balances;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type TreasuryAccount = TreasuryAccount;
@@ -166,7 +149,17 @@ impl Config for Test {
 
 pub type LoggerCall = logger::Call<Test>;
 
-pub fn new_test_ext() -> sp_io::TestExternalities {
-	let t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
+pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+
+pub type AccountId = AccountId32;
+pub type Balance = u64;
+
+pub fn new_test_ext(balances: Vec<(AccountId, Balance)>) -> sp_io::TestExternalities {
+	let mut t = system::GenesisConfig::<Test>::default().build_storage().unwrap();
+
+	pallet_balances::GenesisConfig::<Test> { balances, ..Default::default() }
+		.assimilate_storage(&mut t)
+		.unwrap();
+
 	t.into()
 }
