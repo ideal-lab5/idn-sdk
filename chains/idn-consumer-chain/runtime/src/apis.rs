@@ -18,7 +18,7 @@
 use alloc::vec;
 use codec::Encode;
 use frame_support::{
-	dispatch::DispatchInfo,
+	dispatch::GetDispatchInfo,
 	genesis_builder_helper::{build_state, get_preset},
 	weights::Weight,
 };
@@ -224,8 +224,7 @@ impl_runtime_apis! {
 		fn eth_transact(tx: pallet_revive::evm::GenericTransaction) -> Result<pallet_revive::EthTransactInfo<Balance>, pallet_revive::EthTransactError>
 		{
 			let blockweights: BlockWeights = <Runtime as frame_system::Config>::BlockWeights::get();
-			let tx_fee = |pallet_call, mut dispatch_info: DispatchInfo| {
-				let call = RuntimeCall::Revive(pallet_call);
+			let tx_fee = |pallet_call: <Runtime as frame_system::Config>::RuntimeCall, dispatch_call: <Runtime as frame_system::Config>::RuntimeCall| {
 				let extension = (
 					frame_system::CheckNonZeroSender::<Runtime>::new(),
 					frame_system::CheckSpecVersion::<Runtime>::new(),
@@ -238,8 +237,9 @@ impl_runtime_apis! {
 					frame_metadata_hash_extension::CheckMetadataHash::<Runtime>::new(false),
 					frame_system::WeightReclaim::<Runtime>::new(),
 				);
-				dispatch_info.extension_weight = extension.weight(&call);
-				let uxt: UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic::new_bare(call);
+				let mut dispatch_info = dispatch_call.get_dispatch_info();
+				dispatch_info.extension_weight = extension.weight(&dispatch_call);
+				let uxt: UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic::new_bare(pallet_call);
 
 				pallet_transaction_payment::Pallet::<Runtime>::compute_fee(
 					uxt.encoded_size() as u32,
@@ -248,7 +248,7 @@ impl_runtime_apis! {
 				)
 			};
 
-			Revive::bare_eth_transact(tx, blockweights.max_block, tx_fee)
+			Revive::dry_run_eth_transact(tx, blockweights.max_block, tx_fee)
 		}
 
 		fn call(

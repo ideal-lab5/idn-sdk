@@ -18,7 +18,6 @@
 
 // std
 use codec::Encode;
-use cumulus_client_cli::CollatorOptions;
 use std::{sync::Arc, time::Duration};
 // Local Runtime Types
 use idn_runtime::{
@@ -30,6 +29,8 @@ use idn_runtime::{
 };
 
 // Cumulus Imports
+use cumulus_client_bootnodes::{start_bootnode_tasks, StartBootnodeTasksParams};
+use cumulus_client_cli::CollatorOptions;
 use cumulus_client_collator::service::CollatorService;
 use cumulus_client_consensus_aura::collators::lookahead::{self as aura, Params as AuraParams};
 use cumulus_client_consensus_common::ParachainBlockImport as TParachainBlockImport;
@@ -51,7 +52,7 @@ use prometheus_endpoint::Registry;
 use sc_client_api::Backend;
 use sc_consensus::ImportQueue;
 use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
-use sc_network::NetworkBlock;
+use sc_network::{NetworkBackend, NetworkBlock};
 use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
@@ -290,7 +291,9 @@ pub async fn start_parachain_node(
 	let backend = params.backend.clone();
 	let mut task_manager = params.task_manager;
 
-	let (relay_chain_interface, collator_key) = build_relay_chain_interface(
+	// **********
+	// **********
+	let (relay_chain_interface, collator_key, relay_chain_network, paranode_rx) = build_relay_chain_interface(
 		polkadot_config,
 		&parachain_config,
 		telemetry_worker_handle,
@@ -305,6 +308,8 @@ pub async fn start_parachain_node(
 	let transaction_pool = params.transaction_pool.clone();
 	let import_queue_service = params.import_queue.service();
 
+	// TODO: can get paraId from the runtime if desired
+
 	// NOTE: because we use Aura here explicitly, we can use `CollatorSybilResistance::Resistant`
 	// when starting the network.
 	let (network, system_rpc_tx, tx_handler_controller, sync_service) =
@@ -318,6 +323,9 @@ pub async fn start_parachain_node(
 			relay_chain_interface: relay_chain_interface.clone(),
 			import_queue: params.import_queue,
 			sybil_resistance_level: CollatorSybilResistance::Resistant, // because of Aura
+			metrics: sc_network::NetworkWorker::<Block, Hash>::register_notification_metrics(
+				parachain_config.prometheus_config.as_ref().map(|config| &config.registry),
+			),
 		})
 		.await?;
 
@@ -422,7 +430,25 @@ pub async fn start_parachain_node(
 		relay_chain_slot_duration,
 		recovery_handle: Box::new(overseer_handle.clone()),
 		sync_service: sync_service.clone(),
+		prometheus_registry: prometheus_registry.as_ref(),
 	})?;
+
+	// allows any node to act as a bootnode
+	start_bootnode_tasks(StartBootnodeTasksParams {
+		embedded_dht_bootnode: collator_options.embedded_dht_bootnode,
+		dht_bootnode_discovery: collator_options.dht_bootnode_discovery,
+		para_id,
+		task_manager: &mut task_manager,
+		relay_chain_interface: relay_chain_interface.clone(),
+		relay_chain_fork_id,
+		relay_chain_network,
+		request_receiver: paranode_rx,
+		parachain_network: network,
+		advertise_non_global_ips,
+		parachain_genesis_hash: client.chain_info().genesis_hash,
+		parachain_fork_id,
+		parachain_public_addresses,
+	});
 
 	if validator {
 		// tracks incoming protobuf messages from the gossipsub topic
