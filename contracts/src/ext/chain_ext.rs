@@ -16,7 +16,6 @@
 
 use ink::env::Environment;
 
-/// Here we define the operations to interact with the Substrate runtime.
 #[ink::chain_extension(extension = 42)]
 pub trait RandExtension {
 	type ErrorCode = RandomReadErr;

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::constants::{
+use super::constants::{
 	CONSUMER_PARA_ID_PASEO, CONTRACTS_CALL_INDEX, CONTRACTS_PALLET_INDEX_PASEO,
 	IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO, SOVEREIGN_ACCOUNT_IDN_PASEO,
 };

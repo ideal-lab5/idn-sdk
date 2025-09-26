@@ -277,6 +277,8 @@ impl pallet_session::Config for Runtime {
 	type Keys = SessionKeys;
 	type WeightInfo = SessionWeightInfo<Self>;
 	type DisablingStrategy = ();
+	type KeyDeposit = ();
+	type Currency = Balances;
 }
 
 impl pallet_aura::Config for Runtime {

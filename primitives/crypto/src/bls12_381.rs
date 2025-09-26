@@ -79,7 +79,7 @@ pub mod tests {
 
 	use super::*;
 	use ark_bls12_381::{G1Projective, G2Projective};
-	use ark_ec::{AffineRepr, CurveGroup, Group};
+	use ark_ec::{AffineRepr, CurveGroup, PrimeGroup};
 	use ark_serialize::CanonicalSerialize;
 	use ark_std::{rand::thread_rng, UniformRand};
 

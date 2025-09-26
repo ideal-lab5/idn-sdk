@@ -231,6 +231,7 @@ impl pallet_session::Config for Runtime {
 	type WeightInfo = SessionWeightInfo<Runtime>;
 	type DisablingStrategy = ();
 	type KeyDeposit = ();
+	type Currency = Balances;
 }
 
 impl pallet_aura::Config for Runtime {

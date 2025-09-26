@@ -137,9 +137,6 @@
 //! - String identifiers: Convert application names or game identifiers to bytes
 //! - Structured data: Use byte arrays for configuration flags or binary data
 //! - JSON-like data: Serialize structured information as bytes (mind the 128-byte limit)
-
-#![cfg_attr(not(feature = "std"), no_std, no_main)]
-
 pub mod constants;
 pub mod types;
 
@@ -173,8 +170,8 @@ use ink::{
 };
 
 // These are needed for both test and non-test
+use codec::{Compact, Decode, Encode};
 use ink::xcm::lts::{Junction, Location};
-use parity_scale_codec::{Compact, Decode, Encode};
 #[cfg(not(test))]
 use scale_info::prelude::boxed::Box;
 use scale_info::prelude::vec::Vec;
@@ -964,10 +961,12 @@ impl IdnClient {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-	use crate::constants::{
-		CONSUMER_PARA_ID_PASEO, CONTRACTS_CALL_INDEX, CONTRACTS_PALLET_INDEX_PASEO,
-		IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO,
+	use super::{
+		constants::{
+			CONSUMER_PARA_ID_PASEO, CONTRACTS_CALL_INDEX, CONTRACTS_PALLET_INDEX_PASEO,
+			IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO,
+		},
+		*,
 	};
 
 	fn mock_client() -> IdnClient {
@@ -1190,7 +1189,7 @@ mod tests {
 
 	#[test]
 	fn test_pulse_encode_decode() {
-		use crate::types::Pulse;
+		use super::types::Pulse;
 		// Create a test pulse - note: actual Pulse implementation may vary
 		// This test verifies that Pulse type can be encoded/decoded properly
 

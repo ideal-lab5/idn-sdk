@@ -195,8 +195,17 @@ impl_runtime_apis! {
 
 	impl pallet_revive::ReviveApi<Block, AccountId, Balance, Nonce, BlockNumber> for Runtime
 	{
+
+		fn address(account_id: AccountId) -> H160 {
+			<Runtime as pallet_revive::Config>::AddressMapper::to_address(&account_id)
+		}
+
 		fn balance(address: H160) -> U256 {
 			Revive::evm_balance(&address)
+		}
+
+		fn block_author() -> Option<H160> {
+			Revive::block_author()
 		}
 
 		fn block_gas_limit() -> U256 {
@@ -272,12 +281,13 @@ impl_runtime_apis! {
 		{
 			Revive::bare_instantiate(
 				RuntimeOrigin::signed(origin),
-				value,
+				value.into(),
 				gas_limit.unwrap_or(RuntimeBlockWeights::get().max_block),
 				pallet_revive::DepositLimit::Balance(storage_deposit_limit.unwrap_or(u128::MAX)),
 				code,
 				data,
 				salt,
+				pallet_revive::BumpNonce::Yes
 			)
 		}
 
@@ -292,6 +302,13 @@ impl_runtime_apis! {
 				code,
 				storage_deposit_limit.unwrap_or(u128::MAX),
 			)
+		}
+
+		fn get_storage_var_key(
+			address: H160,
+			key: Vec<u8>,
+		) -> pallet_revive::GetStorageResult {
+			Revive::get_storage_var_key(address, key)
 		}
 
 		fn get_storage(
@@ -367,6 +384,14 @@ impl_runtime_apis! {
 			} else {
 				Ok(tracer.empty_trace())
 			}
+		}
+
+		fn runtime_pallets_address() -> H160 {
+			pallet_revive::RUNTIME_PALLETS_ADDR
+		}
+
+		fn code(address: H160) -> Vec<u8> {
+			Revive::code(&address)
 		}
 	}
 

@@ -109,7 +109,7 @@
 
 #[ink::contract]
 mod example_consumer {
-	use idn_client_contract_lib::{
+	use idn_contracts::xcm::{
 		types::{
 			ConsumerParaId, ContractsCallIndex, ContractsPalletIndex, Credits, IdnBalance,
 			IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
@@ -682,19 +682,13 @@ mod example_consumer {
 			pulse: Pulse,
 			subscription_id: SubscriptionId,
 		) -> Result<(), Error> {
-			println!(
-				"consume_pulse called with pulse: {:?}, subscription_id: {:?}",
-				pulse, subscription_id
-			);
 			// Make sure the caller is the IDN account
 			self.ensure_authorized_deliverer()?;
-			println!("Authorized deliverer");
 
 			// Verify that the subscription ID matches our active subscription
 			if subscription_id != self.ensure_active_sub()? {
 				return Err(Error::InvalidSubscriptionId);
 			}
-			println!("Authorized deliverer and valid subscription ID");
 
 			let validity = match self.ensure_valid_pulse(&pulse) {
 				Ok(_) => PulseValidity::Valid,
