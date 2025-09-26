@@ -26,8 +26,7 @@ use xcm_builder::{
 };
 use xcm_executor::traits::QueryResponseStatus;
 
-use sp_runtime::{DispatchError, DispatchErrorWithPostInfo};
-use sp_weights::Weight;
+use sp_runtime::{DispatchError, DispatchErrorWithPostInfo, Weight};
 
 pub struct TestController;
 

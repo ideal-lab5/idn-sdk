@@ -205,6 +205,7 @@ impl cumulus_pallet_parachain_system::Config for Runtime {
 	type CheckAssociatedRelayNumber = RelayNumberMonotonicallyIncreases;
 	type ConsensusHook = ConsensusHook;
 	type SelectCore = cumulus_pallet_parachain_system::DefaultCoreSelector<Runtime>;
+	type RelayParentOffset = ConstU32<0>;
 }
 
 impl parachain_info::Config for Runtime {}
@@ -229,6 +230,8 @@ impl pallet_session::Config for Runtime {
 	type Keys = SessionKeys;
 	type WeightInfo = SessionWeightInfo<Runtime>;
 	type DisablingStrategy = ();
+	type KeyDeposit = ();
+	type Currency = Balances;
 }
 
 impl pallet_aura::Config for Runtime {
@@ -324,7 +327,6 @@ parameter_types! {
 }
 
 impl pallet_idn_manager::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type FeesManager = impls::FeesManagerImpl<
 		types::TreasuryAccount,
@@ -365,7 +367,6 @@ parameter_types! {
 }
 
 impl pallet_randomness_beacon::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
 	type MaxSigsPerBlock = MaxSigsPerBlock;

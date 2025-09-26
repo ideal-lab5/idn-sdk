@@ -15,6 +15,7 @@
  */
 
 /// Constants relating to DOT.
+#[allow(dead_code)]
 pub mod currency {
 	use polkadot_core_primitives::Balance;
 
@@ -26,6 +27,7 @@ pub mod currency {
 }
 
 /// Constants related to Polkadot fee payment.
+#[allow(dead_code)]
 pub mod fee {
 	use frame_support::{
 		pallet_prelude::Weight,

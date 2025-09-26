@@ -208,6 +208,7 @@ impl cumulus_pallet_parachain_system::Config for Runtime {
 	type CheckAssociatedRelayNumber = RelayNumberMonotonicallyIncreases;
 	type ConsensusHook = ConsensusHook;
 	type SelectCore = cumulus_pallet_parachain_system::DefaultCoreSelector<Runtime>;
+	type RelayParentOffset = ConstU32<0>;
 }
 
 impl parachain_info::Config for Runtime {}
@@ -276,6 +277,8 @@ impl pallet_session::Config for Runtime {
 	type Keys = SessionKeys;
 	type WeightInfo = SessionWeightInfo<Self>;
 	type DisablingStrategy = ();
+	type KeyDeposit = ();
+	type Currency = Balances;
 }
 
 impl pallet_aura::Config for Runtime {
@@ -353,7 +356,6 @@ impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for EnsureIdnSovereignAc
 }
 
 impl pallet_idn_consumer::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
 	type PulseConsumer = PulseConsumerImpl;
 	type QuoteConsumer = QuoteConsumerImpl;
 	type SubInfoConsumer = SubInfoConsumerImpl;

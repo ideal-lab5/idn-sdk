@@ -1,6 +1,6 @@
 use crate::{
-	weights::ReviveWeightInfo, Balance, Balances, BalancesCall, Perbill, Runtime, RuntimeCall,
-	RuntimeEvent, RuntimeHoldReason, Timestamp, MILLIUNIT, UNIT,
+	weights::ReviveWeightInfo, Balance, Balances, Perbill, Runtime, RuntimeCall, RuntimeEvent,
+	RuntimeHoldReason, Timestamp, MILLIUNIT, UNIT,
 };
 
 use frame_support::{
@@ -8,14 +8,6 @@ use frame_support::{
 	traits::{ConstBool, ConstU32, ConstU64},
 };
 use frame_system::EnsureSigned;
-
-pub enum AllowBalancesCall {}
-
-impl frame_support::traits::Contains<RuntimeCall> for AllowBalancesCall {
-	fn contains(call: &RuntimeCall) -> bool {
-		matches!(call, RuntimeCall::Balances(BalancesCall::transfer_allow_death { .. }))
-	}
-}
 
 const fn deposit(items: u32, bytes: u32) -> Balance {
 	(items as Balance * UNIT + (bytes as Balance) * (5 * MILLIUNIT / 100)) / 10
@@ -33,7 +25,6 @@ impl pallet_revive::Config for Runtime {
 	type Currency = Balances;
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeCall = RuntimeCall;
-	type CallFilter = AllowBalancesCall;
 	type DepositPerItem = DepositPerItem;
 	type DepositPerByte = DepositPerByte;
 	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
@@ -46,10 +37,10 @@ impl pallet_revive::Config for Runtime {
 	type InstantiateOrigin = EnsureSigned<Self::AccountId>;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type CodeHashLockupDepositPercent = CodeHashLockupDepositPercent;
-	type Xcm = pallet_xcm::Pallet<Self>;
 	type ChainId = ConstU64<420_420_420>;
+	// TODO: confirm
 	type NativeToEthRatio = ConstU32<1_000_000>; // 10^(18 - 12) Eth is 10^18, Native is 10^12.
 	type EthGasEncoder = ();
 	type FindAuthor = <Runtime as pallet_authorship::Config>::FindAuthor;
-	type ChainExtension = ();
+	type Precompiles = ();
 }

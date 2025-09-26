@@ -29,7 +29,7 @@ use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::Zero,
 	traits::{
-		fungible::{InspectHold, Mutate},
+		tokens::fungible::{InspectHold, Mutate},
 		OnFinalize,
 	},
 	BoundedVec,

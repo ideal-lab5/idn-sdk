@@ -1,0 +1,54 @@
+[package]
+name = "idn-precompiles"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+
+
+[lints]
+workspace = true
+
+
+[dependencies]
+codec.workspace = true
+bp-idn.workspace = true
+pallet-revive.workspace = true
+sp-idn-crypto.workspace = true
+
+[dev-dependencies]
+frame-support.workspace = true
+frame-system.workspace = true
+const-hex.workspace = true
+hex.workspace = true
+pallet-balances.workspace = true
+pallet-timestamp.workspace = true
+scale-info.workspace = true
+sp-core.workspace = true
+sp-io.workspace = true
+sp-runtime.workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "bp-idn/std",
+    "codec/std",
+    "frame-support/std",
+    "frame-system/std",
+    "pallet-balances/std",
+    "pallet-revive/std",
+    "pallet-timestamp/std",
+    "sp-core/std",
+    "sp-idn-crypto/std",
+    "sp-io/std",
+    "sp-runtime/std",
+]
+
+
+try-runtime = [
+    "frame-support/try-runtime",
+    "frame-system/try-runtime",
+    "pallet-revive/try-runtime",
+]

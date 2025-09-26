@@ -228,7 +228,6 @@ impl pallet_transaction_payment::Config for Runtime {
 }
 
 impl pallet_randomness_beacon::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
 	type MaxSigsPerBlock = ConstU8<30>;
@@ -287,7 +286,6 @@ parameter_types! {
 }
 
 impl pallet_idn_manager::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type FeesManager = FeesManagerImpl<
 		TreasuryAccount,
@@ -348,7 +346,6 @@ impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for EnsureIdnSovereignAc
 }
 
 impl pallet_idn_consumer::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
 	type PulseConsumer = impls::PulseConsumerImpl;
 	type QuoteConsumer = impls::QuoteConsumerImpl;
 	type SubInfoConsumer = impls::SubInfoConsumerImpl;

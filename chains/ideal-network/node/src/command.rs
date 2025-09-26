@@ -124,6 +124,7 @@ macro_rules! construct_async_run {
 }
 
 /// Parse command line arguments into service configuration.
+#[allow(clippy::result_large_err)]
 pub fn run() -> Result<()> {
 	let cli = Cli::from_args();
 
@@ -218,7 +219,8 @@ pub fn run() -> Result<()> {
 					let partials = new_partial(&config)?;
 					let db = partials.backend.expose_db();
 					let storage = partials.backend.expose_storage();
-					cmd.run(config, partials.client.clone(), db, storage)
+					let shared_trie_cache = partials.backend.expose_shared_trie_cache();
+					cmd.run(config, partials.client.clone(), db, storage, shared_trie_cache)
 				}),
 				BenchmarkCmd::Machine(cmd) =>
 					runner.sync_run(|config| cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())),

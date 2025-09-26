@@ -161,7 +161,6 @@ parameter_types! {
 }
 
 impl pallet_idn_consumer::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
 	type PulseConsumer = pulse_consumer_impl::PulseConsumerImpl;
 	type QuoteConsumer = quote_consumer_impl::QuoteConsumerImpl;
 	type SubInfoConsumer = sub_info_consumer_impl::SubInfoConsumerImpl;
