@@ -321,6 +321,7 @@ mod bench_ensure_origin {
 
 parameter_types! {
 	pub const BaseFee: u64 = 2_900_000u64;
+	pub const MaxXcmFees: u128 = 1_000_000_000_000;
 }
 
 impl pallet_idn_manager::Config for Runtime {
@@ -358,6 +359,8 @@ impl pallet_idn_manager::Config for Runtime {
 	type XcmLocationToAccountId = xcm_config::LocationToAccountId;
 	#[cfg(feature = "runtime-benchmarks")]
 	type XcmLocationToAccountId = bench_sibling_conversion::MockSiblingConversion;
+	type LocalOriginToLocation = xcm_config::LocalOriginToLocation;
+	type MaxXcmFees = MaxXcmFees;
 }
 
 parameter_types! {

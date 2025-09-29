@@ -89,10 +89,13 @@ use sp_idn_traits::{
 	pulse::{Dispatcher, Pulse},
 	Hashable,
 };
-use sp_runtime::traits::Saturating;
+use sp_runtime::traits::{Saturating, TryConvert};
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use xcm::{
-	prelude::{Location, OriginKind, Transact, Unlimited, UnpaidExecution, Xcm},
+	prelude::{
+		AllOf, Asset, AssetFilter::Wild, AssetId, BuyExecution, DepositAsset, Junctions, Location,
+		OriginKind, RefundSurplus, Transact, Unlimited, WildFungibility, WithdrawAsset, Xcm,
+	},
 	DoubleEncoded, VersionedLocation, VersionedXcm,
 };
 use xcm_builder::SendController;
@@ -315,6 +318,11 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxCallDataLen: Get<u32>;
 
+		/// The maximum amount of fees to pay for the execution of a single XCM message sent to the
+		/// IDN chain, expressed in the IDN asset.
+		#[pallet::constant]
+		type MaxXcmFees: Get<u128>;
+
 		/// A type to define the amount of credits in a subscription
 		type Credits: Unsigned
 			+ Codec
@@ -365,6 +373,9 @@ pub mod pallet {
 
 		/// A type that converts XCM locations to account identifiers.
 		type XcmLocationToAccountId: ConvertLocation<Self::AccountId>;
+
+		/// A type that can convert the local origin to a `Location`.
+		type LocalOriginToLocation: TryConvert<Self::RuntimeOrigin, Location>;
 	}
 
 	/// The subscription storage. It maps a subscription ID to a subscription.
@@ -420,6 +431,8 @@ pub mod pallet {
 		InvalidSubscriber,
 		/// Invalid parameters
 		InvalidParams,
+		/// Error Sending XCM
+		XcmSendError,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -1093,9 +1106,22 @@ impl<T: Config> Pallet<T> {
 		target: &Location,
 		call: DoubleEncoded<()>,
 	) -> DispatchResult {
+		let fee_asset = Asset {
+			id: AssetId(Location { parents: 1, interior: Junctions::Here }),
+			// TODO: this should be configurable by the consumer for more flexibility https://github.com/ideal-lab5/idn-sdk/issues/372
+			fun: T::MaxXcmFees::get().into(),
+		};
 		let msg = Xcm(vec![
-			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			WithdrawAsset(fee_asset.clone().into()),
+			BuyExecution { weight_limit: Unlimited, fees: fee_asset.clone() },
 			Transact { origin_kind: OriginKind::SovereignAccount, fallback_max_weight: None, call },
+			RefundSurplus,
+			DepositAsset {
+				assets: Wild(AllOf { id: fee_asset.id, fun: WildFungibility::Fungible }),
+				// refund any surplus back to the origin's account
+				beneficiary: T::LocalOriginToLocation::try_convert(origin.clone())
+					.map_err(|_| Error::<T>::XcmSendError)?,
+			},
 		]);
 		let versioned_target: Box<VersionedLocation> =
 			Box::new(VersionedLocation::V5(target.clone()));

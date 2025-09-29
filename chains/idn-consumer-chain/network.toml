@@ -30,7 +30,7 @@ id = 4502
 name = "ideal-network"
 chain = "idn-local"
 default_command = "../../target/release/idn-node"
-default_args = [ "-lxcm=trace,runtime::contracts=trace,runtime::xcm=trace,runtime::xcmp=info,pallet-idn-manager=trace", "--enable-offchain-indexing=true" ]
+default_args = [ "-lxcm=trace,runtime::contracts=trace,runtime::xcm=trace,runtime::xcmp=info,pallet-idn-manager=trace,pallet-randomness-beacon=trace", "--enable-offchain-indexing=true" ]
 
 [[parachains.collators]]
 name = "idn-alice"
