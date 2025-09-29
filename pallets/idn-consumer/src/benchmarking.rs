@@ -92,7 +92,7 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn create_subscription() {
+	fn do_create_subscription() {
 		let credits = 10;
 		let frequency = 5;
 		let metadata = None;
@@ -101,43 +101,43 @@ mod benchmarks {
 
 		#[block]
 		{
-			IdnConsumer::<T>::create_subscription(
+			IdnConsumer::<T>::do_create_subscription(
 				origin.into(),
 				credits,
 				frequency,
 				metadata,
 				sub_id,
 			)
-			.expect("create_subscription should not fail");
+			.expect("do_create_subscription should not fail");
 		}
 	}
 
 	#[benchmark]
-	fn pause_subscription() {
+	fn do_pause_subscription() {
 		let sub_id = [1u8; 32];
 		let origin = RawOrigin::Signed([88u8; 32].into());
 
 		#[block]
 		{
-			IdnConsumer::<T>::pause_subscription(origin.into(), sub_id)
+			IdnConsumer::<T>::do_pause_subscription(origin.into(), sub_id)
 				.expect("pause_subscription should not fail");
 		}
 	}
 
 	#[benchmark]
-	fn kill_subscription() {
+	fn do_kill_subscription() {
 		let sub_id = [1u8; 32];
 		let origin = RawOrigin::Signed([88u8; 32].into());
 
 		#[block]
 		{
-			IdnConsumer::<T>::kill_subscription(origin.into(), sub_id)
+			IdnConsumer::<T>::do_kill_subscription(origin.into(), sub_id)
 				.expect("kill_subscription should not fail");
 		}
 	}
 
 	#[benchmark]
-	fn update_subscription() {
+	fn do_update_subscription() {
 		let sub_id = [1u8; 32];
 		let credits = 10;
 		let frequency = 5;
@@ -146,7 +146,7 @@ mod benchmarks {
 
 		#[block]
 		{
-			IdnConsumer::<T>::update_subscription(
+			IdnConsumer::<T>::do_update_subscription(
 				origin.into(),
 				sub_id,
 				Some(credits),
@@ -158,19 +158,19 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn reactivate_subscription() {
+	fn do_reactivate_subscription() {
 		let sub_id = [1u8; 32];
 		let origin = RawOrigin::Signed([88u8; 32].into());
 
 		#[block]
 		{
-			IdnConsumer::<T>::reactivate_subscription(origin.into(), sub_id)
+			IdnConsumer::<T>::do_reactivate_subscription(origin.into(), sub_id)
 				.expect("reactivate_subscription should not fail");
 		}
 	}
 
 	#[benchmark]
-	fn request_quote() {
+	fn do_request_quote() {
 		let sub_id = None;
 		let req_ref = None;
 		let credits = 10;
@@ -180,7 +180,7 @@ mod benchmarks {
 
 		#[block]
 		{
-			IdnConsumer::<T>::request_quote(
+			IdnConsumer::<T>::do_request_quote(
 				origin.into(),
 				credits,
 				frequency,
@@ -193,13 +193,13 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn request_sub_info() {
+	fn do_request_sub_info() {
 		let sub_id = [1u8; 32];
 		let origin = RawOrigin::Signed([88u8; 32].into());
 
 		#[block]
 		{
-			IdnConsumer::<T>::request_sub_info(origin.into(), sub_id, None)
+			IdnConsumer::<T>::do_request_sub_info(origin.into(), sub_id, None)
 				.expect("request_sub_info should not fail");
 		}
 	}

@@ -359,6 +359,7 @@ impl pallet_idn_consumer::Config for Runtime {
 	type ParaId = ConsumerParaId;
 	type MaxIdnXcmFees = MaxIdnXcmFees;
 	type WeightInfo = pallet_idn_consumer::weights::SubstrateWeight<Runtime>;
+	type LocalOriginToLocation = AllowSiblingsOnly;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
