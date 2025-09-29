@@ -59,7 +59,11 @@ use sc_utils::mpsc::tracing_unbounded;
 use sp_keystore::KeystorePtr;
 
 use libp2p::Multiaddr;
-use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, RetryableGossipsubRunner};
+use sc_consensus_randomness_beacon::{
+	gadget::{PulseFinalizationGadget, PulseSubmitter},
+	gossipsub::{DrandReceiver, RetryableGossipsubRunner},
+	worker::PulseWorker,
+};
 
 #[docify::export(wasm_executor)]
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
@@ -448,6 +452,18 @@ pub async fn start_parachain_node(
 			panic!("A critical error occurred - bringing down the node: {:?}", e);
 		}
 
+		let pulse_worker = build_pulse_worker(
+			client.clone(),
+			params.keystore_container.keystore(),
+			transaction_pool.clone(),
+		);
+
+		let pfg = PulseFinalizationGadget::new(pulse_worker);
+
+		task_manager
+			.spawn_essential_handle()
+			.spawn("pulse-finalization-gadget", None, pfg.run());
+
 		start_consensus(
 			client.clone(),
 			backend,
@@ -468,4 +484,15 @@ pub async fn start_parachain_node(
 	}
 
 	Ok((task_manager, client))
+}
+
+fn build_pulse_worker(
+	client: Arc<ParachainClient>,
+	keystore: KeystorePtr,
+	pool: Arc<sc_transaction_pool::TransactionPoolHandle<Block, ParachainClient>>,
+) -> Arc<impl PulseSubmitter<Block>> {
+	// Here you can implement the actual extrinsic construction
+	// because you have access to idn_runtime types
+
+	Arc::new(PulseWorker::new(client, keystore, pool))
 }

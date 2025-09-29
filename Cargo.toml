@@ -134,6 +134,7 @@ sc-network = { version = "0.49.0", default-features = false }
 sc-utils = { version = "18.0.0", default-features = false }
 sp-arithmetic = { version = "26.0.0", default-features = false }
 sp-api = { version = "36.0.1", default-features = false }
+sp-application-crypto = { version = "40.1.0", default-features = false }
 sp-blockchain = { version = "39.0.0", default-features = false }
 sp-block-builder = { version = "36.0.0", default-features = false }
 sp-consensus = "0.42.0"
