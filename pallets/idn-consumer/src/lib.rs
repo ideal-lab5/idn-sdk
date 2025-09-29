@@ -215,8 +215,8 @@ pub mod pallet {
 		/// handling the pulse is defined in the [`PulseConsumer`] trait implementation.
 		///
 		/// # Parameters
-		/// - `origin`: The origin of the call. Must be from the IDN chain, verified using the
-		///   [`Config::IdnOrigin`] type.
+		/// - `origin`: The origin of the call. Must be filtered by using the [`Config::IdnOrigin`]
+		///   type.
 		/// - `pulse`: The randomness pulse to be consumed.
 		/// - `sub_id`: The subscription ID associated with the pulse.
 		///
@@ -230,7 +230,7 @@ pub mod pallet {
 			pulse: Pulse,
 			sub_id: SubscriptionId,
 		) -> DispatchResultWithPostInfo {
-			// ensure origin is coming from IDN
+			// ensure origin is valid
 			let _ = T::IdnOrigin::ensure_origin(origin)?;
 
 			T::PulseConsumer::consume_pulse(pulse, sub_id)
@@ -248,8 +248,8 @@ pub mod pallet {
 		/// implementation.
 		///
 		/// # Parameters
-		/// - `origin`: The origin of the call. Must be from the IDN chain, verified using the
-		///   [`Config::IdnOrigin`] type.
+		/// - `origin`: The origin of the call. Must be filtered by using the [`Config::IdnOrigin`]
+		///   type.
 		/// - `quote`: The subscription quote to be consumed.
 		///
 		/// # Errors
@@ -258,7 +258,7 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::consume_quote())]
 		#[allow(clippy::useless_conversion)]
 		pub fn consume_quote(origin: OriginFor<T>, quote: Quote) -> DispatchResultWithPostInfo {
-			// ensure origin is coming from IDN
+			// ensure origin is valid
 			let _ = T::IdnOrigin::ensure_origin(origin)?;
 
 			T::QuoteConsumer::consume_quote(quote.clone())
@@ -276,8 +276,8 @@ pub mod pallet {
 		/// implementation.
 		///
 		/// # Parameters
-		/// - `origin`: The origin of the call. Must be from the IDN chain, verified using the
-		///   [`Config::IdnOrigin`] type.
+		/// - `origin`: The origin of the call. Must be filtered by using the [`Config::IdnOrigin`]
+		///   type.
 		/// - `sub_info`: The subscription information to be consumed.
 		///
 		/// # Errors
@@ -289,7 +289,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_info: SubInfoResponse,
 		) -> DispatchResultWithPostInfo {
-			// ensure origin is coming from IDN
+			// ensure origin is valid
 			let _ = T::IdnOrigin::ensure_origin(origin)?;
 
 			T::SubInfoConsumer::consume_sub_info(sub_info.clone())

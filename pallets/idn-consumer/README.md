@@ -21,7 +21,7 @@ The pallet can be configured using the following runtime parameters:
 - `QuoteConsumer`: Implementation of the `QuoteConsumer` trait for consuming quotes.
 - `SubInfoConsumer`: Implementation of the `SubInfoConsumer` trait for consuming subscription info.
 - `SiblingIdnLocation`: The XCM location of the sibling IDN chain.
-- `IdnOrigin`: The origin type for ensuring XCM calls from the IDN.
+- `IdnOrigin`: The origin type for ensuring the IDN callbacks.
 - `Xcm`: A type exposing XCM APIs for cross-chain interactions.
 - `PalletId`: The unique identifier for this pallet.
 - `ParaId`: The parachain ID of the consumer chain.
@@ -157,7 +157,7 @@ let req_ref = IdnConsumer::<T>::request_sub_info(sub_id, req_ref)?;
 
 ## Dispatchables
 
-The following dispatchable functions are used to process data coming from the IDN chain. Only requests originating from the IDN chain are accepted, as they are filtered by the `IdnOrigin` configuration type.
+The following dispatchable functions are used to process callbacks coming from the IDN chain.
 
 ### Consume Pulse
 
@@ -167,7 +167,7 @@ The following dispatchable functions are used to process data coming from the ID
 
 **Parameters**
 
-- `origin`: The origin of the call. Must be from the IDN chain, verified using the `IdnOrigin` configuration type.
+- `origin`: The origin of the call. Must be filtered by using the `IdnOrigin` configuration type.
 - `pulse`: The randomness pulse to be consumed. Type: `Pulse`.
 - `sub_id`: The subscription ID associated with the pulse. Type: `SubscriptionId`.
 
@@ -181,7 +181,7 @@ This function processes randomness pulses delivered by the IDN chain. The logic 
 
 **Parameters**
 
-- `origin`: The origin of the call. Must be from the IDN chain, verified using the `IdnOrigin` configuration type.
+- `origin`: The origin of the call. Must be filtered by using the `IdnOrigin` configuration type.
 - `quote`: The subscription quote to be consumed. Type: `Quote`.
 
  <!-- TODO: update the following as part of https://github.com/ideal-lab5/idn-sdk/issues/236  -->
@@ -200,7 +200,7 @@ This function processes subscription fee quotes received from the IDN chain. The
 
 **Parameters**
 
-- `origin`: The origin of the call. Must be from the IDN chain, verified using the `IdnOrigin` configuration type.
+- `origin`: The origin of the call. Must be filtered by using the `IdnOrigin` configuration type.
 - `sub_info`: The information about the subscription of interest. Type: `SubInfoResponse`.
 
 This function processes subscription information received from the IDN chain. The behavior for handling the subscription info is defined in the `SubInfoConsumer` trait implementation.
