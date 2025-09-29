@@ -38,6 +38,7 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+pub mod primitives;
 pub mod traits;
 pub mod weights;
 
@@ -126,12 +127,9 @@ pub mod pallet {
 		///
 		/// Example definition:
 		/// ```nocompile
-		/// type IdnOrigin = EnsureXcm<Equals<Self::SiblingIdnLocation>>
+		/// type IdnOriginFilter = EnsureXcm<Equals<Self::SiblingIdnLocation>>
 		/// ```
-		type IdnOrigin: EnsureOrigin<
-			Self::RuntimeOrigin,
-			Success = <Self as frame_system::Config>::AccountId,
-		>;
+		type IdnOriginFilter: EnsureOrigin<Self::RuntimeOrigin, Success = Location>;
 
 		/// A type that exposes XCM APIs, allowing contracts to interact with other parachains and
 		/// execute XCM programs.
@@ -215,8 +213,8 @@ pub mod pallet {
 		/// handling the pulse is defined in the [`PulseConsumer`] trait implementation.
 		///
 		/// # Parameters
-		/// - `origin`: The origin of the call. Must be filtered by using the [`Config::IdnOrigin`]
-		///   type.
+		/// - `origin`: The origin of the call. Must be filtered by using the
+		///   [`Config::IdnOriginFilter`] type.
 		/// - `pulse`: The randomness pulse to be consumed.
 		/// - `sub_id`: The subscription ID associated with the pulse.
 		///
@@ -231,7 +229,7 @@ pub mod pallet {
 			sub_id: SubscriptionId,
 		) -> DispatchResultWithPostInfo {
 			// ensure origin is valid
-			let _ = T::IdnOrigin::ensure_origin(origin)?;
+			let _ = T::IdnOriginFilter::ensure_origin(origin)?;
 
 			T::PulseConsumer::consume_pulse(pulse, sub_id)
 				.map_err(|_| Error::<T>::ConsumePulseError)?;
@@ -248,8 +246,8 @@ pub mod pallet {
 		/// implementation.
 		///
 		/// # Parameters
-		/// - `origin`: The origin of the call. Must be filtered by using the [`Config::IdnOrigin`]
-		///   type.
+		/// - `origin`: The origin of the call. Must be filtered by using the
+		///   [`Config::IdnOriginFilter`] type.
 		/// - `quote`: The subscription quote to be consumed.
 		///
 		/// # Errors
@@ -259,7 +257,7 @@ pub mod pallet {
 		#[allow(clippy::useless_conversion)]
 		pub fn consume_quote(origin: OriginFor<T>, quote: Quote) -> DispatchResultWithPostInfo {
 			// ensure origin is valid
-			let _ = T::IdnOrigin::ensure_origin(origin)?;
+			let _ = T::IdnOriginFilter::ensure_origin(origin)?;
 
 			T::QuoteConsumer::consume_quote(quote.clone())
 				.map_err(|_| Error::<T>::ConsumeQuoteError)?;
@@ -276,8 +274,8 @@ pub mod pallet {
 		/// implementation.
 		///
 		/// # Parameters
-		/// - `origin`: The origin of the call. Must be filtered by using the [`Config::IdnOrigin`]
-		///   type.
+		/// - `origin`: The origin of the call. Must be filtered by using the
+		///   [`Config::IdnOriginFilter`] type.
 		/// - `sub_info`: The subscription information to be consumed.
 		///
 		/// # Errors
@@ -290,7 +288,7 @@ pub mod pallet {
 			sub_info: SubInfoResponse,
 		) -> DispatchResultWithPostInfo {
 			// ensure origin is valid
-			let _ = T::IdnOrigin::ensure_origin(origin)?;
+			let _ = T::IdnOriginFilter::ensure_origin(origin)?;
 
 			T::SubInfoConsumer::consume_sub_info(sub_info.clone())
 				.map_err(|_| Error::<T>::ConsumeSubInfoError)?;
@@ -725,7 +723,7 @@ impl<T: Config> Pallet<T> {
 			WithdrawAsset(idn_fee_asset.clone().into()),
 			BuyExecution { weight_limit: Unlimited, fees: idn_fee_asset.clone() },
 			Transact {
-				origin_kind: OriginKind::Native,
+				origin_kind: OriginKind::Xcm,
 				fallback_max_weight: None,
 				call: call.encode().into(),
 			},

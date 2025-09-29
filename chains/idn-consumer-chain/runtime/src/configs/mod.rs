@@ -43,6 +43,8 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
+#[cfg(not(feature = "runtime-benchmarks"))]
+use pallet_idn_consumer::primitives::AllowSiblingOnly;
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
 use polkadot_runtime_common::{
@@ -319,36 +321,66 @@ parameter_types! {
 	pub IdnConsumerParaId: ParaId = ParachainInfo::parachain_id();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 	pub const MaxIdnXcmFees: u128 = 1_000_000_000_000;
+	pub const IdnParaId: u32 = crate::constants::IDN_PARACHAIN_ID;
 	pub IdnSovereignAccount: AccountId = {
-		let idn_location = Location::new(1, Junction::Parachain(crate::constants::IDN_PARACHAIN_ID));
+		let idn_location = Location::new(1, Junction::Parachain(IdnParaId::get()));
 		xcm_config::LocationToAccountId::convert_location(&idn_location)
 			.expect("IDN sovereign account derivation failed")
 	};
 }
 
-pub struct EnsureIdnSovereignAccount;
-impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for EnsureIdnSovereignAccount {
-	type Success = AccountId;
+// pub struct EnsureIdnSovereignAccount;
+// impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for EnsureIdnSovereignAccount {
+// 	type Success = AccountId;
 
-	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
-		match frame_system::ensure_signed(origin.clone()) {
-			Ok(account_id) => {
-				#[cfg(feature = "runtime-benchmarks")]
-				return Ok(account_id);
-				#[cfg(not(feature = "runtime-benchmarks"))]
-				if account_id == IdnSovereignAccount::get() {
-					Ok(account_id)
-				} else {
-					Err(origin)
-				}
-			},
-			Err(_) => Err(origin),
+// 	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+// 		match frame_system::ensure_signed(origin.clone()) {
+// 			Ok(account_id) => {
+// 				#[cfg(feature = "runtime-benchmarks")]
+// 				return Ok(account_id);
+// 				#[cfg(not(feature = "runtime-benchmarks"))]
+// 				if account_id == IdnSovereignAccount::get() {
+// 					Ok(account_id)
+// 				} else {
+// 					Err(origin)
+// 				}
+// 			},
+// 			Err(_) => Err(origin),
+// 		}
+// 	}
+
+// 	#[cfg(feature = "runtime-benchmarks")]
+// 	fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+// 		Ok(RuntimeOrigin::signed(IdnSovereignAccount::get()))
+// 	}
+// }
+
+#[cfg(feature = "runtime-benchmarks")]
+mod bench_ensure_origin {
+	use crate::RuntimeOrigin;
+	use frame_support::pallet_prelude::EnsureOrigin;
+	use frame_system::ensure_signed;
+	use sp_runtime::AccountId32;
+	use xcm::prelude::{Junction, Location};
+
+	pub const SIBLING_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+	pub const SIBLING_PARA_ID: u32 = 88;
+
+	pub struct BenchEnsureOrigin;
+	impl EnsureOrigin<RuntimeOrigin> for BenchEnsureOrigin {
+		type Success = Location;
+
+		fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+			let caller: AccountId32 = ensure_signed(origin.clone()).unwrap();
+
+			if caller == SIBLING_PARA_ACCOUNT {
+				return Ok(Location::new(1, Junction::Parachain(SIBLING_PARA_ID)));
+			}
+			Err(origin)
 		}
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
-		Ok(RuntimeOrigin::signed(IdnSovereignAccount::get()))
+		fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
+			Ok(RuntimeOrigin::root())
+		}
 	}
 }
 
@@ -358,7 +390,10 @@ impl pallet_idn_consumer::Config for Runtime {
 	type QuoteConsumer = QuoteConsumerImpl;
 	type SubInfoConsumer = SubInfoConsumerImpl;
 	type SiblingIdnLocation = xcm_config::IdnLocation;
-	type IdnOrigin = EnsureIdnSovereignAccount;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type IdnOriginFilter = EnsureXcm<AllowSiblingOnly<IdnParaId>>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type IdnOriginFilter = bench_ensure_origin::BenchEnsureOrigin;
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	type Xcm = PolkadotXcm;
 	#[cfg(feature = "runtime-benchmarks")]

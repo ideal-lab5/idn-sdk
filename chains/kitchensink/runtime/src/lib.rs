@@ -326,39 +326,13 @@ parameter_types! {
 	pub const MaxIdnXcmFees: u128 = 1_000;
 }
 
-pub struct EnsureIdnSovereignAccount;
-impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for EnsureIdnSovereignAccount {
-	type Success = AccountId;
-
-	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
-		match frame_system::ensure_signed(origin.clone()) {
-			Ok(account_id) => {
-				#[cfg(feature = "runtime-benchmarks")]
-				return Ok(account_id);
-				#[cfg(not(feature = "runtime-benchmarks"))]
-				if account_id == MockIdnParaAccount::get() {
-					Ok(account_id)
-				} else {
-					Err(origin)
-				}
-			},
-			Err(_) => Err(origin),
-		}
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
-		Ok(RuntimeOrigin::signed(MockIdnParaAccount::get()))
-	}
-}
-
 impl pallet_idn_consumer::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type PulseConsumer = impls::PulseConsumerImpl;
 	type QuoteConsumer = impls::QuoteConsumerImpl;
 	type SubInfoConsumer = impls::SubInfoConsumerImpl;
 	type SiblingIdnLocation = MockSiblingIdnLocation;
-	type IdnOrigin = EnsureIdnSovereignAccount;
+	type IdnOriginFilter = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, AllowSiblingsOnly>;
 	type Xcm = ();
 	type PalletId = ConsumerPalletId;
 	type ParaId = ConsumerParaId;

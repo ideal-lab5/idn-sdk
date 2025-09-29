@@ -84,11 +84,16 @@ pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId, CallDat
 	pub sub_id: Option<SubscriptionId>,
 }
 
-/// XCM filter for allowing only sibling parachains to call certain functions in the IDN Manager
+/// XCM filter for allowing only sibling parachains or accounts to call certain functions in the IDN
+/// Manager
 pub struct AllowSiblingsOnly;
 impl Contains<Location> for AllowSiblingsOnly {
 	fn contains(location: &Location) -> bool {
-		matches!(location.unpack(), (1, [Junction::Parachain(_)]))
+		match location.unpack() {
+			(1, [Junction::Parachain(_)]) => true,
+			(1, [Junction::Parachain(_), Junction::AccountId32 { .. }]) => true,
+			_ => false,
+		}
 	}
 }
 

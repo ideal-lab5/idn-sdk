@@ -756,7 +756,7 @@ impl IdnClient {
 			WithdrawAsset(idn_fee_asset.clone().into()),
 			BuyExecution { weight_limit: Unlimited, fees: idn_fee_asset.clone() },
 			Transact {
-				origin_kind: OriginKind::Native,
+				origin_kind: OriginKind::Xcm,
 				require_weight_at_most: Weight::MAX,
 				call: call.encode().into(),
 			},

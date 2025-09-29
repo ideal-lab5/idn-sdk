@@ -24,7 +24,7 @@ use crate::{
 };
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
-	pallet_prelude::{Get, OriginTrait, PhantomData},
+	pallet_prelude::{Get, PhantomData},
 	parameter_types,
 	traits::{ConstU32, Contains, Disabled, Equals, Everything, Nothing, TransformOrigin},
 	weights::Weight,
@@ -48,10 +48,7 @@ use xcm_builder::{
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId,
 	UsingComponents, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
 };
-use xcm_executor::{
-	traits::{ConvertLocation, ConvertOrigin},
-	XcmExecutor,
-};
+use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 
 parameter_types! {
 	pub const RelayLocation: Location = Location::parent();
@@ -119,33 +116,33 @@ impl<Network: Get<Option<NetworkId>>> ConvertLocation<AccountId>
 	}
 }
 
-pub struct SiblingOriginSignedAccountId32<Network, RuntimeOrigin>(
-	PhantomData<(Network, RuntimeOrigin)>,
-);
-impl<Network: Get<Option<NetworkId>>, RuntimeOrigin: OriginTrait> ConvertOrigin<RuntimeOrigin>
-	for SiblingOriginSignedAccountId32<Network, RuntimeOrigin>
-where
-	RuntimeOrigin::AccountId: From<[u8; 32]>,
-{
-	fn convert_origin(
-		origin: impl Into<Location>,
-		kind: OriginKind,
-	) -> Result<RuntimeOrigin, Location> {
-		let location = origin.into();
-		log::trace!(
-			target: "runtime::origin_conversion",
-			"location: {:?}, kind: {:?}, converter: {:?}",
-			location, kind,
-			"SiblingOriginSignedAccountId32",
-		);
-		match (kind, location.unpack()) {
-			(OriginKind::Native, (1, [Parachain(_), AccountId32 { network, id }]))
-				if matches!(network, None) || *network == Network::get() =>
-				Ok(RuntimeOrigin::signed((*id).into())),
-			_ => Err(location),
-		}
-	}
-}
+// pub struct SiblingOriginSignedAccountId32<Network, RuntimeOrigin>(
+// 	PhantomData<(Network, RuntimeOrigin)>,
+// );
+// impl<Network: Get<Option<NetworkId>>, RuntimeOrigin: OriginTrait> ConvertOrigin<RuntimeOrigin>
+// 	for SiblingOriginSignedAccountId32<Network, RuntimeOrigin>
+// where
+// 	RuntimeOrigin::AccountId: From<[u8; 32]>,
+// {
+// 	fn convert_origin(
+// 		origin: impl Into<Location>,
+// 		kind: OriginKind,
+// 	) -> Result<RuntimeOrigin, Location> {
+// 		let location = origin.into();
+// 		log::trace!(
+// 			target: "runtime::origin_conversion",
+// 			"location: {:?}, kind: {:?}, converter: {:?}",
+// 			location, kind,
+// 			"SiblingOriginSignedAccountId32",
+// 		);
+// 		match (kind, location.unpack()) {
+// 			(OriginKind::Native, (1, [Parachain(_), AccountId32 { network, id }]))
+// 				if matches!(network, None) || *network == Network::get() =>
+// 				Ok(RuntimeOrigin::signed((*id).into())),
+// 			_ => Err(location),
+// 		}
+// 	}
+// }
 
 /// Type for specifying how a `Location` can be converted into an `AccountId`.
 ///
@@ -184,10 +181,10 @@ pub type FungibleTransactor = FungibleAdapter<
 /// ready for dispatching a transaction with Xcm's `Transact`. There is an `OriginKind` which can
 /// biases the kind of local `Origin` it will become.
 pub type XcmOriginToTransactDispatchOrigin = (
-	// Sibling parachain signed account converter; this attempts to extract an `AccountId` from
-	// a `Location::X2(Parachain, AccountId32)` and turn that into a `Signed` origin. Useful for
-	// XCMs coming from sibling parachains.
-	SiblingOriginSignedAccountId32<RelayNetwork, RuntimeOrigin>,
+	// // Sibling parachain signed account converter; this attempts to extract an `AccountId` from
+	// // a `Location::X2(Parachain, AccountId32)` and turn that into a `Signed` origin. Useful for
+	// // XCMs coming from sibling parachains.
+	// SiblingOriginSignedAccountId32<RelayNetwork, RuntimeOrigin>,
 	// Sovereign account converter; this attempts to derive an `AccountId` from the origin location
 	// using `LocationToAccountId` and then turn that into the usual `Signed` origin. Useful for
 	// foreign chains who want to have a local sovereign account on this chain which they control.

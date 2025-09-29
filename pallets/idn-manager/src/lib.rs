@@ -733,15 +733,15 @@ pub mod pallet {
 			params: QuoteSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
 			log::trace!(target: LOG_TARGET, "Quote subscription request received: {:?}", params);
-			// Ensure the origin is a sibling, and get the location
+			// Ensure the origin is valid, and get the location
 			let requester: Location = T::XcmOriginFilter::ensure_origin(origin.clone())?;
-
-			let deposit  = Self::calculate_storage_deposit_from_create_params(
-				&T::XcmLocationToAccountId::convert_location(&requester)
-					.ok_or_else(|| {
-						log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
-						Error::<T>::InvalidSubscriber
-					})?,
+			let acc = &T::XcmLocationToAccountId::convert_location(&requester)
+								.ok_or_else(|| {
+									log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
+									Error::<T>::InvalidSubscriber
+								})?;
+			let deposit = Self::calculate_storage_deposit_from_create_params(
+				acc,
 				&params.quote_request.create_sub_params,
 			);
 
@@ -755,10 +755,7 @@ pub mod pallet {
 			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
 
 			Self::xcm_send(
-				// TODO: check how this is interpreted by the consumer, as this is a location
-				// origin. Should we instead translate it to an account and generate a Signed
-				// origin?
-				origin,
+				acc,
 				// TODO: this should be an actual target location, not the requester, as this
 				// wouldn't work for contracts
 				&requester,
@@ -783,18 +780,19 @@ pub mod pallet {
 			req: SubInfoRequestOf<T>,
 		) -> DispatchResult {
 			log::trace!(target: LOG_TARGET, "Get subscription info request received: {:?}", req);
-			// Ensure the origin is a sibling, and get the location
+			// Ensure the origin is valid, and get the location
 			let requester: Location = T::XcmOriginFilter::ensure_origin(origin.clone())?;
-
+			let acc = &T::XcmLocationToAccountId::convert_location(&requester)
+								.ok_or_else(|| {
+									log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
+									Error::<T>::InvalidSubscriber
+								})?;
 			let sub =
 				Self::get_subscription(&req.sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 
 			let response = SubInfoResponse { sub, req_ref: req.req_ref };
 			Self::xcm_send(
-				// TODO: check how this is interpreted by the consumer, as this is a location
-				// origin. Should we instead translate it to an account and generate a Signed
-				// origin?
-				origin,
+				acc,
 				// TODO: this should be an actual target location, not the requester, as this
 				// wouldn't work for contracts
 				&requester,
@@ -923,11 +921,10 @@ impl<T: Config> Pallet<T> {
 				sub.last_delivered = Some(current_block);
 
 				let subscriber = sub.subscriber();
-				let origin = T::RuntimeOrigin::from(Some(subscriber.clone()).into());
 
 				// Send the XCM message
 				if let Err(e) = Self::xcm_send(
-					origin,
+					subscriber,
 					&sub.details.target,
 					// Simple concatenation: pre-encoded call data + pulse data
 					{
@@ -1102,10 +1099,11 @@ impl<T: Config> Pallet<T> {
 	/// Though the attacker would not be able to manipulate the call's parameters.
 	// TODO: Solve this issue https://github.com/ideal-lab5/idn-sdk/issues/290
 	fn xcm_send(
-		origin: OriginFor<T>,
+		acc: &AccountIdOf<T>,
 		target: &Location,
 		call: DoubleEncoded<()>,
 	) -> DispatchResult {
+		let origin = T::RuntimeOrigin::from(Some(acc.clone()).into());
 		let fee_asset = Asset {
 			id: AssetId(Location { parents: 1, interior: Junctions::Here }),
 			// TODO: this should be configurable by the consumer for more flexibility https://github.com/ideal-lab5/idn-sdk/issues/372
@@ -1114,7 +1112,7 @@ impl<T: Config> Pallet<T> {
 		let msg = Xcm(vec![
 			WithdrawAsset(fee_asset.clone().into()),
 			BuyExecution { weight_limit: Unlimited, fees: fee_asset.clone() },
-			Transact { origin_kind: OriginKind::SovereignAccount, fallback_max_weight: None, call },
+			Transact { origin_kind: OriginKind::Xcm, fallback_max_weight: None, call },
 			RefundSurplus,
 			DepositAsset {
 				assets: Wild(AllOf { id: fee_asset.id, fun: WildFungibility::Fungible }),

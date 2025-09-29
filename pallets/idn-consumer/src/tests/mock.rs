@@ -39,6 +39,7 @@ construct_runtime!(
 	}
 );
 pub const IDN_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+pub const IDN_PARA_ID: u32 = 88;
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 pub fn mock_sub() -> Subscription {
 	Subscription {
@@ -119,11 +120,11 @@ pub mod sub_info_consumer_impl {
 pub struct MockEnsureXcmIdn;
 
 impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for MockEnsureXcmIdn {
-	type Success = AccountId32;
+	type Success = Location;
 
 	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
 		if origin.clone().into_signer().unwrap() == IDN_PARA_ACCOUNT {
-			return Ok(IDN_PARA_ACCOUNT);
+			return Ok(Location::new(1, [Parachain(IDN_PARA_ID)]));
 		}
 		Err(origin)
 	}
@@ -167,7 +168,7 @@ impl pallet_idn_consumer::Config for Test {
 	type QuoteConsumer = quote_consumer_impl::QuoteConsumerImpl;
 	type SubInfoConsumer = sub_info_consumer_impl::SubInfoConsumerImpl;
 	type SiblingIdnLocation = IdnLocation;
-	type IdnOrigin = MockEnsureXcmIdn;
+	type IdnOriginFilter = MockEnsureXcmIdn;
 	type Xcm = MockXcm;
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
