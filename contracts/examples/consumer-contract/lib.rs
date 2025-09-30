@@ -375,7 +375,7 @@ mod example_consumer {
 			// Create subscription through IDN client
 			let subscription_id = self
 				.idn_client
-				.create_subscription(credits, frequency, metadata, None, None)
+				.create_subscription(credits, frequency, metadata, None, None, None)
 				.map_err(ContractError::IdnClientError)?;
 
 			// Update contract state with the new subscription

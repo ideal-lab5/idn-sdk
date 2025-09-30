@@ -89,35 +89,35 @@ impl<Network: Get<Option<NetworkId>>> ConvertLocation<AccountId>
 	}
 }
 
-// pub struct IdnOriginFilterSignedAccountId32<Network, RuntimeOrigin>(
-// 	PhantomData<(Network, RuntimeOrigin)>,
-// );
-// impl<Network: Get<Option<NetworkId>>, RuntimeOrigin: OriginTrait> ConvertOrigin<RuntimeOrigin>
-// 	for IdnOriginFilterSignedAccountId32<Network, RuntimeOrigin>
-// where
-// 	RuntimeOrigin::AccountId: From<[u8; 32]>,
-// {
-// 	fn convert_origin(
-// 		origin: impl Into<Location>,
-// 		kind: OriginKind,
-// 	) -> Result<RuntimeOrigin, Location> {
-// 		let location = origin.into();
-// 		log::trace!(
-// 			target: "runtime::origin_conversion",
-// 			"location: {:?}, kind: {:?}, converter: {:?}",
-// 			location, kind,
-// 			"IdnOriginFilterSignedAccountId32",
-// 		);
-// 		match (kind, location.unpack()) {
-// 			(
-// 				OriginKind::Native,
-// 				(1, [Parachain(constants::IDN_PARACHAIN_ID), AccountId32 { network, id }]),
-// 			) if matches!(network, None) || *network == Network::get() =>
-// 				Ok(RuntimeOrigin::signed((*id).into())),
-// 			_ => Err(location),
-// 		}
-// 	}
-// }
+pub struct IdnOriginFilterSignedAccountId32<Network, RuntimeOrigin>(
+	PhantomData<(Network, RuntimeOrigin)>,
+);
+impl<Network: Get<Option<NetworkId>>, RuntimeOrigin: OriginTrait> ConvertOrigin<RuntimeOrigin>
+	for IdnOriginFilterSignedAccountId32<Network, RuntimeOrigin>
+where
+	RuntimeOrigin::AccountId: From<[u8; 32]>,
+{
+	fn convert_origin(
+		origin: impl Into<Location>,
+		kind: OriginKind,
+	) -> Result<RuntimeOrigin, Location> {
+		let location = origin.into();
+		log::trace!(
+			target: "runtime::origin_conversion",
+			"location: {:?}, kind: {:?}, converter: {:?}",
+			location, kind,
+			"IdnOriginFilterSignedAccountId32",
+		);
+		match (kind, location.unpack()) {
+			(
+				OriginKind::Native,
+				(1, [Parachain(constants::IDN_PARACHAIN_ID), AccountId32 { network, id }]),
+			) if matches!(network, None) || *network == Network::get() =>
+				Ok(RuntimeOrigin::signed((*id).into())),
+			_ => Err(location),
+		}
+	}
+}
 
 /// Type for specifying how a `Location` can be converted into an `AccountId`.
 ///
@@ -156,10 +156,10 @@ pub type FungibleTransactor = FungibleAdapter<
 /// ready for dispatching a transaction with Xcm's `Transact`. There is an `OriginKind` which can
 /// biases the kind of local `Origin` it will become.
 pub type XcmOriginToTransactDispatchOrigin = (
-	// // Sibling parachain signed account converter; this attempts to extract an `AccountId` from
-	// // a `Location::X2(Parachain, AccountId32)` and turn that into a `Signed` origin. Useful for
-	// // XCMs coming from sibling parachains.
-	// IdnOriginFilterSignedAccountId32<RelayNetwork, RuntimeOrigin>,
+	// This attempts to extract an `AccountId` from a `Location::X2(Parachain, AccountId32)` and
+	// turn that into a `Signed` origin when Parachain is IDN and the `OriginKind` is `Native`.
+	// Useful for contracts, as they can't process Location callers
+	IdnOriginFilterSignedAccountId32<RelayNetwork, RuntimeOrigin>,
 	// Sovereign account converter; this attempts to derive an `AccountId` from the origin location
 	// using `LocationToAccountId` and then turn that into the usual `Signed` origin. Useful for
 	// foreign chains who want to have a local sovereign account on this chain which they control.
