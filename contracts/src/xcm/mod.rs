@@ -98,7 +98,7 @@
 //!
 //! - **Fees**: The `max_idn_xcm_fees` parameter sets the maximum fees to pay for the execution of a
 //!   single XCM message sent to the IDN chain, expressed in relay chain native tokens (DOT/PAS).
-//! - **Asset Handling**: Fees are automatically withdrawn from the contract's sovereign account
+//! - **Asset Handling**: Fees are automatically withdrawn from the contract's account
 //! - **Surplus Refund**: Unused fees are refunded back to the contract after execution
 //! - **Fee Assets**: Uses the relay chain's native token (DOT/PAS) for XCM execution
 //!
@@ -106,16 +106,13 @@
 //!
 //! IDN contract integration requires **two separate accounts** to be funded for proper operation:
 //!
-//! 1. **Contract's Sovereign Account on IDN Chain**: Required for subscription operations
+//! 1. **Contract's Account on IDN Chain**: Required for subscription operations
 //!    - Used for: `create_subscription`, `pause_subscription`, `update_subscription`, etc.
 //!    - Must be funded with: Relay chain native tokens (DOT/PAS)
-//!    - Derivation: `Location(1, [Parachain(consumer_para_id), AccountId32(contract_account)])`
 //!
-//! 2. **IDN's Sovereign Account on Consumer Chain**: Required for randomness delivery
+//! 2. **Contract's Account on Consumer Chain**: Required for randomness delivery
 //!    - Used for: Executing contract calls to deliver randomness pulses
 //!    - Must be funded with: Consumer chain's native tokens
-//!    - Derivation: `Location(1, [Parachain(idn_para_id)])`
-//!    - Paseo address: `5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n`
 //!
 //! The library handles all fee-related XCM instructions automatically, but both accounts
 //! must be adequately funded or operations will fail with "Funds are unavailable" errors.
@@ -726,18 +723,17 @@ impl IdnClient {
 	///
 	/// This function constructs and dispatches an XCM message using the provided `RuntimeCall`.
 	/// The message includes the following instructions:
-	/// - `WithdrawAsset`: Withdraws relay chain native tokens (DOT/PAS) from the contract's
-	///   sovereign account on the IDN chain for XCM execution fees.
+	/// - `WithdrawAsset`: Withdraws relay chain native tokens (DOT/PAS) from the contract's account
+	///   on the IDN chain for XCM execution fees.
 	/// - `BuyExecution`: Pays for the execution of the XCM message with the withdrawn asset.
 	/// - `Transact`: Executes the provided `RuntimeCall` on the IDN chain.
-	/// - `RefundSurplus`: Refunds any surplus fees back to the contract's sovereign account.
-	/// - `DepositAsset`: Deposits the refunded asset back into the contract's sovereign account.
+	/// - `RefundSurplus`: Refunds any surplus fees back to the contract's account.
+	/// - `DepositAsset`: Deposits the refunded asset back into the contract's account.
 	///
 	/// # Funding Requirements
 	///
-	/// The contract's sovereign account on the IDN chain must be funded with sufficient relay chain
-	/// native tokens before calling this method. The sovereign account is derived from:
-	/// `Location(1, [Parachain(consumer_para_id), AccountId32(contract_account)])`
+	/// The contract's account on the IDN chain must be funded with sufficient relay chain
+	/// native tokens before calling this method.
 	///
 	/// # Parameters
 	/// - `call`: The `RuntimeCall` to be executed on the IDN chain.
@@ -804,7 +800,7 @@ impl IdnClient {
 	/// Helper function to get the location of this contract's address on the IDN parachain
 	///
 	/// Creates an XCM Location representing this contract's account from the IDN chain's
-	/// perspective. Used for XCM fee refunds and asset deposits back to the contract's sovereign
+	/// perspective. Used for XCM fee refunds and asset deposits back to the contract's
 	/// account.
 	///
 	/// # Returns

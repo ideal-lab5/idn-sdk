@@ -16,7 +16,7 @@
 
 use super::constants::{
 	CONSUMER_PARA_ID_PASEO, CONTRACTS_CALL_INDEX, CONTRACTS_PALLET_INDEX_PASEO,
-	IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO, SOVEREIGN_ACCOUNT_IDN_PASEO,
+	IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO,
 };
 use ink::env::DefaultEnvironment;
 
@@ -121,22 +121,6 @@ impl From<ContractsCallIndex> for u8 {
 		match index {
 			ContractsCallIndex::Call => CONTRACTS_CALL_INDEX,
 			ContractsCallIndex::Other(i) => i,
-		}
-	}
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[ink::scale_derive(Encode, Decode, TypeInfo)]
-pub enum SovereignAccount {
-	IdnOnPaseo,
-	Other([u8; 32]),
-}
-
-impl From<SovereignAccount> for [u8; 32] {
-	fn from(account: SovereignAccount) -> Self {
-		match account {
-			SovereignAccount::IdnOnPaseo => SOVEREIGN_ACCOUNT_IDN_PASEO,
-			SovereignAccount::Other(id) => id,
 		}
 	}
 }

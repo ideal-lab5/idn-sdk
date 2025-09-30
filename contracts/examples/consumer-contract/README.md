@@ -43,13 +43,12 @@ To deploy this contract:
 
 2. Deploy to your parachain using your preferred method (e.g., Contracts UI)
 
-3. **⚠️ CRITICAL**: Fund your contract's sovereign account on the IDN chain and the IDN sovereign account on the consumer chain. See the [detailed funding guide](../idn-client-contract-lib/README.md#account-funding-requirements) for step-by-step instructions.
+3. **⚠️ CRITICAL**: Fund your contract's account on the IDN chain and the contract's account on the consumer chain. See the [detailed funding guide](../idn-client-contract-lib/README.md#account-funding-requirements) for step-by-step instructions.
 
 4. Initialize with the required parameters:
 
    ```
    new(
-   		idn_account_id: SovereignAccount,
    		idn_para_id: IdnParaId,
    		idn_manager_pallet_index: IdnManagerPalletIndex,
    		self_para_id: ConsumerParaId,
@@ -316,7 +315,7 @@ To adapt this contract for your needs:
 
 When deploying on a real network:
 
-1. **Fund Sovereign Accounts**: **MOST IMPORTANT** - Follow the [detailed funding guide](../idn-client-contract-lib/README.md#contractaccount-funding-requirements)
+1. **Fund Accounts**: Follow the [detailed funding guide](../../src/xcm/README.md#account-funding-requirements)
 2. **Configure IDN Account**: Set the correct `idn_account_id` for the authorized IDN account
 3. **Set Network Parameters**: Configure `idn_para_id` and `self_para_id` to match your deployment environment
 4. **Configure Pallet Indices**: Set correct `idn_manager_pallet_index` and `self_contracts_pallet_index` values

@@ -34,8 +34,3 @@ pub const CONTRACTS_PALLET_INDEX_PASEO: PalletIndex = 16;
 
 /// Call index for the `call` dispatchable in the Contracts pallet
 pub const CONTRACTS_CALL_INDEX: u8 = 6;
-
-/// Sovereign account ID for the IDN parachain on Paseo relay chain
-/// This is the account that represents the IDN parachain in cross-chain operations
-pub const SOVEREIGN_ACCOUNT_IDN_PASEO: [u8; 32] =
-	hex_literal::hex!("7369626c96110000000000000000000000000000000000000000000000000000");
