@@ -215,13 +215,13 @@ mod example_consumer {
 		Other,
 	}
 	#[ink(event)]
-	pub struct AuthenticatingCaller {
+	pub struct CallerAuthorized {
 		#[ink(topic)]
 		caller: AccountId,
 	}
 
 	#[ink(event)]
-	pub struct PulseReceivedEvent {
+	pub struct PulseConsumed {
 		#[ink(topic)]
 		pulse: Pulse,
 	}
@@ -591,24 +591,26 @@ mod example_consumer {
 			self.last_randomness = Some(randomness);
 			self.add_to_randomness_history(randomness);
 
+			Self::env().emit_event(PulseConsumed { pulse });
+
 			Ok(())
 		}
 
 		fn ensure_authorized(&self) -> Result<(), ContractError> {
 			let caller = Self::env().caller();
-			Self::env().emit_event(AuthenticatingCaller { caller });
 			if self.owner != caller {
 				return Err(ContractError::Unauthorized);
 			}
+			Self::env().emit_event(CallerAuthorized { caller });
 			Ok(())
 		}
 
 		fn ensure_authorized_deliverer(&self) -> Result<(), ContractError> {
 			let caller = Self::env().caller();
-			Self::env().emit_event(AuthenticatingCaller { caller });
 			if !self.authorized_deliverers.contains(&caller) {
 				return Err(ContractError::Unauthorized);
 			}
+			Self::env().emit_event(CallerAuthorized { caller });
 			Ok(())
 		}
 
@@ -696,23 +698,22 @@ mod example_consumer {
 			pulse: Pulse,
 			subscription_id: SubscriptionId,
 		) -> Result<(), Error> {
-			Self::env().emit_event(PulseReceivedEvent { pulse: pulse.clone() });
 			// Make sure the caller is the IDN account
-			let _ = self.ensure_authorized_deliverer();
+			self.ensure_authorized_deliverer()?;
 
-			// // Verify that the subscription ID matches our active subscription
-			// if subscription_id != self.ensure_active_sub()? {
-			// 	return Err(Error::InvalidSubscriptionId);
-			// }
+			// Verify that the subscription ID matches our active subscription
+			if subscription_id != self.ensure_active_sub()? {
+				return Err(Error::InvalidSubscriptionId);
+			}
 
-			// let validity = match self.ensure_valid_pulse(&pulse) {
-			// 	Ok(_) => PulseValidity::Valid,
-			// 	Err(_) => PulseValidity::Invalid,
-			// };
-			// self.add_to_pulse_history(pulse.clone(), validity.clone());
-			// if validity == PulseValidity::Valid {
-			// 	return self.do_consume_pulse(pulse).map_err(|e| e.into());
-			// }
+			let validity = match self.ensure_valid_pulse(&pulse.clone()) {
+				Ok(_) => PulseValidity::Valid,
+				Err(_) => PulseValidity::Invalid,
+			};
+			self.add_to_pulse_history(pulse.clone(), validity.clone());
+			if validity == PulseValidity::Valid {
+				return self.do_consume_pulse(pulse).map_err(|e| e.into());
+			}
 			Ok(())
 		}
 
