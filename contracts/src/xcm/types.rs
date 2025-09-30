@@ -22,8 +22,8 @@ use ink::env::DefaultEnvironment;
 
 pub use bp_idn::types::{
 	xcm as IdnXcm, Balance as IdnBalance, BlockNumber as IdnBlockNumber, CallData, CreateSubParams,
-	Credits, Metadata, OpaqueSignature as Pubkey, Quote, RuntimePulse as Pulse, SubInfoResponse,
-	SubscriptionId, UpdateSubParams,
+	Credits, Metadata, OpaqueSignature as Pubkey, OriginKind, Quote, RuntimePulse as Pulse,
+	SubInfoResponse, SubscriptionId, UpdateSubParams,
 };
 pub type ParaId = u32;
 pub type PalletIndex = u8;

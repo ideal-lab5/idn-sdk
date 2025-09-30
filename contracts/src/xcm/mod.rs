@@ -175,7 +175,8 @@ use scale_info::prelude::vec::Vec;
 use sp_idn_traits::pulse::Pulse as TPulse;
 use types::{
 	AccountId, Balance, CallData, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata,
-	PalletIndex, ParaId, Pulse, Quote, SubInfoResponse, SubscriptionId, UpdateSubParams,
+	OriginKind, PalletIndex, ParaId, Pulse, Quote, SubInfoResponse, SubscriptionId,
+	UpdateSubParams,
 };
 
 pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
@@ -490,6 +491,8 @@ impl IdnClient {
 	/// - `frequency`: Distribution interval measured in IDN block numbers
 	/// - `metadata`: Optional bounded data for application-specific context
 	/// - `sub_id`: Optional subscription ID; if None, auto-generated
+	/// - `origin_kind`: Optional [`OriginKind`] for the XCM message; defaults to
+	///   `OriginKind::Native`
 	///
 	/// # Returns
 	/// Returns the subscription ID that was created or provided.
@@ -504,6 +507,7 @@ impl IdnClient {
 		metadata: Option<Metadata>,
 		sub_id: Option<SubscriptionId>,
 		call_params: Option<ContractCallParams>,
+		origin_kind: Option<OriginKind>,
 	) -> Result<SubscriptionId> {
 		if credits == 0 || frequency == 0 {
 			return Err(Error::InvalidParams);
@@ -516,6 +520,7 @@ impl IdnClient {
 			frequency,
 			metadata,
 			sub_id,
+			origin_kind,
 		};
 
 		// If `sub_id` is not provided, generate a new one and assign it to the params

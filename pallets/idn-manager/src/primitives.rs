@@ -19,7 +19,7 @@
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use frame_support::{traits::Contains, BoundedVec};
 use scale_info::TypeInfo;
-pub use xcm::prelude::{Junction, Junctions, Location};
+pub use xcm::prelude::{Junction, Junctions, Location, OriginKind as XcmOriginKind};
 
 /// The type for the metadata of a subscription
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
@@ -76,6 +76,8 @@ pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId, CallDat
 	pub target: Location,
 	// Pre-encoded call data for XCM message. This is usually [`SubscriptionCallData`].
 	pub call: CallData,
+	// Origin kind for the XCM message
+	pub origin_kind: OriginKind,
 	// Distribution interval for pulses
 	pub frequency: Frequency,
 	// Bounded vector for additional data
@@ -162,4 +164,57 @@ pub struct SubInfoResponse<Sub> {
 	/// References the [`SubInfoRequest`]`
 	pub req_ref: RequestReference,
 	pub sub: Sub,
+}
+
+/// Local version of the [`XcmOriginKind`] enum to solve missing implementations on it.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+)]
+pub enum OriginKind {
+	/// Origin should just be the native dispatch origin representation for the sender in the
+	/// local runtime framework. For Cumulus/Frame chains this is the `Parachain` or `Relay` origin
+	/// if coming from a chain, though there may be others if the `MultiLocation` XCM origin has a
+	/// primary/native dispatch origin form.
+	Native,
+
+	/// Origin should just be the standard account-based origin with the sovereign account of
+	/// the sender. For Cumulus/Frame chains, this is the `Signed` origin.
+	SovereignAccount,
+
+	/// Origin should be the super-user. For Cumulus/Frame chains, this is the `Root` origin.
+	/// This will not usually be an available option.
+	Superuser,
+
+	/// Origin should be interpreted as an XCM native origin and the `MultiLocation` should be
+	/// encoded directly in the dispatch origin unchanged. For Cumulus/Frame chains, this will be
+	/// the `pallet_xcm::Origin::Xcm` type.
+	Xcm,
+}
+
+impl From<OriginKind> for XcmOriginKind {
+	fn from(kind: OriginKind) -> Self {
+		match kind {
+			OriginKind::Native => XcmOriginKind::Native,
+			OriginKind::SovereignAccount => XcmOriginKind::SovereignAccount,
+			OriginKind::Superuser => XcmOriginKind::Superuser,
+			OriginKind::Xcm => XcmOriginKind::Xcm,
+		}
+	}
+}
+
+impl From<XcmOriginKind> for OriginKind {
+	fn from(kind: XcmOriginKind) -> Self {
+		match kind {
+			XcmOriginKind::Native => OriginKind::Native,
+			XcmOriginKind::SovereignAccount => OriginKind::SovereignAccount,
+			XcmOriginKind::Superuser => OriginKind::Superuser,
+			XcmOriginKind::Xcm => OriginKind::Xcm,
+		}
+	}
+}
+
+impl Default for OriginKind {
+	fn default() -> Self {
+		OriginKind::Xcm
+	}
 }

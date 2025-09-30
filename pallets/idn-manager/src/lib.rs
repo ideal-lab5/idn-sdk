@@ -60,7 +60,7 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubInfoResponse,
+		CreateSubParams, OriginKind, Quote, QuoteSubParams, SubInfoRequest, SubInfoResponse,
 		SubscriptionCallData, SubscriptionMetadata,
 	},
 	traits::{
@@ -94,7 +94,7 @@ use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use xcm::{
 	prelude::{
 		AllOf, Asset, AssetFilter::Wild, AssetId, BuyExecution, DepositAsset, Junctions, Location,
-		OriginKind, RefundSurplus, Transact, Unlimited, WildFungibility, WithdrawAsset, Xcm,
+		RefundSurplus, Transact, Unlimited, WildFungibility, WithdrawAsset, Xcm,
 	},
 	DoubleEncoded, VersionedLocation, VersionedXcm,
 };
@@ -180,6 +180,8 @@ pub struct SubscriptionDetails<AccountId, CallData> {
 	pub target: Location,
 	// Pre-encoded call data for dispatching the XCM call
 	pub call: CallData,
+	// The kind of origin to use for the XCM call
+	pub origin_kind: OriginKind,
 }
 
 /// The AccountId type used in the pallet, derived from the configuration.
@@ -509,6 +511,7 @@ pub mod pallet {
 				subscriber: subscriber.clone(),
 				target: params.target.clone(),
 				call: params.call.clone(),
+				origin_kind: OriginKind::default(),
 			};
 
 			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(
@@ -765,6 +768,8 @@ pub mod pallet {
 					call_data.extend(&quote.encode());
 					call_data.into()
 				},
+				// TODO: this should be read from the `QuoteSubParamsOf` details
+				OriginKind::Xcm,
 			)?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
 
@@ -802,6 +807,8 @@ pub mod pallet {
 					call_data.extend(&response.encode());
 					call_data.into()
 				},
+				// TODO: this should be read from the `SubInfoRequestOf` details
+				OriginKind::Xcm,
 			)?;
 			Self::deposit_event(Event::SubscriptionDistributed { sub_id: req.sub_id });
 
@@ -850,6 +857,7 @@ impl<T: Config> Pallet<T> {
 			subscriber: subscriber.clone(),
 			target: params.target.clone(),
 			call: params.call.clone(),
+			origin_kind: OriginKind::default(),
 		};
 
 		let subscription = Subscription {
@@ -932,6 +940,8 @@ impl<T: Config> Pallet<T> {
 						call_data.extend((&pulse, &sub_id).encode());
 						call_data.into()
 					},
+					// TODO: this should be read from the `QuoteSubParamsOf` details
+					OriginKind::Xcm,
 				) {
 					Self::pause_subscription_on_error(sub_id, sub, "Failed to dispatch XCM", e);
 					continue;
@@ -1102,6 +1112,7 @@ impl<T: Config> Pallet<T> {
 		acc: &AccountIdOf<T>,
 		target: &Location,
 		call: DoubleEncoded<()>,
+		origin_kind: OriginKind,
 	) -> DispatchResult {
 		let origin = T::RuntimeOrigin::from(Some(acc.clone()).into());
 		let fee_asset = Asset {
@@ -1112,7 +1123,7 @@ impl<T: Config> Pallet<T> {
 		let msg = Xcm(vec![
 			WithdrawAsset(fee_asset.clone().into()),
 			BuyExecution { weight_limit: Unlimited, fees: fee_asset.clone() },
-			Transact { origin_kind: OriginKind::Xcm, fallback_max_weight: None, call },
+			Transact { origin_kind: origin_kind.into(), fallback_max_weight: None, call },
 			RefundSurplus,
 			DepositAsset {
 				assets: Wild(AllOf { id: fee_asset.id, fun: WildFungibility::Fungible }),

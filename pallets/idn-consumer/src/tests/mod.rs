@@ -35,7 +35,8 @@ fn test_create_subscription_success() {
 			credits,
 			frequency,
 			metadata,
-			sub_id
+			sub_id,
+			None,
 		));
 	});
 }
@@ -55,7 +56,8 @@ fn test_create_subscription_with_id() {
 				credits,
 				frequency,
 				metadata,
-				sub_id
+				sub_id,
+				None,
 			)
 			.unwrap(),
 			sub_id.unwrap()
@@ -78,12 +80,13 @@ fn test_create_subscription_correct_sub_id_multiple_blocks() {
 				credits,
 				frequency,
 				metadata.clone(),
-				sub_id
+				sub_id,
+				None,
 			)
 			.unwrap(),
 			[
-				178, 117, 254, 41, 171, 62, 62, 226, 86, 105, 136, 96, 187, 23, 29, 116, 166, 208,
-				159, 190, 137, 157, 228, 249, 225, 131, 199, 160, 151, 144, 43, 133
+				9, 233, 225, 114, 169, 23, 66, 41, 10, 208, 122, 213, 236, 89, 155, 149, 61, 218,
+				143, 179, 87, 83, 76, 234, 154, 229, 143, 171, 57, 220, 134, 17
 			]
 		);
 
@@ -97,12 +100,13 @@ fn test_create_subscription_correct_sub_id_multiple_blocks() {
 				credits,
 				frequency,
 				metadata,
-				sub_id
+				sub_id,
+				None,
 			)
 			.unwrap(),
 			[
-				85, 122, 213, 233, 200, 12, 191, 4, 119, 177, 182, 206, 37, 65, 56, 19, 77, 106,
-				197, 167, 90, 162, 63, 114, 101, 210, 89, 185, 181, 35, 219, 206
+				95, 26, 12, 203, 36, 40, 150, 168, 240, 11, 6, 2, 85, 227, 6, 240, 40, 37, 18, 174,
+				233, 208, 189, 226, 103, 254, 157, 135, 29, 67, 252, 208
 			]
 		);
 	});
@@ -126,6 +130,7 @@ fn test_create_subscription_fails() {
 			frequency,
 			metadata,
 			sub_id,
+			None,
 		);
 
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
@@ -474,7 +479,7 @@ fn test_get_subscription_success() {
 		assert_ok!(crate::Pallet::<Test>::do_request_sub_info(
 			RuntimeOrigin::signed(ALICE),
 			sub_id,
-			req_ref
+			req_ref,
 		));
 	});
 }
@@ -512,7 +517,8 @@ fn test_sudo_create_subscription_success() {
 			credits,
 			frequency,
 			metadata,
-			sub_id
+			sub_id,
+			None,
 		));
 	});
 }
@@ -575,7 +581,7 @@ fn test_sudo_request_quote_success() {
 			frequency,
 			metadata,
 			sub_id,
-			req_ref
+			req_ref,
 		));
 	});
 }
@@ -588,7 +594,7 @@ fn test_sudo_request_sub_info_success() {
 		assert_ok!(crate::Pallet::<Test>::request_sub_info(
 			RuntimeOrigin::signed(ALICE),
 			sub_id,
-			req_ref
+			req_ref,
 		));
 	});
 }

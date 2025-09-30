@@ -17,7 +17,7 @@
 //! # Tests for the IDN Manager pallet
 
 use crate::{
-	primitives::{Quote, QuoteRequest, QuoteSubParams},
+	primitives::{OriginKind, Quote, QuoteRequest, QuoteSubParams},
 	runtime_decl_for_idn_manager_api::IdnManagerApiV1,
 	tests::mock::{self, Balances, ExtBuilder, Test, *},
 	traits::{BalanceDirection, DepositCalculator, DiffBalance, FeesManager},
@@ -76,6 +76,7 @@ fn update_subscription(
 			frequency: original_frequency,
 			metadata,
 			sub_id: None,
+			origin_kind: OriginKind::Xcm,
 		}
 	));
 
@@ -190,6 +191,7 @@ fn create_subscription_works() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -243,6 +245,7 @@ fn create_subscription_with_custom_id_works() {
 				frequency,
 				metadata: None,
 				sub_id: Some(custom_id),
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -279,6 +282,7 @@ fn create_subscription_fails_if_insufficient_balance() {
 					frequency,
 					metadata: None,
 					sub_id: None,
+					origin_kind: OriginKind::Xcm,
 				}
 			),
 			TokenError::FundsUnavailable
@@ -311,6 +315,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -327,6 +332,7 @@ fn create_subscription_fails_if_sub_already_exists() {
 					frequency,
 					metadata: None,
 					sub_id: None,
+					origin_kind: OriginKind::Xcm,
 				}
 			),
 			Error::<Test>::SubscriptionAlreadyExists
@@ -361,6 +367,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 					frequency,
 					metadata: None,
 					sub_id: None,
+					origin_kind: OriginKind::Xcm,
 				}
 			));
 		}
@@ -380,6 +387,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 					frequency,
 					metadata: None,
 					sub_id: None,
+					origin_kind: OriginKind::Xcm,
 				}
 			),
 			Error::<Test>::TooManySubscriptions
@@ -404,6 +412,7 @@ fn create_subscription_fails_if_too_many_subscriptions() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 	});
@@ -430,6 +439,7 @@ fn test_kill_subscription() {
 				frequency,
 				metadata,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -491,6 +501,7 @@ fn on_finalize_removes_finalized_subscriptions() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -606,6 +617,7 @@ fn update_does_not_update_when_params_are_none() {
 				frequency,
 				metadata: metadata.clone(),
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -683,6 +695,7 @@ fn test_credits_consumption_and_cleanup() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -806,6 +819,7 @@ fn test_credits_consumption_not_enough_balance() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -864,6 +878,7 @@ fn test_credits_consumption_xcm_send_fails() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -925,6 +940,7 @@ fn test_credits_consumption_frequency() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1007,6 +1023,7 @@ fn test_sub_state_is_finalized_when_credits_left_goes_low() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1057,6 +1074,7 @@ fn test_pause_reactivate_subscription() {
 				frequency,
 				metadata,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1123,6 +1141,7 @@ fn pause_subscription_fails_if_sub_already_paused() {
 				frequency,
 				metadata,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1178,6 +1197,7 @@ fn reactivate_subscription_fails_if_sub_already_active() {
 				frequency,
 				metadata,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1217,6 +1237,7 @@ fn operations_fail_if_origin_is_not_the_subscriber() {
 				frequency,
 				metadata,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1291,6 +1312,7 @@ fn test_on_finalize_removes_finished_subscriptions() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1485,6 +1507,7 @@ fn test_get_subscription() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1532,6 +1555,7 @@ fn test_get_subscriptions_for_subscriber() {
 				frequency: 10,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1544,6 +1568,7 @@ fn test_get_subscriptions_for_subscriber() {
 				frequency: 20,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1557,6 +1582,7 @@ fn test_get_subscriptions_for_subscriber() {
 				frequency: 15,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1643,6 +1669,7 @@ fn test_runtime_api_get_subscription() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1690,6 +1717,7 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 				frequency: 10,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1702,6 +1730,7 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 				frequency: 20,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1715,6 +1744,7 @@ fn test_runtime_api_get_subscriptions_for_subscriber() {
 				frequency: 15,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 
@@ -1781,6 +1811,7 @@ fn test_quote_subscription_works() {
 			frequency,
 			metadata: None,
 			sub_id: None,
+			origin_kind: OriginKind::Xcm,
 		};
 
 		let req_ref = [1; 32];
@@ -1795,7 +1826,7 @@ fn test_quote_subscription_works() {
 		// Verify the XCM message was sent
 		System::assert_last_event(RuntimeEvent::IdnManager(Event::<Test>::SubQuoted {
 			requester: Location::new(1, [Junction::Parachain(mock::SIBLING_PARA_ID)]),
-			quote: Quote { req_ref, fees, deposit: 1200 },
+			quote: Quote { req_ref, fees, deposit: 1210 },
 		}));
 	});
 }
@@ -1817,6 +1848,7 @@ fn test_quote_subscription_fails_for_invalid_origin() {
 			frequency: 10,
 			metadata: None,
 			sub_id: None,
+			origin_kind: OriginKind::Xcm,
 		};
 
 		let req_ref = [1; 32];
@@ -1856,6 +1888,7 @@ fn test_get_subscription_xcm_works() {
 				frequency,
 				metadata: None,
 				sub_id: None,
+				origin_kind: OriginKind::Xcm,
 			}
 		));
 

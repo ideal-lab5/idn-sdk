@@ -19,7 +19,7 @@ use crate::{
 	traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer},
 	Pulse, Quote, SubInfoResponse, SubscriptionId,
 };
-use bp_idn::types::{Subscription, SubscriptionDetails, SubscriptionState};
+use bp_idn::types::{OriginKind, Subscription, SubscriptionDetails, SubscriptionState};
 use codec::Encode;
 use cumulus_primitives_core::ParaId;
 use frame_support::{
@@ -50,6 +50,7 @@ pub fn mock_sub() -> Subscription {
 			subscriber: AccountId32::new([0u8; 32]),
 			target: Location::here(),
 			call: [0u8, 0u8].encode().try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		},
 		created_at: 0,
 		updated_at: 0,

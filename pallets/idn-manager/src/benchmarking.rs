@@ -18,8 +18,9 @@
 
 use super::*;
 use crate::{
-	pallet::Pallet as IdnManager, primitives::QuoteRequest, CreateSubParamsOf, SubInfoRequestOf,
-	UpdateSubParamsOf,
+	pallet::Pallet as IdnManager,
+	primitives::{OriginKind, QuoteRequest},
+	CreateSubParamsOf, SubInfoRequestOf, UpdateSubParamsOf,
 };
 use frame_benchmarking::v2::*;
 use frame_support::{
@@ -82,6 +83,7 @@ mod benchmarks {
 			frequency,
 			metadata,
 			sub_id,
+			origin_kind: OriginKind::Xcm,
 		};
 
 		#[extrinsic_call]
@@ -119,6 +121,7 @@ mod benchmarks {
 				frequency,
 				metadata,
 				sub_id,
+				origin_kind: OriginKind::Xcm,
 			},
 		);
 		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
@@ -158,6 +161,7 @@ mod benchmarks {
 				frequency,
 				metadata,
 				sub_id,
+				origin_kind: OriginKind::Xcm,
 			},
 		);
 		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
@@ -196,6 +200,7 @@ mod benchmarks {
 				frequency,
 				metadata,
 				sub_id,
+				origin_kind: OriginKind::Xcm,
 			},
 		);
 		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
@@ -253,6 +258,7 @@ mod benchmarks {
 				frequency,
 				metadata,
 				sub_id,
+				origin_kind: OriginKind::Xcm,
 			},
 		);
 		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
@@ -296,6 +302,7 @@ mod benchmarks {
 			frequency,
 			metadata,
 			sub_id,
+			origin_kind: OriginKind::Xcm,
 		};
 
 		let req_ref = [1; 32];
@@ -348,6 +355,7 @@ mod benchmarks {
 				frequency,
 				metadata,
 				sub_id: Some(sub_id),
+				origin_kind: OriginKind::Xcm,
 			},
 		);
 		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
@@ -389,6 +397,7 @@ mod benchmarks {
 				frequency,
 				metadata,
 				sub_id: Some(sub_id),
+				origin_kind: OriginKind::Xcm,
 			},
 		);
 		assert!(result.is_ok(), "Failed to create subscription: {:?}", result);
@@ -480,6 +489,7 @@ mod benchmarks {
 					frequency,
 					metadata: None,
 					sub_id: None,
+					origin_kind: OriginKind::Xcm,
 				},
 			);
 

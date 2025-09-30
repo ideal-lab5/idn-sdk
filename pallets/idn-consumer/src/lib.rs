@@ -44,8 +44,8 @@ pub mod weights;
 
 use bp_idn::{
 	types::{
-		BlockNumber as IdnBlockNumber, CallData, CreateSubParams, Credits, Metadata, QuoteRequest,
-		QuoteSubParams, RequestReference, SubInfoRequest, UpdateSubParams,
+		BlockNumber as IdnBlockNumber, CallData, CreateSubParams, Credits, Metadata, OriginKind,
+		QuoteRequest, QuoteSubParams, RequestReference, SubInfoRequest, UpdateSubParams,
 	},
 	Call as RuntimeCall, IdnManagerCall,
 };
@@ -64,7 +64,9 @@ use sp_runtime::traits::TryConvert;
 use traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer};
 use xcm::{
 	v5::{
-		prelude::{BuyExecution, DepositAsset, OriginKind, RefundSurplus, Transact, Xcm},
+		prelude::{
+			BuyExecution, DepositAsset, OriginKind as XcmOriginKind, RefundSurplus, Transact, Xcm,
+		},
 		Asset,
 		AssetFilter::Wild,
 		AssetId, Junction, Junctions, Location,
@@ -307,6 +309,7 @@ pub mod pallet {
 		/// - `frequency`: Distribution interval for pulses.
 		/// - `metadata`: Optional additional data for the subscription.
 		/// - `sub_id`: Optional subscription ID. If `None`, a new one will be generated.
+		/// - `origin_kind`: Optional origin kind for the XCM message.
 		///
 		/// # Returns
 		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
@@ -327,10 +330,18 @@ pub mod pallet {
 			frequency: IdnBlockNumber,
 			metadata: Option<Metadata>,
 			sub_id: Option<SubscriptionId>,
+			origin_kind: Option<OriginKind>,
 		) -> DispatchResultWithPostInfo {
 			ensure_signed(origin.clone())?;
 
-			Self::do_create_subscription(origin, credits, frequency, metadata, sub_id)?;
+			Self::do_create_subscription(
+				origin,
+				credits,
+				frequency,
+				metadata,
+				sub_id,
+				origin_kind,
+			)?;
 			Ok(Pays::No.into())
 		}
 
@@ -538,7 +549,10 @@ impl<T: Config> Pallet<T> {
 		metadata: Option<Metadata>,
 		// Optional Subscription Id, if None, a new one will be generated
 		sub_id: Option<SubscriptionId>,
+		// Origin kind for the XCM message; defaults to `OriginKind::Xcm`
+		origin_kind: Option<OriginKind>,
 	) -> Result<SubscriptionId, Error<T>> {
+		let origin_kind = origin_kind.unwrap_or(OriginKind::Xcm);
 		let mut params = CreateSubParams {
 			credits,
 			target: Self::self_para_sibling_location()?,
@@ -546,6 +560,7 @@ impl<T: Config> Pallet<T> {
 			frequency,
 			metadata,
 			sub_id,
+			origin_kind,
 		};
 
 		// If `sub_id` is not provided, generate a new one and assign it to the params
@@ -640,6 +655,7 @@ impl<T: Config> Pallet<T> {
 			frequency,
 			metadata,
 			sub_id,
+			origin_kind: OriginKind::default(),
 		};
 
 		// If `req_ref` is not provided, generate a new one and assign it to the params
@@ -723,7 +739,7 @@ impl<T: Config> Pallet<T> {
 			WithdrawAsset(idn_fee_asset.clone().into()),
 			BuyExecution { weight_limit: Unlimited, fees: idn_fee_asset.clone() },
 			Transact {
-				origin_kind: OriginKind::Xcm,
+				origin_kind: XcmOriginKind::Xcm,
 				fallback_max_weight: None,
 				call: call.encode().into(),
 			},

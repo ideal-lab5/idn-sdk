@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::pallet::Pallet as IdnConsumer;
-use bp_idn::types::{Subscription, SubscriptionDetails, SubscriptionState};
+use bp_idn::types::{OriginKind, Subscription, SubscriptionDetails, SubscriptionState};
 use frame_benchmarking::v2::*;
 use frame_support::sp_runtime::AccountId32;
 use frame_system::{Pallet as System, RawOrigin};
@@ -33,6 +33,7 @@ fn mock_sub() -> Subscription {
 			subscriber: AccountId32::new([0u8; 32]),
 			target: Location::here(),
 			call: [0, 0].encode().try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		},
 		created_at: 0,
 		updated_at: 0,
@@ -107,6 +108,7 @@ mod benchmarks {
 				frequency,
 				metadata,
 				sub_id,
+				None,
 			)
 			.expect("do_create_subscription should not fail");
 		}
@@ -211,6 +213,7 @@ mod benchmarks {
 		let metadata = None;
 		let sub_id = None;
 		let origin = RawOrigin::Root;
+		let origin_kind = None;
 
 		#[block]
 		{
@@ -220,6 +223,7 @@ mod benchmarks {
 				frequency,
 				metadata,
 				sub_id,
+				origin_kind,
 			)
 			.expect("create_subscription should not fail");
 		}
