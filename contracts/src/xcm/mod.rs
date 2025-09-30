@@ -153,7 +153,8 @@ use ink::{
 	xcm::{
 		lts::{
 			prelude::{
-				BuyExecution, DepositAsset, OriginKind, RefundSurplus, Transact, WithdrawAsset, Xcm,
+				BuyExecution, DepositAsset, OriginKind as XcmOriginKind, RefundSurplus, Transact,
+				WithdrawAsset, Xcm,
 			},
 			Asset,
 			AssetFilter::Wild,
@@ -520,7 +521,7 @@ impl IdnClient {
 			frequency,
 			metadata,
 			sub_id,
-			origin_kind,
+			origin_kind: origin_kind.unwrap_or(OriginKind::Native),
 		};
 
 		// If `sub_id` is not provided, generate a new one and assign it to the params
@@ -757,7 +758,7 @@ impl IdnClient {
 			WithdrawAsset(idn_fee_asset.clone().into()),
 			BuyExecution { weight_limit: Unlimited, fees: idn_fee_asset.clone() },
 			Transact {
-				origin_kind: OriginKind::Xcm,
+				origin_kind: XcmOriginKind::Xcm,
 				require_weight_at_most: Weight::MAX,
 				call: call.encode().into(),
 			},
@@ -987,7 +988,7 @@ mod tests {
 		let metadata: Option<types::Metadata> = None; // Use None since BoundedVec creation is complex in tests
 		let sub_id = Some([1u8; 32]);
 
-		client.create_subscription(credits, frequency, metadata, sub_id, None)
+		client.create_subscription(credits, frequency, metadata, sub_id, None, None)
 	}
 
 	#[test]
@@ -1114,7 +1115,8 @@ mod tests {
 			u32::MAX,            // frequency
 			None,                // metadata - use None to avoid BoundedVec complexity
 			Some([u8::MAX; 32]), // sub_id
-			None,                // call_params
+			None,                // call_params,
+			None,                // origin_kind
 		);
 
 		assert!(max_values_result.is_ok());
@@ -1126,6 +1128,7 @@ mod tests {
 			None, // metadata
 			None, // sub_id (auto-generated)
 			None, // call_params
+			None, // origin_kind
 		);
 
 		assert!(min_values_result.is_ok());
@@ -1137,6 +1140,7 @@ mod tests {
 			None, // metadata
 			None, // sub_id (auto-generated)
 			None, // call_params
+			None, // origin_kind
 		);
 
 		assert!(matches!(zero_values_result, Err(Error::InvalidParams)));
