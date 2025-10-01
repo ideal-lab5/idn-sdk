@@ -272,6 +272,7 @@ fn test_quote_subscription() {
 		let metadata = None;
 		let sub_id = None;
 		let req_ref = None;
+		let origin_kind = None;
 
 		// Call the function
 		let result = crate::Pallet::<Test>::do_request_quote(
@@ -281,6 +282,7 @@ fn test_quote_subscription() {
 			metadata,
 			sub_id,
 			req_ref,
+			origin_kind,
 		);
 
 		// Assert the result is Ok and contains the expected request reference
@@ -297,6 +299,7 @@ fn test_quote_subscription_fails() {
 		let metadata = None;
 		let sub_id = None;
 		let req_ref = None;
+		let origin_kind = None;
 
 		// Simulate failure by setting a block number that triggers an error
 		System::set_block_number(1_234_567);
@@ -309,6 +312,7 @@ fn test_quote_subscription_fails() {
 			metadata,
 			sub_id,
 			req_ref,
+			origin_kind,
 		);
 
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
@@ -474,12 +478,14 @@ fn test_get_subscription_success() {
 		// Mock inputs
 		let sub_id = [1; 32];
 		let req_ref = None;
+		let origin_kind = None;
 
 		// Call the function and assert success
 		assert_ok!(crate::Pallet::<Test>::do_request_sub_info(
 			RuntimeOrigin::signed(ALICE),
 			sub_id,
 			req_ref,
+			origin_kind,
 		));
 	});
 }
@@ -490,6 +496,7 @@ fn test_get_subscription_fails() {
 		// Mock inputs
 		let sub_id = [1; 32];
 		let req_ref = None;
+		let origin_kind = None;
 
 		// Simulate failure by setting a block number that triggers an error
 		System::set_block_number(1_234_567);
@@ -499,6 +506,7 @@ fn test_get_subscription_fails() {
 			RuntimeOrigin::signed(ALICE),
 			sub_id,
 			req_ref,
+			origin_kind,
 		);
 		assert_eq!(result.unwrap_err(), crate::pallet::Error::<Test>::XcmSendError);
 	});
@@ -575,6 +583,7 @@ fn test_sudo_request_quote_success() {
 		let metadata = None;
 		let sub_id = None;
 		let req_ref = None;
+		let orifin_kind = None;
 		assert_ok!(crate::Pallet::<Test>::request_quote(
 			RuntimeOrigin::signed(ALICE),
 			number_of_pulses,
@@ -582,6 +591,7 @@ fn test_sudo_request_quote_success() {
 			metadata,
 			sub_id,
 			req_ref,
+			orifin_kind,
 		));
 	});
 }
@@ -591,10 +601,12 @@ fn test_sudo_request_sub_info_success() {
 	ExtBuilder::build().execute_with(|| {
 		let sub_id = [1; 32];
 		let req_ref = None;
+		let origin_kind = None;
 		assert_ok!(crate::Pallet::<Test>::request_sub_info(
 			RuntimeOrigin::signed(ALICE),
 			sub_id,
 			req_ref,
+			origin_kind,
 		));
 	});
 }

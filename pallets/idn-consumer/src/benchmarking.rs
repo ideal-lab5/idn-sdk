@@ -179,6 +179,7 @@ mod benchmarks {
 		let frequency = 5;
 		let metadata = None;
 		let origin = RawOrigin::Signed([88u8; 32].into());
+		let origin_kind = None;
 
 		#[block]
 		{
@@ -189,6 +190,7 @@ mod benchmarks {
 				metadata,
 				sub_id,
 				req_ref,
+				origin_kind,
 			)
 			.expect("request_quote should not fail");
 		}
@@ -198,10 +200,11 @@ mod benchmarks {
 	fn do_request_sub_info() {
 		let sub_id = [1u8; 32];
 		let origin = RawOrigin::Signed([88u8; 32].into());
+		let origin_kind = None;
 
 		#[block]
 		{
-			IdnConsumer::<T>::do_request_sub_info(origin.into(), sub_id, None)
+			IdnConsumer::<T>::do_request_sub_info(origin.into(), sub_id, None, origin_kind)
 				.expect("request_sub_info should not fail");
 		}
 	}
@@ -294,6 +297,7 @@ mod benchmarks {
 		let frequency = 5;
 		let metadata = None;
 		let origin = RawOrigin::Root;
+		let origin_kind = None;
 
 		#[block]
 		{
@@ -304,6 +308,7 @@ mod benchmarks {
 				metadata,
 				sub_id,
 				req_ref,
+				origin_kind,
 			)
 			.expect("request_quote should not fail");
 		}
@@ -313,10 +318,11 @@ mod benchmarks {
 	fn request_sub_info() {
 		let sub_id = [1u8; 32];
 		let origin = RawOrigin::Root;
+		let origin_kind = None;
 
 		#[block]
 		{
-			IdnConsumer::<T>::request_sub_info(origin.into(), sub_id, None)
+			IdnConsumer::<T>::request_sub_info(origin.into(), sub_id, None, origin_kind)
 				.expect("request_sub_info should not fail");
 		}
 	}

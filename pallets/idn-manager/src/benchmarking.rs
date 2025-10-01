@@ -313,6 +313,7 @@ mod benchmarks {
 		let quote_sub_params = QuoteSubParams {
 			quote_request,
 			call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		};
 
 		#[extrinsic_call]
@@ -364,6 +365,7 @@ mod benchmarks {
 			sub_id,
 			req_ref: [1; 32],
 			call: vec![0u8; T::MaxCallDataLen::get() as usize].try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		};
 
 		#[extrinsic_call]

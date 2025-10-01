@@ -297,6 +297,50 @@ fn create_subscription_fails_if_insufficient_balance() {
 }
 
 #[test]
+fn extract_parachain_location_returns_only_parachain() {
+	ExtBuilder::build().execute_with(|| {
+		let origin = Location::new(
+			1,
+			[
+				Junction::Parachain(SIBLING_PARA_ID),
+				Junction::AccountId32 { network: None, id: [9u8; 32] },
+			],
+		);
+		let expected = Location::new(1, [Junction::Parachain(SIBLING_PARA_ID)]);
+
+		let result = IdnManager::extract_parachain_location(&origin).expect("should extract");
+
+		assert_eq!(result, expected);
+	});
+}
+
+#[test]
+fn extract_parachain_location_errors_when_parents_not_one() {
+	ExtBuilder::build().execute_with(|| {
+		let origin = Location::new(2, [Junction::Parachain(SIBLING_PARA_ID)]);
+
+		let err = IdnManager::extract_parachain_location(&origin).unwrap_err();
+		assert_eq!(err, Error::<Test>::InvalidSubscriber.into());
+	});
+}
+
+#[test]
+fn extract_parachain_location_errors_when_first_is_not_parachain() {
+	ExtBuilder::build().execute_with(|| {
+		let origin = Location::new(
+			1,
+			[
+				Junction::AccountId32 { network: None, id: [42u8; 32] },
+				Junction::Parachain(SIBLING_PARA_ID),
+			],
+		);
+
+		let err = IdnManager::extract_parachain_location(&origin).unwrap_err();
+		assert_eq!(err, Error::<Test>::InvalidSubscriber.into());
+	});
+}
+
+#[test]
 fn create_subscription_fails_if_sub_already_exists() {
 	ExtBuilder::build().execute_with(|| {
 		let credits: u64 = 50;
@@ -1820,6 +1864,7 @@ fn test_quote_subscription_works() {
 		let quote_sub_params = QuoteSubParams {
 			quote_request,
 			call: quote_callback_index.encode().try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		};
 		// Call the function
 		assert_ok!(IdnManager::quote_subscription(origin, quote_sub_params));
@@ -1858,6 +1903,7 @@ fn test_quote_subscription_fails_for_invalid_origin() {
 		let quote_sub_params = QuoteSubParams {
 			quote_request,
 			call: quote_callback_index.encode().try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		};
 
 		// Call the function and expect it to fail
@@ -1900,6 +1946,7 @@ fn test_get_subscription_xcm_works() {
 			sub_id,
 			req_ref,
 			call: call_index.encode().try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		};
 
 		// Call the function
@@ -1927,6 +1974,7 @@ fn test_get_subscription_xcm_fails_invalid_origin() {
 			sub_id,
 			req_ref,
 			call: call_index.encode().try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		};
 
 		// Call the function with an invalid origin
@@ -1949,6 +1997,7 @@ fn test_get_subscription_xcm_fails_subscription_not_found() {
 			sub_id,
 			req_ref,
 			call: call_index.encode().try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		};
 
 		// Call the function with a non-existent subscription ID

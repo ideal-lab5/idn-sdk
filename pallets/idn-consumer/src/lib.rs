@@ -309,7 +309,7 @@ pub mod pallet {
 		/// - `frequency`: Distribution interval for pulses.
 		/// - `metadata`: Optional additional data for the subscription.
 		/// - `sub_id`: Optional subscription ID. If `None`, a new one will be generated.
-		/// - `origin_kind`: Optional origin kind for the XCM message.
+		/// - `origin_kind`: Optional Origin kind for the callback XCM message.
 		///
 		/// # Returns
 		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
@@ -476,6 +476,7 @@ pub mod pallet {
 		/// - `metadata`: Optional additional data for the subscription.
 		/// - `sub_id`: Optional subscription ID.
 		/// - `req_ref`: Optional quote request reference.
+		/// - `origin_kind`: Optional Origin kind for the callback XCM message.
 		///
 		/// # Returns
 		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
@@ -497,9 +498,18 @@ pub mod pallet {
 			metadata: Option<Metadata>,
 			sub_id: Option<SubscriptionId>,
 			req_ref: Option<RequestReference>,
+			origin_kind: Option<OriginKind>,
 		) -> DispatchResultWithPostInfo {
 			ensure_signed(origin.clone())?;
-			Self::do_request_quote(origin, number_of_pulses, frequency, metadata, sub_id, req_ref)?;
+			Self::do_request_quote(
+				origin,
+				number_of_pulses,
+				frequency,
+				metadata,
+				sub_id,
+				req_ref,
+				origin_kind,
+			)?;
 			Ok(Pays::No.into())
 		}
 
@@ -510,6 +520,7 @@ pub mod pallet {
 		/// - `origin`: Must be the root (sudo) origin.
 		/// - `sub_id`: The subscription ID to request info for.
 		/// - `req_ref`: Optional quote request reference.
+		/// - `origin_kind`: Optional Origin kind for the callback XCM message.
 		///
 		/// # Returns
 		/// - [`DispatchResultWithPostInfo`]: Returns `Ok(Pays::No)` if successful.
@@ -528,9 +539,10 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			sub_id: SubscriptionId,
 			req_ref: Option<RequestReference>,
+			origin_kind: Option<OriginKind>,
 		) -> DispatchResultWithPostInfo {
 			ensure_signed(origin.clone())?;
-			Self::do_request_sub_info(origin, sub_id, req_ref)?;
+			Self::do_request_sub_info(origin, sub_id, req_ref, origin_kind)?;
 			Ok(Pays::No.into())
 		}
 	}
@@ -549,7 +561,7 @@ impl<T: Config> Pallet<T> {
 		metadata: Option<Metadata>,
 		// Optional Subscription Id, if None, a new one will be generated
 		sub_id: Option<SubscriptionId>,
-		// Origin kind for the XCM message; defaults to `OriginKind::Xcm`
+		// Origin kind for the callback XCM message; defaults to `OriginKind::Xcm`
 		origin_kind: Option<OriginKind>,
 	) -> Result<SubscriptionId, Error<T>> {
 		let origin_kind = origin_kind.unwrap_or(OriginKind::Xcm);
@@ -646,6 +658,8 @@ impl<T: Config> Pallet<T> {
 		sub_id: Option<SubscriptionId>,
 		// Optional quote request reference, if None, a new one will be generated
 		req_ref: Option<RequestReference>,
+		// Origin kind for the callback XCM message; defaults to `OriginKind::Xcm`
+		origin_kind: Option<OriginKind>,
 	) -> Result<RequestReference, Error<T>> {
 		let create_sub_params = CreateSubParams {
 			credits: 0,
@@ -655,6 +669,8 @@ impl<T: Config> Pallet<T> {
 			frequency,
 			metadata,
 			sub_id,
+			// this is not the origin kind for the quote request callback, but for dummy
+			// subscription for quoting
 			origin_kind: OriginKind::default(),
 		};
 
@@ -670,7 +686,11 @@ impl<T: Config> Pallet<T> {
 		let quote_request =
 			QuoteRequest { req_ref, create_sub_params, lifetime_pulses: number_of_pulses };
 
-		let params = QuoteSubParams { quote_request, call: Self::quote_callback_call_data()? };
+		let params = QuoteSubParams {
+			quote_request,
+			call: Self::quote_callback_call_data()?,
+			origin_kind: origin_kind.unwrap_or(OriginKind::Xcm),
+		};
 
 		let call = RuntimeCall::IdnManager(IdnManagerCall::quote_subscription { params });
 
@@ -691,6 +711,8 @@ impl<T: Config> Pallet<T> {
 		sub_id: SubscriptionId,
 		// Optional quote request reference, if None, a new one will be generated
 		req_ref: Option<RequestReference>,
+		// Optional Origin kind for the callback XCM message
+		origin_kind: Option<OriginKind>,
 	) -> Result<RequestReference, Error<T>> {
 		// If `req_ref` is not provided, generate a new one and assign it to the params
 		let req_ref = match req_ref {
@@ -700,7 +722,12 @@ impl<T: Config> Pallet<T> {
 				sub_id.hash(&salt).into()
 			},
 		};
-		let req = SubInfoRequest { sub_id, req_ref, call: Self::sub_info_callback_call_data()? };
+		let req = SubInfoRequest {
+			sub_id,
+			req_ref,
+			call: Self::sub_info_callback_call_data()?,
+			origin_kind: origin_kind.unwrap_or(OriginKind::Xcm),
+		};
 		let call = RuntimeCall::IdnManager(IdnManagerCall::get_subscription_info { req });
 
 		Self::xcm_send(origin, call)?;

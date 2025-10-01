@@ -70,19 +70,19 @@ pub type SubscriptionCallData<L> = BoundedVec<u8, L>;
 	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq,
 )]
 pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId, CallData> {
-	// Number of random values to receive
+	/// Number of random values to receive
 	pub credits: Credits,
-	// XCM multilocation for pulse delivery
+	/// XCM multilocation for pulse delivery
 	pub target: Location,
-	// Pre-encoded call data for XCM message. This is usually [`SubscriptionCallData`].
+	/// Pre-encoded call data for XCM message. This is usually [`SubscriptionCallData`].
 	pub call: CallData,
-	// Origin kind for the XCM message
+	/// Origin kind for the callback XCM message
 	pub origin_kind: OriginKind,
-	// Distribution interval for pulses
+	/// Distribution interval for pulses
 	pub frequency: Frequency,
-	// Bounded vector for additional data
+	/// Bounded vector for additional data
 	pub metadata: Option<Metadata>,
-	// Optional Subscription Id, if None, a new one will be generated
+	/// Optional Subscription Id, if None, a new one will be generated
 	pub sub_id: Option<SubscriptionId>,
 }
 
@@ -140,6 +140,8 @@ pub struct QuoteSubParams<CreateSubParams, PulseIndex, CallData> {
 	/// This is the function in the parachain that originated the request that will be called by
 	/// the IDN parachain and receive the [`Quote`].
 	pub call: CallData,
+	/// Origin kind for the callback XCM message
+	pub origin_kind: OriginKind,
 }
 
 /// Contains the parameters for requesting a subscription info by its Id.
@@ -154,6 +156,8 @@ pub struct SubInfoRequest<SubId, CallData> {
 	/// The call to the function that handles the generated subscription info on the
 	/// target parachain.
 	pub call: CallData,
+	/// Origin kind for the callback XCM message
+	pub origin_kind: OriginKind,
 }
 
 /// The subscription info returned by the IDN Manager to the target parachain.

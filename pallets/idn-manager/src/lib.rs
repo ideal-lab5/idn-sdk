@@ -93,8 +93,8 @@ use sp_runtime::traits::{Saturating, TryConvert};
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use xcm::{
 	prelude::{
-		AllOf, Asset, AssetFilter::Wild, AssetId, BuyExecution, DepositAsset, Junctions, Location,
-		RefundSurplus, Transact, Unlimited, WildFungibility, WithdrawAsset, Xcm,
+		AllOf, Asset, AssetFilter::Wild, AssetId, BuyExecution, DepositAsset, Junction, Junctions,
+		Location, RefundSurplus, Transact, Unlimited, WildFungibility, WithdrawAsset, Xcm,
 	},
 	DoubleEncoded, VersionedLocation, VersionedXcm,
 };
@@ -738,6 +738,7 @@ pub mod pallet {
 			log::trace!(target: LOG_TARGET, "Quote subscription request received: {:?}", params);
 			// Ensure the origin is valid, and get the location
 			let requester: Location = T::XcmOriginFilter::ensure_origin(origin.clone())?;
+			let target = Self::extract_parachain_location(&requester)?;
 			let acc = &T::XcmLocationToAccountId::convert_location(&requester)
 								.ok_or_else(|| {
 									log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
@@ -759,17 +760,14 @@ pub mod pallet {
 
 			Self::xcm_send(
 				acc,
-				// TODO: this should be an actual target location, not the requester, as this
-				// wouldn't work for contracts
-				&requester,
+				&target,
 				// Simple concatenation: pre-encoded call data + pulse data
 				{
 					let mut call_data = params.call.clone().into_inner();
 					call_data.extend(&quote.encode());
 					call_data.into()
 				},
-				// TODO: this should be read from the `QuoteSubParamsOf` details
-				OriginKind::Xcm,
+				params.origin_kind,
 			)?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
 
@@ -787,6 +785,7 @@ pub mod pallet {
 			log::trace!(target: LOG_TARGET, "Get subscription info request received: {:?}", req);
 			// Ensure the origin is valid, and get the location
 			let requester: Location = T::XcmOriginFilter::ensure_origin(origin.clone())?;
+			let target = Self::extract_parachain_location(&requester)?;
 			let acc = &T::XcmLocationToAccountId::convert_location(&requester)
 								.ok_or_else(|| {
 									log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
@@ -798,9 +797,7 @@ pub mod pallet {
 			let response = SubInfoResponse { sub, req_ref: req.req_ref };
 			Self::xcm_send(
 				acc,
-				// TODO: this should be an actual target location, not the requester, as this
-				// wouldn't work for contracts
-				&requester,
+				&target,
 				// Simple concatenation: pre-encoded call data + pulse data
 				{
 					let mut call_data = req.call.clone().into_inner();
@@ -842,6 +839,24 @@ impl<T: Config> Pallet<T> {
 			.filter(|(_, sub)| &sub.details.subscriber == subscriber)
 			.map(|(_, sub)| sub)
 			.collect()
+	}
+
+	/// Extracts the parachain portion of a location when it's the first interior junction.
+	///
+	/// Ensures the location has exactly one parent and the first interior junction is a
+	/// [`Junction::Parachain`]. Returns a new [`Location`] containing only that parachain.
+	pub(crate) fn extract_parachain_location(
+		location: &Location,
+	) -> Result<Location, DispatchError> {
+		let first_junction = match location.unpack() {
+			(1, interior) => interior.first(),
+			_ => None,
+		};
+
+		match first_junction {
+			Some(Junction::Parachain(id)) => Ok(Location::new(1, [Junction::Parachain(*id)])),
+			_ => Err(Error::<T>::InvalidSubscriber.into()),
+		}
 	}
 
 	/// Calculates the storage deposit for a subscription based on its creation parameters.

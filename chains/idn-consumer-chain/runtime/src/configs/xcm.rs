@@ -20,7 +20,7 @@ use crate::{
 	RuntimeHoldReason, RuntimeOrigin, WeightToFee, XcmpQueue, CENTIUNIT,
 };
 use frame_support::{
-	pallet_prelude::{Get, PhantomData},
+	pallet_prelude::{Get, OriginTrait, PhantomData},
 	parameter_types,
 	traits::{
 		fungible::HoldConsideration, ConstU32, Equals, Everything, LinearStoragePrice, Nothing,
@@ -44,7 +44,10 @@ use xcm_builder::{
 	TrailingSetTopicAsId, UsingComponents, WithComputedOrigin, WithUniqueTopic,
 	XcmFeeManagerFromComponents,
 };
-use xcm_executor::{traits::ConvertLocation, XcmExecutor};
+use xcm_executor::{
+	traits::{ConvertLocation, ConvertOrigin},
+	XcmExecutor,
+};
 
 parameter_types! {
 	pub IdnLocation: Location = Location::new(1, Junction::Parachain(constants::IDN_PARACHAIN_ID));
