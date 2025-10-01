@@ -583,7 +583,7 @@ fn test_sudo_request_quote_success() {
 		let metadata = None;
 		let sub_id = None;
 		let req_ref = None;
-		let orifin_kind = None;
+		let origin_kind = None;
 		assert_ok!(crate::Pallet::<Test>::request_quote(
 			RuntimeOrigin::signed(ALICE),
 			number_of_pulses,
@@ -591,7 +591,7 @@ fn test_sudo_request_quote_success() {
 			metadata,
 			sub_id,
 			req_ref,
-			orifin_kind,
+			origin_kind,
 		));
 	});
 }
