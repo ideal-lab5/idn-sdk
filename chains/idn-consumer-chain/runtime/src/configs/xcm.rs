@@ -204,9 +204,6 @@ pub type Barrier = TrailingSetTopicAsId<
 					// If the message is one that immediately attempts to pay for execution, then
 					// allow it.
 					AllowTopLevelPaidExecutionFrom<Everything>,
-					// TODO: remove these lines
-					// IDN gets free execution
-					// AllowExplicitUnpaidExecutionFrom<Equals<IdnLocation>>,
 					// Subscriptions for version tracking are OK.
 					AllowSubscriptionsFrom<ParentRelayOrSiblingParachains>,
 				),

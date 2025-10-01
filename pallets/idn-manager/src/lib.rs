@@ -804,8 +804,7 @@ pub mod pallet {
 					call_data.extend(&response.encode());
 					call_data.into()
 				},
-				// TODO: this should be read from the `SubInfoRequestOf` details
-				OriginKind::Xcm,
+				req.origin_kind,
 			)?;
 			Self::deposit_event(Event::SubscriptionDistributed { sub_id: req.sub_id });
 
@@ -1121,7 +1120,6 @@ impl<T: Config> Pallet<T> {
 	/// A potential attacker could try to get "almost" free execution (only paying the pulse
 	/// consumption fees) to any target on a chain that honors `UnpaidExecution` requests from IDN.
 	/// Though the attacker would not be able to manipulate the call's parameters.
-	// TODO: Solve this issue https://github.com/ideal-lab5/idn-sdk/issues/290
 	fn xcm_send(
 		acc: &AccountIdOf<T>,
 		target: &Location,
