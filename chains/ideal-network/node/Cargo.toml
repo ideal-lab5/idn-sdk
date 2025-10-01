@@ -29,12 +29,16 @@ tokio.workspace = true
 
 # Local
 idn-runtime.workspace = true
+pallet-randomness-beacon.workspace = true
 sc-consensus-randomness-beacon.workspace = true
 sp-consensus-randomness-beacon.workspace = true
 
 # Substrate
 frame-benchmarking.workspace = true
 frame-benchmarking-cli.workspace = true
+frame-metadata-hash-extension.workspace = true
+frame-system.workspace = true
+pallet-transaction-payment.workspace = true
 pallet-transaction-payment-rpc.workspace = true
 prometheus-endpoint.workspace = true
 sc-basic-authorship.workspace = true
@@ -55,6 +59,7 @@ sc-transaction-pool.workspace = true
 sc-transaction-pool-api.workspace = true
 sc-utils.workspace = true
 sp-api.workspace = true
+sp-application-crypto.workspace = true
 sp-block-builder.workspace = true
 sp-blockchain.workspace = true
 sp-consensus-aura.workspace = true
@@ -81,6 +86,7 @@ cumulus-client-consensus-proposer.workspace = true
 cumulus-client-service.workspace = true
 cumulus-primitives-core.workspace = true
 cumulus-primitives-parachain-inherent.workspace = true
+cumulus-primitives-storage-weight-reclaim.workspace = true
 cumulus-relay-chain-interface.workspace = true
 
 [features]

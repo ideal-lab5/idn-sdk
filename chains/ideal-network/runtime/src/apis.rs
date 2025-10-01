@@ -20,9 +20,10 @@ use crate::benchmarks::*;
 use crate::{
 	configs::{xcm_config, RuntimeBlockWeights},
 	constants::relay::fee::WeightToFee,
-	BlockNumber, Contracts, EventRecord, Hash, OriginCaller, PolkadotXcm, RuntimeEvent,
+	BlockNumber, Contracts, EventRecord, Hash, OriginCaller, PolkadotXcm, RuntimeEvent, TxExtension, UncheckedExtrinsic,
 	CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS,
 };
+use codec::Encode;
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	weights::{Weight, WeightToFee as _},
@@ -31,8 +32,10 @@ use pallet_aura::Authorities;
 use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_consensus_randomness_beacon::types::OpaqueSignature; 
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
+	generic::{Era, SignedPayload},
 	traits::Block as BlockT,
 	transaction_validity::{TransactionSource, TransactionValidity},
 	AccountId32, ApplyExtrinsicResult,
@@ -57,6 +60,7 @@ use super::{
 };
 
 impl_runtime_apis! {
+
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
 		fn slot_duration() -> sp_consensus_aura::SlotDuration {
 			sp_consensus_aura::SlotDuration::from_millis(SLOT_DURATION)
@@ -352,6 +356,39 @@ impl_runtime_apis! {
 			PolkadotXcm::is_authorized_alias(origin, target)
 		}
 	}
+
+    impl pallet_randomness_beacon::RandomnessBeaconApi<Block, AccountId, RuntimeCall, OpaqueSignature, TxExtension, Nonce> for Runtime {
+        fn construct_pulse_payload(
+            who: AccountId,
+            asig: OpaqueSignature,
+            start: u64,
+            end: u64,
+            nonce: Nonce,
+        ) -> (Vec<u8>, RuntimeCall, TxExtension) {
+            let call = RuntimeCall::RandBeacon(
+                pallet_randomness_beacon::Call::try_submit_asig { asig, start, end }
+            );
+
+            let tx_ext: TxExtension = (
+                frame_system::CheckNonZeroSender::<Runtime>::new(),
+                frame_system::CheckSpecVersion::<Runtime>::new(),
+                frame_system::CheckTxVersion::<Runtime>::new(),
+                frame_system::CheckGenesis::<Runtime>::new(),
+                frame_system::CheckEra::<Runtime>::from(Era::immortal()),
+                frame_system::CheckNonce::<Runtime>::from(nonce),
+                frame_system::CheckWeight::<Runtime>::new(),
+                pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
+                frame_metadata_hash_extension::CheckMetadataHash::<Runtime>::new(false),
+                frame_system::WeightReclaim::<Runtime>::new(),
+            );
+
+            let payload = SignedPayload::new(call.clone(), tx_ext.clone())
+                .expect("SignedPayload construction should succeed");
+
+			(payload.encode(), call, tx_ext)
+            // UncheckedExtrinsic::new_signed(call, who.into(), signature, tx_ext)
+        }
+    }
 
 	impl pallet_idn_manager::IdnManagerApi<
 		Block,

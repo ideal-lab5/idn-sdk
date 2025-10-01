@@ -15,8 +15,6 @@
  */
 
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
-
-// std
 use codec::Encode;
 use cumulus_client_cli::CollatorOptions;
 use std::{sync::Arc, time::Duration};
@@ -28,6 +26,7 @@ use idn_runtime::{
 	},
 	opaque::{Block, Hash},
 };
+use pallet_randomness_beacon::RandomnessBeaconApi;
 
 // Cumulus Imports
 use cumulus_client_collator::service::CollatorService;
@@ -48,7 +47,7 @@ use cumulus_relay_chain_interface::{OverseerHandle, RelayChainInterface};
 // Substrate Imports
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use prometheus_endpoint::Registry;
-use sc_client_api::Backend;
+use sc_client_api::{Backend, BlockchainEvents, HeaderBackend};
 use sc_consensus::ImportQueue;
 use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
 use sc_network::NetworkBlock;
@@ -56,7 +55,9 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::tracing_unbounded;
+use sp_api::{ApiExt, Core};
 use sp_keystore::KeystorePtr;
+use substrate_frame_rpc_system::AccountNonceApi;
 
 use libp2p::Multiaddr;
 use sc_consensus_randomness_beacon::{
@@ -452,17 +453,20 @@ pub async fn start_parachain_node(
 			panic!("A critical error occurred - bringing down the node: {:?}", e);
 		}
 
+		// setup the PFG for pulse ingestion
 		let pulse_worker = build_pulse_worker(
 			client.clone(),
 			params.keystore_container.keystore(),
 			transaction_pool.clone(),
 		);
 
-		let pfg = PulseFinalizationGadget::new(pulse_worker);
+		let finality_notifications = client.finality_notification_stream();
+		let pfg =
+			PulseFinalizationGadget::new(client.clone(), pulse_worker, pulse_receiver.clone());
 
 		task_manager
 			.spawn_essential_handle()
-			.spawn("pulse-finalization-gadget", None, pfg.run());
+			.spawn("pulse-finalization-gadget", None, pfg.run(finality_notifications));
 
 		start_consensus(
 			client.clone(),
@@ -486,13 +490,80 @@ pub async fn start_parachain_node(
 	Ok((task_manager, client))
 }
 
-fn build_pulse_worker(
-	client: Arc<ParachainClient>,
-	keystore: KeystorePtr,
-	pool: Arc<sc_transaction_pool::TransactionPoolHandle<Block, ParachainClient>>,
-) -> Arc<impl PulseSubmitter<Block>> {
-	// Here you can implement the actual extrinsic construction
-	// because you have access to idn_runtime types
+use idn_runtime::{AccountId, RuntimeCall, UncheckedExtrinsic};
+use sc_consensus_randomness_beacon::worker::ExtrinsicConstructor;
+use sp_application_crypto::AppCrypto;
+use sp_api::ProvideRuntimeApi;
+use sp_consensus_randomness_beacon::types::OpaqueSignature;
+use sp_core::{sr25519, Pair};
+use sp_runtime::{
+    generic::{Era, ExtensionVersion, SignedPayload},
+    traits::{Block as BlockT, Header, IdentifyAccount, TransactionExtension, Verify},
+    MultiSignature, MultiSigner,
+};
 
-	Arc::new(PulseWorker::new(client, keystore, pool))
+struct RuntimeExtrinsicConstructor {
+    client: Arc<ParachainClient>,
+    keystore: KeystorePtr,
+}
+
+impl ExtrinsicConstructor<Block> for RuntimeExtrinsicConstructor {
+    fn construct_pulse_extrinsic(
+        &self,
+        signer: sr25519::Public,
+        asig: OpaqueSignature,
+        start: u64,
+        end: u64,
+    ) -> Result<<Block as BlockT>::Extrinsic, Box<dyn std::error::Error + Send + Sync>> {
+ 		        let account: idn_runtime::AccountId = MultiSigner::Sr25519(signer).into_account();
+        let at_hash = self.client.info().best_hash;
+        let genesis_hash = self.client.hash(0)?.ok_or("No genesis")?;
+        let at_header = self.client.header(at_hash)?.ok_or("No header")?;
+        let at_number = *at_header.number();
+        
+        let version = self.client.runtime_api().version(at_hash)?;
+        let nonce = self.client.runtime_api().account_nonce(at_hash, account.clone())?;
+   
+		let (payload, call, tx_ext) = self.client.runtime_api().construct_pulse_payload(
+			at_hash,
+			account.clone(),
+			asig,
+			start,
+			end,
+			nonce,
+		).unwrap();
+
+		let signature = self.keystore
+			.sr25519_sign(
+				sp_consensus_aura::sr25519::AuthorityPair::ID,
+				&signer.into(),
+				&payload,
+			)?
+			.ok_or("Failed to sign")?;
+
+        Ok(idn_runtime::UncheckedExtrinsic::new_signed(
+            call,
+            account.into(),
+            MultiSignature::Sr25519(signature),
+            tx_ext,
+        ).into())
+    }
+}
+
+fn build_pulse_worker(
+    client: Arc<ParachainClient>,
+    keystore: KeystorePtr,
+    pool: Arc<sc_transaction_pool::TransactionPoolHandle<Block, ParachainClient>>,
+) -> Arc<impl PulseSubmitter<Block>> {
+    let constructor = Arc::new(RuntimeExtrinsicConstructor {
+        client: client.clone(),
+        keystore: keystore.clone(),
+    });
+
+    Arc::new(PulseWorker::new(
+        client,
+        keystore,
+        pool,
+        constructor,
+    ))
 }

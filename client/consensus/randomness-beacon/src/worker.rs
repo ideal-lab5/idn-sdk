@@ -1,38 +1,49 @@
-// client/consensus/randomness-beacon/src/worker.rs
-
-use codec::Encode;
-use sc_client_api::HeaderBackend;
-use sc_transaction_pool_api::{TransactionPool, TransactionSource};
-use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::AppCrypto;
-use sp_core::{sr25519, Pair};
-use sp_keystore::KeystorePtr;
 use sp_runtime::{
-    generic::Era,
+    generic::{Era, UncheckedExtrinsic},
     traits::{Block as BlockT, Header, IdentifyAccount, Verify},
     MultiSignature, MultiSigner,
 };
-use std::sync::Arc;
+use crate::{
+    gadget::PulseSubmitter,
+};
+use sp_consensus_randomness_beacon::types::OpaqueSignature;
 
-use crate::gadget::PulseSubmitter;
+use codec::Encode;
+use sc_client_api::{Backend, HeaderBackend};
+use sc_transaction_pool_api::{TransactionPool, TransactionSource};
+use sp_api::{ApiExt, ProvideRuntimeApi};
+use sp_core::{sr25519, Pair};
+use sp_keystore::KeystorePtr;
+use sp_runtime::traits::TransactionExtension;
+use std::sync::Arc;
 
 const LOG_TARGET: &str = "pulse-worker";
 
-/// Runtime-aware pulse submission worker.
-///
-/// This is intentionally NOT generic - it's tightly coupled to your runtime
-/// because it needs to construct runtime-specific extrinsics.
-pub struct PulseWorker<Block, Client, Pool>
+/// Trait for constructing runtime-specific extrinsics
+pub trait ExtrinsicConstructor<Block: BlockT>: Send + Sync {
+    /// Construct a signed extrinsic for pulse submission
+    fn construct_pulse_extrinsic(
+        &self,
+        signer: sr25519::Public,
+        asig: OpaqueSignature,
+        start: u64,
+        end: u64,
+    ) -> Result<Block::Extrinsic, Box<dyn std::error::Error + Send + Sync>>;
+}
+
+pub struct PulseWorker<Block, Client, Pool, Constructor>
 where
     Block: BlockT,
 {
     client: Arc<Client>,
     keystore: KeystorePtr,
     transaction_pool: Arc<Pool>,
+    extrinsic_constructor: Arc<Constructor>,
     _phantom: std::marker::PhantomData<Block>,
 }
 
-impl<Block, Client, Pool> PulseWorker<Block, Client, Pool>
+impl<Block, Client, Pool, Constructor> PulseWorker<Block, Client, Pool, Constructor>
 where
     Block: BlockT,
 {
@@ -40,11 +51,13 @@ where
         client: Arc<Client>,
         keystore: KeystorePtr,
         transaction_pool: Arc<Pool>,
+        extrinsic_constructor: Arc<Constructor>,
     ) -> Self {
         Self {
             client,
             keystore,
             transaction_pool,
+            extrinsic_constructor,
             _phantom: Default::default(),
         }
     }
@@ -58,31 +71,50 @@ where
     }
 }
 
-impl<Block, Client, Pool> PulseSubmitter<Block>
-    for PulseWorker<Block, Client, Pool>
+impl<Block, Client, Pool, Constructor> PulseSubmitter<Block>
+    for PulseWorker<Block, Client, Pool, Constructor>
 where
     Block: BlockT,
     Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
     Pool: TransactionPool<Block = Block> + 'static,
+    Constructor: ExtrinsicConstructor<Block> + 'static,
 {
     async fn submit_pulse(
         &self,
-        _asig: Vec<u8>,
-        _start: u64,
-        _end: u64,
+        asig: OpaqueSignature,
+        start: u64,
+        end: u64,
     ) -> Result<Block::Hash, Box<dyn std::error::Error + Send + Sync>> {
         // Get authority key
-        let _public = self.get_authority_key()?;
+        let public = self.get_authority_key()?;
 
-        // For now, just return success
-        // TODO: Implement actual extrinsic construction
-        // This will require importing your runtime types directly
         log::info!(
             target: LOG_TARGET,
-            "✅ PulseWorker would submit pulse (implementation pending)"
+            "Constructing pulse extrinsic for rounds {}-{}",
+            start,
+            end
         );
 
+        let extrinsic = self.extrinsic_constructor.construct_pulse_extrinsic(
+            public, 
+            asig, 
+            start,
+            end,
+        ).unwrap();
+
+        // Submit to transaction pool
         let best_hash = self.client.info().best_hash;
+        log::info!("Submitting extrinsic!");
+        let _hash = self
+            .transaction_pool
+            .submit_one(best_hash, TransactionSource::Local, extrinsic)
+            .await?;
+
+        log::info!(
+            target: LOG_TARGET,
+            "✅ Submitted pulse extrinsic",
+        );
+
         Ok(best_hash)
     }
 }
