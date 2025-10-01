@@ -2007,3 +2007,39 @@ fn test_get_subscription_xcm_fails_subscription_not_found() {
 		);
 	});
 }
+
+#[test]
+fn create_subscription_with_custom_origin_kind_works() {
+	ExtBuilder::build().execute_with(|| {
+		let credits: u64 = 50;
+		let target =
+			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
+		let frequency: u64 = 10;
+		let initial_balance = 10_000_000_000;
+		let custom_id = [7u8; 32];
+		let origin_kind = OriginKind::SovereignAccount;
+
+		<Test as Config>::Currency::set_balance(&ALICE, initial_balance);
+
+		// assert Subscriptions storage map is empty before creating a subscription
+		assert_eq!(Subscriptions::<Test>::iter().count(), 0);
+
+		// assert that the subscription has been created
+		assert_ok!(IdnManager::create_subscription(
+			RuntimeOrigin::signed(ALICE.clone()),
+			CreateSubParamsOf::<Test> {
+				credits,
+				target: target.clone(),
+				call: [1u8, 2u8].encode().try_into().unwrap(),
+				frequency,
+				metadata: None,
+				sub_id: Some(custom_id),
+				origin_kind: origin_kind.clone(),
+			}
+		));
+
+		let subscription = Subscriptions::<Test>::get(custom_id).unwrap();
+
+		assert_eq!(subscription.details.origin_kind, origin_kind);
+	});
+}

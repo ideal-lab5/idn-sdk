@@ -535,8 +535,7 @@ impl IdnClient {
 			},
 		};
 
-		let call =
-			RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params: params.clone() });
+		let call = RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params });
 
 		self.xcm_send(call)?;
 

@@ -511,7 +511,7 @@ pub mod pallet {
 				subscriber: subscriber.clone(),
 				target: params.target.clone(),
 				call: params.call.clone(),
-				origin_kind: OriginKind::default(),
+				origin_kind: params.origin_kind.clone(),
 			};
 
 			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(
@@ -955,8 +955,7 @@ impl<T: Config> Pallet<T> {
 						call_data.extend((&pulse, &sub_id).encode());
 						call_data.into()
 					},
-					// TODO: this should be read from the `QuoteSubParamsOf` details
-					OriginKind::Xcm,
+					sub.details.origin_kind.clone(),
 				) {
 					Self::pause_subscription_on_error(sub_id, sub, "Failed to dispatch XCM", e);
 					continue;
