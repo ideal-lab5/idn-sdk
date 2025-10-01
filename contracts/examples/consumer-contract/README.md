@@ -273,9 +273,15 @@ The contract owner (the account that deploys the contract) has exclusive rights 
 - Simulate randomness delivery for testing purposes
 - Access all subscription management functionality
 
-### IDN Authorization
+### Delivery Authorization
 
-Only the configured IDN account can:
+**IMPORTANT**
+IDN is an open protocol meaning that anybody could delivery a value to a contract, the value can be verified for a fully trustless solution.
+On this particular example, we have decided to go for a more trusted solution as verifying a pulse is costly. This example implements a
+`ensure_authorized_deliverer` fn that by defaults sets the own contract's address as authorized deliverer, but these list can be managed from
+the contract itself.
+
+Only authorized accounts can:
 
 - Deliver randomness pulses via the consume_pulse callback
 - Provide subscription quotes and information updates
