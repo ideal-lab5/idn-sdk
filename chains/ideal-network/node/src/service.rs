@@ -15,7 +15,6 @@
  */
 
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
-use codec::Encode;
 use cumulus_client_cli::CollatorOptions;
 use std::{sync::Arc, time::Duration};
 // Local Runtime Types
@@ -54,7 +53,6 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::tracing_unbounded;
-use sp_consensus_aura::inherents::InherentDataProvider;
 use sp_keystore::KeystorePtr;
 
 use libp2p::Multiaddr;
@@ -205,7 +203,6 @@ fn start_consensus(
 	collator_key: CollatorPair,
 	overseer_handle: OverseerHandle,
 	announce_block: Arc<dyn Fn(Hash, Option<Vec<u8>>) + Send + Sync>,
-	pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
 ) -> Result<(), sc_service::Error> {
 	let proposer_factory = sc_basic_authorship::ProposerFactory::with_proof_recording(
 		task_manager.spawn_handle(),
@@ -226,7 +223,7 @@ fn start_consensus(
 
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 	let params = AuraParams {
-		create_inherent_data_providers: |_, _| async {
+		create_inherent_data_providers: move |_, ()| async move {
 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 			let slot =
@@ -477,7 +474,6 @@ pub async fn start_parachain_node(
 			collator_key.expect("Command line arguments do not allow this. qed"),
 			overseer_handle,
 			announce_block,
-			pulse_receiver,
 		)?;
 	}
 

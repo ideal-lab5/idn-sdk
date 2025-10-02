@@ -5920,6 +5920,7 @@ dependencies = [
  "sc-cli",
  "sc-client-api",
  "sc-consensus",
+ "sc-consensus-aura",
  "sc-consensus-randomness-beacon",
  "sc-executor",
  "sc-network",
