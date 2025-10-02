@@ -91,11 +91,11 @@ pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId, CallDat
 pub struct AllowSiblingsOnly;
 impl Contains<Location> for AllowSiblingsOnly {
 	fn contains(location: &Location) -> bool {
-		match location.unpack() {
-			(1, [Junction::Parachain(_)]) => true,
-			(1, [Junction::Parachain(_), Junction::AccountId32 { .. }]) => true,
-			_ => false,
-		}
+		matches!(
+			location.unpack(),
+			(1, [Junction::Parachain(_)]) |
+				(1, [Junction::Parachain(_), Junction::AccountId32 { .. }])
+		)
 	}
 }
 
@@ -172,7 +172,7 @@ pub struct SubInfoResponse<Sub> {
 
 /// Local version of the [`XcmOriginKind`] enum to solve missing implementations on it.
 #[derive(
-	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking, Default,
 )]
 pub enum OriginKind {
 	/// Origin should just be the native dispatch origin representation for the sender in the
@@ -192,6 +192,7 @@ pub enum OriginKind {
 	/// Origin should be interpreted as an XCM native origin and the `MultiLocation` should be
 	/// encoded directly in the dispatch origin unchanged. For Cumulus/Frame chains, this will be
 	/// the `pallet_xcm::Origin::Xcm` type.
+	#[default]
 	Xcm,
 }
 
@@ -214,11 +215,5 @@ impl From<XcmOriginKind> for OriginKind {
 			XcmOriginKind::Superuser => OriginKind::Superuser,
 			XcmOriginKind::Xcm => OriginKind::Xcm,
 		}
-	}
-}
-
-impl Default for OriginKind {
-	fn default() -> Self {
-		OriginKind::Xcm
 	}
 }
