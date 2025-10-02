@@ -1,21 +1,30 @@
+/*
+ * Copyright 2025 by Ideal Labs, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 use sp_application_crypto::AppCrypto;
-use sp_runtime::{
-    generic::{Era, UncheckedExtrinsic},
-    traits::{Block as BlockT, Header, IdentifyAccount, Verify},
-    MultiSignature, MultiSigner,
-};
+use sp_runtime::traits::Block as BlockT;
 use crate::{
     gadget::PulseSubmitter,
 };
 use sp_consensus_randomness_beacon::types::OpaqueSignature;
-
-use codec::Encode;
-use sc_client_api::{Backend, HeaderBackend};
+use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
-use sp_api::{ApiExt, ProvideRuntimeApi};
-use sp_core::{sr25519, Pair};
+use sp_api::ProvideRuntimeApi;
+use sp_core::sr25519;
 use sp_keystore::KeystorePtr;
-use sp_runtime::traits::TransactionExtension;
 use std::sync::Arc;
 
 const LOG_TARGET: &str = "pulse-worker";
@@ -32,6 +41,7 @@ pub trait ExtrinsicConstructor<Block: BlockT>: Send + Sync {
     ) -> Result<Block::Extrinsic, Box<dyn std::error::Error + Send + Sync>>;
 }
 
+/// The worker responsible for submitting pulses to the runtime
 pub struct PulseWorker<Block, Client, Pool, Constructor>
 where
     Block: BlockT,
@@ -62,6 +72,7 @@ where
         }
     }
 
+    /// get aura keys (for now: TODO)
     fn get_authority_key(&self) -> Result<sr25519::Public, Box<dyn std::error::Error + Send + Sync>> {
         self.keystore
             .sr25519_public_keys(sp_consensus_aura::sr25519::AuthorityPair::ID)
@@ -85,7 +96,6 @@ where
         start: u64,
         end: u64,
     ) -> Result<Block::Hash, Box<dyn std::error::Error + Send + Sync>> {
-        // Get authority key
         let public = self.get_authority_key()?;
 
         log::info!(
@@ -104,7 +114,6 @@ where
 
         // Submit to transaction pool
         let best_hash = self.client.info().best_hash;
-        log::info!("Submitting extrinsic!");
         let _hash = self
             .transaction_pool
             .submit_one(best_hash, TransactionSource::Local, extrinsic)
@@ -112,7 +121,7 @@ where
 
         log::info!(
             target: LOG_TARGET,
-            "✅ Submitted pulse extrinsic",
+            "Submitted pulse extrinsic",
         );
 
         Ok(best_hash)

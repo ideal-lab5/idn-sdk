@@ -16873,6 +16873,7 @@ dependencies = [
  "scale-info",
  "serde",
  "sha2 0.10.9",
+ "sp-api",
  "sp-core",
  "sp-idn-crypto",
  "sp-idn-traits",

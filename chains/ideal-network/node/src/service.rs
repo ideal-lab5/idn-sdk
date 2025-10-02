@@ -26,7 +26,6 @@ use idn_runtime::{
 	},
 	opaque::{Block, Hash},
 };
-use pallet_randomness_beacon::{ExtrinsicBuilderApi, RandomnessBeaconApi};
 
 // Cumulus Imports
 use cumulus_client_collator::service::CollatorService;
@@ -47,7 +46,7 @@ use cumulus_relay_chain_interface::{OverseerHandle, RelayChainInterface};
 // Substrate Imports
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use prometheus_endpoint::Registry;
-use sc_client_api::{Backend, BlockchainEvents, HeaderBackend};
+use sc_client_api::{Backend, BlockchainEvents};
 use sc_consensus::ImportQueue;
 use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
 use sc_network::NetworkBlock;
@@ -55,9 +54,7 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::tracing_unbounded;
-use sp_api::{ApiExt, Core};
 use sp_keystore::KeystorePtr;
-use substrate_frame_rpc_system::AccountNonceApi;
 
 use libp2p::Multiaddr;
 use sc_consensus_randomness_beacon::{
@@ -69,7 +66,7 @@ use sc_consensus_randomness_beacon::{
 #[docify::export(wasm_executor)]
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
 
-type ParachainClient = TFullClient<Block, RuntimeApi, ParachainExecutor>;
+pub(crate) type ParachainClient = TFullClient<Block, RuntimeApi, ParachainExecutor>;
 
 type ParachainBackend = TFullBackend<Block>;
 
@@ -227,22 +224,13 @@ fn start_consensus(
 	);
 
 	let params = AuraParams {
-		create_inherent_data_providers: move |_, ()| {
-			let pulse_receiver = pulse_receiver.clone();
+		create_inherent_data_providers: |_, _| async {
+			let slot = InherentDataProvider::from_timestamp_and_slot_duration(
+				Timestamp::current(),
+				SlotDuration::from_millis(SLOT_DURATION_MS),
+			);
 
-			async move {
-				let pulses = pulse_receiver.read().await;
-
-				let serialized_pulses: Vec<Vec<u8>> =
-					pulses.iter().map(|pulse| pulse.encode()).collect();
-
-				let beacon_inherent =
-					sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
-						serialized_pulses,
-					);
-
-				Ok(beacon_inherent)
-			}
+			Ok((slot,))
 		},
 		block_import,
 		para_client: client.clone(),
@@ -461,8 +449,8 @@ pub async fn start_parachain_node(
 		);
 
 		let finality_notifications = client.finality_notification_stream();
-		let mut pfg =
-			PulseFinalizationGadget::new(client.clone(), pulse_worker, pulse_receiver.clone());
+		let pfg =
+			PulseFinalizationGadget::new(pulse_worker, pulse_receiver.clone());
 
 		task_manager
 			.spawn_essential_handle()
@@ -490,101 +478,13 @@ pub async fn start_parachain_node(
 	Ok((task_manager, client))
 }
 
-use idn_runtime::{AccountId, RuntimeCall, UncheckedExtrinsic};
-use sc_consensus_randomness_beacon::worker::ExtrinsicConstructor;
-use sp_application_crypto::AppCrypto;
-use sp_api::ProvideRuntimeApi;
-use sp_consensus_randomness_beacon::types::OpaqueSignature;
-use sp_core::{sr25519, Pair};
-use sp_runtime::{
-    generic::{Era, ExtensionVersion, SignedPayload},
-    traits::{Block as BlockT, Header, IdentifyAccount, TransactionExtension, Verify},
-    MultiSignature, MultiSigner,
-};
-
-struct RuntimeExtrinsicConstructor {
-    client: Arc<ParachainClient>,
-    keystore: KeystorePtr,
-}
-
-impl ExtrinsicConstructor<Block> for RuntimeExtrinsicConstructor {
-    fn construct_pulse_extrinsic(
-        &self,
-        signer: sr25519::Public,
-        asig: OpaqueSignature,
-        start: u64,
-        end: u64,
-    ) -> Result<<Block as BlockT>::Extrinsic, Box<dyn std::error::Error + Send + Sync>> {
- 		let account: idn_runtime::AccountId = MultiSigner::Sr25519(signer).into_account();
-        let at_hash = self.client.info().best_hash;
-        let genesis_hash = self.client.hash(0)?.ok_or("No genesis")?;
-        let at_header = self.client.header(at_hash)?.ok_or("No header")?;
-        let at_number = *at_header.number();
-
-		// we only need to proceed if it is our turn (round robin aura style)
-		// Get our authority ID
-		// TODO: eventually we should designate named keys for this (like aura does)
-		// let our_authority = match get_authority_id(&keystore).await {
-		// 	Some(id) => id,
-		// 	None => {
-		// 		log::warn!("Not an authority, skipping submission");
-		// 		return Ok(Default::default());
-		// 	}
-		// };
-		
-
-		// let local_id = keystore
-        // .sr25519_public_keys(RANDOMNESS_BEACON_KEY_TYPE)
-        // .into_iter()
-        // .next()
-        // .ok_or("No authority key found in keystore")?;
-		// Calculate designated submitter
-		// let submitter_index = (round as usize) % authorities.len();
-		// let designated = &authorities[submitter_index];
-		
-		// // Only designated authority submits
-		// if designated != &account {
-		// 	log::debug!("Not designated submitter for round {}", round);
-		// 	return Ok(Default::default());
-		// }
-		
-		// log::info!("🎯 Designated submitter for round {}, submitting...", round);
-        
-        let version = self.client.runtime_api().version(at_hash)?;
-        let nonce = self.client.runtime_api().account_nonce(at_hash, account.clone())?;
-   
-		let (payload, call, tx_ext) = self.client.runtime_api().construct_pulse_payload(
-			at_hash,
-			account.clone(),
-			asig,
-			start,
-			end,
-			nonce,
-		).unwrap();
-
-		let signature = self.keystore
-			.sr25519_sign(
-				sp_consensus_aura::sr25519::AuthorityPair::ID,
-				&signer.into(),
-				&payload,
-			)?
-			.ok_or("Failed to sign")?;
-
-        Ok(idn_runtime::UncheckedExtrinsic::new_signed(
-            call,
-            account.into(),
-            MultiSignature::Sr25519(signature),
-            tx_ext,
-        ).into())
-    }
-}
-
+/// builds the pulse worker for ingesting pulses and submitting signatures
 fn build_pulse_worker(
     client: Arc<ParachainClient>,
     keystore: KeystorePtr,
     pool: Arc<sc_transaction_pool::TransactionPoolHandle<Block, ParachainClient>>,
 ) -> Arc<impl PulseSubmitter<Block>> {
-    let constructor = Arc::new(RuntimeExtrinsicConstructor {
+    let constructor = Arc::new(crate::impls::RuntimeExtrinsicConstructor {
         client: client.clone(),
         keystore: keystore.clone(),
     });

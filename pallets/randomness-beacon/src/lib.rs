@@ -87,7 +87,6 @@ use frame_support::pallet_prelude::*;
 
 use frame_support::traits::Randomness;
 use frame_system::pallet_prelude::BlockNumberFor;
-use sp_consensus_randomness_beacon::types::CanonicalPulse;
 use sp_core::H256;
 use sp_idn_crypto::verifier::SignatureVerifier;
 use sp_idn_traits::{
@@ -116,17 +115,13 @@ mod benchmarking;
 
 const LOG_TARGET: &str = "pallet-randomness-beacon";
 
-const SERIALIZED_SIG_SIZE: usize = 48;
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use ark_bls12_381::G1Affine;
-	use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+	use ark_serialize::CanonicalSerialize;
 	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
 	use sp_consensus_randomness_beacon::{
-		digest::ConsensusLog,
 		types::{OpaqueSignature, RoundNumber},
 	};
 	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
@@ -303,9 +298,6 @@ pub mod pallet {
 
 			// events
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
-			// Insert the latest round into the header digest
-			let digest_item: DigestItem = ConsensusLog::LatestRoundNumber(end).into();
-			<frame_system::Pallet<T>>::deposit_log(digest_item);
 			// successful verification is beneficial to the network, so we do not charge when the
 			// signature is correct
 			Ok(Pays::No.into())
@@ -330,10 +322,6 @@ pub mod pallet {
 
 			let genesis = config.genesis_round;
 			LatestRound::<T>::set(genesis);
-			// set the genesis round as the default digest log for the initial valid round number
-			let digest_item: DigestItem =
-				ConsensusLog::<RoundNumber>::LatestRoundNumber(genesis).into();
-			<frame_system::Pallet<T>>::deposit_log(digest_item);
 
 			Self::deposit_event(Event::<T>::BeaconConfigSet);
 
@@ -362,29 +350,4 @@ where
 			},
 		}
 	}
-}
-
-sp_api::decl_runtime_apis! {
-    pub trait RandomnessBeaconApi {
-		fn latest_round() -> u64;
-    }
-}
-
-sp_api::decl_runtime_apis! {
-    pub trait ExtrinsicBuilderApi<AccountId, RuntimeCall, Signature, TxExtension, Nonce> 
-	where
-		AccountId: Encode + Decode,
-		RuntimeCall: Encode + Decode,
-		Signature: Encode + Decode,
-		TxExtension : Encode + Decode,
-		Nonce: Encode + Decode,
-	{
-        fn construct_pulse_payload(
-            who: AccountId,
-            asig: Signature,
-            start: u64,
-            end: u64,
-            nonce: Nonce,
-        ) -> (Vec<u8>, RuntimeCall, TxExtension);
-    }
 }

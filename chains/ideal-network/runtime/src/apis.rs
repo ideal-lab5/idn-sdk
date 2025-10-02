@@ -20,7 +20,7 @@ use crate::benchmarks::*;
 use crate::{
 	configs::{xcm_config, RuntimeBlockWeights},
 	constants::relay::fee::WeightToFee,
-	BlockNumber, Contracts, EventRecord, Hash, OriginCaller, PolkadotXcm, RuntimeEvent, TxExtension, UncheckedExtrinsic,
+	BlockNumber, Contracts, EventRecord, Hash, OriginCaller, PolkadotXcm, RuntimeEvent, TxExtension,
 	CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS,
 };
 use codec::Encode;
@@ -357,9 +357,8 @@ impl_runtime_apis! {
 		}
 	}
 
-    impl pallet_randomness_beacon::ExtrinsicBuilderApi<Block, AccountId, RuntimeCall, OpaqueSignature, TxExtension, Nonce> for Runtime {
+    impl sp_consensus_randomness_beacon::api::ExtrinsicBuilderApi<Block, AccountId, RuntimeCall, OpaqueSignature, TxExtension, Nonce> for Runtime {
         fn construct_pulse_payload(
-            who: AccountId,
             asig: OpaqueSignature,
             start: u64,
             end: u64,
@@ -388,12 +387,6 @@ impl_runtime_apis! {
 			(payload.encode(), call, tx_ext)
         }
     }
-
-	impl pallet_randomness_beacon::RandomnessBeaconApi<Block> for Runtime {
-		fn latest_round() -> u64 {
-			pallet_randomness_beacon::LatestRound::<Runtime>::get()
-		}
-	}
 
 	impl pallet_idn_manager::IdnManagerApi<
 		Block,

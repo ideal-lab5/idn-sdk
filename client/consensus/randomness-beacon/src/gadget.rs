@@ -21,17 +21,13 @@
 use crate::{gossipsub::DrandReceiver};
 use ark_bls12_381::G1Affine;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use codec::Decode;
-use futures::{stream::Fuse, Future, FutureExt, Stream, StreamExt};
-use sc_client_api::{FinalityNotification, HeaderBackend};
+use futures::{stream::Fuse, Future, FutureExt, StreamExt};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
-use sp_api::ProvideRuntimeApi;
 use sp_consensus_randomness_beacon::types::OpaqueSignature;
-use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
+use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 use std::pin::Pin;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use tokio::sync::RwLock;
-use pallet_randomness_beacon::RandomnessBeaconApi;
 
 const LOG_TARGET: &str = "rand-beacon-gadget";
 
@@ -113,27 +109,22 @@ where
 
 /// Runs as a background task, monitoring for new randomness pulses and
 /// submitting them to the chain via signed extrinsics.
-pub struct PulseFinalizationGadget<Block: BlockT, S, Client, const MAX_QUEUE_SIZE: usize> {
-	client: Arc<Client>,
+pub struct PulseFinalizationGadget<Block: BlockT, S, const MAX_QUEUE_SIZE: usize> {
 	pulse_submitter: Arc<S>,
 	pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
 	best_finalized_round: Arc<RwLock<u64>>,
 	_phantom: std::marker::PhantomData<Block>,
 }
 
-impl<Block: BlockT, S: PulseSubmitter<Block>, Client, const MAX_QUEUE_SIZE: usize>
-	PulseFinalizationGadget<Block, S, Client, MAX_QUEUE_SIZE>
-where
-	Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-	Client::Api: pallet_randomness_beacon::RandomnessBeaconApi<Block>,
+impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
+	PulseFinalizationGadget<Block, S, MAX_QUEUE_SIZE>
 {
 	pub fn new(
-		client: Arc<Client>,
 		pulse_submitter: Arc<S>,
 		pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
 	) -> Self {
 		let best_finalized_round = Arc::new(RwLock::new(0));
-		Self { client, pulse_submitter, pulse_receiver, best_finalized_round, _phantom: Default::default() }
+		Self { pulse_submitter, pulse_receiver, best_finalized_round, _phantom: Default::default() }
 	}
 
 	/// Run the main loop indefinitely.
@@ -169,15 +160,10 @@ where
 		notification: &UnpinnedFinalityNotification<Block>,
 	) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 		// get 'finalized' round from the runtime
-		// let latest_round = self.client.runtime_api().latest_round(notification.hash).unwrap();
 		let latest_round = *self.best_finalized_round.read().await;
 		// get fresh pulses
 		let pulses = self.pulse_receiver.read().await;
 		let new_pulses: Vec<_> = pulses.clone().into_iter().filter(|p| p.round > latest_round).collect();
-
-		log::info!("Got latest round: {:?}", latest_round);
-		log::info!("Got pulses {:?}", pulses);
-		log::info!("Got filtered pulses: {:?}", new_pulses.clone());
 
 		if new_pulses.is_empty() {
 			return Ok(());
@@ -193,7 +179,7 @@ where
 
 		let start = new_pulses.first().unwrap().round;
 		let end = new_pulses.last().unwrap().round;
-		log::info!("************************************** Aggregating sigs for rounds {:?} to {:?}", start, end);
+
 		// aggregate sigs
 		let asig = new_pulses
 			.into_iter()
@@ -213,28 +199,10 @@ where
 
 		let mut best = self.best_finalized_round.write().await;
         *best = end;
-        drop(best); // Explicitly drop to release lock
+		// release the write lock
+        drop(best);
 
 		Ok(())
-	}
-
-	/// extract the latest round number from block header digest logs
-	///
-	/// * `header`: The block header to extract digest logs from
-	///
-	fn extract_latest_round(header: &Block::Header) -> Option<u64> {
-		use sp_consensus_randomness_beacon::digest::ConsensusLog;
-
-		for digest_log in header.digest().logs() {
-			if let Some(data) = digest_log.as_other() {
-				if let Ok(ConsensusLog::LatestRoundNumber(round)) =
-					ConsensusLog::decode(&mut &data[..])
-				{ 
-					return Some(round);
-				}
-			}
-		}
-		None
 	}
 }
 

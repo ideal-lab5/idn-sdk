@@ -13,9 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#![cfg_attr(not(feature = "std"), no_std)]
 
-extern crate alloc;
+use alloc::vec::Vec;
+use codec::{Decode, Encode};
 
-pub mod api;
-pub mod types;
+sp_api::decl_runtime_apis! {
+    pub trait ExtrinsicBuilderApi<AccountId, RuntimeCall, Signature, TxExtension, Nonce> 
+	where
+		AccountId: Encode + Decode,
+		RuntimeCall: Encode + Decode,
+		Signature: Encode + Decode,
+		TxExtension : Encode + Decode,
+		Nonce: Encode + Decode,
+	{
+        fn construct_pulse_payload(
+            asig: Signature,
+            start: u64,
+            end: u64,
+            nonce: Nonce,
+        ) -> (Vec<u8>, RuntimeCall, TxExtension);
+    }
+}
