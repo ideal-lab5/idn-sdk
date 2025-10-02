@@ -5988,6 +5988,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-xcm",
+ "pallet-xcm-benchmarks",
  "parachains-common",
  "parity-scale-codec",
  "polkadot-core-primitives",
