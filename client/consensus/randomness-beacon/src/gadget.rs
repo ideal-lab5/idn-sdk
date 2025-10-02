@@ -259,64 +259,6 @@ mod tests {
         }
     }
 
-    // Minimal mock client
-    struct MockClient;
-
-
-	
-
-
-    impl sc_client_api::HeaderBackend<TestBlock> for MockClient {
-        fn header(
-            &self,
-            _hash: <TestBlock as BlockT>::Hash,
-        ) -> sp_blockchain::Result<Option<<TestBlock as BlockT>::Header>> {
-            Ok(None)
-        }
-
-        fn info(&self) -> sc_client_api::blockchain::Info<TestBlock> {
-            unimplemented!("Not needed for this test")
-        }
-
-        fn status(
-            &self,
-            _hash: <TestBlock as BlockT>::Hash,
-        ) -> sp_blockchain::Result<sc_client_api::blockchain::BlockStatus> {
-            unimplemented!("Not needed for this test")
-        }
-
-        fn number(
-            &self,
-            _hash: <TestBlock as BlockT>::Hash,
-        ) -> sp_blockchain::Result<Option<u64>> {
-            Ok(None)
-        }
-
-        fn hash(&self, _number: u64) -> sp_blockchain::Result<Option<<TestBlock as BlockT>::Hash>> {
-            Ok(None)
-        }
-    }
-
-	// #[derive(Clone)]
-	// pub(crate) struct TestApi {
-	// 	pub(crate) authorities: Vec<AuthorityId>,
-	// }
-
-	// impl ProvideRuntimeApi<Block> for MockClient {
-	// 	type Api = RuntimeApi;
-
-	// 	fn runtime_api(&self) -> ApiRef<'_, Self::Api> {
-	// 		RuntimeApi { authorities: self.authorities.clone() }.into()
-	// 	}
-	// }
-
-    // impl sp_api::ProvideRuntimeApi<TestBlock> for MockClient {
-    //     type Api = ();
-    //     fn runtime_api(&self) -> sp_api::ApiRef<Self::Api> {
-    //         unimplemented!("Not needed for this test")
-    //     }
-    // }
-
     fn create_header_with_round(number: u64, round: u64) -> Header<u64, BlakeTwo256> {
         let mut digest = Digest::default();
         let log = ConsensusLog::LatestRoundNumber(round);
@@ -333,7 +275,6 @@ mod tests {
     #[tokio::test]
     async fn test_gadget_submits_new_pulses_on_finality() {
         let mock_submitter = Arc::new(MockPulseSubmitter::new());
-        let mock_client = Arc::new(MockClient);
 
         let (tx, rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
         let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(rx);
@@ -343,7 +284,6 @@ mod tests {
         tx.unbounded_send(create_test_pulse(101)).unwrap();
 
         let gadget = PulseFinalizationGadget::new(
-            mock_client,
             mock_submitter.clone(),
             pulse_receiver,
         );

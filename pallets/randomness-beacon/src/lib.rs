@@ -121,11 +121,8 @@ pub mod pallet {
 	use ark_serialize::CanonicalSerialize;
 	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
-	use sp_consensus_randomness_beacon::{
-		types::{OpaqueSignature, RoundNumber},
-	};
+	use sp_consensus_randomness_beacon::types::{OpaqueSignature, RoundNumber};
 	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
-	use sp_runtime::generic::DigestItem;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -207,7 +204,7 @@ pub mod pallet {
 		/// The round of this pulse has already happened
 		StartExpired,
 	}
-	
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
@@ -351,3 +348,23 @@ where
 		}
 	}
 }
+
+
+sp_api::decl_runtime_apis! {
+    pub trait ExtrinsicBuilderApi<AccountId, RuntimeCall, Signature, TxExtension, Nonce> 
+	where
+		AccountId: Encode + Decode,
+		RuntimeCall: Encode + Decode,
+		Signature: Encode + Decode,
+		TxExtension : Encode + Decode,
+		Nonce: Encode + Decode,
+	{
+        fn construct_pulse_payload(
+            asig: Signature,
+            start: u64,
+            end: u64,
+            nonce: Nonce,
+        ) -> (Vec<u8>, RuntimeCall, TxExtension);
+    }
+}
+

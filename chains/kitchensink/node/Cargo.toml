@@ -28,6 +28,7 @@ sc-basic-authorship = { workspace = true, default-features = false }
 sc-cli = { workspace = true, default-features = false }
 sc-client-api = { workspace = true, default-features = false }
 sc-consensus = { workspace = true, default-features = false }
+sc-consensus-aura = { workspace = true, default-features = false }
 sc-consensus-manual-seal = { workspace = true, default-features = false }
 sc-consensus-randomness-beacon = { workspace = true, default-features = false }
 sc-executor = { workspace = true, default-features = false }
@@ -41,6 +42,7 @@ sc-utils = { workspace = true, default-features = false }
 sp-api = { workspace = true, default-features = false }
 sp-blockchain = { workspace = true }
 sp-block-builder = { workspace = true, default-features = false }
+sp-consensus-aura = { workspace = true, default-features = false }
 sp-consensus-randomness-beacon = { workspace = true, default-features = false }
 sp-genesis-builder = { workspace = true, default-features = false }
 sp-io = { workspace = true, default-features = false }

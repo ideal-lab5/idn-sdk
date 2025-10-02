@@ -54,6 +54,7 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sc_utils::mpsc::tracing_unbounded;
+use sp_consensus_aura::inherents::InherentDataProvider;
 use sp_keystore::KeystorePtr;
 
 use libp2p::Multiaddr;
@@ -223,14 +224,18 @@ fn start_consensus(
 		client.clone(),
 	);
 
+	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 	let params = AuraParams {
 		create_inherent_data_providers: |_, _| async {
-			let slot = InherentDataProvider::from_timestamp_and_slot_duration(
-				Timestamp::current(),
-				SlotDuration::from_millis(SLOT_DURATION_MS),
-			);
+			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-			Ok((slot,))
+			let slot =
+					sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+						*timestamp,
+						slot_duration,
+					);
+
+			Ok((slot, timestamp))
 		},
 		block_import,
 		para_client: client.clone(),
@@ -449,12 +454,13 @@ pub async fn start_parachain_node(
 		);
 
 		let finality_notifications = client.finality_notification_stream();
-		let pfg =
-			PulseFinalizationGadget::new(pulse_worker, pulse_receiver.clone());
+		let pfg = PulseFinalizationGadget::new(pulse_worker, pulse_receiver.clone());
 
-		task_manager
-			.spawn_essential_handle()
-			.spawn("pulse-finalization-gadget", None, pfg.run(finality_notifications));
+		task_manager.spawn_essential_handle().spawn(
+			"pulse-finalization-gadget",
+			None,
+			pfg.run(finality_notifications),
+		);
 
 		start_consensus(
 			client.clone(),
@@ -480,19 +486,14 @@ pub async fn start_parachain_node(
 
 /// builds the pulse worker for ingesting pulses and submitting signatures
 fn build_pulse_worker(
-    client: Arc<ParachainClient>,
-    keystore: KeystorePtr,
-    pool: Arc<sc_transaction_pool::TransactionPoolHandle<Block, ParachainClient>>,
+	client: Arc<ParachainClient>,
+	keystore: KeystorePtr,
+	pool: Arc<sc_transaction_pool::TransactionPoolHandle<Block, ParachainClient>>,
 ) -> Arc<impl PulseSubmitter<Block>> {
-    let constructor = Arc::new(crate::impls::RuntimeExtrinsicConstructor {
-        client: client.clone(),
-        keystore: keystore.clone(),
-    });
+	let constructor = Arc::new(crate::impls::RuntimeExtrinsicConstructor {
+		client: client.clone(),
+		keystore: keystore.clone(),
+	});
 
-    Arc::new(PulseWorker::new(
-        client,
-        keystore,
-        pool,
-        constructor,
-    ))
+	Arc::new(PulseWorker::new(client, keystore, pool, constructor))
 }
