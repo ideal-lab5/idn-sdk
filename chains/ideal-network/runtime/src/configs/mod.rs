@@ -18,6 +18,7 @@
 pub(crate) mod xcm_config;
 
 mod contracts;
+mod xcm_weights;
 
 // Substrate and Polkadot dependencies
 use bp_idn::{

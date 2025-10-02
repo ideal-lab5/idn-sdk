@@ -15,7 +15,7 @@
  */
 
 use crate::{
-	configs::RuntimeBlockWeights,
+	configs::{xcm_weights::IdnXcmWeight, RuntimeBlockWeights},
 	constants,
 	weights::{CumulusXcmpQueueWeightInfo, MessageQueueWeightInfo, XcmWeightInfo},
 	AccountId, AllPalletsWithSystem, Balance, Balances, MessageQueue, ParachainInfo,
@@ -42,11 +42,11 @@ use xcm::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, DescribeAllTerminal, DescribeFamily, DescribeTerminus,
-	EnsureXcmOrigin, FixedWeightBounds, FrameTransactionalProcessor, FungibleAdapter,
-	HashedDescription, IsConcrete, ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount,
-	SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId,
-	UsingComponents, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
+	EnsureXcmOrigin, FrameTransactionalProcessor, FungibleAdapter, HashedDescription, IsConcrete,
+	ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount, SiblingParachainAsNative,
+	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
+	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
 };
 use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 
@@ -215,8 +215,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = ();
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	// TODO: use WeightInfoBounds https://github.com/ideal-lab5/idn-sdk/issues/262
-	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<IdnXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	type Trader =
 		UsingComponents<WeightToFee, RelayLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = PolkadotXcm;
@@ -282,8 +281,7 @@ impl pallet_xcm::Config for Runtime {
 	// We don't allow teleporting assets.
 	type XcmTeleportFilter = Nothing;
 	type XcmReserveTransferFilter = FilterByAssets<Equals<RelayLocation>>;
-	// TODO: use WeightInfoBounds https://github.com/ideal-lab5/idn-sdk/issues/262
-	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<IdnXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
