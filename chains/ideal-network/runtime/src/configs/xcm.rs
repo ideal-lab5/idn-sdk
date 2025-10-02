@@ -153,7 +153,6 @@ pub type FungibleTransactor = FungibleAdapter<
 /// ready for dispatching a transaction with Xcm's `Transact`. There is an `OriginKind` which can
 /// biases the kind of local `Origin` it will become.
 pub type XcmOriginToTransactDispatchOrigin = (
-	// SiblingOriginSignedAccountId32<RelayNetwork, RuntimeOrigin>,
 	// Sovereign account converter; this attempts to derive an `AccountId` from the origin location
 	// using `LocationToAccountId` and then turn that into the usual `Signed` origin. Useful for
 	// foreign chains who want to have a local sovereign account on this chain which they control.
