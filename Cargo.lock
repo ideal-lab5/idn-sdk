@@ -14777,6 +14777,7 @@ dependencies = [
  "futures",
  "libp2p 0.55.0",
  "log",
+ "pallet-randomness-beacon",
  "parity-scale-codec",
  "prost 0.13.5",
  "rand 0.9.2",

@@ -171,7 +171,7 @@ pub mod pallet {
 
 	/// The latest observed round
 	#[pallet::storage]
-	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
+	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, ValueQuery>;
 
 	/// The aggregated signature and (start, end) rounds
 	#[pallet::storage]
@@ -243,11 +243,12 @@ pub mod pallet {
 		/// * `asig`: An aggregated signature as bytes
 		/// * `height`: The number of signatures aggregated in asig
 		#[pallet::call_index(0)]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(
+		#[pallet::weight((<T as pallet::Config>::WeightInfo::try_submit_asig(
 			T::MaxSigsPerBlock::get().into())
 				.saturating_add(
-					T::Dispatcher::dispatch_weight())
-		)]
+					T::Dispatcher::dispatch_weight()),
+			DispatchClass::Operational
+		))]
 		#[allow(clippy::useless_conversion)]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
@@ -268,8 +269,7 @@ pub mod pallet {
 				Error::<T>::ExcessiveHeightProvided
 			);
 
-			let latest_round: RoundNumber =
-				LatestRound::<T>::get().expect("The latest round must be set; qed");
+			let latest_round: RoundNumber = LatestRound::<T>::get();
 			// start must be greater than last known latest round
 			ensure!(start >= latest_round, Error::<T>::StartExpired);
 
@@ -292,7 +292,7 @@ pub mod pallet {
 			.map_err(|_| Error::<T>::VerificationFailed)?;
 
 			// update storage
-			LatestRound::<T>::set(Some(end + 1));
+			LatestRound::<T>::set(end + 1);
 			let sacc = Accumulation::new(asig, start, end);
 			SparseAccumulation::<T>::set(Some(sacc.clone()));
 			DidUpdate::<T>::put(true);
@@ -329,7 +329,7 @@ pub mod pallet {
 			BeaconConfig::<T>::set(Some(config.clone()));
 
 			let genesis = config.genesis_round;
-			LatestRound::<T>::set(Some(genesis));
+			LatestRound::<T>::set(genesis);
 			// set the genesis round as the default digest log for the initial valid round number
 			let digest_item: DigestItem =
 				ConsensusLog::<RoundNumber>::LatestRoundNumber(genesis).into();
@@ -365,12 +365,18 @@ where
 }
 
 sp_api::decl_runtime_apis! {
-    pub trait RandomnessBeaconApi<AccountId, RuntimeCall, Signature, TxExtension, Nonce> 
+    pub trait RandomnessBeaconApi {
+		fn latest_round() -> u64;
+    }
+}
+
+sp_api::decl_runtime_apis! {
+    pub trait ExtrinsicBuilderApi<AccountId, RuntimeCall, Signature, TxExtension, Nonce> 
 	where
 		AccountId: Encode + Decode,
 		RuntimeCall: Encode + Decode,
 		Signature: Encode + Decode,
-		TxExtension: Encode + Decode,
+		TxExtension : Encode + Decode,
 		Nonce: Encode + Decode,
 	{
         fn construct_pulse_payload(

@@ -26,7 +26,7 @@ use idn_runtime::{
 	},
 	opaque::{Block, Hash},
 };
-use pallet_randomness_beacon::RandomnessBeaconApi;
+use pallet_randomness_beacon::{ExtrinsicBuilderApi, RandomnessBeaconApi};
 
 // Cumulus Imports
 use cumulus_client_collator::service::CollatorService;
@@ -461,7 +461,7 @@ pub async fn start_parachain_node(
 		);
 
 		let finality_notifications = client.finality_notification_stream();
-		let pfg =
+		let mut pfg =
 			PulseFinalizationGadget::new(client.clone(), pulse_worker, pulse_receiver.clone());
 
 		task_manager
@@ -515,11 +515,40 @@ impl ExtrinsicConstructor<Block> for RuntimeExtrinsicConstructor {
         start: u64,
         end: u64,
     ) -> Result<<Block as BlockT>::Extrinsic, Box<dyn std::error::Error + Send + Sync>> {
- 		        let account: idn_runtime::AccountId = MultiSigner::Sr25519(signer).into_account();
+ 		let account: idn_runtime::AccountId = MultiSigner::Sr25519(signer).into_account();
         let at_hash = self.client.info().best_hash;
         let genesis_hash = self.client.hash(0)?.ok_or("No genesis")?;
         let at_header = self.client.header(at_hash)?.ok_or("No header")?;
         let at_number = *at_header.number();
+
+		// we only need to proceed if it is our turn (round robin aura style)
+		// Get our authority ID
+		// TODO: eventually we should designate named keys for this (like aura does)
+		// let our_authority = match get_authority_id(&keystore).await {
+		// 	Some(id) => id,
+		// 	None => {
+		// 		log::warn!("Not an authority, skipping submission");
+		// 		return Ok(Default::default());
+		// 	}
+		// };
+		
+
+		// let local_id = keystore
+        // .sr25519_public_keys(RANDOMNESS_BEACON_KEY_TYPE)
+        // .into_iter()
+        // .next()
+        // .ok_or("No authority key found in keystore")?;
+		// Calculate designated submitter
+		// let submitter_index = (round as usize) % authorities.len();
+		// let designated = &authorities[submitter_index];
+		
+		// // Only designated authority submits
+		// if designated != &account {
+		// 	log::debug!("Not designated submitter for round {}", round);
+		// 	return Ok(Default::default());
+		// }
+		
+		// log::info!("🎯 Designated submitter for round {}, submitting...", round);
         
         let version = self.client.runtime_api().version(at_hash)?;
         let nonce = self.client.runtime_api().account_nonce(at_hash, account.clone())?;
