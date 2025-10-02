@@ -340,44 +340,34 @@ pub mod pallet {
 			start: RoundNumber,
 			end: RoundNumber,
 		) -> DispatchResultWithPostInfo {
-			log::trace!(target: LOG_TARGET, "try_submit_asig called with start: {:?}, end: {:?}, asig: {:?}", start, end, hex::encode(&asig));
 			ensure_none(origin)?;
-			log::trace!(target: LOG_TARGET, "Origin is none (unsigned).");
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
-			log::trace!(target: LOG_TARGET, "DidUpdate is false (not yet updated this block).");
 
 			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
-			log::trace!(target: LOG_TARGET, "BeaconConfig is set: {:?}", config);
 			// 0 < num_sigs <= MaxSigsPerBlock
 			let height = end - start;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
-			log::trace!(target: LOG_TARGET, "Height is non-zero: {:?}", height);
 			ensure!(
 				height <= T::MaxSigsPerBlock::get() as u64,
 				Error::<T>::ExcessiveHeightProvided
 			);
-			log::trace!(target: LOG_TARGET, "Height is within bounds: {:?}", height);
 
 			let latest_round: RoundNumber =
 				LatestRound::<T>::get().expect("The latest round must be set; qed");
-			log::trace!(target: LOG_TARGET, "Latest round is set: {:?}", latest_round);
 
 			// start must be greater than last known latest round
 			ensure!(start >= latest_round, Error::<T>::StartExpired);
-			log::trace!(target: LOG_TARGET, "Start is valid: {:?}", start);
 
 			let mut amsg = zero_on_g1();
 			for r in start..end + 1 {
 				let msg = compute_round_on_g1(r).map_err(|_| Error::<T>::SerializationFailed)?;
 				amsg = (amsg + msg).into();
 			}
-			log::trace!(target: LOG_TARGET, "Computed aggregated message for rounds {:?} to {:?}.", start, end);
 			// convert to bytes
 			let mut amsg_bytes = Vec::new();
 			amsg.serialize_compressed(&mut amsg_bytes)
 				.map_err(|_| Error::<T>::SerializationFailed)?;
-			log::trace!(target: LOG_TARGET, "Serialized aggregated message: {:?}", hex::encode(&amsg_bytes));
 			// verify the signature
 			T::SignatureVerifier::verify(
 				config.public_key.as_ref().to_vec(),
@@ -385,7 +375,6 @@ pub mod pallet {
 				amsg_bytes,
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
-			log::trace!(target: LOG_TARGET, "Signature verified successfully for rounds {:?} to {:?}.", start, end);
 
 			LatestRound::<T>::set(Some(end + 1));
 
