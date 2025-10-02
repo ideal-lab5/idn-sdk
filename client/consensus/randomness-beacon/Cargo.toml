@@ -60,8 +60,13 @@ ark-serialize.workspace = true
 
 [dev-dependencies]
 async-std.workspace = true
+mockall.workspace = true
+parking_lot.workspace = true
 rand.workspace = true
 tokio.workspace = true
 sc-block-builder.workspace = true
 sc-service.workspace = true
+sp-externalities.workspace = true
+sp-state-machine.workspace = true
+sp-version.workspace = true
 tracing-test.workspace = true
