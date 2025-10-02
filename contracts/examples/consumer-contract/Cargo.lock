@@ -3528,10 +3528,12 @@ dependencies = [
 name = "idn-example-consumer-contract"
 version = "0.1.0"
 dependencies = [
+ "bp-idn",
  "frame-support 40.1.0",
  "idn-contracts",
  "ink",
  "ink_e2e",
+ "log",
  "scale-info",
  "serde",
  "sha2 0.10.9",

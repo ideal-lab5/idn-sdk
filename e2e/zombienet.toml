@@ -1,6 +1,6 @@
 [relaychain]
 default_command = "./polkadot"
-default_args = [ "-l=parachain=debug,xcm=trace" ]
+default_args = [ "-l=parachain=trace,xcm=trace" ]
 chain = "paseo-local"
 chain_spec_path="chainspec/paseo-local-plain.json"
 
@@ -17,6 +17,7 @@ chain_spec_path="chainspec/paseo-local-plain.json"
 id = 2001
 chain = "idnc-dev"
 name = "idn-consumer-chain"
+default_args = ["-lruntime::revive=trace,xcm=trace,parachain=trace,pallet-idn-manager=trace"]
 
     [[parachains.collators]]
     name = "idn-consumer-alice"
@@ -31,6 +32,7 @@ name = "idn-consumer-chain"
 id = 4502
 chain = "idn-dev"
 name = "ideal-network"
+default_args = ["-lxcm=trace,parachain=trace,pallet-idn-manager=trace"]
 
     [[parachains.collators]]
     name = "idn-alice"

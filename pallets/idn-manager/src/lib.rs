@@ -168,7 +168,7 @@ pub struct Subscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionI
 /// This struct contains information about the subscription owner, where randomness should be
 /// delivered, how to deliver it via XCM, and any additional metadata for the subscription.
 #[derive(
-	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking, Default
 )]
 pub struct SubscriptionDetails<AccountId, CallData> {
 	// The account that created and pays for the subscription
@@ -765,14 +765,23 @@ pub mod pallet {
 		) -> DispatchResult {
 			log::trace!(target: LOG_TARGET, "Get subscription info request received: {:?}", req);
 			// Ensure the origin is a sibling, and get the location
-			let requester: Location = T::XcmOriginFilter::ensure_origin(origin.clone())?;
+			Self::ensure_signed_or_valid_xcm_origin(origin.clone())?;
+			log::trace!(target: LOG_TARGET, "BEEP origin verified");
+
+			// Ensure the origin is a sibling
+			// T::XcmOriginFilter::ensure_origin(origin.clone())?;
+			let target = req.target;
 
 			let sub =
 				Self::get_subscription(&req.sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
+			log::trace!(target: LOG_TARGET, "BEEP subscription found");
 
 			let response = SubInfoResponse { sub, req_ref: req.req_ref };
+			log::trace!(target: LOG_TARGET, "BEEP Sending response {:?}", response);
+			log::trace!(target: LOG_TARGET, "BEEP target is {:?}", target);
 			Self::xcm_send(
-				&requester,
+				&target,
+				// &requester,
 				// Simple concatenation: pre-encoded call data + pulse data
 				{
 					let mut call_data = req.call.clone().into_inner();
@@ -780,6 +789,7 @@ pub mod pallet {
 					call_data.into()
 				},
 			)?;
+			log::trace!(target: LOG_TARGET, "BEEP Depositing Event");
 			Self::deposit_event(Event::SubscriptionDistributed { sub_id: req.sub_id });
 
 			Ok(())

@@ -683,7 +683,7 @@ impl<T: Config> Pallet<T> {
 				sub_id.hash(&salt).into()
 			},
 		};
-		let req = SubInfoRequest { sub_id, req_ref, call: Self::sub_info_callback_call_data()? };
+		let req = SubInfoRequest { sub_id, req_ref, call: Self::sub_info_callback_call_data()?, target: Self::self_para_sibling_location()? };
 		let call = RuntimeCall::IdnManager(IdnManagerCall::get_subscription_info { req });
 
 		Self::xcm_send(origin, call)?;

@@ -21,11 +21,24 @@ alice: parachain 4502 block height is at least 10 within 6000 seconds
 alice: parachain 2001 block height is at least 10 within 6000 seconds
 
 # Fund Sovereign Account
-idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,1000000" within 120 seconds
+#idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n,10000000000" within 120 seconds
+# Pause to allow next transaction to go through+
+#sleep 7 seconds
+# Fund Treasury Account
+#idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,10000000000" within 120 seconds
+#sleep 7 seconds
+idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5GJSbSfYnYDenpZwzuVtgRuN6sc7CEymVmCana7X3M4E4FST,100000000000000" within 120 seconds
+# Fund Sovereign Account
+#sleep 7 seconds 
+#idn-consumer-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n,10000000000" within 120 seconds
 # Pause to allow next transaction to go through+
 sleep 7 seconds
-# Fund Treasury Account
-idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C,1000000" within 120 seconds
+# Fund Sovereign Account
+idn-consumer-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n,10000000000000000" within 120 seconds
+#sleep 7 seconds
+#idn-consumer-alice: js-script ../../scripts/setup/balance-transfer.js with "5ERpU8W5HzkhAHW8N4m4gx8b2TttqrHYYfg1GoWeEbiMirDw,10000000000" within 120 seconds
+
+sleep 9000 seconds
 
 # Quote Subscription
 idn-consumer-alice: js-script ../../scripts/testing/subscriptions/quote-subscription.js within 120 seconds

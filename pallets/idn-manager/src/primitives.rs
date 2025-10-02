@@ -147,6 +147,8 @@ pub struct SubInfoRequest<SubId, CallData> {
 	/// The call to the function that handles the generated subscription info on the
 	/// target parachain.
 	pub call: CallData,
+	/// XCM multilocation for info delivery
+	pub target: Location,
 }
 
 /// The subscription info returned by the IDN Manager to the target parachain.

@@ -140,7 +140,7 @@
 pub mod constants;
 pub mod types;
 
-use bp_idn::types::{RequestReference, SubInfoRequest};
+use bp_idn::types::{RequestReference, SubInfoRequest, Subscription, SubscriptionDetails};
 use constants::BEACON_PUBKEY;
 use ink::{
 	env::{
@@ -655,7 +655,7 @@ impl IdnClient {
 	///
 	/// # Errors
 	/// - [`Error::MethodNotImplemented`]: This method is not yet implemented
-	pub fn request_sub_info(&self, sub_id: SubscriptionId, req_ref: Option<RequestReference>) -> Result<()> {
+	pub fn request_sub_info(&self, sub_id: SubscriptionId, req_ref: Option<RequestReference>, metadata: Option<Metadata>, call_params: Option<ContractCallParams>,) -> Result<()> {
 			let req_ref = match req_ref {
 				Some(req_ref) => req_ref,
 				None => {
@@ -663,11 +663,33 @@ impl IdnClient {
 					sub_id.hash(&salt).into()
 				},
 			};
-			let dummy_params = Vec::new();
-			let req = SubInfoRequest { sub_id, req_ref, call: self.create_callback_data(CONSUME_SUB_INFO_SEL, dummy_params, None)? };
-			let call = RuntimeCall::IdnManager(IdnManagerCall::get_subscription_info { req });
+		let dummy_pulse = Pulse::default();
+		let dummy_sub_id = SubscriptionId::default();
+		let dummy_details_parameters = (dummy_pulse, dummy_sub_id).encode();
+		let dummy_details = SubscriptionDetails {
+			subscriber: sub_id.into(),
+			target: self.self_para_sibling_location(),
+			call: self.create_callback_data(CONSUME_PULSE_SEL, dummy_details_parameters, call_params)?,
+		};
+		let dummy_sub = Subscription {
+			id: sub_id.into(),
+			state: bp_idn::types::SubscriptionState::Active,
+			metadata: metadata,
+			last_delivered: Some(u32::default()),
+			details: dummy_details,
+			credits_left: u64::default(),
+			created_at: u32::default(),
+			updated_at: u32::default(),
+			credits: u64::default(),
+			frequency: u32::default(),
+		};
+		let dummy_sub_response = SubInfoResponse{req_ref: req_ref, sub: dummy_sub};
+		let dummy_params = dummy_sub_response.encode();
+		let req = SubInfoRequest { sub_id, req_ref, target: self.self_para_sibling_location(), call: self.create_callback_data(CONSUME_SUB_INFO_SEL, dummy_params, None)? };
 
-			self.xcm_send(call)
+		let call = RuntimeCall::IdnManager(IdnManagerCall::get_subscription_info { req });
+
+		self.xcm_send(call)
 	}
 
 	/// Validates the cryptographic authenticity and correctness of a randomness pulse.
@@ -1012,7 +1034,7 @@ mod tests {
 		assert_eq!(client.get_idn_para_id(), IDN_PARA_ID_PASEO);
 		assert_eq!(client.get_self_contracts_pallet_index(), CONTRACTS_PALLET_INDEX_PASEO);
 		assert_eq!(client.get_self_para_id(), CONSUMER_PARA_ID_PASEO);
-		assert!(client.request_sub_info([0;32], None).is_ok());
+		assert!(client.request_sub_info([0;32], None, None, None).is_ok());
 
 		// Test unimplemented methods return correct errors
 		assert_eq!(client.request_quote(), Err(Error::MethodNotImplemented));
@@ -1052,7 +1074,7 @@ mod tests {
 		assert_eq!(edge_client.get_self_para_id(), u32::MAX);
 		assert_eq!(edge_client.max_idn_xcm_fees, u128::MAX);
 		let sub_id = [0;32];
-		assert!(edge_client.request_sub_info(sub_id, None).is_ok());
+		assert!(edge_client.request_sub_info(sub_id, None, None, None).is_ok());
 
 		// Test that methods still return the expected errors for unimplemented functionality
 		assert_eq!(client.request_quote(), Err(Error::MethodNotImplemented));
