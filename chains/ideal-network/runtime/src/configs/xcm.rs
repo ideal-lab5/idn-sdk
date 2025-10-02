@@ -109,7 +109,7 @@ impl<Network: Get<Option<NetworkId>>> ConvertLocation<AccountId>
 		);
 		match location.unpack() {
 			(1, [Parachain(_), AccountId32 { network, id }])
-				if matches!(network, None) || *network == Network::get() =>
+				if network.is_none() || *network == Network::get() =>
 				Some(AccountId::from(*id)),
 			_ => None,
 		}

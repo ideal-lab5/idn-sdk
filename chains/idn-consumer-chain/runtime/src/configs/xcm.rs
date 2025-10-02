@@ -85,7 +85,7 @@ impl<Network: Get<Option<NetworkId>>> ConvertLocation<AccountId>
 		);
 		match location.unpack() {
 			(1, [Parachain(constants::IDN_PARACHAIN_ID), AccountId32 { network, id }])
-				if matches!(network, None) || *network == Network::get() =>
+				if network.is_none() || *network == Network::get() =>
 				Some(AccountId::from(*id)),
 			_ => None,
 		}
@@ -115,8 +115,7 @@ where
 			(
 				OriginKind::Native,
 				(1, [Parachain(constants::IDN_PARACHAIN_ID), AccountId32 { network, id }]),
-			) if matches!(network, None) || *network == Network::get() =>
-				Ok(RuntimeOrigin::signed((*id).into())),
+			) if network.is_none() || *network == Network::get() => Ok(RuntimeOrigin::signed((*id).into())),
 			_ => Err(location),
 		}
 	}
