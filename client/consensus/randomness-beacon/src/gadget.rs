@@ -158,44 +158,49 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 		let new_pulses: Vec<_> =
 			pulses.clone().into_iter().filter(|p| p.round > latest_round).collect();
 
-		if new_pulses.is_empty() {
-			return Ok(());
+		if let (Some(first), Some(last)) = (new_pulses.first(), new_pulse.last()) {
+			let start = first.round;
+			let end = last.round;
+
+			log::info!(
+				target: LOG_TARGET,
+				"Block #{:?} finalized (round {}), submitting {} new pulses",
+				notification.header.number(),
+				latest_round,
+				new_pulses.len()
+			);
+
+			// aggregate sigs
+			let asig = new_pulses
+				.into_iter()
+				.filter_map(|pulse| {
+					let bytes = pulse.signature;
+					G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()
+				})
+				.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| (acc + sig).into());
+
+			let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
+			// [SRLABS]: This error is untestable since we know the signature is correct here.
+			//  Is it reasonable to use an expect?
+			asig.serialize_compressed(&mut asig_bytes)
+				.expect("The signature is well formatted. qed.");
+
+			self.pulse_submitter
+				.submit_pulse(asig_bytes.try_into().unwrap(), start, end)
+				.await?;
+
+			let mut best = self.best_finalized_round.write().await;
+			*best = end;
+			// release the write lock
+			drop(best);
+		} else {	
+			log::info!(
+				target: LOG_TARGET,
+				"Block #{:?} finalized (round {}), No new pulses.",
+				notification.header.number(),
+				latest_round,
+			);
 		}
-
-		log::info!(
-			target: LOG_TARGET,
-			"Block #{:?} finalized (round {}), submitting {} new pulses",
-			notification.header.number(),
-			latest_round,
-			new_pulses.len()
-		);
-
-		let start = new_pulses.first().unwrap().round;
-		let end = new_pulses.last().unwrap().round;
-
-		// aggregate sigs
-		let asig = new_pulses
-			.into_iter()
-			.filter_map(|pulse| {
-				let bytes = pulse.signature;
-				G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()
-			})
-			.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| (acc + sig).into());
-
-		let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-		// [SRLABS]: This error is untestable since we know the signature is correct here.
-		//  Is it reasonable to use an expect?
-		asig.serialize_compressed(&mut asig_bytes)
-			.expect("The signature is well formatted. qed.");
-
-		self.pulse_submitter
-			.submit_pulse(asig_bytes.try_into().unwrap(), start, end)
-			.await?;
-
-		let mut best = self.best_finalized_round.write().await;
-		*best = end;
-		// release the write lock
-		drop(best);
 
 		Ok(())
 	}

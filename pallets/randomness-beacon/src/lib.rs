@@ -129,8 +129,6 @@ pub mod pallet {
 
 	/// The public key type
 	type PubkeyOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Pubkey;
-	/// The beacon configuration type
-	pub(crate) type BeaconConfigurationOf<T> = BeaconConfiguration<PubkeyOf<T>, RoundNumber>;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -159,7 +157,7 @@ pub mod pallet {
 
 	/// The round when we start consuming pulses
 	#[pallet::storage]
-	pub type BeaconConfig<T: Config> = StorageValue<_, BeaconConfigurationOf<T>, OptionQuery>;
+	pub type BeaconConfig<T: Config> = StorageValue<_, PubkeyOf<T>, OptionQuery>;
 
 	/// The latest observed round
 	#[pallet::storage]
@@ -252,7 +250,7 @@ pub mod pallet {
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
 
-			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
+			let pk = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
 			// 0 < num_sigs <= MaxSigsPerBlock
 			let height = end - start;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
@@ -277,7 +275,7 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::SerializationFailed)?;
 			// verify the signature
 			T::SignatureVerifier::verify(
-				config.public_key.as_ref().to_vec(),
+				pk.as_ref().to_vec(),
 				asig.clone().as_ref().to_vec(),
 				amsg_bytes,
 			)
@@ -309,19 +307,11 @@ pub mod pallet {
 		#[allow(clippy::useless_conversion)]
 		pub fn set_beacon_config(
 			origin: OriginFor<T>,
-			config: BeaconConfigurationOf<T>,
+			pk: PubkeyOf<T>,
 		) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
-
-			ensure!(BeaconConfig::<T>::get().is_none(), Error::<T>::BeaconConfigAlreadySet);
-
-			BeaconConfig::<T>::set(Some(config.clone()));
-
-			let genesis = config.genesis_round;
-			LatestRound::<T>::set(genesis);
-
+			BeaconConfig::<T>::set(Some(pk));
 			Self::deposit_event(Event::<T>::BeaconConfigSet);
-
 			Ok(Pays::No.into())
 		}
 	}

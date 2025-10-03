@@ -18,7 +18,7 @@ use crate::service::ParachainClient;
 use idn_runtime::{opaque::Block, UncheckedExtrinsic};
 use pallet_randomness_beacon::ExtrinsicBuilderApi;
 use sc_client_api::HeaderBackend;
-use sc_consensus_randomness_beacon::worker::ExtrinsicConstructor;
+use sc_consensus_randomness_beacon::{error::Error as GadgetError, worker::ExtrinsicConstructor};
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::AppCrypto;
 use sp_consensus_randomness_beacon::types::OpaqueSignature;
@@ -43,7 +43,7 @@ impl ExtrinsicConstructor<Block> for RuntimeExtrinsicConstructor {
 		asig: OpaqueSignature,
 		start: u64,
 		end: u64,
-	) -> Result<<Block as BlockT>::Extrinsic, Box<dyn std::error::Error + Send + Sync>> {
+	) -> Result<<Block as BlockT>::Extrinsic, GadgetError> {
 		let account: idn_runtime::AccountId = MultiSigner::Sr25519(signer).into_account();
 		let at_hash = self.client.info().best_hash;
 

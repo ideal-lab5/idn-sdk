@@ -61,7 +61,7 @@ smallvec = { version = "1.13.2", default-features = false }
 
 # Async, Concurrency, & Networking
 async-std = "1.13.0"
-async-trait = "0.1.86"
+async-trait = "0.1.88"
 futures = "0.3.31"
 futures-timer = "3.0.3"
 libp2p = { version = "0.55.0", features = [
@@ -84,6 +84,8 @@ tracing = { version = "0.1.41" }
 tracing-test = { version = " 0.2.5" }
 
 # Testing
+mockall = "0.13.1"
+parking_lot = "0.12.4"
 proptest = "1.7.0"
 
 # Serialization
@@ -144,6 +146,7 @@ sp-inherents = { version = "36.0.0", default-features = false }
 sp-io = { version = "40.0.0", default-features = false }
 sp-keystore = { version = "0.42.0", default-features = false }
 sp-runtime = { version = "41.1.0", default-features = false }
+sp-state-machine = { version = "0.45.0", default-features = false }
 sp-std = { version = "14.0.0", default-features = false }
 sp-timestamp = { version = "36.0.0", default-features = false }
 sp-version = { version = "39.0.0", default-features = false }
@@ -157,6 +160,7 @@ sc-rpc = { version = "44.0.0", default-features = false }
 sc-sysinfo = { version = "42.0.0", default-features = false }
 sc-tracing = { version = "39.0.0", default-features = false }
 sp-consensus-aura = { version = "0.42.0", default-features = false }
+sp-externalities = { version = "0.30.0", default-features = false }
 sp-keyring = { version = "41.0.0", default-features = false }
 sp-offchain = { version = "36.0.0", default-features = false }
 sp-session = { version = "38.1.0", default-features = false }

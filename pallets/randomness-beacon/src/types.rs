@@ -45,27 +45,6 @@ impl From<Accumulation> for RuntimePulse {
 	}
 }
 
-/// A drand chain configuration
-#[derive(
-	Clone,
-	Debug,
-	Decode,
-	DecodeWithMemTracking,
-	Default,
-	PartialEq,
-	Encode,
-	Serialize,
-	Deserialize,
-	MaxEncodedLen,
-	TypeInfo,
-)]
-pub struct BeaconConfiguration<P, R> {
-	/// The beacon public key
-	pub public_key: P,
-	/// The genesis round from which the IDN begins consuming the beacon
-	pub genesis_round: R,
-}
-
 #[cfg(test)]
 pub mod test {
 	use super::*;
