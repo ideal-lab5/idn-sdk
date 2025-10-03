@@ -16,6 +16,7 @@
 
 extern crate alloc;
 
+pub mod error;
 pub mod gadget;
 pub mod gossipsub;
 pub mod worker;

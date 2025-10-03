@@ -18,7 +18,7 @@
 //!
 //! Submits signed extrinsics containing verified randomness pulses to the chain.
 
-use crate::gossipsub::DrandReceiver;
+use crate::{error::Error as GadgetError, gossipsub::DrandReceiver};
 use ark_bls12_381::G1Affine;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use futures::{stream::Fuse, Future, FutureExt, StreamExt};
@@ -52,9 +52,7 @@ pub trait PulseSubmitter<Block: BlockT>: Send + Sync {
 		asig: OpaqueSignature,
 		start: u64,
 		end: u64,
-	) -> impl std::future::Future<
-		Output = Result<Block::Hash, Box<dyn std::error::Error + Send + Sync>>,
-	> + Send;
+	) -> impl std::future::Future<Output = Result<Block::Hash, GadgetError>> + Send;
 }
 
 /// Finality notification without pinned block references
@@ -152,7 +150,7 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 	async fn handle_finality_notification(
 		&self,
 		notification: &UnpinnedFinalityNotification<Block>,
-	) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+	) -> Result<(), GadgetError> {
 		// get 'finalized' round from the runtime
 		let latest_round = *self.best_finalized_round.read().await;
 		// get fresh pulses
@@ -249,9 +247,9 @@ mod tests {
 			asig: OpaqueSignature,
 			start: u64,
 			end: u64,
-		) -> Result<<TestBlock as BlockT>::Hash, Box<dyn std::error::Error + Send + Sync>> {
+		) -> Result<<TestBlock as BlockT>::Hash, GadgetError> {
 			if *self.should_fail.lock().unwrap() {
-				return Err("Submission failed".into());
+				return Err(GadgetError::TransactionSubmissionFailed);
 			}
 			self.submissions.lock().unwrap().push((asig.to_vec(), start, end));
 			Ok(Default::default())
@@ -302,198 +300,197 @@ mod tests {
 		assert_eq!(submissions[0].2, 101, "End round should be 101");
 	}
 
-	 #[tokio::test]
-    async fn gadget_skips_old_pulses() {
-        let mock_submitter = Arc::new(MockPulseSubmitter::new());
+	#[tokio::test]
+	async fn gadget_skips_old_pulses() {
+		let mock_submitter = Arc::new(MockPulseSubmitter::new());
 
-        let (pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
-        let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
+		let (pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
+		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
 
-        // Add pulses with old rounds
-        pulse_tx.unbounded_send(create_test_pulse(50)).unwrap();
-        pulse_tx.unbounded_send(create_test_pulse(51)).unwrap();
+		// Add pulses with old rounds
+		pulse_tx.unbounded_send(create_test_pulse(50)).unwrap();
+		pulse_tx.unbounded_send(create_test_pulse(51)).unwrap();
 
-        let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
+		let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
 
-        // Manually set best_finalized_round to 100 (simulating already processed rounds)
-        *gadget.best_finalized_round.write().await = 100;
+		// Manually set best_finalized_round to 100 (simulating already processed rounds)
+		*gadget.best_finalized_round.write().await = 100;
 
-        tokio::time::sleep(Duration::from_millis(50)).await;
+		tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // Handle finality notification
-        let notification = create_unpinned_notification(1);
-        gadget.handle_finality_notification(&notification).await.unwrap();
+		// Handle finality notification
+		let notification = create_unpinned_notification(1);
+		gadget.handle_finality_notification(&notification).await.unwrap();
 
-        // Verify no submissions (all pulses were old)
-        let submissions = mock_submitter.get_submissions();
-        assert_eq!(submissions.len(), 0, "Should not submit old pulses");
-    }
+		// Verify no submissions (all pulses were old)
+		let submissions = mock_submitter.get_submissions();
+		assert_eq!(submissions.len(), 0, "Should not submit old pulses");
+	}
 
-    #[tokio::test]
-    async fn gadget_processes_multiple_finality_notifications() {
-        let mock_submitter = Arc::new(MockPulseSubmitter::new());
+	#[tokio::test]
+	async fn gadget_processes_multiple_finality_notifications() {
+		let mock_submitter = Arc::new(MockPulseSubmitter::new());
 
-        let (pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
-        let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
+		let (pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
+		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
 
-        // Add first batch of pulses
-        pulse_tx.unbounded_send(create_test_pulse(100)).unwrap();
-        pulse_tx.unbounded_send(create_test_pulse(101)).unwrap();
+		// Add first batch of pulses
+		pulse_tx.unbounded_send(create_test_pulse(100)).unwrap();
+		pulse_tx.unbounded_send(create_test_pulse(101)).unwrap();
 
-        let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
+		let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
 
-        tokio::time::sleep(Duration::from_millis(50)).await;
+		tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // First finality notification
-        let notification1 = create_unpinned_notification(1);
-        gadget.handle_finality_notification(&notification1).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(50)).await;
+		// First finality notification
+		let notification1 = create_unpinned_notification(1);
+		gadget.handle_finality_notification(&notification1).await.unwrap();
+		tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // Add second batch of pulses
-        pulse_tx.unbounded_send(create_test_pulse(102)).unwrap();
-        pulse_tx.unbounded_send(create_test_pulse(103)).unwrap();
-        tokio::time::sleep(Duration::from_millis(50)).await;
+		// Add second batch of pulses
+		pulse_tx.unbounded_send(create_test_pulse(102)).unwrap();
+		pulse_tx.unbounded_send(create_test_pulse(103)).unwrap();
+		tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // Second finality notification
-        let notification2 = create_unpinned_notification(2);
-        gadget.handle_finality_notification(&notification2).await.unwrap();
+		// Second finality notification
+		let notification2 = create_unpinned_notification(2);
+		gadget.handle_finality_notification(&notification2).await.unwrap();
 
-        // Verify both submissions
-        let submissions = mock_submitter.get_submissions();
-        assert_eq!(submissions.len(), 2, "Expected two submissions");
-        assert_eq!(submissions[0].1, 100);
-        assert_eq!(submissions[0].2, 101);
-        assert_eq!(submissions[1].1, 102);
-        assert_eq!(submissions[1].2, 103);
-    }
+		// Verify both submissions
+		let submissions = mock_submitter.get_submissions();
+		assert_eq!(submissions.len(), 2, "Expected two submissions");
+		assert_eq!(submissions[0].1, 100);
+		assert_eq!(submissions[0].2, 101);
+		assert_eq!(submissions[1].1, 102);
+		assert_eq!(submissions[1].2, 103);
+	}
 
-    #[tokio::test]
-    async fn gadget_handles_empty_pulse_queue() {
-        let mock_submitter = Arc::new(MockPulseSubmitter::new());
+	#[tokio::test]
+	async fn gadget_handles_empty_pulse_queue() {
+		let mock_submitter = Arc::new(MockPulseSubmitter::new());
 
-        let (_pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
-        let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
+		let (_pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
+		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
 
-        // Don't add any pulses
-        let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
+		// Don't add any pulses
+		let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
 
-        tokio::time::sleep(Duration::from_millis(50)).await;
+		tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // Handle finality notification
-        let notification = create_unpinned_notification(1);
-        gadget.handle_finality_notification(&notification).await.unwrap();
+		// Handle finality notification
+		let notification = create_unpinned_notification(1);
+		gadget.handle_finality_notification(&notification).await.unwrap();
 
-        // Verify no submissions
-        let submissions = mock_submitter.get_submissions();
-        assert_eq!(submissions.len(), 0, "Should not submit when queue is empty");
-    }
+		// Verify no submissions
+		let submissions = mock_submitter.get_submissions();
+		assert_eq!(submissions.len(), 0, "Should not submit when queue is empty");
+	}
 
-    #[tokio::test]
-    async fn gadget_updates_best_finalized_round() {
-        let mock_submitter = Arc::new(MockPulseSubmitter::new());
+	#[tokio::test]
+	async fn gadget_updates_best_finalized_round() {
+		let mock_submitter = Arc::new(MockPulseSubmitter::new());
 
-        let (pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
-        let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
+		let (pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
+		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
 
-        pulse_tx.unbounded_send(create_test_pulse(100)).unwrap();
-        pulse_tx.unbounded_send(create_test_pulse(105)).unwrap();
+		pulse_tx.unbounded_send(create_test_pulse(100)).unwrap();
+		pulse_tx.unbounded_send(create_test_pulse(105)).unwrap();
 
-        let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
-        let best_round = gadget.best_finalized_round.clone();
+		let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
+		let best_round = gadget.best_finalized_round.clone();
 
-        tokio::time::sleep(Duration::from_millis(50)).await;
+		tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // Initial state
-        assert_eq!(*best_round.read().await, 0);
+		// Initial state
+		assert_eq!(*best_round.read().await, 0);
 
-        // Handle finality notification
-        let notification = create_unpinned_notification(1);
-        gadget.handle_finality_notification(&notification).await.unwrap();
+		// Handle finality notification
+		let notification = create_unpinned_notification(1);
+		gadget.handle_finality_notification(&notification).await.unwrap();
 
-        // Verify best_finalized_round was updated to the last pulse round
-        assert_eq!(*best_round.read().await, 105, "Best round should be updated to 105");
-    }
+		// Verify best_finalized_round was updated to the last pulse round
+		assert_eq!(*best_round.read().await, 105, "Best round should be updated to 105");
+	}
 
-    #[tokio::test]
-    async fn gadget_continues_after_submission_error() {
-        let mock_submitter = Arc::new(MockPulseSubmitter::new());
+	#[tokio::test]
+	async fn gadget_continues_after_submission_error() {
+		let mock_submitter = Arc::new(MockPulseSubmitter::new());
 
-        let (pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
-        let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
+		let (pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
+		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
 
-        pulse_tx.unbounded_send(create_test_pulse(100)).unwrap();
+		pulse_tx.unbounded_send(create_test_pulse(100)).unwrap();
 
-        let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
+		let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
 
-        tokio::time::sleep(Duration::from_millis(50)).await;
+		tokio::time::sleep(Duration::from_millis(50)).await;
 
-        // Make submission fail
-        mock_submitter.set_should_fail(true);
-        let notification1 = create_unpinned_notification(1);
-        let _ = gadget.handle_finality_notification(&notification1).await;
+		// Make submission fail
+		mock_submitter.set_should_fail(true);
+		let notification1 = create_unpinned_notification(1);
+		let _ = gadget.handle_finality_notification(&notification1).await;
 
-        // Add new pulse and make submission succeed
-        pulse_tx.unbounded_send(create_test_pulse(101)).unwrap();
-        mock_submitter.set_should_fail(false);
-        tokio::time::sleep(Duration::from_millis(50)).await;
+		// Add new pulse and make submission succeed
+		pulse_tx.unbounded_send(create_test_pulse(101)).unwrap();
+		mock_submitter.set_should_fail(false);
+		tokio::time::sleep(Duration::from_millis(50)).await;
 
-        let notification2 = create_unpinned_notification(2);
-        gadget.handle_finality_notification(&notification2).await.unwrap();
+		let notification2 = create_unpinned_notification(2);
+		gadget.handle_finality_notification(&notification2).await.unwrap();
 
-        // Verify gadget recovered and processed second notification
-        let submissions = mock_submitter.get_submissions();
-        assert!(submissions.len() > 0, "Gadget should recover and process after error");
-    }
+		// Verify gadget recovered and processed second notification
+		let submissions = mock_submitter.get_submissions();
+		assert!(submissions.len() > 0, "Gadget should recover and process after error");
+	}
 
-    #[tokio::test]
-    async fn gadget_aggregates_multiple_pulses() {
-        let mock_submitter = Arc::new(MockPulseSubmitter::new());
+	#[tokio::test]
+	async fn gadget_aggregates_multiple_pulses() {
+		let mock_submitter = Arc::new(MockPulseSubmitter::new());
 
-        let (pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
-        let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
+		let (pulse_tx, pulse_rx) = sc_utils::mpsc::tracing_unbounded("test-pulses", 100);
+		let pulse_receiver = DrandReceiver::<MAX_QUEUE_SIZE>::new(pulse_rx);
 
-        // Add multiple pulses
-        for round in 100..110 {
-            pulse_tx.unbounded_send(create_test_pulse(round)).unwrap();
-        }
+		// Add multiple pulses
+		for round in 100..110 {
+			pulse_tx.unbounded_send(create_test_pulse(round)).unwrap();
+		}
 
-        let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
+		let gadget = PulseFinalizationGadget::new(mock_submitter.clone(), pulse_receiver);
 
-        tokio::time::sleep(Duration::from_millis(50)).await;
+		tokio::time::sleep(Duration::from_millis(50)).await;
 
-        let notification = create_unpinned_notification(1);
-        gadget.handle_finality_notification(&notification).await.unwrap();
+		let notification = create_unpinned_notification(1);
+		gadget.handle_finality_notification(&notification).await.unwrap();
 
-        let submissions = mock_submitter.get_submissions();
-        assert_eq!(submissions.len(), 1);
-        assert_eq!(submissions[0].1, 100, "Start should be first pulse");
-        assert_eq!(submissions[0].2, 109, "End should be last pulse");
-        assert_eq!(submissions[0].0.len(), SERIALIZED_SIG_SIZE, "Signature should be serialized");
-    }
+		let submissions = mock_submitter.get_submissions();
+		assert_eq!(submissions.len(), 1);
+		assert_eq!(submissions[0].1, 100, "Start should be first pulse");
+		assert_eq!(submissions[0].2, 109, "End should be last pulse");
+		assert_eq!(submissions[0].0.len(), SERIALIZED_SIG_SIZE, "Signature should be serialized");
+	}
 
-    // #[tokio::test]
-    // async fn finality_notification_transformer_converts_correctly() {
-    //     let (tx, rx) = sc_utils::mpsc::tracing_unbounded("test-finality-transformer", 100);
-        
-    //     let (transformer, mut unpinned_rx) = finality_notification_transformer_future(rx);
-        
-    //     tokio::spawn(transformer);
+	// #[tokio::test]
+	// async fn finality_notification_transformer_converts_correctly() {
+	//     let (tx, rx) = sc_utils::mpsc::tracing_unbounded("test-finality-transformer", 100);
 
-    //     // Send unpinned notifications directly
-    //     let notification = create_unpinned_notification(42);
-    //     let expected_hash = notification.hash;
-    //     let expected_number = *notification.header.number();
-        
-    //     tx.unbounded_send(notification).unwrap();
+	//     let (transformer, mut unpinned_rx) = finality_notification_transformer_future(rx);
 
-    //     // Receive transformed notification
-    //     let unpinned = tokio::time::timeout(
-    //         Duration::from_millis(100),
-    //         unpinned_rx.next()
-    //     ).await.expect("Should receive notification").expect("Should not be None");
+	//     tokio::spawn(transformer);
 
-    //     assert_eq!(unpinned.hash, expected_hash);
-    //     assert_eq!(*unpinned.header.number(), expected_number);
-    // }
+	//     // Send unpinned notifications directly
+	//     let notification = create_unpinned_notification(42);
+	//     let expected_hash = notification.hash;
+	//     let expected_number = *notification.header.number();
 
+	//     tx.unbounded_send(notification).unwrap();
+
+	//     // Receive transformed notification
+	//     let unpinned = tokio::time::timeout(
+	//         Duration::from_millis(100),
+	//         unpinned_rx.next()
+	//     ).await.expect("Should receive notification").expect("Should not be None");
+
+	//     assert_eq!(unpinned.hash, expected_hash);
+	//     assert_eq!(*unpinned.header.number(), expected_number);
+	// }
 }

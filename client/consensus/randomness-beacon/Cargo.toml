@@ -70,4 +70,5 @@ sc-service.workspace = true
 sp-externalities.workspace = true
 sp-state-machine.workspace = true
 sp-version.workspace = true
+thiserror.workspace = true
 tracing-test.workspace = true

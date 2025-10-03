@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use crate::gadget::PulseSubmitter;
+use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{
 	ImportNotificationStream, PoolStatus, ReadyTransactions, TransactionFor, TransactionPool,
@@ -39,7 +39,7 @@ pub trait ExtrinsicConstructor<Block: BlockT>: Send + Sync {
 		asig: OpaqueSignature,
 		start: u64,
 		end: u64,
-	) -> Result<Block::Extrinsic, Box<dyn std::error::Error + Send + Sync>>;
+	) -> Result<Block::Extrinsic, GadgetError>;
 }
 
 /// The worker responsible for submitting pulses to the runtime
@@ -73,15 +73,13 @@ where
 		}
 	}
 
-	/// get aura keys (for now: TODO)
-	fn get_authority_key(
-		&self,
-	) -> Result<sr25519::Public, Box<dyn std::error::Error + Send + Sync>> {
+	/// get aura keys
+	fn get_authority_key(&self) -> Result<sr25519::Public, GadgetError> {
 		self.keystore
 			.sr25519_public_keys(sp_consensus_aura::sr25519::AuthorityPair::ID)
 			.first()
 			.cloned()
-			.ok_or_else(|| "No authority key found in keystore".into())
+			.ok_or_else(|| GadgetError::NoAuthorityKeys)
 	}
 }
 
@@ -98,7 +96,7 @@ where
 		asig: OpaqueSignature,
 		start: u64,
 		end: u64,
-	) -> Result<Block::Hash, Box<dyn std::error::Error + Send + Sync>> {
+	) -> Result<Block::Hash, GadgetError> {
 		let public = self.get_authority_key()?;
 
 		log::info!(
@@ -108,17 +106,16 @@ where
 			end
 		);
 
-		let extrinsic = self
-			.extrinsic_constructor
-			.construct_pulse_extrinsic(public, asig, start, end)
-			.unwrap();
+		let extrinsic =
+			self.extrinsic_constructor.construct_pulse_extrinsic(public, asig, start, end)?;
 
 		// Submit to transaction pool
 		let best_hash = self.client.info().best_hash;
 		let _hash = self
 			.transaction_pool
 			.submit_one(best_hash, TransactionSource::Local, extrinsic)
-			.await?;
+			.await
+			.unwrap();
 
 		log::info!(
 			target: LOG_TARGET,
@@ -128,51 +125,6 @@ where
 		Ok(best_hash)
 	}
 }
-
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-//     use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
-//     use sp_core::crypto::KeyTypeId;
-
-//      fn create_test_keystore() -> KeystorePtr {
-//         Arc::new(MemoryKeystore::new())
-//     }
-
-//     mockall::mock! {
-// 		pub Client<B: BlockT> {}
-
-// 		impl<B: BlockT> HeaderBackend<B> for Client<B> {
-// 			fn header(&self, hash: B::Hash) -> Result<Option<B::Header>, BlockchainError>;
-// 			fn info(&self) -> Info<B>;
-// 			fn status(&self, hash: B::Hash) -> Result<BlockStatus, BlockchainError>;
-// 			fn number(
-// 				&self,
-// 				hash: B::Hash,
-// 			) -> Result<Option<<<B as BlockT>::Header as HeaderT>::Number>, BlockchainError>;
-// 			fn hash(&self, number: NumberFor<B>) -> Result<Option<B::Hash>, BlockchainError>;
-// 		}
-// 	}
-
-//     // fn mock_client() {
-
-//     // }
-
-//     #[tokio::test]
-//     async fn test_can_construct_pulse_worker() {
-//         let keystore = create_test_keystore();
-//         let client = Arc::new(mock_client());
-//         let pool = Arc::new(mock_pool());
-//         let constructor = Arc::new(mock_constructor());
-
-//         let worker = PulseWorker::new(
-//             client,
-//             keystore,
-//             pool,
-//             constructor,
-//         );
-//     }
-// }
 
 #[cfg(test)]
 mod tests {
@@ -195,7 +147,6 @@ mod tests {
 	type TestBlock =
 		sp_runtime::generic::Block<Header<u64, BlakeTwo256>, sp_runtime::OpaqueExtrinsic>;
 
-	// mock client => must impl HeaderBackend and ProvideRuntimeApi
 	struct MockClient {
 		best_hash: Mutex<Option<<TestBlock as BlockT>::Hash>>,
 		best_number: Mutex<u64>,
@@ -266,14 +217,8 @@ mod tests {
 		}
 	}
 
-	struct MockStateBackend;
-
-	// Mock runtime api (required to implement ProvideRuntimeApi)
 	struct MockRuntimeApi;
-	// Implement ApiExt for MockRuntimeApi
 	impl sp_api::ApiExt<TestBlock> for MockRuntimeApi {
-		// type StateBackend = sp_state_machine::InMemoryBackend<sp_runtime::traits::BlakeTwo256>;
-
 		fn execute_in_transaction<F: FnOnce(&Self) -> sp_api::TransactionOutcome<R>, R>(
 			&self,
 			_call: F,
@@ -394,11 +339,11 @@ mod tests {
 	}
 
 	#[derive(Clone, Debug)]
-	pub struct MockTransactionPool(Vec<Arc<PoolTransaction>>);
+	pub struct MockTransactionPool(Arc<Mutex<Vec<PoolTransaction>>>);
 
 	impl MockTransactionPool {
 		fn new() -> Self {
-			Self(vec![])
+			Self(Arc::new(Mutex::new(vec![])))
 		}
 	}
 
@@ -438,9 +383,11 @@ mod tests {
 			&self,
 			_at: Self::Hash,
 			_source: TransactionSource,
-			_xt: TransactionFor<Self>,
+			xt: TransactionFor<Self>,
 		) -> Result<TxHash<Self>, Self::Error> {
-			unimplemented!()
+			self.0.lock().push(PoolTransaction::from(xt));
+			let tx_hash: TxHash<Self> = Default::default();
+			Ok(tx_hash)
 		}
 
 		async fn submit_and_watch(
@@ -456,7 +403,7 @@ mod tests {
 			&self,
 			_at: Self::Hash,
 		) -> Box<dyn ReadyTransactions<Item = Arc<Self::InPoolTransaction>> + Send> {
-			Box::new(TransactionsIterator(self.0.clone().into_iter()))
+			unimplemented!()
 		}
 
 		fn ready(&self) -> Box<dyn ReadyTransactions<Item = Arc<Self::InPoolTransaction>> + Send> {
@@ -526,12 +473,12 @@ mod tests {
 			_asig: OpaqueSignature,
 			_start: u64,
 			_end: u64,
-		) -> Result<<TestBlock as BlockT>::Extrinsic, Box<dyn std::error::Error + Send + Sync>> {
+		) -> Result<<TestBlock as BlockT>::Extrinsic, GadgetError> {
 			if *self.should_fail.lock() {
-				return Err("Construction failed".into());
+				return Err(GadgetError::ExtrinsicConstructionFailed);
 			}
 			// Return a dummy opaque extrinsic
-			Ok(sp_runtime::OpaqueExtrinsic::from_bytes(&[1]).unwrap())
+			Ok(sp_runtime::OpaqueExtrinsic::from_bytes([0u8; 32].as_slice()).unwrap())
 		}
 	}
 
@@ -549,7 +496,6 @@ mod tests {
 		Arc::new(MemoryKeystore::new())
 	}
 
-	// Tests
 	#[tokio::test]
 	async fn test_can_construct_pulse_worker() {
 		let keystore = create_test_keystore_with_key().await;
@@ -563,7 +509,6 @@ mod tests {
 			MockTransactionPool,
 			MockExtrinsicConstructor,
 		>::new(client, keystore, pool, constructor);
-
 		// If we get here, construction succeeded
 	}
 
@@ -584,100 +529,113 @@ mod tests {
 
 		assert!(result.is_ok(), "Pulse submission should succeed");
 
-		// Verify transaction was submitted to pool
-		// submit one should have been called
-		// let submitted = pool.get_submitted();
-		// assert_eq!(submitted.len(), 1, "Should have submitted one transaction");
+		// Verify transaction was submitted to pool: submit one should have been called
+		let txs = pool.0.lock().clone().leak();
+		assert!(txs.len() == 1, "The transaction should be included in the pool");
 	}
 
-	// #[tokio::test]
-	// async fn test_submit_pulse_no_authority_key() {
-	// 	let keystore = create_test_keystore_empty();
-	// 	let client = Arc::new(MockClient::new());
-	// 	let pool = Arc::new(MockTransactionPool::new());
-	// 	let constructor = Arc::new(MockExtrinsicConstructor::new());
+	#[tokio::test]
+	async fn test_submit_pulse_no_authority_key() {
+		let keystore = create_test_keystore_empty();
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let constructor = Arc::new(MockExtrinsicConstructor::new());
 
-	// 	let worker = PulseWorker::new(client, keystore, pool, constructor);
+		let worker = PulseWorker::new(client, keystore, pool, constructor);
 
-	// 	let asig: OpaqueSignature = vec![0u8; 48].try_into().unwrap();
+		let asig: OpaqueSignature = vec![0u8; 48].try_into().unwrap();
 
-	// 	// Should fail because no authority key exists
-	// 	let result = worker.submit_pulse(asig, 100, 101).await;
+		// Should fail because no authority key exists
+		let result = worker.submit_pulse(asig, 100, 101).await;
 
-	// 	assert!(result.is_err(), "Should fail when no authority key found");
-	// 	assert!(
-	// 		result.unwrap_err().to_string().contains("No authority key"),
-	// 		"Error should mention missing authority key"
-	// 	);
-	// }
+		assert!(result.is_err(), "Should fail when no authority key found");
+		assert!(
+			result.unwrap_err().to_string().contains("No authority key"),
+			"Error should mention missing authority key"
+		);
+	}
 
-	// #[tokio::test]
-	// async fn test_submit_pulse_extrinsic_construction_fails() {
-	// 	let keystore = create_test_keystore_with_key().await;
-	// 	let client = Arc::new(MockClient::new());
-	// 	let pool = Arc::new(MockTransactionPool::new());
-	// 	let constructor = Arc::new(MockExtrinsicConstructor::new());
+	#[tokio::test]
+	async fn test_submit_pulse_extrinsic_construction_fails() {
+		let keystore = create_test_keystore_with_key().await;
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let constructor = Arc::new(MockExtrinsicConstructor::new());
 
-	// 	// Make constructor fail
-	// 	constructor.set_should_fail(true);
+		// Make constructor fail
+		constructor.set_should_fail(true);
 
-	// 	let worker = PulseWorker::new(client, keystore, pool.clone(), constructor);
+		let worker = PulseWorker::new(client, keystore, pool.clone(), constructor);
 
-	// 	let asig: OpaqueSignature = vec![0u8; 48].try_into().unwrap();
+		let asig: OpaqueSignature = vec![0u8; 48].try_into().unwrap();
 
-	// 	// Should fail at extrinsic construction
-	// 	let result = worker.submit_pulse(asig, 100, 101).await;
+		// Should fail at extrinsic construction
+		let result = worker.submit_pulse(asig, 100, 101).await;
 
-	// 	assert!(result.is_err(), "Should fail when extrinsic construction fails");
+		assert!(result.is_err(), "Should fail when extrinsic construction fails");
 
-	// 	// Verify nothing was submitted
-	// 	assert_eq!(pool.get_submitted().len(), 0, "Should not submit if construction fails");
-	// }
+		// Verify nothing was submitted
+		assert_eq!(
+			pool.0.lock().clone().leak().len(),
+			0,
+			"Should not submit if construction fails"
+		);
+	}
 
-	// #[tokio::test]
-	// async fn test_get_authority_key_success() {
-	// 	let keystore = create_test_keystore_with_key().await;
-	// 	let client = Arc::new(MockClient::new());
-	// 	let pool = Arc::new(MockTransactionPool::new());
-	// 	let constructor = Arc::new(MockExtrinsicConstructor::new());
+	#[tokio::test]
+	async fn test_get_authority_key_success() {
+		let keystore = create_test_keystore_with_key().await;
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let constructor = Arc::new(MockExtrinsicConstructor::new());
 
-	// 	let worker = PulseWorker::new(client, keystore, pool, constructor);
+		let worker: PulseWorker<
+			TestBlock,
+			MockClient,
+			MockTransactionPool,
+			MockExtrinsicConstructor,
+		> = PulseWorker::new(client, keystore, pool, constructor);
 
-	// 	let key = worker.get_authority_key();
-	// 	assert!(key.is_ok(), "Should successfully retrieve authority key");
-	// }
+		let key = worker.get_authority_key();
+		assert!(key.is_ok(), "Should successfully retrieve authority key");
+	}
 
-	// #[tokio::test]
-	// async fn test_get_authority_key_not_found() {
-	// 	let keystore = create_test_keystore_empty();
-	// 	let client = Arc::new(MockClient::new());
-	// 	let pool = Arc::new(MockTransactionPool::new());
-	// 	let constructor = Arc::new(MockExtrinsicConstructor::new());
+	#[tokio::test]
+	async fn test_get_authority_key_not_found() {
+		let keystore = create_test_keystore_empty();
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let constructor = Arc::new(MockExtrinsicConstructor::new());
 
-	// 	let worker = PulseWorker::new(client, keystore, pool, constructor);
+		let worker: PulseWorker<
+			TestBlock,
+			MockClient,
+			MockTransactionPool,
+			MockExtrinsicConstructor,
+		> = PulseWorker::new(client, keystore, pool, constructor);
 
-	// 	let key = worker.get_authority_key();
-	// 	assert!(key.is_err(), "Should fail when no authority key exists");
-	// }
+		let key = worker.get_authority_key();
+		assert!(key.is_err(), "Should fail when no authority key exists");
+	}
 
-	// #[tokio::test]
-	// async fn test_submit_multiple_pulses() {
-	// 	let keystore = create_test_keystore_with_key().await;
-	// 	let client = Arc::new(MockClient::new());
-	// 	let pool = Arc::new(MockTransactionPool::new());
-	// 	let constructor = Arc::new(MockExtrinsicConstructor::new());
+	#[tokio::test]
+	async fn test_submit_multiple_pulses() {
+		let keystore = create_test_keystore_with_key().await;
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let constructor = Arc::new(MockExtrinsicConstructor::new());
 
-	// 	let worker = PulseWorker::new(client, keystore, pool.clone(), constructor);
+		let worker = PulseWorker::new(client, keystore, pool.clone(), constructor);
 
-	// 	// Submit multiple pulses
-	// 	for i in 0..3 {
-	// 		let asig: OpaqueSignature = vec![0u8; 48].try_into().unwrap();
-	// 		let result = worker.submit_pulse(asig, 100 + i, 100 + i).await;
-	// 		assert!(result.is_ok(), "Pulse submission {} should succeed", i);
-	// 	}
+		// Submit multiple pulses
+		for i in 0..3 {
+			let asig: OpaqueSignature = vec![0u8; 48].try_into().unwrap();
+			let result = worker.submit_pulse(asig, 100 + i, 100 + i).await;
+			assert!(result.is_ok(), "Pulse submission {} should succeed", i);
+		}
 
-	// 	// Verify all transactions were submitted
-	// 	let submitted = pool.get_submitted();
-	// 	assert_eq!(submitted.len(), 3, "Should have submitted three transactions");
-	// }
+		// Verify all transactions were submitted
+		let submitted = pool.0.lock().clone().leak();
+		assert_eq!(submitted.len(), 3, "Should have submitted three transactions");
+	}
 }
