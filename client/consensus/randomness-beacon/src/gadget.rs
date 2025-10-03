@@ -23,7 +23,6 @@ use ark_bls12_381::G1Affine;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use futures::{stream::Fuse, Future, FutureExt, StreamExt};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
-use sp_consensus_randomness_beacon::types::OpaqueSignature;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -473,29 +472,4 @@ mod tests {
 		assert_eq!(submissions[0].2, 109, "End should be last pulse");
 		assert_eq!(submissions[0].0.len(), SERIALIZED_SIG_SIZE, "Signature should be serialized");
 	}
-
-	// #[tokio::test]
-	// async fn finality_notification_transformer_converts_correctly() {
-	//     let (tx, rx) = sc_utils::mpsc::tracing_unbounded("test-finality-transformer", 100);
-
-	//     let (transformer, mut unpinned_rx) = finality_notification_transformer_future(rx);
-
-	//     tokio::spawn(transformer);
-
-	//     // Send unpinned notifications directly
-	//     let notification = create_unpinned_notification(42);
-	//     let expected_hash = notification.hash;
-	//     let expected_number = *notification.header.number();
-
-	//     tx.unbounded_send(notification).unwrap();
-
-	//     // Receive transformed notification
-	//     let unpinned = tokio::time::timeout(
-	//         Duration::from_millis(100),
-	//         unpinned_rx.next()
-	//     ).await.expect("Should receive notification").expect("Should not be None");
-
-	//     assert_eq!(unpinned.hash, expected_hash);
-	//     assert_eq!(*unpinned.header.number(), expected_number);
-	// }
 }

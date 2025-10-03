@@ -53,8 +53,6 @@ cumulus-client-consensus-common.workspace = true
 cumulus-client-consensus-aura.workspace = true
 substrate-frame-rpc-system.workspace = true
 
-# idn-runtime.workspace = true
-# pallet-randomness-beacon.workspace = true
 # arkworks dependencies
 ark-bls12-381.workspace = true
 ark-serialize.workspace = true
@@ -62,13 +60,20 @@ ark-serialize.workspace = true
 [dev-dependencies]
 async-trait.workspace = true
 async-std.workspace = true
+frame-support.workspace = true
 mockall.workspace = true
 parking_lot.workspace = true
+pallet-balances = { workspace = true, default-features = true }
+pallet-randomness-beacon = { workspace = true, default-features = true }
 rand.workspace = true
 tokio.workspace = true
 sc-block-builder.workspace = true
 sc-service.workspace = true
 sp-externalities.workspace = true
+sp-idn-crypto.workspace = true
+sp-idn-traits.workspace = true
+sp-io.workspace = true
 sp-state-machine.workspace = true
 sp-version.workspace = true
 tracing-test.workspace = true
+sp-tracing.workspace = true
