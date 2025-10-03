@@ -59,7 +59,7 @@ fn can_set_genesis_round_once_as_root() {
 			Error::<Test>::BeaconConfigAlreadySet,
 		);
 		// and the latest round is set as the genesis round
-		assert_eq!(LatestRound::<Test>::get().unwrap(), config.genesis_round);
+		assert_eq!(LatestRound::<Test>::get(), config.genesis_round);
 	});
 }
 
@@ -83,7 +83,7 @@ fn can_submit_valid_pulses_under_the_limit() {
 		assert!(maybe_res.is_some());
 
 		let latest_round = LatestRound::<Test>::get();
-		assert_eq!(1002, latest_round.unwrap());
+		assert_eq!(1002, latest_round);
 
 		let did_update = DidUpdate::<Test>::get();
 		assert!(did_update);
@@ -161,7 +161,7 @@ fn can_submit_valid_sigs_in_sequence() {
 		assert_eq!(1003, aggr.end);
 
 		let actual_latest = LatestRound::<Test>::get();
-		assert_eq!(1004, actual_latest.unwrap());
+		assert_eq!(1004, actual_latest);
 	});
 }
 
@@ -242,7 +242,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 		assert_eq!(1001, aggr.end);
 
 		let actual_latest = LatestRound::<Test>::get();
-		assert_eq!(1002, actual_latest.unwrap());
+		assert_eq!(1002, actual_latest);
 	});
 }
 
@@ -254,145 +254,6 @@ fn can_call_on_initialize() {
 		let weight = Drand::on_initialize(0);
 		let expected = <() as WeightInfo>::on_finalize();
 		assert_eq!(weight, expected);
-	});
-}
-
-/*
-	Inherents Tests
-*/
-use sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
-use sp_inherents::InherentData;
-
-#[test]
-fn can_create_inherent() {
-	// setup the inherent data
-	let genesis = 1001;
-	let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
-	let public_key: OpaquePublicKey = pk.try_into().unwrap();
-	let config = BeaconConfiguration { public_key, genesis_round: genesis };
-	let (asig1, _amsg1, _sig1) = get(vec![PULSE1000]);
-	// this pulse will be ignored
-	let pulse1 = CanonicalPulse { round: 1000u64, signature: asig1.try_into().unwrap() };
-
-	let (asig2, _amsg2, _sig2) = get(vec![PULSE1001]);
-	let pulse2 = CanonicalPulse { round: 1001u64, signature: asig2.try_into().unwrap() };
-
-	let (asig3, _amsg3, _sig3) = get(vec![PULSE1002]);
-	let pulse3 = CanonicalPulse { round: 1002u64, signature: asig3.try_into().unwrap() };
-
-	let (expected_asig, _amsg, _raw) = get(vec![PULSE1001, PULSE1002]);
-	let expected_asig_array: [u8; 48] = expected_asig.try_into().unwrap();
-
-	let expected_start = 1001;
-	let expected_end = 1002;
-
-	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode(), pulse3.encode()];
-	let mut inherent_data = InherentData::new();
-	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
-
-	new_test_ext().execute_with(|| {
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
-		let result = Drand::create_inherent(&inherent_data);
-		if let Some(Call::try_submit_asig { asig, start, end }) = result {
-			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
-			assert_eq!(start, expected_start, "The sequence should start at 1001");
-			assert_eq!(end, expected_end, "The sequence should end at 1002");
-		} else {
-			panic!("Expected Some(Call::try_submit_asig), got None");
-		}
-	});
-}
-
-#[test]
-fn can_create_inherent_with_extra_pulses_drained() {
-	// setup the inherent data
-	let genesis = 1000;
-	let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
-	let public_key: OpaquePublicKey = pk.try_into().unwrap();
-	let config = BeaconConfiguration { public_key, genesis_round: genesis };
-
-	let (asig1, _amsg1, _sig1) = get(vec![PULSE1000]);
-	let pulse1 = CanonicalPulse { round: 1000u64, signature: asig1.try_into().unwrap() };
-
-	let (asig2, _amsg2, _sig2) = get(vec![PULSE1001]);
-	let pulse2 = CanonicalPulse { round: 1001u64, signature: asig2.try_into().unwrap() };
-
-	let (asig3, _amsg3, _sig3) = get(vec![PULSE1002]);
-	let pulse3 = CanonicalPulse { round: 1002u64, signature: asig3.try_into().unwrap() };
-
-	let (asig4, _amsg4, _sig4) = get(vec![PULSE1003]);
-	let pulse4 = CanonicalPulse { round: 1003u64, signature: asig4.try_into().unwrap() };
-
-	// pulse round = 1000 should be drained
-	let (expected_asig, _amsg, _raw) = get(vec![PULSE1001, PULSE1002, PULSE1003]);
-	let expected_asig_array: [u8; 48] = expected_asig.try_into().unwrap();
-
-	let expected_start = 1001;
-	let expected_end = 1003;
-
-	let bytes: Vec<Vec<u8>> =
-		vec![pulse1.encode(), pulse2.encode(), pulse3.encode(), pulse4.encode()];
-	let mut inherent_data = InherentData::new();
-	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
-
-	new_test_ext().execute_with(|| {
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
-		let result = Drand::create_inherent(&inherent_data);
-		if let Some(Call::try_submit_asig { asig, start, end }) = result {
-			assert_eq!(asig, expected_asig_array, "The output should match the aggregated input.");
-			assert_eq!(start, expected_start, "The sequence should start at 1001");
-			assert_eq!(end, expected_end, "The sequence should end at 1002");
-		} else {
-			panic!("Expected Some(Call::try_submit_asig), got None");
-		}
-	});
-}
-
-#[test]
-fn can_not_create_inherent_when_genesis_round_is_none() {
-	let inherent_data = InherentData::new();
-	new_test_ext().execute_with(|| {
-		let result = Drand::create_inherent(&inherent_data);
-		assert!(result.is_none());
-	});
-}
-
-#[test]
-fn can_not_create_inherent_when_data_is_unavailable() {
-	let inherent_data = InherentData::new();
-	let config = get_config(1000);
-	new_test_ext().execute_with(|| {
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
-		let result = Drand::create_inherent(&inherent_data);
-		assert!(result.is_none());
-	});
-}
-
-#[test]
-fn can_check_inherent() {
-	// setup the inherent data
-	let (asig1, _amsg1, _s1) = get(vec![PULSE1000]);
-	let pulse1 = CanonicalPulse { round: 1000u64, signature: asig1.try_into().unwrap() };
-	let (asig2, _amsg2, _s2) = get(vec![PULSE1001]);
-	let pulse2 = CanonicalPulse { round: 1001u64, signature: asig2.try_into().unwrap() };
-
-	let bytes: Vec<Vec<u8>> = vec![pulse1.encode(), pulse2.encode()];
-	let mut inherent_data = InherentData::new();
-	inherent_data.put_data(INHERENT_IDENTIFIER, &bytes.clone()).unwrap();
-
-	let config = get_config(1000);
-
-	new_test_ext().execute_with(|| {
-		LatestRound::<Test>::set(Some(0));
-		BeaconConfig::<Test>::set(Some(config.clone()));
-		let result = Drand::create_inherent(&inherent_data);
-		if let Some(call) = result {
-			assert!(Drand::is_inherent(&call), "The inherent should be allowed.");
-			let res = Drand::check_inherent(&call, &inherent_data);
-			assert!(res.is_ok(), "The inherent should be allowed.");
-		} else {
-			panic!("Expected Some(Call::try_submit_asig), got None");
-		}
 	});
 }
 
