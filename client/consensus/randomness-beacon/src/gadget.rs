@@ -49,7 +49,7 @@ pub trait PulseSubmitter<Block: BlockT>: Send + Sync {
 	/// The hash of the submitted extrinsic
 	fn submit_pulse(
 		&self,
-		asig: OpaqueSignature,
+		asig: Vec<u8>,
 		start: u64,
 		end: u64,
 	) -> impl std::future::Future<Output = Result<Block::Hash, GadgetError>> + Send;
@@ -158,7 +158,7 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 		let new_pulses: Vec<_> =
 			pulses.clone().into_iter().filter(|p| p.round > latest_round).collect();
 
-		if let (Some(first), Some(last)) = (new_pulses.first(), new_pulse.last()) {
+		if let (Some(first), Some(last)) = (new_pulses.first(), new_pulses.last()) {
 			let start = first.round;
 			let end = last.round;
 
@@ -185,8 +185,9 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 			asig.serialize_compressed(&mut asig_bytes)
 				.expect("The signature is well formatted. qed.");
 
+			// let formatted: [u8; SERIALIZED_SIG_SIZE] = asig_bytes.try_into().expect("The vec is right-sized.");
 			self.pulse_submitter
-				.submit_pulse(asig_bytes.try_into().unwrap(), start, end)
+				.submit_pulse(asig_bytes, start, end)
 				.await?;
 
 			let mut best = self.best_finalized_round.write().await;
@@ -249,14 +250,14 @@ mod tests {
 	impl PulseSubmitter<TestBlock> for MockPulseSubmitter {
 		async fn submit_pulse(
 			&self,
-			asig: OpaqueSignature,
+			asig: Vec<u8>,
 			start: u64,
 			end: u64,
 		) -> Result<<TestBlock as BlockT>::Hash, GadgetError> {
 			if *self.should_fail.lock().unwrap() {
 				return Err(GadgetError::TransactionSubmissionFailed);
 			}
-			self.submissions.lock().unwrap().push((asig.to_vec(), start, end));
+			self.submissions.lock().unwrap().push((asig, start, end));
 			Ok(Default::default())
 		}
 	}

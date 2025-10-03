@@ -36,7 +36,7 @@ pub trait ExtrinsicConstructor<Block: BlockT>: Send + Sync {
 	fn construct_pulse_extrinsic(
 		&self,
 		signer: sr25519::Public,
-		asig: OpaqueSignature,
+		asig: Vec<u8>,
 		start: u64,
 		end: u64,
 	) -> Result<Block::Extrinsic, GadgetError>;
@@ -93,7 +93,7 @@ where
 {
 	async fn submit_pulse(
 		&self,
-		asig: OpaqueSignature,
+		asig: Vec<u8>,
 		start: u64,
 		end: u64,
 	) -> Result<Block::Hash, GadgetError> {

@@ -23,6 +23,7 @@ futures.workspace = true
 prometheus-endpoint.workspace = true
 scale-info.workspace = true
 tracing.workspace = true
+thiserror.workspace = true
 
 frame-system = { workspace = true, default-features = true }
 sc-utils.workspace = true
@@ -70,5 +71,4 @@ sc-service.workspace = true
 sp-externalities.workspace = true
 sp-state-machine.workspace = true
 sp-version.workspace = true
-thiserror.workspace = true
 tracing-test.workspace = true
