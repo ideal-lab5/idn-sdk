@@ -223,9 +223,11 @@ pub mod pallet {
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
 			if let Some(round) = LatestRound::<T>::get() {
+				log::trace!(target: LOG_TARGET, "Creating inherent for round {:?}", round);
 				if let Ok(Some(raw_pulses)) =
 					data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
 				{
+					log::trace!(target: LOG_TARGET, "Found {:?} raw pulses in inherent data.", raw_pulses.len());
 					// extract + sanitize
 					let mut pulses: Vec<CanonicalPulse> = raw_pulses
 						.iter()
@@ -248,6 +250,7 @@ pub mod pallet {
 					let end = pulses.last().map(|p| p.round);
 
 					if let (Some(start), Some(end)) = (start, end) {
+						log::trace!(target: LOG_TARGET, "Submitting pulses for rounds {:?} to {:?}.", start, end);
 						let asig = pulses
 							.into_iter()
 							.filter_map(|pulse| {
@@ -263,7 +266,7 @@ pub mod pallet {
 						//  Is it reasonable to use an expect?
 						asig.serialize_compressed(&mut asig_bytes)
 							.expect("The signature is well formatted. qed.");
-
+						log::trace!(target: LOG_TARGET, "Submitting aggregated signature: {:?}", hex::encode(&asig_bytes));
 						return Some(Call::try_submit_asig {
 							asig: OpaqueSignature::try_from(asig_bytes)
 								.expect("The signature is well formatted. qed."),

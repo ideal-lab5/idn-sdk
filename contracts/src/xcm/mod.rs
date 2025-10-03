@@ -98,7 +98,7 @@
 //!
 //! - **Fees**: The `max_idn_xcm_fees` parameter sets the maximum fees to pay for the execution of a
 //!   single XCM message sent to the IDN chain, expressed in relay chain native tokens (DOT/PAS).
-//! - **Asset Handling**: Fees are automatically withdrawn from the contract's sovereign account
+//! - **Asset Handling**: Fees are automatically withdrawn from the contract's account
 //! - **Surplus Refund**: Unused fees are refunded back to the contract after execution
 //! - **Fee Assets**: Uses the relay chain's native token (DOT/PAS) for XCM execution
 //!
@@ -106,16 +106,13 @@
 //!
 //! IDN contract integration requires **two separate accounts** to be funded for proper operation:
 //!
-//! 1. **Contract's Sovereign Account on IDN Chain**: Required for subscription operations
+//! 1. **Contract's Account on IDN Chain**: Required for subscription operations
 //!    - Used for: `create_subscription`, `pause_subscription`, `update_subscription`, etc.
 //!    - Must be funded with: Relay chain native tokens (DOT/PAS)
-//!    - Derivation: `Location(1, [Parachain(consumer_para_id), AccountId32(contract_account)])`
 //!
-//! 2. **IDN's Sovereign Account on Consumer Chain**: Required for randomness delivery
+//! 2. **Contract's Account on Consumer Chain**: Required for randomness delivery
 //!    - Used for: Executing contract calls to deliver randomness pulses
 //!    - Must be funded with: Consumer chain's native tokens
-//!    - Derivation: `Location(1, [Parachain(idn_para_id)])`
-//!    - Paseo address: `5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n`
 //!
 //! The library handles all fee-related XCM instructions automatically, but both accounts
 //! must be adequately funded or operations will fail with "Funds are unavailable" errors.
@@ -156,7 +153,8 @@ use ink::{
 	xcm::{
 		lts::{
 			prelude::{
-				BuyExecution, DepositAsset, OriginKind, RefundSurplus, Transact, WithdrawAsset, Xcm,
+				BuyExecution, DepositAsset, OriginKind as XcmOriginKind, RefundSurplus, Transact,
+				WithdrawAsset, Xcm,
 			},
 			Asset,
 			AssetFilter::Wild,
@@ -178,7 +176,8 @@ use scale_info::prelude::vec::Vec;
 use sp_idn_traits::pulse::Pulse as TPulse;
 use types::{
 	AccountId, Balance, CallData, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata,
-	PalletIndex, ParaId, Pulse, Quote, SubInfoResponse, SubscriptionId, UpdateSubParams,
+	OriginKind, PalletIndex, ParaId, Pulse, Quote, SubInfoResponse, SubscriptionId,
+	UpdateSubParams,
 };
 
 pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
@@ -493,6 +492,8 @@ impl IdnClient {
 	/// - `frequency`: Distribution interval measured in IDN block numbers
 	/// - `metadata`: Optional bounded data for application-specific context
 	/// - `sub_id`: Optional subscription ID; if None, auto-generated
+	/// - `origin_kind`: Optional [`OriginKind`] for the XCM message; defaults to
+	///   `OriginKind::Native`
 	///
 	/// # Returns
 	/// Returns the subscription ID that was created or provided.
@@ -507,6 +508,7 @@ impl IdnClient {
 		metadata: Option<Metadata>,
 		sub_id: Option<SubscriptionId>,
 		call_params: Option<ContractCallParams>,
+		origin_kind: Option<OriginKind>,
 	) -> Result<SubscriptionId> {
 		if credits == 0 || frequency == 0 {
 			return Err(Error::InvalidParams);
@@ -519,6 +521,7 @@ impl IdnClient {
 			frequency,
 			metadata,
 			sub_id,
+			origin_kind: origin_kind.unwrap_or(OriginKind::Native),
 		};
 
 		// If `sub_id` is not provided, generate a new one and assign it to the params
@@ -532,8 +535,7 @@ impl IdnClient {
 			},
 		};
 
-		let call =
-			RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params: params.clone() });
+		let call = RuntimeCall::IdnManager(IdnManagerCall::create_subscription { params });
 
 		self.xcm_send(call)?;
 
@@ -726,18 +728,17 @@ impl IdnClient {
 	///
 	/// This function constructs and dispatches an XCM message using the provided `RuntimeCall`.
 	/// The message includes the following instructions:
-	/// - `WithdrawAsset`: Withdraws relay chain native tokens (DOT/PAS) from the contract's
-	///   sovereign account on the IDN chain for XCM execution fees.
+	/// - `WithdrawAsset`: Withdraws relay chain native tokens (DOT/PAS) from the contract's account
+	///   on the IDN chain for XCM execution fees.
 	/// - `BuyExecution`: Pays for the execution of the XCM message with the withdrawn asset.
 	/// - `Transact`: Executes the provided `RuntimeCall` on the IDN chain.
-	/// - `RefundSurplus`: Refunds any surplus fees back to the contract's sovereign account.
-	/// - `DepositAsset`: Deposits the refunded asset back into the contract's sovereign account.
+	/// - `RefundSurplus`: Refunds any surplus fees back to the contract's account.
+	/// - `DepositAsset`: Deposits the refunded asset back into the contract's account.
 	///
 	/// # Funding Requirements
 	///
-	/// The contract's sovereign account on the IDN chain must be funded with sufficient relay chain
-	/// native tokens before calling this method. The sovereign account is derived from:
-	/// `Location(1, [Parachain(consumer_para_id), AccountId32(contract_account)])`
+	/// The contract's account on the IDN chain must be funded with sufficient relay chain
+	/// native tokens before calling this method.
 	///
 	/// # Parameters
 	/// - `call`: The `RuntimeCall` to be executed on the IDN chain.
@@ -756,14 +757,14 @@ impl IdnClient {
 			WithdrawAsset(idn_fee_asset.clone().into()),
 			BuyExecution { weight_limit: Unlimited, fees: idn_fee_asset.clone() },
 			Transact {
-				origin_kind: OriginKind::SovereignAccount,
+				origin_kind: XcmOriginKind::Xcm,
 				require_weight_at_most: Weight::MAX,
 				call: call.encode().into(),
 			},
 			RefundSurplus,
 			DepositAsset {
 				assets: Wild(AllOf { id: idn_fee_asset.id, fun: WildFungibility::Fungible }),
-				// refund any surplus back to the chain's sovereign account
+				// refund any surplus back to the contract's account
 				beneficiary: self.contract_idn_location(),
 			},
 		]);
@@ -804,7 +805,7 @@ impl IdnClient {
 	/// Helper function to get the location of this contract's address on the IDN parachain
 	///
 	/// Creates an XCM Location representing this contract's account from the IDN chain's
-	/// perspective. Used for XCM fee refunds and asset deposits back to the contract's sovereign
+	/// perspective. Used for XCM fee refunds and asset deposits back to the contract's
 	/// account.
 	///
 	/// # Returns
@@ -986,7 +987,7 @@ mod tests {
 		let metadata: Option<types::Metadata> = None; // Use None since BoundedVec creation is complex in tests
 		let sub_id = Some([1u8; 32]);
 
-		client.create_subscription(credits, frequency, metadata, sub_id, None)
+		client.create_subscription(credits, frequency, metadata, sub_id, None, None)
 	}
 
 	#[test]
@@ -1113,7 +1114,8 @@ mod tests {
 			u32::MAX,            // frequency
 			None,                // metadata - use None to avoid BoundedVec complexity
 			Some([u8::MAX; 32]), // sub_id
-			None,                // call_params
+			None,                // call_params,
+			None,                // origin_kind
 		);
 
 		assert!(max_values_result.is_ok());
@@ -1125,6 +1127,7 @@ mod tests {
 			None, // metadata
 			None, // sub_id (auto-generated)
 			None, // call_params
+			None, // origin_kind
 		);
 
 		assert!(min_values_result.is_ok());
@@ -1136,6 +1139,7 @@ mod tests {
 			None, // metadata
 			None, // sub_id (auto-generated)
 			None, // call_params
+			None, // origin_kind
 		);
 
 		assert!(matches!(zero_values_result, Err(Error::InvalidParams)));

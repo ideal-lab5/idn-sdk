@@ -16,7 +16,7 @@ id = 4594
 name = "idn-consumer-chain"
 chain = "idnc-local"
 default_command = "../../target/release/idn-consumer-node"
-default_args = [ "-lxcm=trace,runtime::contracts=trace,runtime::xcm=trace,xcm::process_instruction::transact=trace,xcm::convert_origin=trace,xcm::origin_conversion=trace,staging_xcm_builder::origin_conversion=trace,pallet-idn-consumer=trace", "--enable-offchain-indexing=true" ]
+default_args = [ "-lxcm=trace,runtime::contracts=trace,runtime::xcm=trace,xcm::process_instruction::transact=trace,xcm::convert_origin=trace,xcm::origin_conversion=trace,staging_xcm_builder::origin_conversion=trace,pallet-idn-consumer=trace,runtime::consumer=trace", "--enable-offchain-indexing=true" ]
 
 [[parachains.collators]]
 name = "idn-consumer-alice"
@@ -30,7 +30,7 @@ id = 4502
 name = "ideal-network"
 chain = "idn-local"
 default_command = "../../target/release/idn-node"
-default_args = [ "-lxcm=trace,runtime::contracts=trace,runtime::xcm=trace,runtime::xcmp=info,pallet-idn-manager=trace", "--enable-offchain-indexing=true" ]
+default_args = [ "-lxcm=trace,runtime::contracts=trace,runtime::xcm=trace,runtime::xcmp=info,pallet-idn-manager=trace,pallet-randomness-beacon=trace", "--enable-offchain-indexing=true" ]
 
 [[parachains.collators]]
 name = "idn-alice"

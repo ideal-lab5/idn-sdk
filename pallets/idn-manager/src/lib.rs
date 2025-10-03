@@ -60,7 +60,7 @@ pub mod weights;
 
 use crate::{
 	primitives::{
-		CreateSubParams, Quote, QuoteSubParams, SubInfoRequest, SubInfoResponse,
+		CreateSubParams, OriginKind, Quote, QuoteSubParams, SubInfoRequest, SubInfoResponse,
 		SubscriptionCallData, SubscriptionMetadata,
 	},
 	traits::{
@@ -78,7 +78,7 @@ use frame_support::{
 	traits::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
 		tokens::Precision,
-		Get, OriginTrait,
+		Get,
 	},
 };
 use frame_system::{ensure_signed, pallet_prelude::OriginFor};
@@ -89,10 +89,13 @@ use sp_idn_traits::{
 	pulse::{Dispatcher, Pulse},
 	Hashable,
 };
-use sp_runtime::traits::Saturating;
+use sp_runtime::traits::{Saturating, TryConvert};
 use sp_std::{boxed::Box, fmt::Debug, vec, vec::Vec};
 use xcm::{
-	prelude::{Location, OriginKind, Transact, Unlimited, UnpaidExecution, Xcm},
+	prelude::{
+		AllOf, Asset, AssetFilter::Wild, AssetId, BuyExecution, DepositAsset, Junction, Junctions,
+		Location, RefundSurplus, Transact, Unlimited, WildFungibility, WithdrawAsset, Xcm,
+	},
 	DoubleEncoded, VersionedLocation, VersionedXcm,
 };
 use xcm_builder::SendController;
@@ -177,6 +180,8 @@ pub struct SubscriptionDetails<AccountId, CallData> {
 	pub target: Location,
 	// Pre-encoded call data for dispatching the XCM call
 	pub call: CallData,
+	// The kind of origin to use for the XCM call
+	pub origin_kind: OriginKind,
 }
 
 /// The AccountId type used in the pallet, derived from the configuration.
@@ -315,6 +320,11 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxCallDataLen: Get<u32>;
 
+		/// The maximum amount of fees to pay for the execution of a single XCM message sent to the
+		/// IDN chain, expressed in the IDN asset.
+		#[pallet::constant]
+		type MaxXcmFees: Get<u128>;
+
 		/// A type to define the amount of credits in a subscription
 		type Credits: Unsigned
 			+ Codec
@@ -365,6 +375,9 @@ pub mod pallet {
 
 		/// A type that converts XCM locations to account identifiers.
 		type XcmLocationToAccountId: ConvertLocation<Self::AccountId>;
+
+		/// A type that can convert the local origin to a `Location`.
+		type LocalOriginToLocation: TryConvert<Self::RuntimeOrigin, Location>;
 	}
 
 	/// The subscription storage. It maps a subscription ID to a subscription.
@@ -420,6 +433,8 @@ pub mod pallet {
 		InvalidSubscriber,
 		/// Invalid parameters
 		InvalidParams,
+		/// Error Sending XCM
+		XcmSendError,
 	}
 
 	/// A reason for the IDN Manager Pallet placing a hold on funds.
@@ -496,6 +511,7 @@ pub mod pallet {
 				subscriber: subscriber.clone(),
 				target: params.target.clone(),
 				call: params.call.clone(),
+				origin_kind: params.origin_kind.clone(),
 			};
 
 			let sub_id = params.sub_id.unwrap_or(Self::generate_sub_id(
@@ -720,15 +736,16 @@ pub mod pallet {
 			params: QuoteSubParamsOf<T>,
 		) -> DispatchResultWithPostInfo {
 			log::trace!(target: LOG_TARGET, "Quote subscription request received: {:?}", params);
-			// Ensure the origin is a sibling, and get the location
+			// Ensure the origin is valid, and get the location
 			let requester: Location = T::XcmOriginFilter::ensure_origin(origin.clone())?;
-
-			let deposit  = Self::calculate_storage_deposit_from_create_params(
-				&T::XcmLocationToAccountId::convert_location(&requester)
-					.ok_or_else(|| {
-						log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
-						Error::<T>::InvalidSubscriber
-					})?,
+			let target = Self::extract_parachain_location(&requester)?;
+			let acc = &T::XcmLocationToAccountId::convert_location(&requester)
+								.ok_or_else(|| {
+									log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
+									Error::<T>::InvalidSubscriber
+								})?;
+			let deposit = Self::calculate_storage_deposit_from_create_params(
+				acc,
 				&params.quote_request.create_sub_params,
 			);
 
@@ -742,13 +759,15 @@ pub mod pallet {
 			let quote = Quote { req_ref: params.quote_request.req_ref, fees, deposit };
 
 			Self::xcm_send(
-				&requester,
+				acc,
+				&target,
 				// Simple concatenation: pre-encoded call data + pulse data
 				{
 					let mut call_data = params.call.clone().into_inner();
 					call_data.extend(&quote.encode());
 					call_data.into()
 				},
+				params.origin_kind,
 			)?;
 			Self::deposit_event(Event::SubQuoted { requester, quote });
 
@@ -764,21 +783,28 @@ pub mod pallet {
 			req: SubInfoRequestOf<T>,
 		) -> DispatchResult {
 			log::trace!(target: LOG_TARGET, "Get subscription info request received: {:?}", req);
-			// Ensure the origin is a sibling, and get the location
+			// Ensure the origin is valid, and get the location
 			let requester: Location = T::XcmOriginFilter::ensure_origin(origin.clone())?;
-
+			let target = Self::extract_parachain_location(&requester)?;
+			let acc = &T::XcmLocationToAccountId::convert_location(&requester)
+								.ok_or_else(|| {
+									log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
+									Error::<T>::InvalidSubscriber
+								})?;
 			let sub =
 				Self::get_subscription(&req.sub_id).ok_or(Error::<T>::SubscriptionDoesNotExist)?;
 
 			let response = SubInfoResponse { sub, req_ref: req.req_ref };
 			Self::xcm_send(
-				&requester,
+				acc,
+				&target,
 				// Simple concatenation: pre-encoded call data + pulse data
 				{
 					let mut call_data = req.call.clone().into_inner();
 					call_data.extend(&response.encode());
 					call_data.into()
 				},
+				req.origin_kind,
 			)?;
 			Self::deposit_event(Event::SubscriptionDistributed { sub_id: req.sub_id });
 
@@ -814,6 +840,24 @@ impl<T: Config> Pallet<T> {
 			.collect()
 	}
 
+	/// Extracts the parachain portion of a location when it's the first interior junction.
+	///
+	/// Ensures the location has exactly one parent and the first interior junction is a
+	/// [`Junction::Parachain`]. Returns a new [`Location`] containing only that parachain.
+	pub(crate) fn extract_parachain_location(
+		location: &Location,
+	) -> Result<Location, DispatchError> {
+		let first_junction = match location.unpack() {
+			(1, interior) => interior.first(),
+			_ => None,
+		};
+
+		match first_junction {
+			Some(Junction::Parachain(id)) => Ok(Location::new(1, [Junction::Parachain(*id)])),
+			_ => Err(Error::<T>::InvalidSubscriber.into()),
+		}
+	}
+
 	/// Calculates the storage deposit for a subscription based on its creation parameters.
 	///
 	/// It creates an ephimeral dummy subscription to calculate the fees.
@@ -827,6 +871,7 @@ impl<T: Config> Pallet<T> {
 			subscriber: subscriber.clone(),
 			target: params.target.clone(),
 			call: params.call.clone(),
+			origin_kind: OriginKind::default(),
 		};
 
 		let subscription = Subscription {
@@ -897,8 +942,11 @@ impl<T: Config> Pallet<T> {
 				sub.credits_left = sub.credits_left.saturating_sub(consume_credits);
 				sub.last_delivered = Some(current_block);
 
+				let subscriber = sub.subscriber();
+
 				// Send the XCM message
 				if let Err(e) = Self::xcm_send(
+					subscriber,
 					&sub.details.target,
 					// Simple concatenation: pre-encoded call data + pulse data
 					{
@@ -906,6 +954,7 @@ impl<T: Config> Pallet<T> {
 						call_data.extend((&pulse, &sub_id).encode());
 						call_data.into()
 					},
+					sub.details.origin_kind.clone(),
 				) {
 					Self::pause_subscription_on_error(sub_id, sub, "Failed to dispatch XCM", e);
 					continue;
@@ -1071,20 +1120,34 @@ impl<T: Config> Pallet<T> {
 	/// A potential attacker could try to get "almost" free execution (only paying the pulse
 	/// consumption fees) to any target on a chain that honors `UnpaidExecution` requests from IDN.
 	/// Though the attacker would not be able to manipulate the call's parameters.
-	// TODO: Solve this issue https://github.com/ideal-lab5/idn-sdk/issues/290
-	fn xcm_send(target: &Location, call: DoubleEncoded<()>) -> DispatchResult {
+	fn xcm_send(
+		acc: &AccountIdOf<T>,
+		target: &Location,
+		call: DoubleEncoded<()>,
+		origin_kind: OriginKind,
+	) -> DispatchResult {
+		let origin = T::RuntimeOrigin::from(Some(acc.clone()).into());
+		let fee_asset = Asset {
+			id: AssetId(Location { parents: 1, interior: Junctions::Here }),
+			// TODO: this should be configurable by the consumer for more flexibility https://github.com/ideal-lab5/idn-sdk/issues/372
+			fun: T::MaxXcmFees::get().into(),
+		};
 		let msg = Xcm(vec![
-			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
-			Transact { origin_kind: OriginKind::SovereignAccount, fallback_max_weight: None, call },
+			WithdrawAsset(fee_asset.clone().into()),
+			BuyExecution { weight_limit: Unlimited, fees: fee_asset.clone() },
+			Transact { origin_kind: origin_kind.into(), fallback_max_weight: None, call },
+			RefundSurplus,
+			DepositAsset {
+				assets: Wild(AllOf { id: fee_asset.id, fun: WildFungibility::Fungible }),
+				// refund any surplus back to the origin's account
+				beneficiary: T::LocalOriginToLocation::try_convert(origin.clone())
+					.map_err(|_| Error::<T>::XcmSendError)?,
+			},
 		]);
 		let versioned_target: Box<VersionedLocation> =
 			Box::new(VersionedLocation::V5(target.clone()));
 		let versioned_msg: Box<VersionedXcm<()>> = Box::new(VersionedXcm::V5(msg.into()));
-		// TODO: do not use root origin, instead bring down the origin all the way from
-		// `try_submit_asig` to here https://github.com/ideal-lab5/idn-sdk/issues/289
-		let origin = T::RuntimeOrigin::root();
-		let xcm_hash =
-			T::Xcm::send(origin.clone(), versioned_target.clone(), versioned_msg.clone())?;
+		let xcm_hash = T::Xcm::send(origin, versioned_target.clone(), versioned_msg.clone())?;
 		log::trace!(
 			target: LOG_TARGET,
 			"XCM message sent with hash: {:?}. Target: {:?}. Msg: {:?}",

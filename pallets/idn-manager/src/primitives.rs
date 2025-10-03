@@ -19,7 +19,7 @@
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use frame_support::{traits::Contains, BoundedVec};
 use scale_info::TypeInfo;
-pub use xcm::prelude::{Junction, Junctions, Location};
+pub use xcm::prelude::{Junction, Junctions, Location, OriginKind as XcmOriginKind};
 
 /// The type for the metadata of a subscription
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
@@ -70,25 +70,32 @@ pub type SubscriptionCallData<L> = BoundedVec<u8, L>;
 	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq,
 )]
 pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId, CallData> {
-	// Number of random values to receive
+	/// Number of random values to receive
 	pub credits: Credits,
-	// XCM multilocation for pulse delivery
+	/// XCM multilocation for pulse delivery
 	pub target: Location,
-	// Pre-encoded call data for XCM message. This is usually [`SubscriptionCallData`].
+	/// Pre-encoded call data for XCM message. This is usually [`SubscriptionCallData`].
 	pub call: CallData,
-	// Distribution interval for pulses
+	/// Origin kind for the callback XCM message
+	pub origin_kind: OriginKind,
+	/// Distribution interval for pulses
 	pub frequency: Frequency,
-	// Bounded vector for additional data
+	/// Bounded vector for additional data
 	pub metadata: Option<Metadata>,
-	// Optional Subscription Id, if None, a new one will be generated
+	/// Optional Subscription Id, if None, a new one will be generated
 	pub sub_id: Option<SubscriptionId>,
 }
 
-/// XCM filter for allowing only sibling parachains to call certain functions in the IDN Manager
+/// XCM filter for allowing only sibling parachains or accounts to call certain functions in the IDN
+/// Manager
 pub struct AllowSiblingsOnly;
 impl Contains<Location> for AllowSiblingsOnly {
 	fn contains(location: &Location) -> bool {
-		matches!(location.unpack(), (1, [Junction::Parachain(_)]))
+		matches!(
+			location.unpack(),
+			(1, [Junction::Parachain(_)]) |
+				(1, [Junction::Parachain(_), Junction::AccountId32 { .. }])
+		)
 	}
 }
 
@@ -133,6 +140,8 @@ pub struct QuoteSubParams<CreateSubParams, PulseIndex, CallData> {
 	/// This is the function in the parachain that originated the request that will be called by
 	/// the IDN parachain and receive the [`Quote`].
 	pub call: CallData,
+	/// Origin kind for the callback XCM message
+	pub origin_kind: OriginKind,
 }
 
 /// Contains the parameters for requesting a subscription info by its Id.
@@ -147,6 +156,8 @@ pub struct SubInfoRequest<SubId, CallData> {
 	/// The call to the function that handles the generated subscription info on the
 	/// target parachain.
 	pub call: CallData,
+	/// Origin kind for the callback XCM message
+	pub origin_kind: OriginKind,
 }
 
 /// The subscription info returned by the IDN Manager to the target parachain.
@@ -157,4 +168,52 @@ pub struct SubInfoResponse<Sub> {
 	/// References the [`SubInfoRequest`]`
 	pub req_ref: RequestReference,
 	pub sub: Sub,
+}
+
+/// Local version of the [`XcmOriginKind`] enum to solve missing implementations on it.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking, Default,
+)]
+pub enum OriginKind {
+	/// Origin should just be the native dispatch origin representation for the sender in the
+	/// local runtime framework. For Cumulus/Frame chains this is the `Parachain` or `Relay` origin
+	/// if coming from a chain, though there may be others if the `MultiLocation` XCM origin has a
+	/// primary/native dispatch origin form.
+	Native,
+
+	/// Origin should just be the standard account-based origin with the sovereign account of
+	/// the sender. For Cumulus/Frame chains, this is the `Signed` origin.
+	SovereignAccount,
+
+	/// Origin should be the super-user. For Cumulus/Frame chains, this is the `Root` origin.
+	/// This will not usually be an available option.
+	Superuser,
+
+	/// Origin should be interpreted as an XCM native origin and the `MultiLocation` should be
+	/// encoded directly in the dispatch origin unchanged. For Cumulus/Frame chains, this will be
+	/// the `pallet_xcm::Origin::Xcm` type.
+	#[default]
+	Xcm,
+}
+
+impl From<OriginKind> for XcmOriginKind {
+	fn from(kind: OriginKind) -> Self {
+		match kind {
+			OriginKind::Native => XcmOriginKind::Native,
+			OriginKind::SovereignAccount => XcmOriginKind::SovereignAccount,
+			OriginKind::Superuser => XcmOriginKind::Superuser,
+			OriginKind::Xcm => XcmOriginKind::Xcm,
+		}
+	}
+}
+
+impl From<XcmOriginKind> for OriginKind {
+	fn from(kind: XcmOriginKind) -> Self {
+		match kind {
+			XcmOriginKind::Native => OriginKind::Native,
+			XcmOriginKind::SovereignAccount => OriginKind::SovereignAccount,
+			XcmOriginKind::Superuser => OriginKind::Superuser,
+			XcmOriginKind::Xcm => OriginKind::Xcm,
+		}
+	}
 }
