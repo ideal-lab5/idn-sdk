@@ -214,9 +214,8 @@ pub mod pallet {
 
 		/// At the end of block execution, the `on_finalize` hook checks that the asig was
 		/// updated. Upon success, it removes the boolean value from storage. If the value resolves
-		/// to `false`, then the runtime did  **not** receive any valid pulses from drand and we log an error.
-		/// If the value resolves to `true`, then process subscriptions.
-		///
+		/// to `false`, then the runtime did  **not** receive any valid pulses from drand and we log
+		/// an error. If the value resolves to `true`, then process subscriptions.
 		fn on_finalize(n: BlockNumberFor<T>) {
 			if !DidUpdate::<T>::take() && BeaconConfig::<T>::get().is_some() {
 				// this implies we did not ingest randomness from drand during this block
@@ -340,7 +339,7 @@ where
 }
 
 sp_api::decl_runtime_apis! {
-    pub trait ExtrinsicBuilderApi<AccountId, RuntimeCall, Signature, TxExtension, Nonce> 
+	pub trait ExtrinsicBuilderApi<AccountId, RuntimeCall, Signature, TxExtension, Nonce>
 	where
 		AccountId: Encode + Decode,
 		RuntimeCall: Encode + Decode,
@@ -348,11 +347,11 @@ sp_api::decl_runtime_apis! {
 		TxExtension : Encode + Decode,
 		Nonce: Encode + Decode,
 	{
-        fn construct_pulse_payload(
-            asig: Signature,
-            start: u64,
-            end: u64,
-            nonce: Nonce,
-        ) -> (Vec<u8>, RuntimeCall, TxExtension);
-    }
+		fn construct_pulse_payload(
+			asig: Signature,
+			start: u64,
+			end: u64,
+			nonce: Nonce,
+		) -> (Vec<u8>, RuntimeCall, TxExtension);
+	}
 }

@@ -24,8 +24,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use futures::{stream::Fuse, Future, FutureExt, StreamExt};
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
-use std::pin::Pin;
-use std::sync::Arc;
+use std::{pin::Pin, sync::Arc};
 use tokio::sync::RwLock;
 
 const LOG_TARGET: &str = "rand-beacon-gadget";
@@ -74,7 +73,6 @@ impl<Block: BlockT> From<sc_client_api::FinalityNotification<Block>>
 ///
 /// # Parameters
 /// - `finality_notification`: A mutable [`sc_client_api::FinalityNotifications`]
-///
 ///
 fn finality_notification_transformer_future<B>(
 	mut finality_notifications: sc_client_api::FinalityNotifications<B>,
@@ -127,9 +125,9 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 	/// and submits their aggregated signature to the chain.
 	pub async fn run(self, finality_notifications: sc_client_api::FinalityNotifications<Block>) {
 		log::info!(target: LOG_TARGET, "🎲 Starting Pulse Finalization Gadget");
-		// Subscribe to finality notifications and justifications before waiting for runtime pallet and
-		// reuse the streams, so we don't miss notifications while waiting for pallet to be available.
-		// let finality_notifications = self.client.finality_notification_stream();
+		// Subscribe to finality notifications and justifications before waiting for runtime pallet
+		// and reuse the streams, so we don't miss notifications while waiting for pallet to be
+		// available. let finality_notifications = self.client.finality_notification_stream();
 		let (transformer, mut finality_notifications) =
 			finality_notification_transformer_future(finality_notifications);
 
@@ -184,15 +182,13 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 			asig.serialize_compressed(&mut asig_bytes)
 				.expect("The signature is well formatted. qed.");
 
-			self.pulse_submitter
-				.submit_pulse(asig_bytes, start, end)
-				.await?;
+			self.pulse_submitter.submit_pulse(asig_bytes, start, end).await?;
 
 			let mut best = self.best_finalized_round.write().await;
 			*best = end;
 			// release the write lock
 			drop(best);
-		} else {	
+		} else {
 			log::info!(
 				target: LOG_TARGET,
 				"Block #{:?} finalized (round {}), No new pulses.",

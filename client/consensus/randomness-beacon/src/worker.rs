@@ -16,9 +16,7 @@
 
 use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
 use sc_client_api::HeaderBackend;
-use sc_transaction_pool_api::{
-	TransactionPool, TransactionSource,
-};
+use sc_transaction_pool_api::{TransactionPool, TransactionSource};
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::AppCrypto;
 use sp_core::sr25519;
@@ -131,7 +129,8 @@ mod tests {
 	use parking_lot::Mutex;
 	use sc_client_api::blockchain::{BlockStatus, Info};
 	use sc_transaction_pool_api::{
-		ImportNotificationStream, PoolStatus, ReadyTransactions, TransactionFor, TransactionStatusStreamFor, TxHash, TxInvalidityReportMap,
+		ImportNotificationStream, PoolStatus, ReadyTransactions, TransactionFor,
+		TransactionStatusStreamFor, TxHash, TxInvalidityReportMap,
 	};
 	use sp_blockchain::Result as BlockchainResult;
 	use sp_consensus_aura::sr25519::AuthorityPair;
@@ -335,7 +334,7 @@ mod tests {
 	}
 
 	#[derive(Clone, Debug)]
-	pub struct MockTransactionPool { 
+	pub struct MockTransactionPool {
 		pool: Arc<Mutex<Vec<PoolTransaction>>>,
 		should_fail: Arc<Mutex<bool>>,
 	}
@@ -344,7 +343,7 @@ mod tests {
 		fn new() -> Self {
 			let pool = Arc::new(Mutex::new(vec![]));
 			let should_fail = Arc::new(Mutex::new(false));
-			
+
 			Self { pool, should_fail }
 		}
 
@@ -391,7 +390,6 @@ mod tests {
 			_source: TransactionSource,
 			xt: TransactionFor<Self>,
 		) -> Result<TxHash<Self>, Self::Error> {
-
 			if *self.should_fail.lock() {
 				return Err(GadgetError::TransactionSubmissionFailed);
 			}
@@ -457,7 +455,10 @@ mod tests {
 			&self,
 			_at: Self::Hash,
 			_timeout: std::time::Duration,
-		) -> Box<dyn sc_transaction_pool_api::ReadyTransactions<Item = Arc<Self::InPoolTransaction>> + Send> {
+		) -> Box<
+			dyn sc_transaction_pool_api::ReadyTransactions<Item = Arc<Self::InPoolTransaction>>
+				+ Send,
+		> {
 			unimplemented!()
 		}
 	}

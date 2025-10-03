@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 use std::fmt::Debug;
 
 #[derive(Debug, PartialEq, thiserror::Error)]
@@ -41,6 +41,6 @@ impl From<PoolError> for Error {
 #[cfg(test)]
 impl IntoPoolError for Error {
 	fn into_pool_error(self) -> Result<PoolError, Self> {
-        Err(Error::TransactionSubmissionFailed)
+		Err(Error::TransactionSubmissionFailed)
 	}
 }
