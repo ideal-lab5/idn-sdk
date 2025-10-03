@@ -18,7 +18,9 @@ use crate::service::ParachainClient;
 use idn_runtime::{opaque::Block, UncheckedExtrinsic};
 use pallet_randomness_beacon::ExtrinsicBuilderApi;
 use sc_client_api::HeaderBackend;
-use sc_consensus_randomness_beacon::{error::Error as GadgetError, worker::ExtrinsicConstructor};
+use sc_consensus_randomness_beacon::{
+	error::Error as GadgetError, gadget::SERIALIZED_SIG_SIZE, worker::ExtrinsicConstructor,
+};
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::AppCrypto;
 use sp_consensus_randomness_beacon::types::OpaqueSignature;
@@ -40,7 +42,7 @@ impl ExtrinsicConstructor<Block> for RuntimeExtrinsicConstructor {
 	fn construct_pulse_extrinsic(
 		&self,
 		signer: sr25519::Public,
-		asig: OpaqueSignature,
+		asig: Vec<u8>,
 		start: u64,
 		end: u64,
 	) -> Result<<Block as BlockT>::Extrinsic, GadgetError> {
@@ -76,18 +78,21 @@ impl ExtrinsicConstructor<Block> for RuntimeExtrinsicConstructor {
 		// log::info!("🎯 Designated submitter for round {}, submitting...", round);
 
 		// let version = self.client.runtime_api().version(at_hash)?;
-		let nonce = self.client.runtime_api().account_nonce(at_hash, account.clone())?;
+		let nonce = self.client.runtime_api().account_nonce(at_hash, account.clone()).unwrap();
+
+		let formatted: [u8; SERIALIZED_SIG_SIZE] = asig.clone().try_into()
+			.map_err(|_| GadgetError::InvalidSignatureSize(asig.len() as u8, SERIALIZED_SIG_SIZE as u8))?;
 
 		let (payload, call, tx_ext) = self
 			.client
 			.runtime_api()
-			.construct_pulse_payload(at_hash, asig, start, end, nonce)
+			.construct_pulse_payload(at_hash, formatted, start, end, nonce)
 			.unwrap();
 
 		let signature = self
 			.keystore
-			.sr25519_sign(sp_consensus_aura::sr25519::AuthorityPair::ID, &signer.into(), &payload)?
-			.ok_or("Failed to sign")?;
+			.sr25519_sign(sp_consensus_aura::sr25519::AuthorityPair::ID, &signer.into(), &payload).unwrap().unwrap();
+			// .ok_or("Failed to sign")?;
 
 		Ok(UncheckedExtrinsic::new_signed(
 			call,

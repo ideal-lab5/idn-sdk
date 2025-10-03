@@ -115,7 +115,7 @@ where
 			.transaction_pool
 			.submit_one(best_hash, TransactionSource::Local, extrinsic)
 			.await
-			.unwrap();
+			.map_err(|_| GadgetError::TransactionSubmissionFailed);
 
 		log::info!(
 			target: LOG_TARGET,
@@ -339,11 +339,21 @@ mod tests {
 	}
 
 	#[derive(Clone, Debug)]
-	pub struct MockTransactionPool(Arc<Mutex<Vec<PoolTransaction>>>);
+	pub struct MockTransactionPool { 
+		pool: Arc<Mutex<Vec<PoolTransaction>>>,
+		should_fail: Arc<Mutex<bool>>,
+	}
 
 	impl MockTransactionPool {
 		fn new() -> Self {
-			Self(Arc::new(Mutex::new(vec![])))
+			let pool = Arc::new(Mutex::new(vec![]));
+			let should_fail = Arc::new(Mutex::new(false));
+			
+			Self { pool, should_fail }
+		}
+
+		fn set_should_fail(&self, do_fail: bool) {
+			*self.should_fail.lock() = do_fail;
 		}
 	}
 
@@ -385,7 +395,12 @@ mod tests {
 			_source: TransactionSource,
 			xt: TransactionFor<Self>,
 		) -> Result<TxHash<Self>, Self::Error> {
-			self.0.lock().push(PoolTransaction::from(xt));
+
+			if *self.should_fail.lock() {
+				return Err(GadgetError::TransactionSubmissionFailed);
+			}
+
+			self.pool.lock().push(PoolTransaction::from(xt));
 			let tx_hash: TxHash<Self> = Default::default();
 			Ok(tx_hash)
 		}
@@ -470,7 +485,7 @@ mod tests {
 		fn construct_pulse_extrinsic(
 			&self,
 			_signer: sr25519::Public,
-			_asig: OpaqueSignature,
+			_asig: Vec<u8>,
 			_start: u64,
 			_end: u64,
 		) -> Result<<TestBlock as BlockT>::Extrinsic, GadgetError> {
@@ -522,7 +537,7 @@ mod tests {
 		let worker = PulseWorker::new(client.clone(), keystore, pool.clone(), constructor);
 
 		// Create a test signature
-		let asig: OpaqueSignature = vec![0u8; 48].try_into().unwrap();
+		let asig = vec![0u8; 48];
 
 		// Submit pulse
 		let result = worker.submit_pulse(asig, 100, 101).await;
@@ -530,7 +545,7 @@ mod tests {
 		assert!(result.is_ok(), "Pulse submission should succeed");
 
 		// Verify transaction was submitted to pool: submit one should have been called
-		let txs = pool.0.lock().clone().leak();
+		let txs = pool.pool.lock().clone().leak();
 		assert!(txs.len() == 1, "The transaction should be included in the pool");
 	}
 
@@ -543,7 +558,7 @@ mod tests {
 
 		let worker = PulseWorker::new(client, keystore, pool, constructor);
 
-		let asig: OpaqueSignature = vec![0u8; 48].try_into().unwrap();
+		let asig = vec![0u8; 48];
 
 		// Should fail because no authority key exists
 		let result = worker.submit_pulse(asig, 100, 101).await;
@@ -567,7 +582,7 @@ mod tests {
 
 		let worker = PulseWorker::new(client, keystore, pool.clone(), constructor);
 
-		let asig: OpaqueSignature = vec![0u8; 48].try_into().unwrap();
+		let asig = vec![0u8; 48];
 
 		// Should fail at extrinsic construction
 		let result = worker.submit_pulse(asig, 100, 101).await;
@@ -576,10 +591,33 @@ mod tests {
 
 		// Verify nothing was submitted
 		assert_eq!(
-			pool.0.lock().clone().leak().len(),
+			pool.pool.lock().clone().leak().len(),
 			0,
 			"Should not submit if construction fails"
 		);
+	}
+
+	#[tokio::test]
+	async fn test_submit_pulse_tx_inclusion_failure() {
+		let keystore = create_test_keystore_with_key().await;
+		let client = Arc::new(MockClient::new());
+
+		let tx_pool = MockTransactionPool::new();
+		tx_pool.set_should_fail(true);
+		let pool = Arc::new(tx_pool);
+
+		let constructor = Arc::new(MockExtrinsicConstructor::new());
+
+		let worker = PulseWorker::new(client.clone(), keystore, pool.clone(), constructor);
+		let asig = vec![0u8; 48];
+
+		// Submit pulse
+		let result = worker.submit_pulse(asig, 100, 101).await;
+
+		assert!(result.is_err(), "Pulse submission should result in an error.");
+		assert!(matches!(result, Err(GadgetError::TransactionSubmissionFailed)));
+		let txs = pool.pool.lock().clone().leak();
+		assert!(txs.len() == 0, "The transaction pool should be empty");
 	}
 
 	#[tokio::test]
@@ -629,13 +667,13 @@ mod tests {
 
 		// Submit multiple pulses
 		for i in 0..3 {
-			let asig: OpaqueSignature = vec![0u8; 48].try_into().unwrap();
+			let asig = vec![0u8; 48];
 			let result = worker.submit_pulse(asig, 100 + i, 100 + i).await;
 			assert!(result.is_ok(), "Pulse submission {} should succeed", i);
 		}
 
 		// Verify all transactions were submitted
-		let submitted = pool.0.lock().clone().leak();
+		let submitted = pool.pool.lock().clone().leak();
 		assert_eq!(submitted.len(), 3, "Should have submitted three transactions");
 	}
 }

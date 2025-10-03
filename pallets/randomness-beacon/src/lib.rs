@@ -339,7 +339,6 @@ where
 	}
 }
 
-
 sp_api::decl_runtime_apis! {
     pub trait ExtrinsicBuilderApi<AccountId, RuntimeCall, Signature, TxExtension, Nonce> 
 	where
@@ -357,4 +356,3 @@ sp_api::decl_runtime_apis! {
         ) -> (Vec<u8>, RuntimeCall, TxExtension);
     }
 }
-

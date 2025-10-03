@@ -31,7 +31,7 @@ use tokio::sync::RwLock;
 
 const LOG_TARGET: &str = "rand-beacon-gadget";
 
-const SERIALIZED_SIG_SIZE: usize = 48;
+pub const SERIALIZED_SIG_SIZE: usize = 48;
 
 /// Trait for submitting pulses to the chain.
 ///
@@ -185,7 +185,6 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 			asig.serialize_compressed(&mut asig_bytes)
 				.expect("The signature is well formatted. qed.");
 
-			// let formatted: [u8; SERIALIZED_SIG_SIZE] = asig_bytes.try_into().expect("The vec is right-sized.");
 			self.pulse_submitter
 				.submit_pulse(asig_bytes, start, end)
 				.await?;

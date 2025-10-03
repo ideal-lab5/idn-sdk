@@ -20,3 +20,6 @@ pub mod error;
 pub mod gadget;
 pub mod gossipsub;
 pub mod worker;
+
+#[cfg(test)]
+mod tests;
