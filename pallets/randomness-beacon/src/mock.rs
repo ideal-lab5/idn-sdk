@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
- 
+
 use crate as pallet_randomness_beacon;
 use crate::*;
 use bp_idn::types::*;
@@ -23,6 +23,7 @@ use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{traits::IdentityLookup, AccountId32, BuildStorage};
 
 type Block = frame_system::mocking::MockBlock<Test>;
+pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(

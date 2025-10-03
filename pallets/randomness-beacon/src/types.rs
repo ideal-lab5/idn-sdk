@@ -17,7 +17,6 @@
 use bp_idn::types::RuntimePulse;
 use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::pallet_prelude::*;
-use serde::{Deserialize, Serialize};
 use sp_consensus_randomness_beacon::types::{OpaqueSignature, RoundNumber};
 
 /// Represents an aggregated signature and aggregated public key pair

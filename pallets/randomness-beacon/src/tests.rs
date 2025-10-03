@@ -15,15 +15,12 @@
  */
 
 use crate::{
-	mock::*, types::*, weights::WeightInfo, BeaconConfig, Call, DidUpdate, Error, LatestRound,
-	SparseAccumulation,
+	mock::{ALICE, *},
+	weights::WeightInfo,
+	BeaconConfig, DidUpdate, Error, LatestRound, SparseAccumulation,
 };
-use codec::Encode;
-use frame_support::{assert_noop, assert_ok, inherent::ProvideInherent, traits::OnFinalize};
-use sp_consensus_randomness_beacon::types::{CanonicalPulse, OpaquePublicKey, RoundNumber};
-use sp_idn_crypto::test_utils::{get, PULSE1000, PULSE1001, PULSE1002, PULSE1003};
-
-const BEACON_PUBKEY: &[u8] = b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+use frame_support::{assert_noop, assert_ok, traits::OnFinalize};
+use sp_idn_crypto::test_utils::{get, get_beacon_pk, PULSE1000, PULSE1001, PULSE1002, PULSE1003};
 
 #[test]
 fn can_construct_pallet_and_set_genesis_params() {
@@ -40,7 +37,12 @@ fn can_fail_write_pulse_when_genesis_round_not_set() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig.try_into().unwrap(), 1000, 1001,),
+			Drand::try_submit_asig(
+				RuntimeOrigin::signed(ALICE),
+				asig.try_into().unwrap(),
+				1000,
+				1001,
+			),
 			Error::<Test>::BeaconConfigNotSet,
 		);
 	});
@@ -48,32 +50,43 @@ fn can_fail_write_pulse_when_genesis_round_not_set() {
 
 #[test]
 fn can_set_genesis_round_once_as_root() {
-	let config = get_config(1000);
+	let bpk = get_beacon_pk();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()));
-		assert_eq!(BeaconConfig::<Test>::get().unwrap(), config.clone());
+		assert_ok!(Drand::set_beacon_config(
+			RuntimeOrigin::root(),
+			bpk.clone().try_into().unwrap()
+		));
+		assert_eq!(BeaconConfig::<Test>::get().unwrap().to_vec(), bpk);
+	});
+}
+
+#[test]
+fn can_not_set_genesis_round_as_root() {
+	let bpk = get_beacon_pk();
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
 		assert_noop!(
-			Drand::set_beacon_config(RuntimeOrigin::root(), config.clone()),
-			Error::<Test>::BeaconConfigAlreadySet,
+			Drand::set_beacon_config(RuntimeOrigin::signed(ALICE), bpk.clone().try_into().unwrap()),
+			frame_support::error::BadOrigin,
 		);
-		// and the latest round is set as the genesis round
-		assert_eq!(LatestRound::<Test>::get(), config.genesis_round);
+		assert!(BeaconConfig::<Test>::get().is_none());
 	});
 }
 
 #[test]
 fn can_submit_valid_pulses_under_the_limit() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
-	let config = get_config(1000);
+	let bpk = get_beacon_pk();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
 
 		assert_ok!(Drand::try_submit_asig(
-			RuntimeOrigin::none(),
+			RuntimeOrigin::signed(ALICE),
 			asig.clone().try_into().unwrap(),
 			1000,
 			1001,
@@ -97,13 +110,13 @@ fn can_submit_valid_pulses_under_the_limit() {
 
 #[test]
 fn can_fail_when_sig_height_is_0() {
-	let config = get_config(1000);
+	let bpk = get_beacon_pk();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 1000),
+			Drand::try_submit_asig(RuntimeOrigin::signed(ALICE), [1; 48], 1000, 1000),
 			Error::<Test>::ZeroHeightProvided
 		);
 	});
@@ -111,14 +124,14 @@ fn can_fail_when_sig_height_is_0() {
 
 #[test]
 fn can_fail_when_sig_height_is_exceeds_max() {
-	let config = get_config(1000);
+	let bpk = get_beacon_pk();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
 
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 10000),
+			Drand::try_submit_asig(RuntimeOrigin::signed(ALICE), [1; 48], 1000, 10000),
 			Error::<Test>::ExcessiveHeightProvided
 		);
 	});
@@ -126,17 +139,17 @@ fn can_fail_when_sig_height_is_exceeds_max() {
 
 #[test]
 fn can_submit_valid_sigs_in_sequence() {
-	let config = get_config(1000);
+	let bpk = get_beacon_pk();
 
 	let (asig1, _amsg1, _raw1) = get(vec![PULSE1000, PULSE1001]);
 	let (asig2, _amsg2, _raw2) = get(vec![PULSE1002, PULSE1003]);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
 
 		assert_ok!(Drand::try_submit_asig(
-			RuntimeOrigin::none(),
+			RuntimeOrigin::signed(ALICE),
 			asig1.try_into().unwrap(),
 			1000,
 			1001
@@ -146,7 +159,7 @@ fn can_submit_valid_sigs_in_sequence() {
 		System::set_block_number(2);
 
 		assert_ok!(Drand::try_submit_asig(
-			RuntimeOrigin::none(),
+			RuntimeOrigin::signed(ALICE),
 			asig2.clone().try_into().unwrap(),
 			1002,
 			1003,
@@ -169,21 +182,21 @@ fn can_submit_valid_sigs_in_sequence() {
 fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 	let (asig, _amsg1, _raw) = get(vec![PULSE1000, PULSE1001]);
 
-	let config = get_config(1000);
+	let bpk = get_beacon_pk();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
 
 		assert_ok!(Drand::try_submit_asig(
-			RuntimeOrigin::none(),
+			RuntimeOrigin::signed(ALICE),
 			asig.clone().try_into().unwrap(),
 			1000,
 			1001,
 		));
 		assert_noop!(
 			Drand::try_submit_asig(
-				RuntimeOrigin::none(),
+				RuntimeOrigin::signed(ALICE),
 				asig.clone().try_into().unwrap(),
 				1000,
 				1001,
@@ -197,14 +210,14 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 fn can_fail_to_submit_invalid_sigs_in_sequence() {
 	let (asig, _amsg1, _raw) = get(vec![PULSE1000, PULSE1001]);
 
-	let config = get_config(1000);
+	let bpk = get_beacon_pk();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), config));
+		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
 
 		assert_ok!(Drand::try_submit_asig(
-			RuntimeOrigin::none(),
+			RuntimeOrigin::signed(ALICE),
 			asig.clone().try_into().unwrap(),
 			1000,
 			1001,
@@ -215,7 +228,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 
 		assert_noop!(
 			Drand::try_submit_asig(
-				RuntimeOrigin::none(),
+				RuntimeOrigin::signed(ALICE),
 				asig.clone().try_into().unwrap(),
 				1000,
 				1001,
@@ -225,7 +238,7 @@ fn can_fail_to_submit_invalid_sigs_in_sequence() {
 
 		assert_noop!(
 			Drand::try_submit_asig(
-				RuntimeOrigin::none(),
+				RuntimeOrigin::signed(ALICE),
 				asig.clone().try_into().unwrap(),
 				1002,
 				1004,
@@ -255,10 +268,4 @@ fn can_call_on_initialize() {
 		let expected = <() as WeightInfo>::on_finalize();
 		assert_eq!(weight, expected);
 	});
-}
-
-fn get_config(round: RoundNumber) -> BeaconConfiguration<OpaquePublicKey, RoundNumber> {
-	let pk = hex::decode(BEACON_PUBKEY).expect("Valid hex");
-	let public_key: OpaquePublicKey = pk.try_into().unwrap();
-	BeaconConfiguration { public_key, genesis_round: round }
 }

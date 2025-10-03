@@ -149,6 +149,7 @@ sp-runtime = { version = "41.1.0", default-features = false }
 sp-state-machine = { version = "0.45.0", default-features = false }
 sp-std = { version = "14.0.0", default-features = false }
 sp-timestamp = { version = "36.0.0", default-features = false }
+sp-tracing ={ version = "17.1.0", default-features = false }
 sp-version = { version = "39.0.0", default-features = false }
 substrate-frame-rpc-system = { version = "43.0.0", default-features = false }
 frame-benchmarking-cli = "47.0.0"
@@ -209,7 +210,6 @@ jsonrpsee = { version = "0.24.7", features = ["server"] }
 log = { version = "0.4.26", default-features = false }
 simple-mermaid = { version = "0.1.1", default-features = false }
 substrate-test-utils = { version = "3.0.0" }
-
 
 # Parity SCALE Codec
 codec = { package = "parity-scale-codec", version = "3.7.5", default-features = false, features = [

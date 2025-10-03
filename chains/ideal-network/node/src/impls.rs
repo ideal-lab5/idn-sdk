@@ -23,6 +23,7 @@ use sc_consensus_randomness_beacon::{
 };
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::AppCrypto;
+use sp_consensus_aura::sr25519::AuthorityPair;
 use sp_consensus_randomness_beacon::types::OpaqueSignature;
 use sp_core::sr25519;
 use sp_keystore::KeystorePtr;
@@ -32,6 +33,36 @@ use sp_runtime::{
 };
 use std::sync::Arc;
 use substrate_frame_rpc_system::AccountNonceApi;
+
+// we only need to proceed if it is our turn (round robin aura style)
+// Get our authority ID
+// TODO: eventually we should designate named keys for this (like aura does)
+// let our_authority = match get_authority_id(&keystore).await {
+// 	Some(id) => id,
+// 	None => {
+// 		log::warn!("Not an authority, skipping submission");
+// 		return Ok(Default::default());
+// 	}
+// };
+
+// let local_id = keystore
+// .sr25519_public_keys(RANDOMNESS_BEACON_KEY_TYPE)
+// .into_iter()
+// .next()
+// .ok_or("No authority key found in keystore")?;
+// Calculate designated submitter
+// let submitter_index = (round as usize) % authorities.len();
+// let designated = &authorities[submitter_index];
+
+// // Only designated authority submits
+// if designated != &account {
+// 	log::debug!("Not designated submitter for round {}", round);
+// 	return Ok(Default::default());
+// }
+
+// log::info!("🎯 Designated submitter for round {}, submitting...", round);
+
+//! impls for constructing extrinsics
 
 pub(crate) struct RuntimeExtrinsicConstructor {
 	pub(crate) client: Arc<ParachainClient>,
@@ -48,40 +79,11 @@ impl ExtrinsicConstructor<Block> for RuntimeExtrinsicConstructor {
 	) -> Result<<Block as BlockT>::Extrinsic, GadgetError> {
 		let account: idn_runtime::AccountId = MultiSigner::Sr25519(signer).into_account();
 		let at_hash = self.client.info().best_hash;
-
-		// we only need to proceed if it is our turn (round robin aura style)
-		// Get our authority ID
-		// TODO: eventually we should designate named keys for this (like aura does)
-		// let our_authority = match get_authority_id(&keystore).await {
-		// 	Some(id) => id,
-		// 	None => {
-		// 		log::warn!("Not an authority, skipping submission");
-		// 		return Ok(Default::default());
-		// 	}
-		// };
-
-		// let local_id = keystore
-		// .sr25519_public_keys(RANDOMNESS_BEACON_KEY_TYPE)
-		// .into_iter()
-		// .next()
-		// .ok_or("No authority key found in keystore")?;
-		// Calculate designated submitter
-		// let submitter_index = (round as usize) % authorities.len();
-		// let designated = &authorities[submitter_index];
-
-		// // Only designated authority submits
-		// if designated != &account {
-		// 	log::debug!("Not designated submitter for round {}", round);
-		// 	return Ok(Default::default());
-		// }
-
-		// log::info!("🎯 Designated submitter for round {}, submitting...", round);
-
-		// let version = self.client.runtime_api().version(at_hash)?;
 		let nonce = self.client.runtime_api().account_nonce(at_hash, account.clone()).unwrap();
 
-		let formatted: [u8; SERIALIZED_SIG_SIZE] = asig.clone().try_into()
-			.map_err(|_| GadgetError::InvalidSignatureSize(asig.len() as u8, SERIALIZED_SIG_SIZE as u8))?;
+		let formatted: [u8; SERIALIZED_SIG_SIZE] = asig.clone().try_into().map_err(|_| {
+			GadgetError::InvalidSignatureSize(asig.len() as u8, SERIALIZED_SIG_SIZE as u8)
+		})?;
 
 		let (payload, call, tx_ext) = self
 			.client
@@ -91,8 +93,9 @@ impl ExtrinsicConstructor<Block> for RuntimeExtrinsicConstructor {
 
 		let signature = self
 			.keystore
-			.sr25519_sign(sp_consensus_aura::sr25519::AuthorityPair::ID, &signer.into(), &payload).unwrap().unwrap();
-			// .ok_or("Failed to sign")?;
+			.sr25519_sign(AuthorityPair::ID, &signer.into(), &payload)
+			.unwrap()
+			.unwrap();
 
 		Ok(UncheckedExtrinsic::new_signed(
 			call,
@@ -103,3 +106,31 @@ impl ExtrinsicConstructor<Block> for RuntimeExtrinsicConstructor {
 		.into())
 	}
 }
+
+// #[cfg(test)]
+// mod test {
+
+// 	use super::*;
+	
+// 	async fn create_test_keystore_with_key() -> KeystorePtr {
+// 		let keystore = MemoryKeystore::new();
+// 		// generate an aura key
+// 		keystore
+// 			.sr25519_generate_new(AuthorityPair::ID, Some("//Alice"))
+// 			.expect("Failed to generate key");
+
+// 		Arc::new(keystore)
+// 	}
+
+// 	fn create_test_keystore_empty() -> KeystorePtr {
+// 		Arc::new(MemoryKeystore::new())
+// 	}
+
+// 	#[test]
+// 	fn test_error_on_invalid_sig_size() {
+// 		 let constr = RuntimeExtrinsicConstructor {
+
+// 		 }
+// 	}
+
+// }
