@@ -20,6 +20,7 @@ use crate::{
 	RuntimeHoldReason, RuntimeOrigin, WeightToFee, XcmpQueue, CENTIUNIT,
 };
 use frame_support::{
+	pallet_prelude::{Get, OriginTrait, PhantomData},
 	parameter_types,
 	traits::{
 		fungible::HoldConsideration, ConstU32, Equals, Everything, LinearStoragePrice, Nothing,
@@ -34,16 +35,19 @@ use polkadot_runtime_common::impls::ToAuthor;
 use sp_runtime::traits::AccountIdConversion;
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
-	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain,
-	DenyThenTry, DescribeAllTerminal, DescribeFamily, DescribeTerminus, EnsureXcmOrigin,
-	FixedWeightBounds, FrameTransactionalProcessor, FungibleAdapter, HashedDescription, IsConcrete,
-	ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount, SiblingParachainAsNative,
-	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
-	WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
+	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
+	AllowTopLevelPaidExecutionFrom, DenyReserveTransferToRelayChain, DenyThenTry,
+	DescribeAllTerminal, DescribeFamily, DescribeTerminus, EnsureXcmOrigin, FixedWeightBounds,
+	FrameTransactionalProcessor, FungibleAdapter, HashedDescription, IsConcrete, ParentIsPreset,
+	RelayChainAsNative, SendXcmFeeToAccount, SiblingParachainAsNative, SiblingParachainConvertsVia,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
+	TrailingSetTopicAsId, UsingComponents, WithComputedOrigin, WithUniqueTopic,
+	XcmFeeManagerFromComponents,
 };
-use xcm_executor::{traits::ConvertLocation, XcmExecutor};
+use xcm_executor::{
+	traits::{ConvertLocation, ConvertOrigin},
+	XcmExecutor,
+};
 
 parameter_types! {
 	pub IdnLocation: Location = Location::new(1, Junction::Parachain(constants::IDN_PARACHAIN_ID));
@@ -68,11 +72,62 @@ parameter_types! {
 			.unwrap_or(TreasuryAccount::get());
 }
 
+pub struct IdnLocationSignedAccountId32<Network>(PhantomData<Network>);
+impl<Network: Get<Option<NetworkId>>> ConvertLocation<AccountId>
+	for IdnLocationSignedAccountId32<Network>
+{
+	fn convert_location(location: &Location) -> Option<AccountId> {
+		log::trace!(
+			target: "runtime::location_conversion",
+			"location: {:?}, converter: {:?}",
+			location,
+			"IdnLocationSignedAccountId32",
+		);
+		match location.unpack() {
+			(1, [Parachain(constants::IDN_PARACHAIN_ID), AccountId32 { network, id }])
+				if network.is_none() || *network == Network::get() =>
+				Some(AccountId::from(*id)),
+			_ => None,
+		}
+	}
+}
+
+pub struct IdnOriginFilterSignedAccountId32<Network, RuntimeOrigin>(
+	PhantomData<(Network, RuntimeOrigin)>,
+);
+impl<Network: Get<Option<NetworkId>>, RuntimeOrigin: OriginTrait> ConvertOrigin<RuntimeOrigin>
+	for IdnOriginFilterSignedAccountId32<Network, RuntimeOrigin>
+where
+	RuntimeOrigin::AccountId: From<[u8; 32]>,
+{
+	fn convert_origin(
+		origin: impl Into<Location>,
+		kind: OriginKind,
+	) -> Result<RuntimeOrigin, Location> {
+		let location = origin.into();
+		log::trace!(
+			target: "runtime::origin_conversion",
+			"location: {:?}, kind: {:?}, converter: {:?}",
+			location, kind,
+			"IdnOriginFilterSignedAccountId32",
+		);
+		match (kind, location.unpack()) {
+			(
+				OriginKind::Native,
+				(1, [Parachain(constants::IDN_PARACHAIN_ID), AccountId32 { network, id }]),
+			) if network.is_none() || *network == Network::get() => Ok(RuntimeOrigin::signed((*id).into())),
+			_ => Err(location),
+		}
+	}
+}
+
 /// Type for specifying how a `Location` can be converted into an `AccountId`.
 ///
 /// This is used when determining ownership of accounts for asset transacting and when attempting to
 /// use XCM `Transact` in order to determine the dispatch Origin.
 pub type LocationToAccountId = (
+	// Sibling parachain AccountId32 (no network) aliases directly to `AccountId`.
+	IdnLocationSignedAccountId32<RelayNetwork>,
 	// The parent (Relay-chain) origin converts to the parent `AccountId`.
 	ParentIsPreset<AccountId>,
 	// Sibling parachain origins convert to AccountId via the `ParaId::into`.
@@ -103,6 +158,10 @@ pub type FungibleTransactor = FungibleAdapter<
 /// ready for dispatching a transaction with Xcm's `Transact`. There is an `OriginKind` which can
 /// biases the kind of local `Origin` it will become.
 pub type XcmOriginToTransactDispatchOrigin = (
+	// This attempts to extract an `AccountId` from a `Location::X2(Parachain, AccountId32)` and
+	// turn that into a `Signed` origin when Parachain is IDN and the `OriginKind` is `Native`.
+	// Useful for contracts, as they can't process Location callers
+	IdnOriginFilterSignedAccountId32<RelayNetwork, RuntimeOrigin>,
 	// Sovereign account converter; this attempts to derive an `AccountId` from the origin location
 	// using `LocationToAccountId` and then turn that into the usual `Signed` origin. Useful for
 	// foreign chains who want to have a local sovereign account on this chain which they control.
@@ -144,8 +203,6 @@ pub type Barrier = TrailingSetTopicAsId<
 					// If the message is one that immediately attempts to pay for execution, then
 					// allow it.
 					AllowTopLevelPaidExecutionFrom<Everything>,
-					// IDN gets free execution
-					AllowExplicitUnpaidExecutionFrom<Equals<IdnLocation>>,
 					// Subscriptions for version tracking are OK.
 					AllowSubscriptionsFrom<ParentRelayOrSiblingParachains>,
 				),

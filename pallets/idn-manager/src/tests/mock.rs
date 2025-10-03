@@ -39,7 +39,7 @@ use sp_runtime::{
 	AccountId32,
 };
 use sp_std::fmt::Debug;
-use xcm::prelude::{Junction::Parachain, Location};
+use xcm::prelude::{Junction::Parachain, Location, NetworkId};
 use xcm_executor::traits::ConvertLocation;
 
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -167,6 +167,8 @@ impl ConvertLocation<AccountId32> for MockSiblingConversion {
 
 parameter_types! {
 	pub const BaseFee : u64 = 2_900_000;
+	pub const AccountNetwork: Option<NetworkId> = Some(NetworkId::Polkadot);
+	pub const MaxXcmFees: u128 = 1_000;
 }
 
 impl pallet_idn_manager::Config for Test {
@@ -189,6 +191,9 @@ impl pallet_idn_manager::Config for Test {
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Test>>;
 	type XcmOriginFilter = MockEnsureXcm<primitives::AllowSiblingsOnly>; // Use the custom EnsureOrigin
 	type XcmLocationToAccountId = MockSiblingConversion;
+	type LocalOriginToLocation =
+		xcm_builder::SignedToAccountId32<Self::RuntimeOrigin, AccountId32, AccountNetwork>;
+	type MaxXcmFees = MaxXcmFees;
 }
 
 sp_api::impl_runtime_apis! {

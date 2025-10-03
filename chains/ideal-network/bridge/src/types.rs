@@ -38,7 +38,7 @@ use sp_runtime::{
 };
 
 pub use pallet_idn_manager::{
-	primitives::{RequestReference, SubscriptionCallData},
+	primitives::{OriginKind, RequestReference, SubscriptionCallData},
 	SubscriptionState,
 };
 pub use sp_consensus_randomness_beacon::types::*;

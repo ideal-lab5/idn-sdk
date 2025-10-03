@@ -113,7 +113,7 @@ mod example_consumer {
 		types::{
 			ConsumerParaId, ContractsCallIndex, ContractsPalletIndex, Credits, IdnBalance,
 			IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
-			Quote, SovereignAccount, SubInfoResponse, SubscriptionId,
+			Quote, SubInfoResponse, SubscriptionId,
 		},
 		Error, IdnClient, IdnConsumer,
 	};
@@ -214,6 +214,17 @@ mod example_consumer {
 		/// states that prevent normal contract operation.
 		Other,
 	}
+	#[ink(event)]
+	pub struct CallerAuthorized {
+		#[ink(topic)]
+		caller: AccountId,
+	}
+
+	#[ink(event)]
+	pub struct PulseConsumed {
+		#[ink(topic)]
+		pulse: Pulse,
+	}
 
 	/// Converts IDN Client library errors into contract errors.
 	///
@@ -282,7 +293,6 @@ mod example_consumer {
 		///   abuse
 		#[ink(constructor)]
 		pub fn new(
-			idn_account_id: SovereignAccount,
 			idn_para_id: IdnParaId,
 			idn_manager_pallet_index: IdnManagerPalletIndex,
 			self_para_id: ConsumerParaId,
@@ -292,7 +302,7 @@ mod example_consumer {
 		) -> Self {
 			Self {
 				owner: Self::env().caller(),
-				authorized_deliverers: vec![AccountId::from(<[u8; 32]>::from(idn_account_id))],
+				authorized_deliverers: vec![Self::env().account_id()],
 				last_randomness: None,
 				subscription_id: None,
 				randomness_history: Vec::new(),
@@ -365,7 +375,7 @@ mod example_consumer {
 			// Create subscription through IDN client
 			let subscription_id = self
 				.idn_client
-				.create_subscription(credits, frequency, metadata, None, None)
+				.create_subscription(credits, frequency, metadata, None, None, None)
 				.map_err(ContractError::IdnClientError)?;
 
 			// Update contract state with the new subscription
@@ -581,20 +591,26 @@ mod example_consumer {
 			self.last_randomness = Some(randomness);
 			self.add_to_randomness_history(randomness);
 
+			Self::env().emit_event(PulseConsumed { pulse });
+
 			Ok(())
 		}
 
 		fn ensure_authorized(&self) -> Result<(), ContractError> {
-			if self.owner != Self::env().caller() {
+			let caller = Self::env().caller();
+			if self.owner != caller {
 				return Err(ContractError::Unauthorized);
 			}
+			Self::env().emit_event(CallerAuthorized { caller });
 			Ok(())
 		}
 
 		fn ensure_authorized_deliverer(&self) -> Result<(), ContractError> {
-			if !self.authorized_deliverers.contains(&Self::env().caller()) {
+			let caller = Self::env().caller();
+			if !self.authorized_deliverers.contains(&caller) {
 				return Err(ContractError::Unauthorized);
 			}
+			Self::env().emit_event(CallerAuthorized { caller });
 			Ok(())
 		}
 
@@ -690,7 +706,7 @@ mod example_consumer {
 				return Err(Error::InvalidSubscriptionId);
 			}
 
-			let validity = match self.ensure_valid_pulse(&pulse) {
+			let validity = match self.ensure_valid_pulse(&pulse.clone()) {
 				Ok(_) => PulseValidity::Valid,
 				Err(_) => PulseValidity::Invalid,
 			};
@@ -724,22 +740,17 @@ mod example_consumer {
 			let test_sig = [1u8; 48];
 			let test_pulse = Pulse::new(test_sig, 1, 2);
 
-			// Setup contract with owner as caller first
-			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
+			// In ink!’s off-chain test environment the contract account matches the initial caller
+			// (defaults to Alice).
 			let mut contract = ExampleConsumer::new(
-				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
-				IdnParaId::OnPaseo,                              // idn_para_id
-				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
-				ConsumerParaId::Other(1000),                     // self_para_id
-				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
-				ContractsCallIndex::Other(16),                   // self_contract_call_index
-				Some(1_000_000),                                 // max_idn_xcm_fees
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([1u8; 32]);
-
-			// Change to IDN account caller for consume_pulse
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob);
 
 			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse.clone(), [1u8; 32]);
 			match result {
@@ -754,19 +765,15 @@ mod example_consumer {
 
 		#[ink::test]
 		fn test_randomness_getters() {
-			// Setup test environment with owner as caller
-			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
-
-			// Create a test contract
+			// In ink!’s off-chain test environment the contract account matches the initial caller
+			// (defaults to Alice).
 			let mut contract = ExampleConsumer::new(
-				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
-				IdnParaId::OnPaseo,                              // idn_para_id
-				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
-				ConsumerParaId::Other(1000),                     // self_para_id
-				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
-				ContractsCallIndex::Other(16),                   // self_contract_call_index
-				Some(1_000_000),                                 // max_idn_xcm_fees
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([1u8; 32]);
 
@@ -777,9 +784,6 @@ mod example_consumer {
 			// Add some randomness
 			let test_pulse1 = Pulse::new([1u8; 48], 1, 2);
 			let test_pulse2 = Pulse::new([2u8; 48], 1, 2);
-
-			// Change to IDN account caller for consume_pulse
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob);
 
 			IdnConsumer::consume_pulse(&mut contract, test_pulse1.clone(), [1u8; 32])
 				.expect("Should successfully receive first pulse");
@@ -795,22 +799,17 @@ mod example_consumer {
 
 		#[ink::test]
 		fn test_randomness_receiver_trait() {
-			// Setup test environment with IDN account as caller
-			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob); // Use bob as IDN account
-
-			// Create a test contract
+			// In ink!’s off-chain test environment the contract account matches the initial caller
+			// (defaults to Alice).
 			let mut contract = ExampleConsumer::new(
-				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
-				IdnParaId::OnPaseo,                              // idn_para_id
-				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
-				ConsumerParaId::Other(1000),                     // self_para_id
-				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
-				ContractsCallIndex::Other(16),                   // self_contract_call_index
-				Some(1_000_000),                                 // max_idn_xcm_fees
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([5u8; 32]);
-			// idn_account_id is already set to accounts.bob in constructor
 
 			// Create a test pulse
 			let test_pulse = Pulse::new([9u8; 48], 1, 2);
@@ -830,24 +829,18 @@ mod example_consumer {
 
 		#[ink::test]
 		fn test_randomness_receiver_wrong_subscription() {
-			// Setup test environment with IDN account as caller
-			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob); // Use bob as IDN account
-
-			// Create a test contract
+			// In ink!’s off-chain test environment the contract account matches the initial caller
+			// (defaults to Alice).
 			let mut contract = ExampleConsumer::new(
-				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
-				IdnParaId::OnPaseo,                              // idn_para_id
-				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
-				ConsumerParaId::Other(1000),                     // self_para_id
-				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
-				ContractsCallIndex::Other(16),                   // self_contract_call_index
-				Some(1_000_000),                                 // max_idn_xcm_fees
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
 			);
 			let sub_id = [1u8; 32];
 			contract.subscription_id = Some(sub_id);
-			// idn_account_id is already set to accounts.bob in constructor
-
 			// Create a test pulse
 			let test_pulse = Pulse::new([0u8; 48], 1, 2);
 
@@ -870,13 +863,12 @@ mod example_consumer {
 			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 
 			let mut contract = ExampleConsumer::new(
-				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
-				IdnParaId::OnPaseo,                              // idn_para_id
-				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
-				ConsumerParaId::Other(1000),                     // self_para_id
-				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
-				ContractsCallIndex::Other(16),                   // self_contract_call_index
-				Some(1_000_000),                                 // max_idn_xcm_fees
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
 			);
 			let result = contract.pause_subscription();
 			assert_eq!(result, Err(ContractError::NoActiveSubscription));
@@ -889,13 +881,12 @@ mod example_consumer {
 			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
 
 			let mut contract = ExampleConsumer::new(
-				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
-				IdnParaId::OnPaseo,                              // idn_para_id
-				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
-				ConsumerParaId::Other(1000),                     // self_para_id
-				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
-				ContractsCallIndex::Other(16),                   // self_contract_call_index
-				Some(1_000_000),                                 // max_idn_xcm_fees
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
 			);
 			let result = contract.update_subscription(100, 10);
 			assert_eq!(result, Err(ContractError::NoActiveSubscription));
@@ -908,13 +899,12 @@ mod example_consumer {
 			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice will be owner
 
 			let mut contract = ExampleConsumer::new(
-				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
-				IdnParaId::OnPaseo,                              // idn_para_id
-				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
-				ConsumerParaId::Other(1000),                     // self_para_id
-				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
-				ContractsCallIndex::Other(16),                   // self_contract_call_index
-				Some(1_000_000),                                 // max_idn_xcm_fees
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([1u8; 32]);
 
@@ -933,23 +923,23 @@ mod example_consumer {
 
 		#[ink::test]
 		fn test_unauthorized_idn_caller() {
-			// Setup test environment with non-IDN account as caller
-			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice is not IDN account
-
 			let mut contract = ExampleConsumer::new(
-				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
-				IdnParaId::OnPaseo,                              // idn_para_id
-				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
-				ConsumerParaId::Other(1000),                     // self_para_id
-				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
-				ContractsCallIndex::Other(16),                   // self_contract_call_index
-				Some(1_000_000),                                 // max_idn_xcm_fees
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([5u8; 32]);
 			// idn_account_id is already set to accounts.bob in constructor
 
 			let test_pulse = Pulse::new([9u8; 48], 1, 2);
+
+			// In ink!’s off-chain test environment the contract account matches the initial caller
+			// (defaults to Alice). We need to change the caller to simulate an unauthorized call.
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob);
 
 			// Call consume_pulse with non-IDN caller - should fail
 			let result = IdnConsumer::consume_pulse(&mut contract, test_pulse, [5u8; 32]);
@@ -961,22 +951,17 @@ mod example_consumer {
 
 		#[ink::test]
 		fn test_bounded_history_behavior() {
-			// Setup test environment with owner as caller first
-			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
+			// In ink!’s off-chain test environment the contract account matches the initial caller
+			// (defaults to Alice).
 			let mut contract = ExampleConsumer::new(
-				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
-				IdnParaId::OnPaseo,                              // idn_para_id
-				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
-				ConsumerParaId::Other(1000),                     // self_para_id
-				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
-				ContractsCallIndex::Other(16),                   // self_contract_call_index
-				Some(1_000_000),                                 // max_idn_xcm_fees
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
 			);
 			contract.subscription_id = Some([1u8; 32]);
-
-			// Change to IDN account caller for consume_pulse
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.bob);
 
 			// Add 150 pulses (more than the 100 limit)
 			for i in 0..150u8 {
@@ -1025,23 +1010,21 @@ mod example_consumer {
 
 		#[ink::test]
 		fn test_add_authorized_deliverer() {
-			// Setup test environment with owner as caller
 			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
-			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice is owner
 
 			let mut contract = ExampleConsumer::new(
-				SovereignAccount::Other(*accounts.bob.as_ref()), // idn_account_id
-				IdnParaId::OnPaseo,                              // idn_para_id
-				IdnManagerPalletIndex::Other(10),                // idn_manager_pallet_index
-				ConsumerParaId::Other(1000),                     // self_para_id
-				ContractsPalletIndex::Other(50),                 // self_contracts_pallet_index
-				ContractsCallIndex::Other(16),                   // self_contract_call_index
-				Some(1_000_000),                                 // max_idn_xcm_fees
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
 			);
 
-			// Initially, only bob (idn_account_id) should be authorized
+			// In ink!’s off-chain test environment the contract account matches the initial caller
+			// (defaults to Alice).
 			assert_eq!(contract.authorized_deliverers.len(), 1);
-			assert!(contract.authorized_deliverers.contains(&accounts.bob));
+			assert!(contract.authorized_deliverers.contains(&accounts.alice));
 
 			// Add charlie as authorized caller
 			let result = contract.add_authorized_deliverer(accounts.charlie);
@@ -1050,7 +1033,7 @@ mod example_consumer {
 			// Check that charlie was added
 			assert_eq!(contract.authorized_deliverers.len(), 2);
 			assert!(contract.authorized_deliverers.contains(&accounts.charlie));
-			assert!(contract.authorized_deliverers.contains(&accounts.bob)); // Original still there
+			assert!(contract.authorized_deliverers.contains(&accounts.alice)); // Original still there
 
 			// Try to add the same account again - should not duplicate
 			let result = contract.add_authorized_deliverer(accounts.charlie);
@@ -1082,7 +1065,6 @@ mod example_consumer {
 
 			// Deploy the contract
 			let mut constructor = ExampleConsumerRef::new(
-				SovereignAccount::IdnOnPaseo,                           // idn_account_id
 				IdnParaId::Other(idn_para_id),                          // idn_para_id
 				IdnManagerPalletIndex::Other(idn_manager_pallet_index), // idn_manager_pallet_index
 				ConsumerParaId::Other(destination_para_id),             // self_para_id

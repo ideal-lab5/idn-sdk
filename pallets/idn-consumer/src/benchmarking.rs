@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::pallet::Pallet as IdnConsumer;
-use bp_idn::types::{Subscription, SubscriptionDetails, SubscriptionState};
+use bp_idn::types::{OriginKind, Subscription, SubscriptionDetails, SubscriptionState};
 use frame_benchmarking::v2::*;
 use frame_support::sp_runtime::AccountId32;
 use frame_system::{Pallet as System, RawOrigin};
@@ -33,6 +33,7 @@ fn mock_sub() -> Subscription {
 			subscriber: AccountId32::new([0u8; 32]),
 			target: Location::here(),
 			call: [0, 0].encode().try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		},
 		created_at: 0,
 		updated_at: 0,
@@ -92,12 +93,130 @@ mod benchmarks {
 	}
 
 	#[benchmark]
-	fn create_subscription() {
+	fn do_create_subscription() {
 		let credits = 10;
 		let frequency = 5;
 		let metadata = None;
 		let sub_id = None;
 		let origin = RawOrigin::Signed([88u8; 32].into());
+
+		#[block]
+		{
+			IdnConsumer::<T>::do_create_subscription(
+				origin.into(),
+				credits,
+				frequency,
+				metadata,
+				sub_id,
+				None,
+			)
+			.expect("do_create_subscription should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn do_pause_subscription() {
+		let sub_id = [1u8; 32];
+		let origin = RawOrigin::Signed([88u8; 32].into());
+
+		#[block]
+		{
+			IdnConsumer::<T>::do_pause_subscription(origin.into(), sub_id)
+				.expect("pause_subscription should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn do_kill_subscription() {
+		let sub_id = [1u8; 32];
+		let origin = RawOrigin::Signed([88u8; 32].into());
+
+		#[block]
+		{
+			IdnConsumer::<T>::do_kill_subscription(origin.into(), sub_id)
+				.expect("kill_subscription should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn do_update_subscription() {
+		let sub_id = [1u8; 32];
+		let credits = 10;
+		let frequency = 5;
+		let metadata = None;
+		let origin = RawOrigin::Signed([88u8; 32].into());
+
+		#[block]
+		{
+			IdnConsumer::<T>::do_update_subscription(
+				origin.into(),
+				sub_id,
+				Some(credits),
+				Some(frequency),
+				metadata,
+			)
+			.expect("update_subscription should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn do_reactivate_subscription() {
+		let sub_id = [1u8; 32];
+		let origin = RawOrigin::Signed([88u8; 32].into());
+
+		#[block]
+		{
+			IdnConsumer::<T>::do_reactivate_subscription(origin.into(), sub_id)
+				.expect("reactivate_subscription should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn do_request_quote() {
+		let sub_id = None;
+		let req_ref = None;
+		let credits = 10;
+		let frequency = 5;
+		let metadata = None;
+		let origin = RawOrigin::Signed([88u8; 32].into());
+		let origin_kind = None;
+
+		#[block]
+		{
+			IdnConsumer::<T>::do_request_quote(
+				origin.into(),
+				credits,
+				frequency,
+				metadata,
+				sub_id,
+				req_ref,
+				origin_kind,
+			)
+			.expect("request_quote should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn do_request_sub_info() {
+		let sub_id = [1u8; 32];
+		let origin = RawOrigin::Signed([88u8; 32].into());
+		let origin_kind = None;
+
+		#[block]
+		{
+			IdnConsumer::<T>::do_request_sub_info(origin.into(), sub_id, None, origin_kind)
+				.expect("request_sub_info should not fail");
+		}
+	}
+
+	#[benchmark]
+	fn create_subscription() {
+		let credits = 10;
+		let frequency = 5;
+		let metadata = None;
+		let sub_id = None;
+		let origin = RawOrigin::Root;
+		let origin_kind = None;
 
 		#[block]
 		{
@@ -107,6 +226,7 @@ mod benchmarks {
 				frequency,
 				metadata,
 				sub_id,
+				origin_kind,
 			)
 			.expect("create_subscription should not fail");
 		}
@@ -115,7 +235,7 @@ mod benchmarks {
 	#[benchmark]
 	fn pause_subscription() {
 		let sub_id = [1u8; 32];
-		let origin = RawOrigin::Signed([88u8; 32].into());
+		let origin = RawOrigin::Root;
 
 		#[block]
 		{
@@ -127,7 +247,7 @@ mod benchmarks {
 	#[benchmark]
 	fn kill_subscription() {
 		let sub_id = [1u8; 32];
-		let origin = RawOrigin::Signed([88u8; 32].into());
+		let origin = RawOrigin::Root;
 
 		#[block]
 		{
@@ -142,7 +262,7 @@ mod benchmarks {
 		let credits = 10;
 		let frequency = 5;
 		let metadata = None;
-		let origin = RawOrigin::Signed([88u8; 32].into());
+		let origin = RawOrigin::Root;
 
 		#[block]
 		{
@@ -160,7 +280,7 @@ mod benchmarks {
 	#[benchmark]
 	fn reactivate_subscription() {
 		let sub_id = [1u8; 32];
-		let origin = RawOrigin::Signed([88u8; 32].into());
+		let origin = RawOrigin::Root;
 
 		#[block]
 		{
@@ -173,20 +293,22 @@ mod benchmarks {
 	fn request_quote() {
 		let sub_id = None;
 		let req_ref = None;
-		let credits = 10;
+		let number_of_pulses = 10;
 		let frequency = 5;
 		let metadata = None;
-		let origin = RawOrigin::Signed([88u8; 32].into());
+		let origin = RawOrigin::Root;
+		let origin_kind = None;
 
 		#[block]
 		{
 			IdnConsumer::<T>::request_quote(
 				origin.into(),
-				credits,
+				number_of_pulses,
 				frequency,
 				metadata,
 				sub_id,
 				req_ref,
+				origin_kind,
 			)
 			.expect("request_quote should not fail");
 		}
@@ -195,125 +317,13 @@ mod benchmarks {
 	#[benchmark]
 	fn request_sub_info() {
 		let sub_id = [1u8; 32];
-		let origin = RawOrigin::Signed([88u8; 32].into());
+		let origin = RawOrigin::Root;
+		let origin_kind = None;
 
 		#[block]
 		{
-			IdnConsumer::<T>::request_sub_info(origin.into(), sub_id, None)
+			IdnConsumer::<T>::request_sub_info(origin.into(), sub_id, None, origin_kind)
 				.expect("request_sub_info should not fail");
-		}
-	}
-
-	#[benchmark]
-	fn sudo_create_subscription() {
-		let credits = 10;
-		let frequency = 5;
-		let metadata = None;
-		let sub_id = None;
-		let origin = RawOrigin::Root;
-
-		#[block]
-		{
-			IdnConsumer::<T>::sudo_create_subscription(
-				origin.into(),
-				credits,
-				frequency,
-				metadata,
-				sub_id,
-			)
-			.expect("sudo_create_subscription should not fail");
-		}
-	}
-
-	#[benchmark]
-	fn sudo_pause_subscription() {
-		let sub_id = [1u8; 32];
-		let origin = RawOrigin::Root;
-
-		#[block]
-		{
-			IdnConsumer::<T>::sudo_pause_subscription(origin.into(), sub_id)
-				.expect("sudo_pause_subscription should not fail");
-		}
-	}
-
-	#[benchmark]
-	fn sudo_kill_subscription() {
-		let sub_id = [1u8; 32];
-		let origin = RawOrigin::Root;
-
-		#[block]
-		{
-			IdnConsumer::<T>::sudo_kill_subscription(origin.into(), sub_id)
-				.expect("sudo_kill_subscription should not fail");
-		}
-	}
-
-	#[benchmark]
-	fn sudo_update_subscription() {
-		let sub_id = [1u8; 32];
-		let credits = 10;
-		let frequency = 5;
-		let metadata = None;
-		let origin = RawOrigin::Root;
-
-		#[block]
-		{
-			IdnConsumer::<T>::sudo_update_subscription(
-				origin.into(),
-				sub_id,
-				Some(credits),
-				Some(frequency),
-				metadata,
-			)
-			.expect("sudo_update_subscription should not fail");
-		}
-	}
-
-	#[benchmark]
-	fn sudo_reactivate_subscription() {
-		let sub_id = [1u8; 32];
-		let origin = RawOrigin::Root;
-
-		#[block]
-		{
-			IdnConsumer::<T>::sudo_reactivate_subscription(origin.into(), sub_id)
-				.expect("sudo_reactivate_subscription should not fail");
-		}
-	}
-
-	#[benchmark]
-	fn sudo_request_quote() {
-		let sub_id = None;
-		let req_ref = None;
-		let number_of_pulses = 10;
-		let frequency = 5;
-		let metadata = None;
-		let origin = RawOrigin::Root;
-
-		#[block]
-		{
-			IdnConsumer::<T>::sudo_request_quote(
-				origin.into(),
-				number_of_pulses,
-				frequency,
-				metadata,
-				sub_id,
-				req_ref,
-			)
-			.expect("sudo_request_quote should not fail");
-		}
-	}
-
-	#[benchmark]
-	fn sudo_request_sub_info() {
-		let sub_id = [1u8; 32];
-		let origin = RawOrigin::Root;
-
-		#[block]
-		{
-			IdnConsumer::<T>::sudo_request_sub_info(origin.into(), sub_id, None)
-				.expect("sudo_request_sub_info should not fail");
 		}
 	}
 }

@@ -24,7 +24,7 @@ use crate::{
 };
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
-	pallet_prelude::PhantomData,
+	pallet_prelude::{Get, PhantomData},
 	parameter_types,
 	traits::{ConstU32, Contains, Disabled, Equals, Everything, Nothing, TransformOrigin},
 	weights::Weight,
@@ -96,11 +96,33 @@ impl pallet_message_queue::Config for Runtime {
 	type IdleMaxServiceWeight = MessageQueueIdleServiceWeight;
 }
 
+pub struct SiblingLocationSignedAccountId32<Network>(PhantomData<Network>);
+impl<Network: Get<Option<NetworkId>>> ConvertLocation<AccountId>
+	for SiblingLocationSignedAccountId32<Network>
+{
+	fn convert_location(location: &Location) -> Option<AccountId> {
+		log::trace!(
+			target: "runtime::location_conversion",
+			"location: {:?}, converter: {:?}",
+			location,
+			"SiblingLocationSignedAccountId32",
+		);
+		match location.unpack() {
+			(1, [Parachain(_), AccountId32 { network, id }])
+				if network.is_none() || *network == Network::get() =>
+				Some(AccountId::from(*id)),
+			_ => None,
+		}
+	}
+}
+
 /// Type for specifying how a `Location` can be converted into an `AccountId`.
 ///
 /// This is used when determining ownership of accounts for asset transacting and when attempting to
 /// use XCM `Transact` in order to determine the dispatch Origin.
 pub type LocationToAccountId = (
+	// Sibling parachain AccountId32 (no network) aliases directly to `AccountId`.
+	SiblingLocationSignedAccountId32<RelayNetwork>,
 	// The parent (Relay-chain) origin converts to the parent `AccountId`.
 	ParentIsPreset<AccountId>,
 	// Sibling parachain origins convert to AccountId via the `ParaId::into`.
@@ -312,4 +334,33 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type WeightInfo = CumulusXcmpQueueWeightInfo<Runtime>;
 	// Enqueue XCMP messages from siblings for later processing.
 	type XcmpQueue = TransformOrigin<MessageQueue, AggregateMessageOrigin, ParaId, ParaIdToSibling>;
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	#[test]
+	fn test_extract_account_from_x2_location() {
+		let loc = Location::new(1, [Parachain(2000), AccountId32 { network: None, id: [1u8; 32] }]);
+		let acc = SiblingLocationSignedAccountId32::<RelayNetwork>::convert_location(&loc);
+		assert_eq!(acc, Some(AccountId::from([1u8; 32])));
+	}
+	#[test]
+	fn test_extract_account_from_x2_location_with_network() {
+		let loc = Location::new(
+			1,
+			[Parachain(2000), AccountId32 { network: Some(NetworkId::Polkadot), id: [1u8; 32] }],
+		);
+		let acc = SiblingLocationSignedAccountId32::<RelayNetwork>::convert_location(&loc);
+		assert_eq!(acc, Some(AccountId::from([1u8; 32])));
+	}
+	#[test]
+	fn test_extract_account_from_x2_location_with_wrong_network() {
+		let loc = Location::new(
+			1,
+			[Parachain(2000), AccountId32 { network: Some(NetworkId::Kusama), id: [1u8; 32] }],
+		);
+		let acc = SiblingLocationSignedAccountId32::<RelayNetwork>::convert_location(&loc);
+		assert_eq!(acc, None);
+	}
 }

@@ -74,7 +74,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn create_subscription() -> Weight {
+	fn do_create_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -85,7 +85,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn pause_subscription() -> Weight {
+	fn do_pause_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -96,7 +96,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn kill_subscription() -> Weight {
+	fn do_kill_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -107,7 +107,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn update_subscription() -> Weight {
+	fn do_update_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -118,7 +118,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn reactivate_subscription() -> Weight {
+	fn do_reactivate_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -129,7 +129,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn request_quote() -> Weight {
+	fn do_request_quote() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -140,7 +140,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn request_sub_info() -> Weight {
+	fn do_request_sub_info() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -151,7 +151,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn sudo_create_subscription() -> Weight {
+	fn create_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -162,7 +162,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn sudo_pause_subscription() -> Weight {
+	fn pause_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -173,7 +173,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn sudo_kill_subscription() -> Weight {
+	fn kill_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -184,7 +184,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn sudo_update_subscription() -> Weight {
+	fn update_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -195,7 +195,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn sudo_reactivate_subscription() -> Weight {
+	fn reactivate_subscription() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -206,7 +206,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn sudo_request_quote() -> Weight {
+	fn request_quote() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`
@@ -217,7 +217,7 @@ impl<T: frame_system::Config> pallet_idn_consumer::WeightInfo for WeightInfo<T> 
 	}
 	/// Storage: `ParachainInfo::ParachainId` (r:1 w:0)
 	/// Proof: `ParachainInfo::ParachainId` (`max_values`: Some(1), `max_size`: Some(4), added: 499, mode: `MaxEncodedLen`)
-	fn sudo_request_sub_info() -> Weight {
+	fn request_sub_info() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `32`
 		//  Estimated: `1489`

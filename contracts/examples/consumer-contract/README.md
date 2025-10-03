@@ -43,13 +43,12 @@ To deploy this contract:
 
 2. Deploy to your parachain using your preferred method (e.g., Contracts UI)
 
-3. **⚠️ CRITICAL**: Fund your contract's sovereign account on the IDN chain and the IDN sovereign account on the consumer chain. See the [detailed funding guide](../idn-client-contract-lib/README.md#account-funding-requirements) for step-by-step instructions.
+3. **⚠️ CRITICAL**: Fund your contract's account on the IDN chain and the contract's account on the consumer chain. See the [detailed funding guide](../idn-client-contract-lib/README.md#account-funding-requirements) for step-by-step instructions.
 
 4. Initialize with the required parameters:
 
    ```
    new(
-   		idn_account_id: SovereignAccount,
    		idn_para_id: IdnParaId,
    		idn_manager_pallet_index: IdnManagerPalletIndex,
    		self_para_id: ConsumerParaId,
@@ -274,9 +273,15 @@ The contract owner (the account that deploys the contract) has exclusive rights 
 - Simulate randomness delivery for testing purposes
 - Access all subscription management functionality
 
-### IDN Authorization
+### Delivery Authorization
 
-Only the configured IDN account can:
+**IMPORTANT**
+IDN is an open protocol meaning that anybody could delivery a value to a contract, the value can be verified for a fully trustless solution.
+On this particular example, we have decided to go for a more trusted solution as verifying a pulse is costly. This example implements a
+`ensure_authorized_deliverer` fn that by defaults sets the own contract's address as authorized deliverer, but these list can be managed from
+the contract itself.
+
+Only authorized accounts can:
 
 - Deliver randomness pulses via the consume_pulse callback
 - Provide subscription quotes and information updates
@@ -316,7 +321,7 @@ To adapt this contract for your needs:
 
 When deploying on a real network:
 
-1. **Fund Sovereign Accounts**: **MOST IMPORTANT** - Follow the [detailed funding guide](../idn-client-contract-lib/README.md#contractaccount-funding-requirements)
+1. **Fund Accounts**: Follow the [detailed funding guide](../../src/xcm/README.md#account-funding-requirements)
 2. **Configure IDN Account**: Set the correct `idn_account_id` for the authorized IDN account
 3. **Set Network Parameters**: Configure `idn_para_id` and `self_para_id` to match your deployment environment
 4. **Configure Pallet Indices**: Set correct `idn_manager_pallet_index` and `self_contracts_pallet_index` values

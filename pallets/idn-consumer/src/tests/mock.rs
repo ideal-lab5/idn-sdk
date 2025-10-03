@@ -19,7 +19,7 @@ use crate::{
 	traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer},
 	Pulse, Quote, SubInfoResponse, SubscriptionId,
 };
-use bp_idn::types::{Subscription, SubscriptionDetails, SubscriptionState};
+use bp_idn::types::{OriginKind, Subscription, SubscriptionDetails, SubscriptionState};
 use codec::Encode;
 use cumulus_primitives_core::ParaId;
 use frame_support::{
@@ -39,6 +39,7 @@ construct_runtime!(
 	}
 );
 pub const IDN_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+pub const IDN_PARA_ID: u32 = 88;
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 pub fn mock_sub() -> Subscription {
 	Subscription {
@@ -49,6 +50,7 @@ pub fn mock_sub() -> Subscription {
 			subscriber: AccountId32::new([0u8; 32]),
 			target: Location::here(),
 			call: [0u8, 0u8].encode().try_into().unwrap(),
+			origin_kind: OriginKind::Xcm,
 		},
 		created_at: 0,
 		updated_at: 0,
@@ -119,18 +121,18 @@ pub mod sub_info_consumer_impl {
 pub struct MockEnsureXcmIdn;
 
 impl frame_support::traits::EnsureOrigin<RuntimeOrigin> for MockEnsureXcmIdn {
-	type Success = AccountId32;
+	type Success = Location;
 
 	fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
 		if origin.clone().into_signer().unwrap() == IDN_PARA_ACCOUNT {
-			return Ok(IDN_PARA_ACCOUNT);
+			return Ok(Location::new(1, [Parachain(IDN_PARA_ID)]));
 		}
 		Err(origin)
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
-		Ok(RuntimeOrigin::root())
+		Ok(RuntimeOrigin::signed(ALICE))
 	}
 }
 pub struct MockXcm;
@@ -158,6 +160,7 @@ parameter_types! {
 	pub IdnConsumerParaId: ParaId = 2001.into();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 	pub const MaxIdnXcmFees: u128 = 1_000;
+	pub const AccountNetwork: Option<NetworkId> = Some(NetworkId::Polkadot);
 }
 
 impl pallet_idn_consumer::Config for Test {
@@ -166,12 +169,14 @@ impl pallet_idn_consumer::Config for Test {
 	type QuoteConsumer = quote_consumer_impl::QuoteConsumerImpl;
 	type SubInfoConsumer = sub_info_consumer_impl::SubInfoConsumerImpl;
 	type SiblingIdnLocation = IdnLocation;
-	type IdnOrigin = MockEnsureXcmIdn;
+	type IdnOriginFilter = MockEnsureXcmIdn;
 	type Xcm = MockXcm;
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
 	type MaxIdnXcmFees = MaxIdnXcmFees;
 	type WeightInfo = ();
+	type LocalOriginToLocation =
+		xcm_builder::SignedToAccountId32<Self::RuntimeOrigin, AccountId32, AccountNetwork>;
 }
 
 pub struct ExtBuilder;

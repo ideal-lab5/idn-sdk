@@ -9712,6 +9712,7 @@ dependencies = [
  "sp-idn-traits",
  "sp-io",
  "sp-runtime",
+ "sp-std",
  "staging-parachain-info",
  "staging-xcm 16.2.0",
  "staging-xcm-builder",

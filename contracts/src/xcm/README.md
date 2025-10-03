@@ -305,107 +305,12 @@ _See https://github.com/ideal-lab5/idn-sdk/issues/360_
 
 IDN contract integration requires **TWO separate funding requirements** for proper XCM operation:
 
-1. **Contract's Sovereign Account on IDN Chain**: For subscription operations (create, pause, update, etc.)
-2. **IDN's Sovereign Account on Consumer Chain**: For randomness delivery via contract calls
+1. **Contract's Account on IDN Chain**: For subscription operations (create, pause, update, etc.)
+2. **Contract's Account on Consumer Chain**: For randomness delivery via contract calls
 
 **⚠️ CRITICAL**: Both accounts must be funded with local tokens or operations will fail with "Funds are unavailable" errors.
 
-### Understanding Sovereign Accounts
-
-When your contract sends XCM messages to the IDN chain, it operates through a **sovereign account** - a derived account that represents your contract on the destination chain. Similarly, when IDN sends randomness back to your contract, it operates through its own **sovereign account** on your consumer chain.
-
-### Finding Your Contract's Sovereign Account
-
-To determine your contract's sovereign account address on the IDN chain:
-
-**Using Polkadot.js Apps (Recommended for Documentation)**
-
-- Open [Polkadot.js Apps](https://polkadot.js.org/apps/)
-- Connect to the IDN node (e.g. `wss://idn-0.idealabs.network:443`)
-- Navigate to **Developer → Runtime calls**
-- Select **locationToAccountApi → convertLocation**
-- Configure your location:
-  - **Version**: `V4`
-  - **Parents**: `1` (for sibling parachain)
-  - **Interior**: `X2`
-  - **Junction 1**: `Parachain` → Enter your parachain ID (e.g., `2000`, `4594`)
-  - **Junction 2**: `AccountId32` → Enter your contract's account ID
-    - **Network**: Leave it as `None`
-    - **ID**: Paste your contract's account ID
-- Click "Submit" to see the sovereign account address
-
-_Try different ParaIds to test: Asset Hub (`1000`), your parachain ID, etc._
-
-### Funding IDN's Sovereign Account on Your Consumer Chain
-
-The IDN sovereign account on your consumer chain must be funded for randomness delivery.
-
-#### For Paseo Testnet
-
-On Paseo testnet, the IDN sovereign account is: `5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n`
-
-This account must be funded on your consumer chain to allow IDN to execute contract calls for randomness delivery.
-
-#### For Other Networks
-
-To determine IDN's sovereign account address with your consumer chain:
-
-**Using Polkadot.js Apps on Your Consumer Chain**
-
-- Connect to your consumer chain node
-- Navigate to **Developer → Runtime calls**
-- Select **locationToAccountApi → convertLocation**
-- Configure the IDN location:
-  - **Version**: `V4`
-  - **Parents**: `1` (for sibling parachain)
-  - **Interior**: `X1`
-  - **Junction 1**: `Parachain` → Enter IDN's parachain ID (see `constants.rs`)
-- Click "Submit" to see IDN's sovereign account address on your chain
-
-#### Funding Requirements
-
-- This account needs Consumer chain's native tokens to execute contract calls
-- Without funding, IDN cannot deliver randomness to your contract
-- The amount depends on your contract's call complexity
-
-### Comprehensive Funding Guide Summary
-
-**Both accounts must be funded for proper operation:**
-
-```text
-Subscription Operations (Contract → IDN):
-┌─────────────────────┐    XCM     ┌─────────────────────┐
-│   Your Contract     │ ---------> │    IDN Chain        │
-│   (Consumer Chain)  │            │                     │
-└─────────────────────┘            └─────────────────────┘
-                                             ↑
-                                   ┌───────────────────┐
-                                   │  Contract's       │
-                                   │  Sovereign        │
-                                   │  Account (FUND!)  │
-                                   └───────────────────┘
-
-Randomness Delivery (IDN → Contract):
-┌─────────────────────┐    XCM     ┌─────────────────────┐
-│    IDN Chain        │ ---------> │   Your Contract     │
-│                     │            │   (Consumer Chain)  │
-└─────────────────────┘            └─────────────────────┘
-                                             ↑
-                                    ┌───────────────────┐
-                                    │  IDN's Sovereign  │
-                                    │  Account (FUND!)  │
-                                    └───────────────────┘
-```
-
-#### Quick Setup Checklist
-
-- [ ] **Fund Contract's Sovereign Account on IDN Chain**
-  - Use Polkadot.js to derive: `Location(1, [Parachain(consumer_para_id), AccountId32(contract_account)])`
-  - Fund with relay chain tokens (DOT/PAS) for subscription operations
-- [ ] **Fund IDN's Sovereign Account on Your Consumer Chain**
-  - **Paseo**: Fund `5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n`
-  - **Other networks**: Use Polkadot.js to derive `Location(1, [Parachain(idn_para_id)])`
-  - Fund with Consumer chain tokens for contract call execution
+**Example**: If your deployed contract address is `5C62Ck4UrFPiBtoCmeSrgF7x9yv9mn38446dhCpsi2mLHiFT`, ensure this address has sufficient balances on both chains.
 
 ## Troubleshooting
 
@@ -415,26 +320,21 @@ Randomness Delivery (IDN → Contract):
 
    **Symptoms**: XCM execution fails at `WithdrawAsset` instruction with "Funds are unavailable" when calling `create_subscription`, `pause_subscription`, etc.
 
-   **Cause**: Contract's sovereign account on IDN chain lacks sufficient relay chain tokens
+   **Cause**: Contract's account on IDN chain lacks sufficient relay chain tokens
 
    **Solution**:
 
-   - Fund the contract's sovereign account on IDN chain with relay chain tokens (DOT/PAS)
-   - Use Polkadot.js to derive: `Location(1, [Parachain(consumer_para_id), AccountId32(contract_account)])`
-   - Verify funding before retrying subscription operations
+   - Fund the contract's account on IDN chain with relay chain tokens (DOT/PAS)
 
 1a. **"Funds are unavailable" Error (Randomness Delivery)**
 
 **Symptoms**: Subscription is created successfully but randomness pulses are not delivered to your contract
 
-**Cause**: IDN's sovereign account on your consumer chain lacks sufficient native tokens to execute contract calls
+**Cause**: Contract's account on your consumer chain lacks sufficient native tokens to execute contract calls
 
 **Solution**:
 
-- **Paseo**: Fund `5Eg2fnt6QWzWV797qXnKQQ8JvPzkeq4mT9KMVK9vtfhKZH8n` on your consumer chain
-- **Other networks**: Use Polkadot.js to derive IDN's sovereign account: `Location(1, [Parachain(idn_para_id)])`
-- Fund with your consumer chain's native tokens, not relay chain tokens
-- Verify balance using your consumer chain's block explorer or node query
+- Fund the contract's account on your consumer chain with the chain's native tokens
 
 2. **XCM Send Failed**
 
@@ -455,9 +355,9 @@ Randomness Delivery (IDN → Contract):
 
    - Increase `max_idn_xcm_fees` parameter
    - Monitor network fee fluctuations and adjust accordingly
-   - Check **both** sovereign account balances are sufficient:
-     - Contract's sovereign account on IDN chain (for subscription operations)
-     - IDN's sovereign account on consumer chain (for randomness delivery)
+   - Check the contract's account balances are sufficient on both chains:
+     - Contract's account on IDN chain (for subscription operations)
+     - Contract's account on consumer chain (for randomness delivery)
    - Implement dynamic fee adjustment mechanisms based on network conditions
 
 5. **Subscription State Issues**
