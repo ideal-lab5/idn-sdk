@@ -5943,6 +5943,7 @@ dependencies = [
  "sp-consensus-aura",
  "sp-consensus-randomness-beacon",
  "sp-core",
+ "sp-externalities",
  "sp-genesis-builder",
  "sp-io",
  "sp-keystore",

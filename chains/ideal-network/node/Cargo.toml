@@ -90,12 +90,12 @@ cumulus-primitives-parachain-inherent.workspace = true
 cumulus-primitives-storage-weight-reclaim.workspace = true
 cumulus-relay-chain-interface.workspace = true
 
+[dev-dependencies]
+sp-externalities.workspace = true
+
 [features]
 default = ["std"]
-std = [
-  "idn-runtime/std",
-  "xcm/std",
-  ]
+std = ["idn-runtime/std", "xcm/std"]
 runtime-benchmarks = [
   "cumulus-primitives-core/runtime-benchmarks",
   "frame-benchmarking-cli/runtime-benchmarks",
