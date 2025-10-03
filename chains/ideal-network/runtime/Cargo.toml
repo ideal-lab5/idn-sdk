@@ -68,7 +68,7 @@ xcm.workspace = true
 xcm-builder.workspace = true
 xcm-executor.workspace = true
 xcm-runtime-apis.workspace = true
-pallet-xcm-benchmarks.workspace = true
+pallet-xcm-benchmarks = { optional = true, workspace = true }
 
 # Cumulus
 cumulus-pallet-aura-ext.workspace = true
@@ -155,7 +155,7 @@ std = [
   "xcm-executor/std",
   "xcm/std",
   "xcm-runtime-apis/std",
-  "pallet-xcm-benchmarks/std",
+  "pallet-xcm-benchmarks?/std",
 ]
 
 runtime-benchmarks = [

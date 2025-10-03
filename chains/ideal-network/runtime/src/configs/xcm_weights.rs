@@ -18,8 +18,8 @@ use alloc::vec::Vec;
 
 use frame_support::BoundedVec;
 use weights::xcm::{
-	pallet_xcm_benchmarks_fungible::WeightInfo as XcmFungibleWeight,
-	pallet_xcm_benchmarks_generic::WeightInfo as XcmGeneric,
+	pallet_xcm_benchmarks_fungible_weights::WeightInfo as XcmFungibleWeight,
+	pallet_xcm_benchmarks_generic_weights::WeightInfo as XcmGeneric,
 };
 use xcm::{
 	latest::{prelude::*, AssetTransferFilter},

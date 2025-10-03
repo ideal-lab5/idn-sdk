@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-pub mod pallet_xcm_benchmarks_fungible;
-pub mod pallet_xcm_benchmarks_generic;
+pub mod pallet_xcm_benchmarks_fungible_weights;
+pub mod pallet_xcm_benchmarks_generic_weights;
