@@ -59,6 +59,7 @@ ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 
 [dev-dependencies]
+async-trait.workspace = true
 async-std.workspace = true
 mockall.workspace = true
 parking_lot.workspace = true
