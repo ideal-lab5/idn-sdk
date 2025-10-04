@@ -486,10 +486,7 @@ fn build_pulse_worker(
 	keystore: KeystorePtr,
 	pool: Arc<sc_transaction_pool::TransactionPoolHandle<Block, ParachainClient>>,
 ) -> Arc<impl PulseSubmitter<Block>> {
-	let constructor = Arc::new(crate::impls::RuntimeExtrinsicConstructor {
-		client: client.clone(),
-		keystore: keystore.clone(),
-	});
-
+	let constructor =
+		Arc::new(crate::impls::RuntimeExtrinsicConstructor::new(client.clone(), keystore.clone()));
 	Arc::new(PulseWorker::new(client, keystore, pool, constructor))
 }

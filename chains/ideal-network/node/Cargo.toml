@@ -91,7 +91,10 @@ cumulus-primitives-storage-weight-reclaim.workspace = true
 cumulus-relay-chain-interface.workspace = true
 
 [dev-dependencies]
+parking_lot.workspace = true
 sp-externalities.workspace = true
+sp-state-machine.workspace = true
+sp-version.workspace = true
 
 [features]
 default = ["std"]

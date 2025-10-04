@@ -16,7 +16,7 @@
 
 //! Pulse Finalization Gadget
 //!
-//! Submits signed extrinsics containing verified randomness pulses to the chain.
+//! Submits signed extrinsics containing verified pulses from a randomness beacon to the chain.
 
 use crate::{error::Error as GadgetError, gossipsub::DrandReceiver};
 use ark_bls12_381::G1Affine;
@@ -32,11 +32,8 @@ const LOG_TARGET: &str = "rand-beacon-gadget";
 pub const SERIALIZED_SIG_SIZE: usize = 48;
 
 /// Trait for submitting pulses to the chain.
-///
-/// This trait abstracts away runtime-specific details, allowing the gadget
-/// to remain independent of any particular runtime implementation.
 pub trait PulseSubmitter<Block: BlockT>: Send + Sync {
-	/// Submit a pulse extrinsic to the transaction pool.
+	/// Submit an extrinsic to the transaction pool to ingest new pulses.
 	///
 	/// # Parameters
 	/// - `asig`: The aggregated signature as bytes
@@ -73,7 +70,6 @@ impl<Block: BlockT> From<sc_client_api::FinalityNotification<Block>>
 ///
 /// # Parameters
 /// - `finality_notification`: A mutable [`sc_client_api::FinalityNotifications`]
-///
 fn finality_notification_transformer_future<B>(
 	mut finality_notifications: sc_client_api::FinalityNotifications<B>,
 ) -> (
@@ -102,7 +98,7 @@ where
 	(Box::pin(transformer_fut.fuse()), rx.fuse())
 }
 
-/// Runs as a background task, monitoring for new randomness pulses and
+/// Runs as a background task, monitoring for new pulses and
 /// submitting them to the chain via signed extrinsics.
 pub struct PulseFinalizationGadget<Block: BlockT, S, const MAX_QUEUE_SIZE: usize> {
 	pulse_submitter: Arc<S>,
@@ -122,15 +118,13 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 	/// Run the main loop indefinitely.
 	///
 	/// This function checks for new pulses whenever it receives a finality notification
-	/// and submits their aggregated signature to the chain.
+	/// and submits an aggregated signature to the chain.
 	pub async fn run(self, finality_notifications: sc_client_api::FinalityNotifications<Block>) {
 		log::info!(target: LOG_TARGET, "🎲 Starting Pulse Finalization Gadget");
-		// Subscribe to finality notifications and justifications before waiting for runtime pallet
-		// and reuse the streams, so we don't miss notifications while waiting for pallet to be
-		// available. let finality_notifications = self.client.finality_notification_stream();
+		// Subscribe to finality notifications and reuse the streams,
+		// so we don't miss notifications while waiting for pallet to be available.
 		let (transformer, mut finality_notifications) =
 			finality_notification_transformer_future(finality_notifications);
-
 		// Spawn transformer as background task
 		tokio::spawn(transformer);
 
@@ -177,8 +171,7 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 				.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| (acc + sig).into());
 
 			let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-			// [SRLABS]: This error is untestable since we know the signature is correct here.
-			//  Is it reasonable to use an expect?
+			// NOTE: The expect here is okay since asig * *must** be right-sized.
 			asig.serialize_compressed(&mut asig_bytes)
 				.expect("The signature is well formatted. qed.");
 

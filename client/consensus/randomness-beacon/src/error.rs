@@ -22,8 +22,14 @@ pub enum Error {
 	ExtrinsicConstructionFailed,
 	#[error("The signature is incorrectly sized: has {0} bytes, but must be {1}.")]
 	InvalidSignatureSize(u8, u8),
+	#[error("There was a problem fetching keys from the keystore: {0}")]
+	KeystoreError(String),
 	#[error("There are no authority keys available in the keystore.")]
 	NoAuthorityKeys,
+	#[error("An error occurred while calling a runtime api: {0}")]
+	RuntimeApiError(String),
+	#[error("An error occured while signing a message.")]
+	SigningFailed,
 	#[error("The transaction failed to be included in the transaction pool.")]
 	TransactionSubmissionFailed,
 }
