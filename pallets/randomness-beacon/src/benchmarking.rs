@@ -80,9 +80,7 @@ mod benchmarks {
 		amsg.serialize_compressed(&mut amsg_bytes).unwrap();
 
 		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
-		let config = BeaconConfigurationOf::<T> { genesis_round: 0u64, public_key: pubkey };
-
-		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
+		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), pubkey).unwrap();
 
 		#[extrinsic_call]
 		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), 0u64, r.into());
@@ -115,13 +113,11 @@ mod benchmarks {
 	#[benchmark]
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
 		let public_key = [1; 96];
-		let config =
-			BeaconConfigurationOf::<T> { genesis_round: 1u64, public_key: public_key.into() };
 
 		#[extrinsic_call]
-		_(RawOrigin::Root, config.clone());
+		_(RawOrigin::Root, public_key.clone().into());
 
-		assert_eq!(BeaconConfig::<T>::get().unwrap(), config);
+		assert_eq!(BeaconConfig::<T>::get().unwrap(), public_key.into());
 
 		Ok(())
 	}
