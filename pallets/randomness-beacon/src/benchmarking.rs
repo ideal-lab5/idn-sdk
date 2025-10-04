@@ -115,7 +115,7 @@ mod benchmarks {
 		let public_key = [1; 96];
 
 		#[extrinsic_call]
-		_(RawOrigin::Root, public_key.clone().into());
+		_(RawOrigin::Root, public_key.into());
 
 		assert_eq!(BeaconConfig::<T>::get().unwrap(), public_key.into());
 

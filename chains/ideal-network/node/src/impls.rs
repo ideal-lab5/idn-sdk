@@ -15,14 +15,13 @@
  */
 
 // ! impls for constructing extrinsics
-
 use idn_runtime::{opaque::Block, UncheckedExtrinsic};
 use pallet_randomness_beacon::ExtrinsicBuilderApi;
 use sc_client_api::HeaderBackend;
 use sc_consensus_randomness_beacon::{
 	error::Error as GadgetError, gadget::SERIALIZED_SIG_SIZE, worker::ExtrinsicConstructor,
 };
-use sp_api::{ApiError, ProvideRuntimeApi};
+use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::AppCrypto;
 use sp_consensus_aura::sr25519::AuthorityPair;
 use sp_consensus_randomness_beacon::types::OpaqueSignature;
