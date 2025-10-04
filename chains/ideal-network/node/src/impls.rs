@@ -111,7 +111,7 @@ mod test {
 	use super::*;
 	use parking_lot::Mutex;
 	use sc_client_api::blockchain::{BlockStatus, Info};
-	use sp_api::{ApiRef, ProvideRuntimeApi};
+	use sp_api::{ApiError, ApiRef, ProvideRuntimeApi};
 	use sp_blockchain::Result as BlockchainResult;
 	use sp_consensus_aura::sr25519::AuthorityPair;
 	use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};

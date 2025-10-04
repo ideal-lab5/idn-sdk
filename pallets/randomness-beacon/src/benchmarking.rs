@@ -30,7 +30,11 @@ use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
 
-#[benchmarks(where <T::Pulse as Pulse>::Pubkey: From<[u8;96]>)]
+#[benchmarks(
+where 
+	<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
+	<T as frame_system::Config>::AccountId: From<[u8; 32]>,
+)]
 mod benchmarks {
 	use super::*;
 
@@ -83,7 +87,7 @@ mod benchmarks {
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), pubkey).unwrap();
 
 		#[extrinsic_call]
-		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), 0u64, r.into());
+		_(RawOrigin::Signed([42u8; 32].into()), asig_bytes.clone().try_into().unwrap(), 0u64, r.into());
 
 		assert_eq!(
 			SparseAccumulation::<T>::get(),
