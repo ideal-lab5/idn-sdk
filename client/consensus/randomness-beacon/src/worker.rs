@@ -123,7 +123,7 @@ where
 }
 
 #[cfg(test)]
-#[cfg_attr(nightly, coverage(off))] // we don't need test coverage for our tests themselves
+#[cfg_attr(feature = "coverage", coverage(off))] // we don't need test coverage for our tests themselves
 mod tests {
 	use super::*;
 	use async_trait::async_trait;

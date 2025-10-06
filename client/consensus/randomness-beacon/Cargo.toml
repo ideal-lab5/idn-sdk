@@ -77,3 +77,6 @@ sp-state-machine.workspace = true
 sp-version.workspace = true
 tracing-test.workspace = true
 sp-tracing.workspace = true
+
+[features]
+coverage = []
