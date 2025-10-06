@@ -31,7 +31,10 @@ use frame_support::{
 	derive_impl,
 	dispatch::DispatchClass,
 	parameter_types,
-	traits::{ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, VariantCountOf},
+	traits::{
+		tokens::imbalance::ResolveTo, ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse,
+		VariantCountOf,
+	},
 	weights::{ConstantMultiplier, Weight},
 	PalletId,
 };
@@ -152,8 +155,7 @@ impl pallet_balances::Config for Runtime {
 	type Balance = Balance;
 	/// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
-	// TODO: use `ResolveTo<TreasuryAccount, Balances>` https://github.com/ideal-lab5/idn-sdk/issues/275
-	type DustRemoval = ();
+	type DustRemoval = ResolveTo<types::TreasuryAccount, Balances>;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = BalancesWeightInfo<Runtime>;
@@ -173,7 +175,10 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type OnChargeTransaction = pallet_transaction_payment::FungibleAdapter<Balances, ()>;
+	type OnChargeTransaction = pallet_transaction_payment::FungibleAdapter<
+		Balances,
+		ResolveTo<types::TreasuryAccount, Balances>,
+	>;
 	type WeightToFee = WeightToFee;
 	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
