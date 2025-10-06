@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+#![feature(coverage_attribute)]
 use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
@@ -123,6 +123,7 @@ where
 }
 
 #[cfg(test)]
+#[coverage(off)] // we don't need test coverage for our tests
 mod tests {
 	use super::*;
 	use async_trait::async_trait;

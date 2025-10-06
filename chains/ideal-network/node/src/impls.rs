@@ -15,7 +15,7 @@
  */
 
 // ! impls for constructing extrinsics
-use idn_runtime::{opaque::Block, UncheckedExtrinsic};
+use idn_runtime::UncheckedExtrinsic;
 use pallet_randomness_beacon::ExtrinsicBuilderApi;
 use sc_client_api::HeaderBackend;
 use sc_consensus_randomness_beacon::{
@@ -92,7 +92,7 @@ where
 
 		let signature = self
 			.keystore
-			.sr25519_sign(AuthorityPair::ID, &signer.into(), &payload)
+			.sr25519_sign(AuthorityPair::ID, &signer, &payload)
 			.map_err(|e| GadgetError::KeystoreError(e.to_string()))?
 			.ok_or(GadgetError::SigningFailed)?;
 
