@@ -18,15 +18,19 @@
 
 use crate::configs::{
 	xcm_config::{
-		AssetHub, BaseDeliveryFee, FeeAssetId, LocationToAccountId, RelayLocation,
-		TransactionByteFee, XcmConfig,
+		AssetHub, BaseDeliveryFee, FeeAssetId, LocationToAccountId, PriceForSiblingDelivery,
+		RelayLocation, TransactionByteFee, XcmConfig,
 	},
 	ExistentialDeposit,
 };
 use cumulus_primitives_core::ParaId;
 use frame_benchmarking::BenchmarkError;
+use frame_support::parameter_types;
 use scale_info::prelude::vec::Vec;
-use xcm::prelude::{Asset, AssetId, Fungibility::Fungible, Location};
+use xcm::prelude::{
+	Asset, AssetId, Fungibility::Fungible, Here, InteriorLocation, Junction, Location, NetworkId,
+	Response,
+};
 use xcm_executor::traits::ConvertLocation;
 
 pub use super::*;
@@ -119,6 +123,118 @@ impl pallet_xcm::benchmarking::Config for Runtime {
 	}
 }
 
+type DeliveryHelper = (
+	cumulus_primitives_utility::ToParentDeliveryHelper<
+		XcmConfig,
+		ExistentialDepositAsset,
+		PriceForParentDelivery,
+	>,
+	polkadot_runtime_common::xcm_sender::ToParachainDeliveryHelper<
+		XcmConfig,
+		ExistentialDepositAsset,
+		PriceForSiblingDelivery,
+		AssetHubParaId,
+		ParachainSystem,
+	>,
+);
+
+/// Pallet that benchmarks XCM's `AssetTransactor` trait via `Fungible`.
+pub type XcmFungible = pallet_xcm_benchmarks::fungible::Pallet<Runtime>;
+/// Pallet that serves no other purpose than benchmarking raw XCMs.
+pub type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet<Runtime>;
+
+parameter_types! {
+	pub TrustedReserve: Option<(Location, Asset)> = Some((AssetHub::get(), Asset::from((RelayLocation::get(), UNIT))));
+	// We don't set any trusted teleporters in our XCM config, but we need this for the benchmarks.
+	pub TrustedTeleporter: Option<(Location, Asset)> = Some((
+		AssetHub::get(),
+		Asset::from((RelayLocation::get(), UNIT)),
+	));
+}
+
+impl pallet_xcm_benchmarks::Config for Runtime {
+	type AccountIdConverter = LocationToAccountId;
+	type DeliveryHelper = DeliveryHelper;
+	type XcmConfig = XcmConfig;
+
+	fn valid_destination() -> Result<Location, BenchmarkError> {
+		Ok(RelayLocation::get())
+	}
+
+	fn worst_case_holding(_depositable_count: u32) -> xcm::prelude::Assets {
+		// IDN only allows relay's native asset to be used cross chain for now.
+		vec![Asset { id: AssetId(RelayLocation::get()), fun: Fungible(u128::MAX) }].into()
+	}
+}
+
+impl pallet_xcm_benchmarks::fungible::Config for Runtime {
+	type CheckedAccount = ();
+	type TransactAsset = Balances;
+	type TrustedReserve = TrustedReserve;
+	type TrustedTeleporter = TrustedTeleporter;
+
+	fn get_asset() -> Asset {
+		Asset { id: AssetId(RelayLocation::get()), fun: Fungible(10 * UNIT) }
+	}
+}
+
+impl pallet_xcm_benchmarks::generic::Config for Runtime {
+	type RuntimeCall = RuntimeCall;
+	type TransactAsset = Balances;
+
+	fn worst_case_response() -> (u64, Response) {
+		let notify = frame_system::Call::remark { remark: vec![] };
+		PolkadotXcm::new_notify_query(Location::here(), notify, 10, Location::here());
+		(0u64, Response::ExecutionResult(None))
+	}
+
+	fn worst_case_asset_exchange(
+	) -> Result<(xcm::prelude::Assets, xcm::prelude::Assets), BenchmarkError> {
+		// IDN doesn't support asset exchange for now.
+		Err(BenchmarkError::Skip)
+	}
+
+	fn universal_alias() -> Result<(Location, Junction), BenchmarkError> {
+		// IDN's `UniversalAliases` is configured to `Nothing`.
+		Err(BenchmarkError::Skip)
+	}
+
+	fn transact_origin_and_runtime_call() -> Result<(Location, RuntimeCall), BenchmarkError> {
+		Ok((RelayLocation::get(), frame_system::Call::remark_with_event { remark: vec![] }.into()))
+	}
+
+	fn subscribe_origin() -> Result<Location, BenchmarkError> {
+		Ok(RelayLocation::get())
+	}
+
+	fn claimable_asset() -> Result<(Location, Location, xcm::prelude::Assets), BenchmarkError> {
+		let origin = AssetHub::get();
+		let assets: xcm::prelude::Assets = (AssetId(RelayLocation::get()), 1_000 * UNIT).into();
+		let ticket = Location { parents: 0, interior: Here };
+		Ok((origin, ticket, assets))
+	}
+
+	fn fee_asset() -> Result<Asset, BenchmarkError> {
+		Ok(Asset { id: AssetId(RelayLocation::get()), fun: Fungible(1_000_000 * UNIT) })
+	}
+
+	fn unlockable_asset() -> Result<(Location, Location, Asset), BenchmarkError> {
+		// IDN doesn't configure `AssetLocker` yet.
+		Err(BenchmarkError::Skip)
+	}
+
+	fn export_message_origin_and_destination(
+	) -> Result<(Location, NetworkId, InteriorLocation), BenchmarkError> {
+		// IDN doesn't configure `MessageExporter` yet.
+		Err(BenchmarkError::Skip)
+	}
+
+	fn alias_origin() -> Result<(Location, Location), BenchmarkError> {
+		// IDN's `Aliasers` is configured to `Nothing`.
+		Err(BenchmarkError::Skip)
+	}
+}
+
 frame_benchmarking::define_benchmarks!(
 	// Only benchmark the following pallets
 	[frame_system, SystemBench::<Runtime>]
@@ -135,4 +251,6 @@ frame_benchmarking::define_benchmarks!(
 	[pallet_idn_manager, IdnManager]
 	[pallet_transaction_payment, TransactionPayment]
 	[pallet_xcm, PalletXcmExtrinsicsBenchmark::<Runtime>]
+	[pallet_xcm_benchmarks::fungible, XcmFungible]
+	[pallet_xcm_benchmarks::generic, XcmGeneric]
 );
