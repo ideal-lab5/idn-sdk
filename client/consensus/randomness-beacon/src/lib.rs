@@ -15,7 +15,7 @@
  */
 
 // when running in nightly, we can ignore some lines when testing with llvm-cov
-#![feature(coverage_attribute)]
+#![cfg_attr(nightly, feature(coverage_attribute))]
 
 extern crate alloc;
 
