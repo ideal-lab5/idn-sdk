@@ -725,6 +725,7 @@ impl<T: Config> Pallet<T> {
 		let req = SubInfoRequest {
 			sub_id,
 			req_ref,
+			target: Self::self_para_sibling_location()?,
 			call: Self::sub_info_callback_call_data()?,
 			origin_kind: origin_kind.unwrap_or(OriginKind::Xcm),
 		};

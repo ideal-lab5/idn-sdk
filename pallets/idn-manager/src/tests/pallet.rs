@@ -1945,6 +1945,7 @@ fn test_get_subscription_xcm_works() {
 		let req = SubInfoRequestOf::<Test> {
 			sub_id,
 			req_ref,
+			target: target.clone(),
 			call: call_index.encode().try_into().unwrap(),
 			origin_kind: OriginKind::Xcm,
 		};
@@ -1968,12 +1969,15 @@ fn test_get_subscription_xcm_fails_invalid_origin() {
 		let sub_id = [1; 32];
 		let req_ref = [1; 32];
 		let call_index = [1, 1];
+		let target =
+			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 
 		// Prepare the request
 		let req = SubInfoRequestOf::<Test> {
 			sub_id,
 			req_ref,
 			call: call_index.encode().try_into().unwrap(),
+			target: target.clone(),
 			origin_kind: OriginKind::Xcm,
 		};
 
@@ -1991,12 +1995,15 @@ fn test_get_subscription_xcm_fails_subscription_not_found() {
 		let sub_id = [1; 32];
 		let req_ref = [1; 32];
 		let call_index = [1, 1];
+		let target =
+			Location::new(1, [Junction::Parachain(SIBLING_PARA_ID), Junction::PalletInstance(1)]);
 
 		// Prepare the request
 		let req = SubInfoRequestOf::<Test> {
 			sub_id,
 			req_ref,
 			call: call_index.encode().try_into().unwrap(),
+			target: target.clone(),
 			origin_kind: OriginKind::Xcm,
 		};
 
