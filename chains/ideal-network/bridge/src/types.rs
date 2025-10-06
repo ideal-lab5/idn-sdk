@@ -17,7 +17,7 @@
 //! Types of IDN runtime
 use ark_serialize::CanonicalSerialize;
 use codec::{Decode, DecodeWithMemTracking, Encode};
-use frame_support::{parameter_types, PalletId};
+use frame_support::parameter_types;
 use pallet_idn_manager::{
 	primitives::{
 		CreateSubParams as MngCreateSubParams, Quote as MngQuote, QuoteRequest as MngQuoteRequest,
@@ -129,19 +129,16 @@ impl TPulse for RuntimePulse {
 	}
 }
 
-// TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
 // TODO: unhardcode these values https://github.com/ideal-lab5/idn-sdk/issues/379
 // Primitive types
 parameter_types! {
-	/// The IDN Manager Pallet ID
-	pub const IdnManagerPalletId: PalletId = PalletId(*b"idn_mngr");
 	/// The IDN Treasury Account for fee collection. Fees collected for subscriptions, transaction fees and dusted balances are sent to this account.
 	/// This account should be funded with at least the existential deposit of the native currency, to be able to collect fees lower than the existential deposit.
 	pub TreasuryAccount: AccountId =
 		AccountId::from_ss58check("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C")
 			.expect("Invalid Treasury Account");
 	/// The Subscription Deposit Multiplier, used for calculating the subscription fee
-	pub const SDMultiplier: u64 = 10;
+	pub const SDMultiplier: u64 = 100;
 	/// Maximum number of subscriptions allowed
 	///
 	/// This and [`MaxTerminatableSubs`] should be set to a number that keeps the estimated
@@ -156,8 +153,7 @@ parameter_types! {
 	/// The maximum length of the metadata vector
 	pub const MaxMetadataLen: u32 = 8;
 	/// The maximum length of the call data vector
-	// 187 is the largest call data when using the max values
-	pub const MaxCallDataLen: u32 = 187;
+	pub const MaxCallDataLen: u32 = 256;
 }
 
 /// A type that defines the amount of credits in a subscription

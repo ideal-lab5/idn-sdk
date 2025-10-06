@@ -177,7 +177,6 @@ impl pallet_idn_manager::Config for Test {
 	type FeesManager =
 		FeesManagerImpl<TreasuryAccount, SubscriptionOf<Test>, Balances, u64, u64, BaseFee>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
-	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = Pulse;
 	type WeightInfo = ();
