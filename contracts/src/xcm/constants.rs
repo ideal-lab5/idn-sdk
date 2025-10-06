@@ -20,6 +20,8 @@ use super::types::{PalletIndex, ParaId};
 
 pub use bp_idn::constants::*;
 
+use ink::selector_bytes;
+
 /// Parachain ID for the Ideal Network on the Paseo relay chain
 pub const IDN_PARA_ID_PASEO: ParaId = 4502;
 
@@ -34,3 +36,6 @@ pub const CONTRACTS_PALLET_INDEX_PASEO: PalletIndex = 16;
 
 /// Call index for the `call` dispatchable in the Contracts pallet
 pub const CONTRACTS_CALL_INDEX: u8 = 6;
+
+pub const CONSUME_SUB_INFO_SEL: [u8; 4] = selector_bytes!("IdnConsumer::consume_sub_info");
+pub const CONSUME_PULSE_SEL: [u8; 4] = selector_bytes!("IdnConsumer::consume_pulse");
