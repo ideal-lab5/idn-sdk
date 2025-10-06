@@ -13,13 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-// when running in nightly, we can ignore some lines when testing with llvm-cov
-#![cfg_attr(feature = "coverage", feature(coverage_attribute))]
-
 extern crate alloc;
 
 pub mod error;
 pub mod gadget;
 pub mod gossipsub;
 pub mod worker;
+
+#[cfg(test)]
+mod mock;

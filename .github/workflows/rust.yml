@@ -105,9 +105,9 @@ jobs:
 
     - name: Run Tests
       run: |
-        cargo +nightly llvm-cov --features coverage --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace --all-features --doctests \
+        cargo +nightly llvm-cov --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace --all-features --doctests \
           --cobertura --output-path cobertura.xml \
-          --ignore-filename-regex "(kitchensink|idn-consumer-(node|runtime)|ideal-network|benchmarking|weights)"
+          --ignore-filename-regex "(kitchensink|idn-consumer-(node|runtime)|ideal-network|benchmarking|weights|mock)"
 
     - name: Generate Code Coverage Summary
       uses: irongut/CodeCoverageSummary@v1.3.0
