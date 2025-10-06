@@ -65,7 +65,7 @@ impl<Block: BlockT> From<sc_client_api::FinalityNotification<Block>>
 	}
 }
 
-/// Produce a future that transformes finality notifications into a struct that does not keep blocks
+/// Produce a future that transforms finality notifications into a struct that does not keep blocks
 /// pinned.
 ///
 /// # Parameters
