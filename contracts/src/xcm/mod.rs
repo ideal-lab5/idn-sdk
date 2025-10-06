@@ -137,14 +137,13 @@
 pub mod constants;
 pub mod types;
 
-use bp_idn::types::{RequestReference, Subscription, SubscriptionDetails};
+use bp_idn::types::{QuoteRequest, QuoteSubParams, RequestReference, Subscription, SubscriptionDetails};
 use constants::BEACON_PUBKEY;
 use ink::{
 	env::{
 		hash::{Blake2x256, CryptoHash},
 		Error as EnvError,
 	},
-	selector_bytes,
 	xcm::lts::prelude::Weight,
 };
 
@@ -183,7 +182,7 @@ use types::{
 
 pub use bp_idn::{Call as RuntimeCall, IdnManagerCall, types::SubInfoRequest};
 
-use crate::xcm::constants::{CONSUME_PULSE_SEL, CONSUME_SUB_INFO_SEL};
+use crate::xcm::constants::{CONSUME_PULSE_SEL, CONSUME_QUOTE_SEL, CONSUME_SUB_INFO_SEL};
 
 /// Contract-compatible trait for hashing with a salt
 ///
@@ -636,14 +635,49 @@ impl IdnClient {
 	/// information. The quote response is delivered via the [`IdnConsumer::consume_quote`]
 	/// callback method.
 	///
-	/// # Returns
-	/// Currently returns [`Error::MethodNotImplemented`] as this feature is not yet implemented.
+	/// # Parameters
+	/// - `number_of_pulses`: The number of pulses required for the lifetime of the subscription
+	/// - `frequency`: The number of blocks between pulses
+	/// - `metadata`: Optional bounded data for application-specific context
+	/// - `sub_id`: The subscription ID that would be associated with the subscription
+	/// - `req_ref`: An optional unique identifier associated with the request being sent
+	/// - `origin_kind`: Optional [`OriginKind`] for the XCM message; defaults to
+	///   `OriginKind::Native`
 	///
 	/// # Errors
-	/// - [`Error::MethodNotImplemented`]: This method is not yet implemented
-	pub fn request_quote(&self) -> Result<()> {
-		// TODO: implement
-		Err(Error::MethodNotImplemented)
+	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
+	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
+	pub fn request_quote(
+			&self,
+			number_of_pulses: IdnBlockNumber,
+			frequency: IdnBlockNumber,
+			metadata: Option<Metadata>,
+			sub_id: Option<SubscriptionId>,
+			req_ref: Option<RequestReference>,
+			origin_kind: Option<OriginKind>,
+		) -> Result<()> {
+
+		let req_ref = match req_ref {
+			Some(req_ref) => req_ref,
+			None => {
+				let salt = ink::env::block_number::<ink::env::DefaultEnvironment>().encode();
+				frequency.hash(&salt).into()
+			},
+		};
+
+		let mut dummy_params = Vec::new();
+		let create_sub_params = CreateSubParams { credits: 0, target: self.self_para_sibling_location(), call: self.create_callback_data(CONSUME_QUOTE_SEL, dummy_params.clone(), None)?, origin_kind: origin_kind.clone().unwrap_or(OriginKind::Native), frequency, metadata, sub_id};
+
+		let quote = Quote { req_ref , fees: u128::default(), deposit: u128::default() };
+		dummy_params = quote.encode();
+		let quote_request = QuoteRequest{req_ref, create_sub_params, lifetime_pulses: number_of_pulses};
+		let req = QuoteSubParams {
+			quote_request,
+			call: self.create_callback_data(CONSUME_QUOTE_SEL, dummy_params, None)?,
+			origin_kind: origin_kind.unwrap_or(OriginKind::Native),
+		};
+		let call = RuntimeCall::IdnManager(IdnManagerCall::quote_subscription { params: req });
+		self.xcm_send(call)
 	}
 
 	/// Requests information about a subscription from the IDN.
@@ -652,11 +686,19 @@ impl IdnClient {
 	/// a subscription's current state, remaining credits, and other parameters.
 	/// The response is delivered via the [`IdnConsumer::consume_sub_info`] callback method.
 	///
-	/// # Returns
-	/// Currently returns [`Error::MethodNotImplemented`] as this feature is not yet implemented.
-	///
+	/// # Parameters
+	/// - `sub_id`: The subscription ID of the subscription
+	/// - `req_ref`: An optional unique identifier associated with the request being sent
+	/// - `metadata`: Optional bounded data for application-specific context. This must match the metadata that was passed
+	///    when creating the subscription.
+	/// - `call_params`: Optional execution parameters (gas limits, storage deposits). This must match the call_params that was passed
+	///    when creating the subscription
+	/// - `origin_kind`: Optional [`OriginKind`] for the XCM message; defaults to
+	///   `OriginKind::Native`
+	/// 
 	/// # Errors
-	/// - [`Error::MethodNotImplemented`]: This method is not yet implemented
+	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
+	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
 	pub fn request_sub_info(&self, sub_id: SubscriptionId, req_ref: Option<RequestReference>, metadata: Option<Metadata>, call_params: Option<ContractCallParams>, origin_kind: Option<OriginKind>,) -> Result<()> {
 		let req_ref = match req_ref {
 			Some(req_ref) => req_ref,
@@ -675,6 +717,7 @@ impl IdnClient {
 		self.xcm_send(call)
 	}
 
+	/// This function is used to create the encoded callback data for the SubInfoResponse. See create_callback_data for how dummy data is used.
 	pub fn create_dummy_sub_info_response(&self, sub_id: SubscriptionId, req_ref: [u8;32], metadata: Option<Metadata>, call_params: Option<ContractCallParams>) -> Result<Vec<u8>> {
 
 		let dummy_pulse = Pulse::default();
@@ -1045,9 +1088,7 @@ mod tests {
 		assert_eq!(client.get_self_contracts_pallet_index(), CONTRACTS_PALLET_INDEX_PASEO);
 		assert_eq!(client.get_self_para_id(), CONSUMER_PARA_ID_PASEO);
 		assert!(client.request_sub_info([0;32], None, None, None, None).is_ok());
-
-		// Test unimplemented methods return correct errors
-		assert_eq!(client.request_quote(), Err(Error::MethodNotImplemented));
+		assert!(client.request_quote(100, 4, None, None, None, None).is_ok());
 		
 	}
 
@@ -1085,9 +1126,7 @@ mod tests {
 		assert_eq!(edge_client.get_self_para_id(), u32::MAX);
 		assert_eq!(edge_client.max_idn_xcm_fees, u128::MAX);
 		assert!(edge_client.request_sub_info([0;32], None, None, None, None).is_ok());
-
-		// Test that methods still return the expected errors for unimplemented functionality
-		assert_eq!(client.request_quote(), Err(Error::MethodNotImplemented));
+		assert!(edge_client.request_quote(100, 4, None, None, None, None).is_ok());
 	}
 
 	#[test]

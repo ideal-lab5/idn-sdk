@@ -39,3 +39,4 @@ pub const CONTRACTS_CALL_INDEX: u8 = 6;
 
 pub const CONSUME_SUB_INFO_SEL: [u8; 4] = selector_bytes!("IdnConsumer::consume_sub_info");
 pub const CONSUME_PULSE_SEL: [u8; 4] = selector_bytes!("IdnConsumer::consume_pulse");
+pub const CONSUME_QUOTE_SEL: [u8; 4] = selector_bytes!("IdnConsumer::consume_quote");
