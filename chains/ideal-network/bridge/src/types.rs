@@ -130,11 +130,13 @@ impl TPulse for RuntimePulse {
 }
 
 // TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
+// TODO: unhardcode these values https://github.com/ideal-lab5/idn-sdk/issues/379
 // Primitive types
 parameter_types! {
 	/// The IDN Manager Pallet ID
 	pub const IdnManagerPalletId: PalletId = PalletId(*b"idn_mngr");
-	/// The IDN Treasury Account for fee collection
+	/// The IDN Treasury Account for fee collection. Fees collected for subscriptions, transaction fees and dusted balances are sent to this account.
+	/// This account should be funded with at least the existential deposit of the native currency, to be able to collect fees lower than the existential deposit.
 	pub TreasuryAccount: AccountId =
 		AccountId::from_ss58check("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C")
 			.expect("Invalid Treasury Account");
