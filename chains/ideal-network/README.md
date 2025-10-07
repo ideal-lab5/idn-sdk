@@ -153,7 +153,7 @@ This should reserve the parachain id `2000` for Ferdie. You can double check thi
 ```sh
        Event Registrar ➜ Reserved
          para_id: Id(2000)
-         who: 5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL
+         who: 1egYCubF1U5CGWiXjQnsXduiJYP49KTs8eX1jn1JrTqCYyQ
 ```
 
 #### 4. Configure the Coretime Cores
