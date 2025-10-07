@@ -171,7 +171,7 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 				.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| (acc + sig).into());
 
 			let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-			// NOTE: The expect here is okay since asig * *must** be right-sized.
+			// NOTE: The expect here is okay since asig **must** be right-sized.
 			asig.serialize_compressed(&mut asig_bytes)
 				.expect("The signature is well formatted. qed.");
 
