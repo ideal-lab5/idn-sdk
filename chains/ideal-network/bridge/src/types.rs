@@ -17,7 +17,7 @@
 //! Types of IDN runtime
 use ark_serialize::CanonicalSerialize;
 use codec::{Decode, DecodeWithMemTracking, Encode};
-use frame_support::{parameter_types, PalletId};
+use frame_support::parameter_types;
 use pallet_idn_manager::{
 	primitives::{
 		CreateSubParams as MngCreateSubParams, Quote as MngQuote, QuoteRequest as MngQuoteRequest,
@@ -129,35 +129,41 @@ impl TPulse for RuntimePulse {
 	}
 }
 
-// TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
 // TODO: unhardcode these values https://github.com/ideal-lab5/idn-sdk/issues/379
 // Primitive types
 parameter_types! {
-	/// The IDN Manager Pallet ID
-	pub const IdnManagerPalletId: PalletId = PalletId(*b"idn_mngr");
 	/// The IDN Treasury Account for fee collection. Fees collected for subscriptions, transaction fees and dusted balances are sent to this account.
 	/// This account should be funded with at least the existential deposit of the native currency, to be able to collect fees lower than the existential deposit.
 	pub TreasuryAccount: AccountId =
 		AccountId::from_ss58check("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C")
 			.expect("Invalid Treasury Account");
 	/// The Subscription Deposit Multiplier, used for calculating the subscription fee
-	pub const SDMultiplier: u64 = 10;
+	pub const SDMultiplier: u64 = 100;
 	/// Maximum number of subscriptions allowed
 	///
 	/// This and [`MaxTerminatableSubs`] should be set to a number that keeps the estimated
 	/// `dispatch_pulse` Proof size in combinations with the `on_finalize` Proof size under
 	/// the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
+	// Given:
+	// - `MAX_POV_SIZE` = 10,485,760
+	// - `on_finalize`'s POV = 689,013 (for `MaxTerminatableSubs` = 200)
+	// - Estimated `dispatch_pulse`'s POV: `4413 + s * (3423 ±0)` (where 's' is `MaxSubscriptions`)
+	// Then:
+	// s = (10,485,760 - 689,013 - 4,413) / 3,423 = 2,860
+	// Thus, we set `MaxSubscriptions` to 2,000 to leave some margin to other transactions
 	pub const MaxSubscriptions: u32 = 2_000;
 	/// Maximum number of subscriptions that can be terminated in a `on_finalize` execution
 	///
 	/// This and [`MaxSubscriptions`] should be set to a number that keeps the estimated Proof
 	/// Size in the weights under the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
+	// We leave it to a 10% of `MaxSubscriptions`, which is more than reasonable
 	pub const MaxTerminatableSubs: u32 = 200;
 	/// The maximum length of the metadata vector
 	pub const MaxMetadataLen: u32 = 8;
 	/// The maximum length of the call data vector
-	// 187 is the largest call data when using the max values
-	pub const MaxCallDataLen: u32 = 187;
+	// The current maximum size for the given data types is under 190 bytes, so we set a higher limit
+	// to leave some margin for future changes, until this issue is ready https://github.com/ideal-lab5/idn-sdk/issues/379
+	pub const MaxCallDataLen: u32 = 256;
 }
 
 /// A type that defines the amount of credits in a subscription

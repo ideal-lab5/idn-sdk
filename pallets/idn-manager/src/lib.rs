@@ -307,11 +307,6 @@ pub mod pallet {
 			BlockNumberFor<Self>,
 		>;
 
-		/// The IDN Manager pallet id.
-		// TODO: do we need this? https://github.com/ideal-lab5/idn-sdk/issues/358
-		#[pallet::constant]
-		type PalletId: Get<frame_support::PalletId>;
-
 		/// Maximum metadata size
 		#[pallet::constant]
 		type MaxMetadataLen: Get<u32>;
