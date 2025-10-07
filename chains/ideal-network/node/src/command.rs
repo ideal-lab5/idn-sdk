@@ -64,11 +64,11 @@ impl SubstrateCli for Cli {
 	}
 
 	fn support_url() -> String {
-		"https://github.com/paritytech/polkadot-sdk/issues/new".into()
+		"https://github.com/ideal-lab5/idn-sdk/issues/new".into()
 	}
 
 	fn copyright_start_year() -> i32 {
-		2020
+		2025
 	}
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
@@ -100,11 +100,11 @@ impl SubstrateCli for RelayChainCli {
 	}
 
 	fn support_url() -> String {
-		"https://github.com/paritytech/polkadot-sdk/issues/new".into()
+		"https://github.com/ideal-lab5/idn-sdk/issues/new".into()
 	}
 
 	fn copyright_start_year() -> i32 {
-		2020
+		2025
 	}
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {

@@ -140,10 +140,10 @@ pub fn local_testnet_config() -> ChainSpec {
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
 		vec![
-			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+			sr25519::Public::from_str("1GnZGMEa5FRKbwePKtunfL5Gpy5T2xrPN79PjCqaFtsopS5") // idn-testnet-01
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+			sr25519::Public::from_str("169yumDCg6ugiQtoXVDMQ9Saj9bhBZVo9U1aYhRf31nVJ7sS") // idn-testnet-02
 				.unwrap()
 				.into(),
 		],
@@ -160,11 +160,11 @@ pub fn local_testnet_config() -> ChainSpec {
 			get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
 			get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
 			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
-			sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
+			sr25519::Public::from_str("1qQysJYDavCwkoWNecVoPJqM5qe16UVAexZQknC8weaofXe") // local testnet root
 				.unwrap()
 				.into(),
 		],
-		sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
+		sr25519::Public::from_str("1qQysJYDavCwkoWNecVoPJqM5qe16UVAexZQknC8weaofXe") // seed: "//Idn-local-testnet-root"
 			.unwrap()
 			.into(),
 		4594.into(),
@@ -192,25 +192,25 @@ pub fn testnet_config() -> ChainSpec {
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
 		vec![
-			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+			sr25519::Public::from_str("1GnZGMEa5FRKbwePKtunfL5Gpy5T2xrPN79PjCqaFtsopS5") // idn-testnet-01
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+			sr25519::Public::from_str("169yumDCg6ugiQtoXVDMQ9Saj9bhBZVo9U1aYhRf31nVJ7sS") // idn-testnet-02
 				.unwrap()
 				.into(),
 		],
 		vec![
-			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+			sr25519::Public::from_str("1GnZGMEa5FRKbwePKtunfL5Gpy5T2xrPN79PjCqaFtsopS5") // idn-testnet-01
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+			sr25519::Public::from_str("169yumDCg6ugiQtoXVDMQ9Saj9bhBZVo9U1aYhRf31nVJ7sS") // idn-testnet-02
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
+			sr25519::Public::from_str("12ZHHNraSBqPNGsCgdynXNGi5GfVtZKCVZsV2gkZFwVACRDh") // idn-testnet-root
 				.unwrap()
 				.into(),
 		],
-		sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
+		sr25519::Public::from_str("12ZHHNraSBqPNGsCgdynXNGi5GfVtZKCVZsV2gkZFwVACRDh") // idn-testnet-root
 			.unwrap()
 			.into(),
 		4594.into(),

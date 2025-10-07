@@ -15,9 +15,6 @@
  */
 
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
-
-// std
-use codec::Encode;
 use cumulus_client_cli::CollatorOptions;
 use std::{sync::Arc, time::Duration};
 // Local Runtime Types
@@ -48,7 +45,7 @@ use cumulus_relay_chain_interface::{OverseerHandle, RelayChainInterface};
 // Substrate Imports
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use prometheus_endpoint::Registry;
-use sc_client_api::Backend;
+use sc_client_api::{Backend, BlockchainEvents};
 use sc_consensus::ImportQueue;
 use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
 use sc_network::NetworkBlock;
@@ -59,12 +56,16 @@ use sc_utils::mpsc::tracing_unbounded;
 use sp_keystore::KeystorePtr;
 
 use libp2p::Multiaddr;
-use sc_consensus_randomness_beacon::gossipsub::{DrandReceiver, RetryableGossipsubRunner};
+use sc_consensus_randomness_beacon::{
+	gadget::{PulseFinalizationGadget, PulseSubmitter},
+	gossipsub::{DrandReceiver, RetryableGossipsubRunner},
+	worker::PulseWorker,
+};
 
 #[docify::export(wasm_executor)]
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
 
-type ParachainClient = TFullClient<Block, RuntimeApi, ParachainExecutor>;
+pub(crate) type ParachainClient = TFullClient<Block, RuntimeApi, ParachainExecutor>;
 
 type ParachainBackend = TFullBackend<Block>;
 
@@ -202,7 +203,6 @@ fn start_consensus(
 	collator_key: CollatorPair,
 	overseer_handle: OverseerHandle,
 	announce_block: Arc<dyn Fn(Hash, Option<Vec<u8>>) + Send + Sync>,
-	pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
 ) -> Result<(), sc_service::Error> {
 	let proposer_factory = sc_basic_authorship::ProposerFactory::with_proof_recording(
 		task_manager.spawn_handle(),
@@ -221,23 +221,18 @@ fn start_consensus(
 		client.clone(),
 	);
 
+	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
 	let params = AuraParams {
-		create_inherent_data_providers: move |_, ()| {
-			let pulse_receiver = pulse_receiver.clone();
+		create_inherent_data_providers: move |_, ()| async move {
+			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-			async move {
-				let pulses = pulse_receiver.read().await;
-
-				let serialized_pulses: Vec<Vec<u8>> =
-					pulses.iter().map(|pulse| pulse.encode()).collect();
-
-				let beacon_inherent =
-					sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
-						serialized_pulses,
+			let slot =
+					sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+						*timestamp,
+						slot_duration,
 					);
 
-				Ok(beacon_inherent)
-			}
+			Ok((slot, timestamp))
 		},
 		block_import,
 		para_client: client.clone(),
@@ -448,6 +443,22 @@ pub async fn start_parachain_node(
 			panic!("A critical error occurred - bringing down the node: {:?}", e);
 		}
 
+		// setup the PFG for pulse ingestion
+		let pulse_worker = build_pulse_worker(
+			client.clone(),
+			params.keystore_container.keystore(),
+			transaction_pool.clone(),
+		);
+
+		let finality_notifications = client.finality_notification_stream();
+		let pfg = PulseFinalizationGadget::new(pulse_worker, pulse_receiver.clone());
+
+		task_manager.spawn_essential_handle().spawn(
+			"pulse-finalization-gadget",
+			None,
+			pfg.run(finality_notifications),
+		);
+
 		start_consensus(
 			client.clone(),
 			backend,
@@ -463,9 +474,19 @@ pub async fn start_parachain_node(
 			collator_key.expect("Command line arguments do not allow this. qed"),
 			overseer_handle,
 			announce_block,
-			pulse_receiver,
 		)?;
 	}
 
 	Ok((task_manager, client))
+}
+
+/// builds the pulse worker for ingesting pulses and submitting signatures
+fn build_pulse_worker(
+	client: Arc<ParachainClient>,
+	keystore: KeystorePtr,
+	pool: Arc<sc_transaction_pool::TransactionPoolHandle<Block, ParachainClient>>,
+) -> Arc<impl PulseSubmitter<Block>> {
+	let constructor =
+		Arc::new(crate::impls::RuntimeExtrinsicConstructor::new(client.clone(), keystore.clone()));
+	Arc::new(PulseWorker::new(client, keystore, pool, constructor))
 }

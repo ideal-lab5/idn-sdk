@@ -30,7 +30,11 @@ use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
 
-#[benchmarks(where <T::Pulse as Pulse>::Pubkey: From<[u8;96]>)]
+#[benchmarks(
+where
+	<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
+	<T as frame_system::Config>::AccountId: From<[u8; 32]>,
+)]
 mod benchmarks {
 	use super::*;
 
@@ -80,12 +84,15 @@ mod benchmarks {
 		amsg.serialize_compressed(&mut amsg_bytes).unwrap();
 
 		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
-		let config = BeaconConfigurationOf::<T> { genesis_round: 0u64, public_key: pubkey };
-
-		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
+		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), pubkey).unwrap();
 
 		#[extrinsic_call]
-		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), 0u64, r.into());
+		_(
+			RawOrigin::Signed([42u8; 32].into()),
+			asig_bytes.clone().try_into().unwrap(),
+			0u64,
+			r.into(),
+		);
 
 		assert_eq!(
 			SparseAccumulation::<T>::get(),
@@ -115,13 +122,11 @@ mod benchmarks {
 	#[benchmark]
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
 		let public_key = [1; 96];
-		let config =
-			BeaconConfigurationOf::<T> { genesis_round: 1u64, public_key: public_key.into() };
 
 		#[extrinsic_call]
-		_(RawOrigin::Root, config.clone());
+		_(RawOrigin::Root, public_key.into());
 
-		assert_eq!(BeaconConfig::<T>::get().unwrap(), config);
+		assert_eq!(BeaconConfig::<T>::get().unwrap(), public_key.into());
 
 		Ok(())
 	}

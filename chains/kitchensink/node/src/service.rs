@@ -15,7 +15,6 @@
  */
 
 use crate::cli::Consensus;
-use codec::Encode;
 use futures::FutureExt;
 use idn_sdk_kitchensink_runtime::{interface::OpaqueBlock as Block, RuntimeApi};
 use libp2p::Multiaddr;
@@ -242,26 +241,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 				pool: transaction_pool,
 				select_chain,
 				consensus_data_provider: None,
-				create_inherent_data_providers: move |_, ()| {
-					let drand_receiver = drand_receiver.clone();
-
-					async move {
-						let pulses = drand_receiver.read().await;
-
-						let serialized_pulses: Vec<Vec<u8>> =
-							pulses.iter().map(|pulse| pulse.encode()).collect();
-
-						let beacon_inherent =
-							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
-								serialized_pulses,
-							);
-
-						Ok((
-							sp_timestamp::InherentDataProvider::from_system_time(),
-							beacon_inherent,
-						))
-					}
-				},
+				create_inherent_data_providers: move |_, ()| async move { Ok(()) },
 			};
 
 			let authorship_future = sc_consensus_manual_seal::run_instant_seal(params);
@@ -295,25 +275,7 @@ pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Ha
 				select_chain,
 				commands_stream: Box::pin(commands_stream),
 				consensus_data_provider: None,
-				create_inherent_data_providers: move |_, ()| {
-					let drand_receiver = drand_receiver.clone();
-					async move {
-						let pulses = drand_receiver.read().await;
-
-						let serialized_pulses: Vec<Vec<u8>> =
-							pulses.iter().map(|pulse| pulse.encode()).collect();
-
-						let beacon_inherent =
-							sp_consensus_randomness_beacon::inherents::InherentDataProvider::new(
-								serialized_pulses,
-							);
-
-						Ok((
-							sp_timestamp::InherentDataProvider::from_system_time(),
-							beacon_inherent,
-						))
-					}
-				},
+				create_inherent_data_providers: move |_, ()| async move { Ok(()) },
 			};
 			let authorship_future = sc_consensus_manual_seal::run_manual_seal(params);
 

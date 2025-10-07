@@ -135,7 +135,7 @@ parameter_types! {
 	/// The IDN Treasury Account for fee collection. Fees collected for subscriptions, transaction fees and dusted balances are sent to this account.
 	/// This account should be funded with at least the existential deposit of the native currency, to be able to collect fees lower than the existential deposit.
 	pub TreasuryAccount: AccountId =
-		AccountId::from_ss58check("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C")
+		AccountId::from_ss58check("1LX9m9Ee8u653hU1sxvvRNpV1ZjYExa7K8r9zjDws9GDLvp")
 			.expect("Invalid Treasury Account");
 	/// The Subscription Deposit Multiplier, used for calculating the subscription fee
 	pub const SDMultiplier: u64 = 100;
