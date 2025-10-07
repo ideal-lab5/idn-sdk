@@ -319,7 +319,7 @@ impl pallet_idn_manager::Config for Runtime {
 
 parameter_types! {
 	pub MockSiblingIdnLocation: Location = Location::new(1, Parachain(MOCK_IDN_PARA_ID));
-	pub const ConsumerParaId: u32 = 2001;
+	pub const ConsumerParaId: u32 = 4594;
 	pub const ConsumerPalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_cons");
 	pub const MaxIdnXcmFees: u128 = 1_000;
 }

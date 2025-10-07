@@ -310,7 +310,7 @@ IDN contract integration requires **TWO separate funding requirements** for prop
 
 **⚠️ CRITICAL**: Both accounts must be funded with local tokens or operations will fail with "Funds are unavailable" errors.
 
-**Example**: If your deployed contract address is `5C62Ck4UrFPiBtoCmeSrgF7x9yv9mn38446dhCpsi2mLHiFT`, ensure this address has sufficient balances on both chains.
+**Example**: If your deployed contract address is `12KM5KYi2fBdRoijHVrpPx71buoU5bG8Yq7rVpEG7nrUG6f`, ensure this address has sufficient balances on both chains.
 
 ## Troubleshooting
 

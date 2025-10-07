@@ -20,7 +20,7 @@ alice: parachain 2001 block height is at least 10 within 6000 seconds
 alice: parachain 4502 block height is at least 10 within 6000 seconds
 
 # Fund Sovereign Account
-idn-alice: js-script ../../scripts/setup/balance-transfer.js with "5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK,1000000" within 120 seconds
+idn-alice: js-script ../../scripts/setup/balance-transfer.js with "13cKp89N5XAXYWeP2YP13Bq4GVsVdQrhbJSBVeiTKebFrQdF,1000000" within 120 seconds
 # Pause to allow next transaction to go through
 sleep 7 seconds
 
@@ -35,7 +35,7 @@ sleep 7 seconds
 # SETUP
 ########################################################
 # set the treasury balance to existential deposit (1_000_000)
-idn-alice: js-script ../../scripts/testing/utils/reset-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C" within 120 secs
+idn-alice: js-script ../../scripts/testing/utils/reset-balance.js with "1LX9m9Ee8u653hU1sxvvRNpV1ZjYExa7K8r9zjDws9GDLvp" within 120 secs
 ########################################################
 ## Quote Subscription (frequency = 0, # pulses = 1) 
 ########################################################
@@ -57,7 +57,7 @@ idn-alice: system event contains "Fees collected" within 120 seconds
 # 1 credits => 1 blocks => 6 secs
 idn-alice: system event contains "A subscription has terminated" within 12 seconds
 # now we want to check the balance of the treasury account is 10_000_000_001 + 2_900_000 = 10_002_900_001
-idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 10002900001" within 120 secs
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "1LX9m9Ee8u653hU1sxvvRNpV1ZjYExa7K8r9zjDws9GDLvp, 10002900001" within 120 secs
 
 #####################################################
 # Test #2: (frequency = 0, #pulses = 10)
@@ -69,7 +69,7 @@ idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtA
 # SETUP
 ########################################################
 # set the treasury balance to existential deposit (1_000_000)
-idn-alice: js-script ../../scripts/testing/utils/reset-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C" within 120 secs
+idn-alice: js-script ../../scripts/testing/utils/reset-balance.js with "1LX9m9Ee8u653hU1sxvvRNpV1ZjYExa7K8r9zjDws9GDLvp" within 120 secs
 ########################################################
 ## Quote Subscription (frequency = 0, # pulses = 10) 
 ########################################################
@@ -92,7 +92,7 @@ idn-consumer-alice: system event contains "A randomness pulse was successfully c
 sleep 120 secs
 # now we want to check the balance of the treasury account
 # 10_000_000_001 + 29_000_000 = 10_029_000_001
-idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C, 10029000001" within 120 secs
+idn-alice: js-script ../../scripts/testing/utils/check-balance.js with "1LX9m9Ee8u653hU1sxvvRNpV1ZjYExa7K8r9zjDws9GDLvp, 10029000001" within 120 secs
 
 # additional test parameters for longer tests if desired
 #####################################################
