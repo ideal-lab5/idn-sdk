@@ -262,7 +262,7 @@ pub mod pallet {
 							});
 
 						let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-						// [SRLABS]: This error is untestable since we know the signature is correct here.
+						// [SECURITY]: This error is untestable since we know the signature is correct here.
 						//  Is it reasonable to use an expect?
 						asig.serialize_compressed(&mut asig_bytes)
 							.expect("The signature is well formatted. qed.");
