@@ -240,7 +240,6 @@ impl pallet_randomness_beacon::Config for Runtime {
 pub const MOCK_IDN_PARA_ID: u32 = 88;
 
 parameter_types! {
-	pub const PalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_mngr");
 	pub const TreasuryAccount: AccountId32 = AccountId32::new([123u8; 32]);
 	pub const SDMultiplier: u64 = 10;
 	pub const MaxSubscriptions: u32 = 2_000;
@@ -300,7 +299,6 @@ impl pallet_idn_manager::Config for Runtime {
 		BaseFee,
 	>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
-	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = RuntimePulse;
 	type WeightInfo = ();
@@ -321,7 +319,7 @@ impl pallet_idn_manager::Config for Runtime {
 
 parameter_types! {
 	pub MockSiblingIdnLocation: Location = Location::new(1, Parachain(MOCK_IDN_PARA_ID));
-	pub const ConsumerParaId: u32 = 2001;
+	pub const ConsumerParaId: u32 = 4594;
 	pub const ConsumerPalletId: frame_support::PalletId = frame_support::PalletId(*b"idn_cons");
 	pub const MaxIdnXcmFees: u128 = 1_000;
 }

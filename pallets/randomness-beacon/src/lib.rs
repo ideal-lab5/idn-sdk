@@ -87,7 +87,6 @@ use frame_support::pallet_prelude::*;
 
 use frame_support::traits::Randomness;
 use frame_system::pallet_prelude::BlockNumberFor;
-use sp_consensus_randomness_beacon::types::CanonicalPulse;
 use sp_core::H256;
 use sp_idn_crypto::verifier::SignatureVerifier;
 use sp_idn_traits::{
@@ -116,29 +115,20 @@ mod benchmarking;
 
 const LOG_TARGET: &str = "pallet-randomness-beacon";
 
-const SERIALIZED_SIG_SIZE: usize = 48;
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use ark_bls12_381::G1Affine;
-	use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+	use ark_serialize::CanonicalSerialize;
 	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
-	use sp_consensus_randomness_beacon::{
-		digest::ConsensusLog,
-		types::{OpaqueSignature, RoundNumber},
-	};
+	use sp_consensus_randomness_beacon::types::{OpaqueSignature, RoundNumber};
 	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
-	use sp_runtime::generic::DigestItem;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
 	/// The public key type
 	type PubkeyOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Pubkey;
-	/// The beacon configuration type
-	pub(crate) type BeaconConfigurationOf<T> = BeaconConfiguration<PubkeyOf<T>, RoundNumber>;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -167,11 +157,11 @@ pub mod pallet {
 
 	/// The round when we start consuming pulses
 	#[pallet::storage]
-	pub type BeaconConfig<T: Config> = StorageValue<_, BeaconConfigurationOf<T>, OptionQuery>;
+	pub type BeaconConfig<T: Config> = StorageValue<_, PubkeyOf<T>, OptionQuery>;
 
 	/// The latest observed round
 	#[pallet::storage]
-	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, OptionQuery>;
+	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, ValueQuery>;
 
 	/// The aggregated signature and (start, end) rounds
 	#[pallet::storage]
@@ -213,87 +203,6 @@ pub mod pallet {
 		StartExpired,
 	}
 
-	#[pallet::inherent]
-	impl<T: Config> ProvideInherent for Pallet<T> {
-		type Call = Call<T>;
-		type Error = MakeFatalError<()>;
-
-		const INHERENT_IDENTIFIER: [u8; 8] =
-			sp_consensus_randomness_beacon::inherents::INHERENT_IDENTIFIER;
-
-		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			if let Some(round) = LatestRound::<T>::get() {
-				log::trace!(target: LOG_TARGET, "Creating inherent for round {:?}", round);
-				if let Ok(Some(raw_pulses)) =
-					data.get_data::<Vec<Vec<u8>>>(&Self::INHERENT_IDENTIFIER)
-				{
-					log::trace!(target: LOG_TARGET, "Found {:?} raw pulses in inherent data.", raw_pulses.len());
-					// extract + sanitize
-					let mut pulses: Vec<CanonicalPulse> = raw_pulses
-						.iter()
-						.filter_map(|rp| CanonicalPulse::decode(&mut rp.as_slice()).ok())
-						.filter(|rp| rp.round >= round)
-						.collect();
-					// sort by ascending round
-					pulses.sort_by_key(|pulse| pulse.round);
-					// if there are too many pulses, drain to ensure correct size
-					let max = T::MaxSigsPerBlock::get() as usize;
-					let remove = pulses.len();
-					if max <= remove {
-						let r = remove.saturating_sub(max);
-						pulses.drain(0..r);
-						log::info!(target: LOG_TARGET, "Drained {:?} extra pulses from storage.", r);
-					}
-
-					// first and last rounds
-					let start = pulses.first().map(|p| p.round);
-					let end = pulses.last().map(|p| p.round);
-
-					if let (Some(start), Some(end)) = (start, end) {
-						log::trace!(target: LOG_TARGET, "Submitting pulses for rounds {:?} to {:?}.", start, end);
-						let asig = pulses
-							.into_iter()
-							.filter_map(|pulse| {
-								let bytes = pulse.signature;
-								G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()
-							})
-							.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| {
-								(acc + sig).into()
-							});
-
-						let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-						// [SRLABS]: This error is untestable since we know the signature is correct here.
-						//  Is it reasonable to use an expect?
-						asig.serialize_compressed(&mut asig_bytes)
-							.expect("The signature is well formatted. qed.");
-						log::trace!(target: LOG_TARGET, "Submitting aggregated signature: {:?}", hex::encode(&asig_bytes));
-						return Some(Call::try_submit_asig {
-							asig: OpaqueSignature::try_from(asig_bytes)
-								.expect("The signature is well formatted. qed."),
-							start,
-							end,
-						});
-					} else {
-						return None;
-					}
-				}
-			}
-
-			None
-		}
-
-		fn check_inherent(call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
-			match call {
-				Call::try_submit_asig { .. } => Ok(()),
-				_ => unreachable!("other calls are not inherents"),
-			}
-		}
-
-		fn is_inherent(call: &Self::Call) -> bool {
-			matches!(call, Call::try_submit_asig { .. })
-		}
-	}
-
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
@@ -305,13 +214,8 @@ pub mod pallet {
 
 		/// At the end of block execution, the `on_finalize` hook checks that the asig was
 		/// updated. Upon success, it removes the boolean value from storage. If the value resolves
-		/// to `false`, then either:
-		/// (1) the collator refused to provide data for the inherent
-		/// (2) drand was unavailable while the block was being built
-		/// in which case simply log an error.
-		///
-		/// ## Complexity
-		/// - `O(1)`
+		/// to `false`, then the runtime did  **not** receive any valid pulses from drand and we log
+		/// an error. If the value resolves to `true`, then process subscriptions.
 		fn on_finalize(n: BlockNumberFor<T>) {
 			if !DidUpdate::<T>::take() && BeaconConfig::<T>::get().is_some() {
 				// this implies we did not ingest randomness from drand during this block
@@ -328,11 +232,12 @@ pub mod pallet {
 		/// * `asig`: An aggregated signature as bytes
 		/// * `height`: The number of signatures aggregated in asig
 		#[pallet::call_index(0)]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::try_submit_asig(
+		#[pallet::weight((<T as pallet::Config>::WeightInfo::try_submit_asig(
 			T::MaxSigsPerBlock::get().into())
 				.saturating_add(
-					T::Dispatcher::dispatch_weight())
-		)]
+					T::Dispatcher::dispatch_weight()),
+			DispatchClass::Operational
+		))]
 		#[allow(clippy::useless_conversion)]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
@@ -340,11 +245,11 @@ pub mod pallet {
 			start: RoundNumber,
 			end: RoundNumber,
 		) -> DispatchResultWithPostInfo {
-			ensure_none(origin)?;
+			ensure_signed(origin)?;
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
 
-			let config = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
+			let pk = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
 			// 0 < num_sigs <= MaxSigsPerBlock
 			let height = end - start;
 			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
@@ -353,12 +258,11 @@ pub mod pallet {
 				Error::<T>::ExcessiveHeightProvided
 			);
 
-			let latest_round: RoundNumber =
-				LatestRound::<T>::get().expect("The latest round must be set; qed");
-
+			let latest_round: RoundNumber = LatestRound::<T>::get();
 			// start must be greater than last known latest round
 			ensure!(start >= latest_round, Error::<T>::StartExpired);
 
+			// build the message
 			let mut amsg = zero_on_g1();
 			for r in start..end + 1 {
 				let msg = compute_round_on_g1(r).map_err(|_| Error::<T>::SerializationFailed)?;
@@ -370,27 +274,24 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::SerializationFailed)?;
 			// verify the signature
 			T::SignatureVerifier::verify(
-				config.public_key.as_ref().to_vec(),
+				pk.as_ref().to_vec(),
 				asig.clone().as_ref().to_vec(),
 				amsg_bytes,
 			)
 			.map_err(|_| Error::<T>::VerificationFailed)?;
 
-			LatestRound::<T>::set(Some(end + 1));
-
+			// update storage
+			LatestRound::<T>::set(end + 1);
 			let sacc = Accumulation::new(asig, start, end);
 			SparseAccumulation::<T>::set(Some(sacc.clone()));
 			DidUpdate::<T>::put(true);
 
-			// dispatch pulses to subscribers
+			// handle vraas subs
 			let runtime_pulse = T::Pulse::from(sacc);
 			T::Dispatcher::dispatch(runtime_pulse);
 
+			// events
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
-
-			// Insert the latest round into the header digest
-			let digest_item: DigestItem = ConsensusLog::LatestRoundNumber(end).into();
-			<frame_system::Pallet<T>>::deposit_log(digest_item);
 			// successful verification is beneficial to the network, so we do not charge when the
 			// signature is correct
 			Ok(Pays::No.into())
@@ -405,23 +306,11 @@ pub mod pallet {
 		#[allow(clippy::useless_conversion)]
 		pub fn set_beacon_config(
 			origin: OriginFor<T>,
-			config: BeaconConfigurationOf<T>,
+			pk: PubkeyOf<T>,
 		) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
-
-			ensure!(BeaconConfig::<T>::get().is_none(), Error::<T>::BeaconConfigAlreadySet);
-
-			BeaconConfig::<T>::set(Some(config.clone()));
-
-			let genesis = config.genesis_round;
-			LatestRound::<T>::set(Some(genesis));
-			// set the genesis round as the default digest log for the initial valid round number
-			let digest_item: DigestItem =
-				ConsensusLog::<RoundNumber>::LatestRoundNumber(genesis).into();
-			<frame_system::Pallet<T>>::deposit_log(digest_item);
-
+			BeaconConfig::<T>::set(Some(pk));
 			Self::deposit_event(Event::<T>::BeaconConfigSet);
-
 			Ok(Pays::No.into())
 		}
 	}
@@ -446,5 +335,23 @@ where
 				T::FallbackRandomness::random(subject)
 			},
 		}
+	}
+}
+
+sp_api::decl_runtime_apis! {
+	pub trait ExtrinsicBuilderApi<AccountId, RuntimeCall, Signature, TxExtension, Nonce>
+	where
+		AccountId: Encode + Decode,
+		RuntimeCall: Encode + Decode,
+		Signature: Encode + Decode,
+		TxExtension : Encode + Decode,
+		Nonce: Encode + Decode,
+	{
+		fn construct_pulse_payload(
+			asig: Signature,
+			start: u64,
+			end: u64,
+			nonce: Nonce,
+		) -> (Vec<u8>, RuntimeCall, TxExtension);
 	}
 }

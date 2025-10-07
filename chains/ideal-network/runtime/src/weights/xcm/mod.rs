@@ -13,12 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-extern crate alloc;
 
-pub mod error;
-pub mod gadget;
-pub mod gossipsub;
-pub mod worker;
-
-#[cfg(test)]
-mod mock;
+pub mod pallet_xcm_benchmarks_fungible_weights;
+pub mod pallet_xcm_benchmarks_generic_weights;
