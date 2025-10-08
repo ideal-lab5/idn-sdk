@@ -208,8 +208,8 @@ pub mod pallet {
 		type Call = Call<T>;
 
 		fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-			// reject if not from local or in a block
-			if !matches!(source, TransactionSource::Local | TransactionSource::InBlock) {
+			// reject if not from local
+			if !matches!(source, TransactionSource::Local) {
 				return InvalidTransaction::Call.into();
 			}
 
@@ -366,7 +366,6 @@ where
 	fn random(subject: &[u8]) -> (T::Hash, BlockNumberFor<T>) {
 		match SparseAccumulation::<T>::get() {
 			Some(accumulation) => {
-				// Hash the aggregated signature directly as suggested by the colleague
 				let randomness_hash = accumulation.signature.hash(subject).into();
 				(randomness_hash, frame_system::Pallet::<T>::block_number())
 			},
@@ -385,5 +384,6 @@ sp_api::decl_runtime_apis! {
 	pub trait RandomnessBeaconApi {
 		fn latest_round() -> sp_consensus_randomness_beacon::types::RoundNumber;
 		fn max_rounds() -> u8;
+		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> Option<Block::Extrinsic>;
 	}
 }

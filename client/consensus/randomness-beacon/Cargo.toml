@@ -49,8 +49,7 @@ sp-timestamp.workspace = true
 sp-transaction-pool.workspace = true
 
 # local
-idn-runtime = { workspace = true, default-features = true }
-pallet-randomness-beacon.workspace = true
+pallet-randomness-beacon = { workspace = true, default-features = true }
 
 # cumulus 
 cumulus-client-consensus-common.workspace = true

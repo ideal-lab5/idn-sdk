@@ -18,10 +18,10 @@ use crate::{
 	error::Error as GadgetError,
 	gadget::{PulseSubmitter, SERIALIZED_SIG_SIZE},
 };
-use idn_runtime::UncheckedExtrinsic;
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
 use sp_api::ProvideRuntimeApi;
+use pallet_randomness_beacon::RandomnessBeaconApi;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
@@ -40,42 +40,17 @@ where
 impl<Block, Client, Pool> PulseWorker<Block, Client, Pool>
 where
 	Block: BlockT,
-	Block::Extrinsic: From<UncheckedExtrinsic>,
 {
 	pub fn new(client: Arc<Client>, transaction_pool: Arc<Pool>) -> Self {
 		Self { client, transaction_pool, _phantom: Default::default() }
-	}
-
-	/// Build an unsigned extrinsic to encode new pulses in the runtime
-	///
-	/// * `asig`: The aggregated signature
-	/// * `start`: The first round from which sigs are aggregated
-	/// * `end`: The last round from which sigs are aggregated
-	fn construct_extrinsic(
-		asig: Vec<u8>,
-		start: u64,
-		end: u64,
-	) -> Result<<Block as BlockT>::Extrinsic, GadgetError> {
-		let formatted: [u8; SERIALIZED_SIG_SIZE] = asig.clone().try_into().map_err(|_| {
-			GadgetError::InvalidSignatureSize(asig.len() as u8, SERIALIZED_SIG_SIZE as u8)
-		})?;
-
-		let call =
-			idn_runtime::RuntimeCall::RandBeacon(pallet_randomness_beacon::Call::try_submit_asig {
-				asig: formatted,
-				start,
-				end,
-			});
-
-		Ok(UncheckedExtrinsic::new_bare(call).into())
 	}
 }
 
 impl<Block, Client, Pool> PulseSubmitter<Block> for PulseWorker<Block, Client, Pool>
 where
 	Block: BlockT,
-	Block::Extrinsic: From<UncheckedExtrinsic>,
 	Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
+	Client::Api: RandomnessBeaconApi<Block>,
 	Pool: TransactionPool<Block = Block> + 'static,
 {
 	async fn submit_pulse(
@@ -91,28 +66,36 @@ where
 			end
 		);
 
-		let extrinsic = Self::construct_extrinsic(asig, start, end)?;
-
-		// Submit to transaction pool
 		let best_hash = self.client.info().best_hash;
-		let _hash = self
-			.transaction_pool
-			.submit_one(best_hash, TransactionSource::Local, extrinsic)
-			.await
-			.map_err(|e| {
-				log::error!(
-					target: LOG_TARGET,
-					"❌ Failed to submit to pool at hash {:?}: {:?}",
-					best_hash,
-					e
-				);
-				GadgetError::TransactionSubmissionFailed
-			})?;
+		match self.client.runtime_api().build_extrinsic(best_hash, asig.clone(), start, end) {
+			Ok(Some(extrinsic)) => {
+				// Submit to transaction pool
+				let _hash = self
+					.transaction_pool
+					.submit_one(best_hash, TransactionSource::Local, extrinsic)
+					.await
+					.map_err(|e| {
+						log::error!(
+							target: LOG_TARGET,
+							"❌ Failed to submit to pool at hash {:?}: {:?}",
+							best_hash,
+							e
+						);
+						GadgetError::TransactionSubmissionFailed
+					})?;
 
-		log::info!(
-			target: LOG_TARGET,
-			"Submitted pulse extrinsic",
-		);
+				log::info!(
+					target: LOG_TARGET,
+					"Submitted pulse extrinsic",
+				);
+			}
+			Ok(None) => {
+				return Err(GadgetError::InvalidSignatureSize(asig.len() as u8, SERIALIZED_SIG_SIZE as u8));
+			}
+			Err(_e) => {
+				// Handle runtime API error?
+			}
+		}
 
 		Ok(best_hash)
 	}
