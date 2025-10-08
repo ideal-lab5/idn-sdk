@@ -18,6 +18,9 @@ use alloc::{format, string::String};
 use codec::{Decode, DecodeWithMemTracking, Encode};
 use serde::{Deserialize, Serialize};
 
+/// The size of a signature (48 bytes) in G2
+pub const SERIALIZED_SIG_SIZE: usize = 48;
+
 /// Represents an opaque public key used in drand's quicknet
 pub type OpaquePublicKey = [u8; 96];
 /// Represents an element of the signature group

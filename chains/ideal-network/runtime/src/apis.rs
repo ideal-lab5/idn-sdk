@@ -358,7 +358,7 @@ impl_runtime_apis! {
 
 		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> <Block as BlockT>::Extrinsic {
 			// Try to convert Vec<u8> to fixed size array
-			let formatted: [u8; 48] = match asig.try_into() {
+			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] = match asig.try_into() {
 				Ok(arr) => arr,
 				Err(_) => return None, // Return None on invalid size
 			};

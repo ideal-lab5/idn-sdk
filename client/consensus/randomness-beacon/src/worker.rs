@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-use crate::{
-	error::Error as GadgetError,
-	gadget::{PulseSubmitter, SERIALIZED_SIG_SIZE},
-};
+use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
 use pallet_randomness_beacon::RandomnessBeaconApi;
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
@@ -98,7 +95,7 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::*;
+	use crate::{gadget::SERIALIZED_SIG_SIZE, mock::*};
 	use std::sync::Arc;
 
 	#[tokio::test]
