@@ -95,7 +95,8 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{gadget::SERIALIZED_SIG_SIZE, mock::*};
+	use crate::mock::*;
+	use sc_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE;
 	use std::sync::Arc;
 
 	#[tokio::test]
