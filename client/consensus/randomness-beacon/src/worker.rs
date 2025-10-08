@@ -67,38 +67,29 @@ where
 		);
 
 		let best_hash = self.client.info().best_hash;
-		match self.client.runtime_api().build_extrinsic(best_hash, asig.clone(), start, end) {
-			Ok(Some(extrinsic)) => {
-				// Submit to transaction pool
-				let _hash = self
-					.transaction_pool
-					.submit_one(best_hash, TransactionSource::Local, extrinsic)
-					.await
-					.map_err(|e| {
-						log::error!(
-							target: LOG_TARGET,
-							"❌ Failed to submit to pool at hash {:?}: {:?}",
-							best_hash,
-							e
-						);
-						GadgetError::TransactionSubmissionFailed
-					})?;
-
-				log::info!(
+		let extrinsic = self
+			.client
+			.runtime_api()
+			.build_extrinsic(best_hash, asig.clone(), start, end)
+			.map_err(|e| GadgetError::RuntimeApiError(e.to_string()))?;
+		let _hash = self
+			.transaction_pool
+			.submit_one(best_hash, TransactionSource::Local, extrinsic)
+			.await
+			.map_err(|e| {
+				log::error!(
 					target: LOG_TARGET,
-					"Submitted pulse extrinsic",
+					"❌ Failed to submit to pool at hash {:?}: {:?}",
+					best_hash,
+					e
 				);
-			},
-			Ok(None) => {
-				return Err(GadgetError::InvalidSignatureSize(
-					asig.len() as u8,
-					SERIALIZED_SIG_SIZE as u8,
-				));
-			},
-			Err(_e) => {
-				// Handle runtime API error?
-			},
-		}
+				GadgetError::TransactionSubmissionFailed
+			})?;
+
+		log::info!(
+			target: LOG_TARGET,
+			"Submitted pulse extrinsic",
+		);
 
 		Ok(best_hash)
 	}
@@ -140,7 +131,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_invalid_signature_size() {
+	async fn test_submit_pulse_handles_runtime_call_failure() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 
@@ -149,32 +140,14 @@ mod tests {
 		// Create invalid signature (wrong size)
 		let asig = vec![0u8; 32]; // Too small
 
-		// Should fail because signature size is wrong
-		let result = worker.submit_pulse(asig, 100, 101).await;
+		// arbitrary failures are triggered if start == 0
+		let result = worker.submit_pulse(asig, 0, 101).await;
 
 		assert!(result.is_err(), "Should fail when signature size is invalid");
-		assert!(matches!(result, Err(GadgetError::InvalidSignatureSize(32, 48))));
+		assert!(matches!(result, Err(GadgetError::RuntimeApiError(_))));
 
 		// Verify nothing was submitted
 		assert_eq!(pool.pool.lock().len(), 0, "Should not submit if signature size is invalid");
-	}
-
-	#[tokio::test]
-	async fn test_submit_pulse_signature_too_long() {
-		let client = Arc::new(MockClient::new());
-		let pool = Arc::new(MockTransactionPool::new());
-
-		let worker = PulseWorker::new(client, pool.clone());
-
-		let asig = vec![0u8; 64]; // Too long
-
-		let result = worker.submit_pulse(asig, 100, 101).await;
-
-		assert!(result.is_err(), "Should fail when signature is too long");
-		assert!(matches!(result, Err(GadgetError::InvalidSignatureSize(64, 48))));
-
-		// Verify nothing was submitted
-		assert_eq!(pool.pool.lock().len(), 0);
 	}
 
 	#[tokio::test]
@@ -216,28 +189,5 @@ mod tests {
 		// Verify all transactions were submitted
 		let submitted = pool.pool.lock().clone();
 		assert_eq!(submitted.len(), 3, "Should have submitted three transactions");
-	}
-
-	#[tokio::test]
-	async fn test_construct_extrinsic_valid() {
-		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-
-		let result = PulseWorker::<TestBlock, MockClient, MockTransactionPool>::construct_extrinsic(
-			asig, 100, 101,
-		);
-
-		assert!(result.is_ok(), "Should successfully construct extrinsic with valid signature");
-	}
-
-	#[tokio::test]
-	async fn test_construct_extrinsic_invalid_size() {
-		let asig = vec![0u8; 32]; // Wrong size
-
-		let result = PulseWorker::<TestBlock, MockClient, MockTransactionPool>::construct_extrinsic(
-			asig, 100, 101,
-		);
-
-		assert!(result.is_err(), "Should fail with invalid signature size");
-		assert!(matches!(result, Err(GadgetError::InvalidSignatureSize(32, 48))));
 	}
 }
