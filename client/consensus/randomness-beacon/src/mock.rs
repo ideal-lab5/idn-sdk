@@ -21,65 +21,43 @@ use std::{collections::HashMap, pin::Pin, sync::Arc};
 pub(crate) type TestBlock =
 	sp_runtime::generic::Block<Header<u64, BlakeTwo256>, sp_runtime::OpaqueExtrinsic>;
 
-// pub(crate) struct MockClient {
-// 	best_hash: Mutex<Option<<TestBlock as BlockT>::Hash>>,
-// 	best_number: Mutex<u64>,
-// 	// latest_round: Mutex<u64>,
-// }
-
-// impl MockClient {
-// 	pub fn new() -> Self {
-// 		Self {
-// 			best_hash: Mutex::new(Some(Default::default())),
-// 			best_number: Mutex::new(0),
-// 			// latest_round: Mutex::new(0),
-// 		}
-// 	}
-
-// 	// pub fn set_latest_round(to: u64) {
-// 	// 	*self.latest_round.lock() = latest_round;
-// 	// }
-// }
-
 #[derive(Clone)]
 pub(crate) struct MockRuntimeApiState {
-    pub latest_round: Arc<Mutex<u64>>,
+	pub latest_round: Arc<Mutex<u64>>,
 }
 
 impl MockRuntimeApiState {
-    pub fn new() -> Self {
-        Self {
-            latest_round: Arc::new(Mutex::new(0)),
-        }
-    }
+	pub fn new() -> Self {
+		Self { latest_round: Arc::new(Mutex::new(0)) }
+	}
 }
 
 // Update MockClient to hold the state
 pub(crate) struct MockClient {
-    best_hash: Mutex<Option<<TestBlock as BlockT>::Hash>>,
-    best_number: Mutex<u64>,
-    pub runtime_api_state: MockRuntimeApiState, // Add this
+	best_hash: Mutex<Option<<TestBlock as BlockT>::Hash>>,
+	best_number: Mutex<u64>,
+	pub runtime_api_state: MockRuntimeApiState, // Add this
 }
 
 impl MockClient {
-    pub fn new() -> Self {
-        Self {
-            best_hash: Mutex::new(Some(Default::default())),
-            best_number: Mutex::new(0),
-            runtime_api_state: MockRuntimeApiState::new(),
-        }
-    }
+	pub fn new() -> Self {
+		Self {
+			best_hash: Mutex::new(Some(Default::default())),
+			best_number: Mutex::new(0),
+			runtime_api_state: MockRuntimeApiState::new(),
+		}
+	}
 }
 
 // Update MockRuntimeApi to hold the state
 pub(crate) struct MockRuntimeApi {
-    state: MockRuntimeApiState,
+	state: MockRuntimeApiState,
 }
 
 impl MockRuntimeApi {
-    pub fn new(state: MockRuntimeApiState) -> Self {
-        Self { state }
-    }
+	pub fn new(state: MockRuntimeApiState) -> Self {
+		Self { state }
+	}
 }
 
 impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
@@ -154,11 +132,11 @@ impl sc_client_api::HeaderBackend<TestBlock> for MockClient {
 
 // Update ProvideRuntimeApi to use the state
 impl sp_api::ProvideRuntimeApi<TestBlock> for MockClient {
-    type Api = MockRuntimeApi;
+	type Api = MockRuntimeApi;
 
-    fn runtime_api(&self) -> sp_api::ApiRef<'_, Self::Api> {
-        MockRuntimeApi::new(self.runtime_api_state.clone()).into()
-    }
+	fn runtime_api(&self) -> sp_api::ApiRef<'_, Self::Api> {
+		MockRuntimeApi::new(self.runtime_api_state.clone()).into()
+	}
 }
 
 #[allow(dead_code)] // this struct never gets constructed

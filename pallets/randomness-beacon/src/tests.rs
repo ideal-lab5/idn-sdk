@@ -27,7 +27,7 @@ fn can_construct_pallet_and_set_genesis_params() {
 	new_test_ext().execute_with(|| {
 		let actual_initial_sigs = SparseAccumulation::<Test>::get();
 		assert!(actual_initial_sigs.is_none());
-		
+
 		let latest_round = LatestRound::<Test>::get();
 		assert_eq!(latest_round, 0);
 	});
@@ -40,12 +40,7 @@ fn can_fail_write_pulse_when_beacon_config_not_set() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_noop!(
-			Drand::try_submit_asig(
-				RuntimeOrigin::none(),
-				asig.try_into().unwrap(),
-				1000,
-				1001,
-			),
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig.try_into().unwrap(), 1000, 1001,),
 			Error::<Test>::BeaconConfigNotSet,
 		);
 	});
@@ -119,7 +114,7 @@ fn can_submit_single_pulse() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
-		
+
 		// Should allow start == end for single pulse
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
@@ -130,7 +125,7 @@ fn can_submit_single_pulse() {
 
 		let latest_round = LatestRound::<Test>::get();
 		assert_eq!(1001, latest_round);
-		
+
 		let aggr = SparseAccumulation::<Test>::get().unwrap();
 		assert_eq!(1000, aggr.start);
 		assert_eq!(1000, aggr.end);
@@ -144,7 +139,7 @@ fn can_fail_when_start_greater_than_end() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
-		
+
 		// start > end should fail with ZeroHeightProvided
 		assert_noop!(
 			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1001, 1000),
@@ -389,9 +384,11 @@ fn can_call_on_initialize() {
 }
 
 use crate::Call;
-use frame_support::pallet_prelude::ValidateUnsigned;
-use sp_runtime::transaction_validity::{InvalidTransaction, TransactionPriority, TransactionSource};
 use codec::Encode;
+use frame_support::pallet_prelude::ValidateUnsigned;
+use sp_runtime::transaction_validity::{
+	InvalidTransaction, TransactionPriority, TransactionSource,
+};
 
 #[test]
 fn validate_unsigned_accepts_valid_sources_and_rejects_invalid() {
@@ -400,13 +397,12 @@ fn validate_unsigned_accepts_valid_sources_and_rejects_invalid() {
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.clone().try_into().unwrap()));
+		assert_ok!(Drand::set_beacon_config(
+			RuntimeOrigin::root(),
+			bpk.clone().try_into().unwrap()
+		));
 
-		let call = Call::try_submit_asig {
-			asig: asig.try_into().unwrap(),
-			start: 1000,
-			end: 1001,
-		};
+		let call = Call::try_submit_asig { asig: asig.try_into().unwrap(), start: 1000, end: 1001 };
 
 		// Accept Local and InBlock sources
 		assert!(Drand::validate_unsigned(TransactionSource::Local, &call).is_ok());
@@ -428,12 +424,8 @@ fn validate_unsigned_has_correct_properties() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
 
 	new_test_ext().execute_with(|| {
-		let formatted: [u8;48] = asig.clone().try_into().unwrap();
-		let call = Call::try_submit_asig {
-			asig: formatted.clone(),
-			start: 1000,
-			end: 1001,
-		};
+		let formatted: [u8; 48] = asig.clone().try_into().unwrap();
+		let call = Call::try_submit_asig { asig: formatted.clone(), start: 1000, end: 1001 };
 
 		let validity = Drand::validate_unsigned(TransactionSource::Local, &call).unwrap();
 
@@ -455,17 +447,11 @@ fn validate_unsigned_provides_unique_tags() {
 	let (asig2, _amsg2, _raw2) = get(vec![PULSE1002, PULSE1003]);
 
 	new_test_ext().execute_with(|| {
-		let call1 = Call::try_submit_asig {
-			asig: asig1.try_into().unwrap(),
-			start: 1000,
-			end: 1001,
-		};
+		let call1 =
+			Call::try_submit_asig { asig: asig1.try_into().unwrap(), start: 1000, end: 1001 };
 
-		let call2 = Call::try_submit_asig {
-			asig: asig2.try_into().unwrap(),
-			start: 1002,
-			end: 1003,
-		};
+		let call2 =
+			Call::try_submit_asig { asig: asig2.try_into().unwrap(), start: 1002, end: 1003 };
 
 		let validity1 = Drand::validate_unsigned(TransactionSource::Local, &call1).unwrap();
 		let validity2 = Drand::validate_unsigned(TransactionSource::Local, &call2).unwrap();
