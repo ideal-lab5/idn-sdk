@@ -14,78 +14,74 @@
  * limitations under the License.
  */
 
-use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
+use crate::{
+	error::Error as GadgetError,
+	gadget::{PulseSubmitter, SERIALIZED_SIG_SIZE},
+};
+use idn_runtime::UncheckedExtrinsic;
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
 use sp_api::ProvideRuntimeApi;
-use sp_application_crypto::AppCrypto;
-use sp_core::sr25519;
-use sp_keystore::KeystorePtr;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
 const LOG_TARGET: &str = "pulse-worker";
 
-/// Trait for constructing runtime-specific extrinsics
-pub trait ExtrinsicConstructor<Block: BlockT>: Send + Sync {
-	/// Construct a signed extrinsic for pulse submission
-	fn construct_pulse_extrinsic(
-		&self,
-		signer: sr25519::Public,
-		asig: Vec<u8>,
-		start: u64,
-		end: u64,
-	) -> Result<Block::Extrinsic, GadgetError>;
-}
-
 /// The worker responsible for submitting pulses to the runtime
-pub struct PulseWorker<Block, Client, Pool, Constructor>
+pub struct PulseWorker<Block, Client, Pool>
 where
 	Block: BlockT,
 {
 	client: Arc<Client>,
-	keystore: KeystorePtr,
 	transaction_pool: Arc<Pool>,
-	extrinsic_constructor: Arc<Constructor>,
 	_phantom: std::marker::PhantomData<Block>,
 }
 
-impl<Block, Client, Pool, Constructor> PulseWorker<Block, Client, Pool, Constructor>
+impl<Block, Client, Pool> PulseWorker<Block, Client, Pool>
 where
 	Block: BlockT,
+	Block::Extrinsic: From<UncheckedExtrinsic>
 {
 	pub fn new(
 		client: Arc<Client>,
-		keystore: KeystorePtr,
 		transaction_pool: Arc<Pool>,
-		extrinsic_constructor: Arc<Constructor>,
 	) -> Self {
-		Self {
-			client,
-			keystore,
-			transaction_pool,
-			extrinsic_constructor,
-			_phantom: Default::default(),
-		}
+		Self { client, transaction_pool, _phantom: Default::default() }
 	}
 
-	/// get aura keys
-	fn get_authority_key(&self) -> Result<sr25519::Public, GadgetError> {
-		self.keystore
-			.sr25519_public_keys(sp_consensus_aura::sr25519::AuthorityPair::ID)
-			.first()
-			.cloned()
-			.ok_or_else(|| GadgetError::NoAuthorityKeys)
+	/// Build an unsigned extrinsic to encode new pulses in the runtime
+	///
+	/// * `asig`: The aggregated signature
+	/// * `start`: The first round from which sigs are aggregated
+	/// * `end`: The last round from which sigs are aggregated
+	///
+	fn construct_extrinsic(
+		asig: Vec<u8>,
+		start: u64,
+		end: u64,
+	) -> Result<<Block as BlockT>::Extrinsic, GadgetError> {
+		let formatted: [u8; SERIALIZED_SIG_SIZE] = asig.clone().try_into().map_err(|_| {
+			GadgetError::InvalidSignatureSize(asig.len() as u8, SERIALIZED_SIG_SIZE as u8)
+		})?;
+
+		let call =
+			idn_runtime::RuntimeCall::RandBeacon(pallet_randomness_beacon::Call::try_submit_asig {
+				asig: formatted,
+				start,
+				end,
+			});
+
+		Ok(UncheckedExtrinsic::new_bare(call).into())
 	}
 }
 
-impl<Block, Client, Pool, Constructor> PulseSubmitter<Block>
-	for PulseWorker<Block, Client, Pool, Constructor>
+impl<Block, Client, Pool> PulseSubmitter<Block>
+	for PulseWorker<Block, Client, Pool>
 where
 	Block: BlockT,
+	Block::Extrinsic: From<UncheckedExtrinsic>,
 	Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	Pool: TransactionPool<Block = Block> + 'static,
-	Constructor: ExtrinsicConstructor<Block> + 'static,
 {
 	async fn submit_pulse(
 		&self,
@@ -93,8 +89,6 @@ where
 		start: u64,
 		end: u64,
 	) -> Result<Block::Hash, GadgetError> {
-		let public = self.get_authority_key()?;
-
 		log::info!(
 			target: LOG_TARGET,
 			"Constructing pulse extrinsic for rounds {}-{}",
@@ -102,8 +96,7 @@ where
 			end
 		);
 
-		let extrinsic =
-			self.extrinsic_constructor.construct_pulse_extrinsic(public, asig, start, end)?;
+		let extrinsic = Self::construct_extrinsic(asig, start, end)?;
 
 		// Submit to transaction pool
 		let best_hash = self.client.info().best_hash;
@@ -111,7 +104,15 @@ where
 			.transaction_pool
 			.submit_one(best_hash, TransactionSource::Local, extrinsic)
 			.await
-			.map_err(|_| GadgetError::TransactionSubmissionFailed);
+			.map_err(|e| {
+				log::error!(
+					target: LOG_TARGET,
+					"❌ Failed to submit to pool at hash {:?}: {:?}",
+					best_hash,
+					e
+				);
+				GadgetError::TransactionSubmissionFailed
+			})?;
 
 		log::info!(
 			target: LOG_TARGET,
@@ -287,4 +288,53 @@ mod tests {
 		let submitted = pool.pool.lock().clone().leak();
 		assert_eq!(submitted.len(), 3, "Should have submitted three transactions");
 	}
+
+	// 	#[test]
+	// fn test_error_on_invalid_sig_size() {
+	// 	let client = Arc::new(MockParachainClient::new());
+	// 	let keystore = create_test_keystore_with_key();
+	// 	let constructor = RuntimeExtrinsicConstructor::new(client, keystore);
+
+	// 	// invalid signature size - buffer too small
+	// 	let signer = sr25519::Public::from_raw([1u8; 32]);
+	// 	let invalid_sig = vec![0u8; 32];
+
+	// 	let result = constructor.construct_pulse_extrinsic(signer, invalid_sig.clone(), 100, 101);
+
+	// 	assert!(result.is_err());
+	// 	assert!(matches!(result, Err(GadgetError::InvalidSignatureSize(32, 48))));
+	// }
+
+	// #[test]
+	// fn test_error_on_invalid_sig_size_too_long() {
+	// 	let client = Arc::new(MockParachainClient::new());
+	// 	let keystore = create_test_keystore_with_key();
+
+	// 	let constructor = RuntimeExtrinsicConstructor::new(client, keystore);
+
+	// 	let signer = sr25519::Public::from_raw([1u8; 32]);
+	// 	let invalid_sig = vec![0u8; 64]; // Too long
+
+	// 	let result = constructor.construct_pulse_extrinsic(signer, invalid_sig.clone(), 100, 101);
+	// 	assert!(result.is_err());
+	// 	assert!(matches!(result, Err(GadgetError::InvalidSignatureSize(64, 48))));
+	// }
+
+	// #[test]
+	// fn test_correct_sig_size_accepted() {
+	// 	let client = Arc::new(MockParachainClient::new());
+	// 	let keystore = create_test_keystore_with_key();
+
+	// 	let constructor = RuntimeExtrinsicConstructor::new(client, keystore.clone());
+
+	// 	let signer = keystore
+	// 		.sr25519_public_keys(AuthorityPair::ID)
+	// 		.into_iter()
+	// 		.next()
+	// 		.expect("Should have a key in keystore");
+
+	// 	let valid_sig = vec![0u8; SERIALIZED_SIG_SIZE]; // Correct size
+	// 	let result = constructor.construct_pulse_extrinsic(signer, valid_sig, 100, 101);
+	// 	assert!(result.is_ok());
+	// }
 }

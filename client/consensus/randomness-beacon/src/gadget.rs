@@ -22,10 +22,13 @@ use crate::{error::Error as GadgetError, gossipsub::DrandReceiver};
 use ark_bls12_381::G1Affine;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use futures::{stream::Fuse, Future, FutureExt, StreamExt};
+use pallet_randomness_beacon::RandomnessBeaconApi;
+use sc_client_api::HeaderBackend;
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
+use sp_api::ProvideRuntimeApi;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 use std::{pin::Pin, sync::Arc};
-use tokio::sync::RwLock;
+// use tokio::sync::RwLock;
 
 const LOG_TARGET: &str = "rand-beacon-gadget";
 
@@ -100,19 +103,29 @@ where
 
 /// Runs as a background task, monitoring for new pulses and
 /// submitting them to the chain via signed extrinsics.
-pub struct PulseFinalizationGadget<Block: BlockT, S, const MAX_QUEUE_SIZE: usize> {
+pub struct PulseFinalizationGadget<Block, Client, S, const MAX_QUEUE_SIZE: usize> {
+	client: Arc<Client>,
 	pulse_submitter: Arc<S>,
 	pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
-	best_finalized_round: Arc<RwLock<u64>>,
+	// best_finalized_round: Arc<RwLock<u64>>,
 	_phantom: std::marker::PhantomData<Block>,
 }
 
-impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
-	PulseFinalizationGadget<Block, S, MAX_QUEUE_SIZE>
+impl<Block, Client, S, const MAX_QUEUE_SIZE: usize>
+	PulseFinalizationGadget<Block, Client, S, MAX_QUEUE_SIZE>
+where
+	Block: BlockT,
+	Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
+	Client::Api: pallet_randomness_beacon::RandomnessBeaconApi<Block>,
+	S: PulseSubmitter<Block>,
 {
-	pub fn new(pulse_submitter: Arc<S>, pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>) -> Self {
-		let best_finalized_round = Arc::new(RwLock::new(0));
-		Self { pulse_submitter, pulse_receiver, best_finalized_round, _phantom: Default::default() }
+	pub fn new(
+		client: Arc<Client>,
+		pulse_submitter: Arc<S>,
+		pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
+	) -> Self {
+		// let best_finalized_round = Arc::new(RwLock::new(0));
+		Self { client, pulse_submitter, pulse_receiver, _phantom: Default::default() }
 	}
 
 	/// Run the main loop indefinitely.
@@ -142,12 +155,26 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 		&self,
 		notification: &UnpinnedFinalityNotification<Block>,
 	) -> Result<(), GadgetError> {
-		// get 'finalized' round from the runtime
-		let latest_round = *self.best_finalized_round.read().await;
+		// get 'finalized' round from the runtime?
+		// let latest_round = *self.best_finalized_round.read().await;
+		let at_hash = self.client.info().best_hash;
+		let latest_round = self.client.runtime_api().latest_round(at_hash).unwrap_or(0);
+		let max_rounds = self
+			.client
+			.runtime_api()
+			.max_rounds(at_hash)
+			.expect("The max rounds is defined. qed.");
 		// get fresh pulses
 		let pulses = self.pulse_receiver.read().await;
-		let new_pulses: Vec<_> =
-			pulses.clone().into_iter().filter(|p| p.round > latest_round).collect();
+		// only take up to as many pulses that we know will be valid in the runtime
+		// this allows the node to hold a 'backlog' or queue of pulses in the case that
+		// block proposal or block finality significantly lags 
+		let new_pulses: Vec<_> = pulses
+			.clone()
+			.into_iter()
+			.filter(|p| p.round >= latest_round)
+			.take(max_rounds as usize)
+			.collect();
 
 		if let (Some(first), Some(last)) = (new_pulses.first(), new_pulses.last()) {
 			let start = first.round;
@@ -158,7 +185,7 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 				"Block #{:?} finalized (round {}), submitting {} new pulses",
 				notification.header.number(),
 				latest_round,
-				new_pulses.len()
+				end.saturating_sub(start)
 			);
 
 			// aggregate sigs
@@ -177,10 +204,10 @@ impl<Block: BlockT, S: PulseSubmitter<Block>, const MAX_QUEUE_SIZE: usize>
 
 			self.pulse_submitter.submit_pulse(asig_bytes, start, end).await?;
 
-			let mut best = self.best_finalized_round.write().await;
-			*best = end;
+			// let mut best = self.best_finalized_round.write().await;
+			// *best = end;
 			// release the write lock
-			drop(best);
+			// drop(best);
 		} else {
 			log::info!(
 				target: LOG_TARGET,
