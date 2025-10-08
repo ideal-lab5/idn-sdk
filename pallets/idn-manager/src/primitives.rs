@@ -158,8 +158,6 @@ pub struct SubInfoRequest<SubId, CallData> {
 	pub call: CallData,
 	/// Origin kind for the callback XCM message
 	pub origin_kind: OriginKind,
-	/// XCM multilocation for info delivery
-	pub target: Location
 }
 
 /// The subscription info returned by the IDN Manager to the target parachain.

@@ -780,7 +780,7 @@ pub mod pallet {
 			log::trace!(target: LOG_TARGET, "Get subscription info request received: {:?}", req);
 			// Ensure the origin is valid, and get the location
 			let requester: Location = T::XcmOriginFilter::ensure_origin(origin.clone())?;
-			let target = req.target;
+			let target = Self::extract_parachain_location(&requester)?;
 			let acc = &T::XcmLocationToAccountId::convert_location(&requester)
 								.ok_or_else(|| {
 									log::warn!(target: LOG_TARGET, "InvalidSubscriber: failed to convert XCM location to AccountId");
