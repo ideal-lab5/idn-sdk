@@ -157,7 +157,7 @@ impl xcm_builder::SendController<RuntimeOrigin> for MockXcm {
 
 parameter_types! {
 	pub IdnLocation: Location = Location::new(1, Junction::Parachain(2000));
-	pub IdnConsumerParaId: ParaId = 2001.into();
+	pub IdnConsumerParaId: ParaId = 4594.into();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 	pub const MaxIdnXcmFees: u128 = 1_000;
 	pub const AccountNetwork: Option<NetworkId> = Some(NetworkId::Polkadot);
