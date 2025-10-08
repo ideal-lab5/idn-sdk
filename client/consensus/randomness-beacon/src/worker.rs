@@ -96,7 +96,7 @@ where
 mod tests {
 	use super::*;
 	use crate::mock::*;
-	use sc_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE;
+	use sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE;
 	use std::sync::Arc;
 
 	#[tokio::test]
