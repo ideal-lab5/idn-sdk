@@ -115,7 +115,7 @@ mod example_consumer {
 			IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
 			Quote, SubInfoResponse, SubscriptionId, RequestReference
 		},
-		Error, IdnClient, IdnConsumer,
+		Error, IdnClient, IdnConsumer, SubLocal, SubInfoResponseLocal, SubscriptionStateLocal
 	};
 	use ink::prelude::vec::Vec;
 	use scale_info::prelude::vec;
@@ -177,7 +177,8 @@ mod example_consumer {
 		/// subscription operations, providing a simplified interface for IDN interactions.
 		idn_client: IdnClient,
 		sub_info_received: bool,
-		quote_received: bool
+		quote_received: bool,
+		sub_info: Option<SubInfoResponseLocal>
 	}
 
 	/// Errors that can occur during Example Consumer contract operations.
@@ -310,6 +311,7 @@ mod example_consumer {
 				randomness_history: Vec::new(),
 				pulse_history: Vec::new(),
 				sub_info_received: false,
+				sub_info: None,
 				quote_received: false,
 				idn_client: IdnClient::new(
 					idn_para_id.into(),
@@ -444,8 +446,8 @@ mod example_consumer {
 		/// This function is a way to verify that consume_sub_info has been properly invoked
 		/// via the XCM callback after a user calls request_sub_info.
 		#[ink(message)]
-		pub fn check_sub_info(&self) -> bool {
-			self.sub_info_received
+		pub fn check_sub_info(&self) -> Option<SubInfoResponseLocal> {
+			self.sub_info.clone()
 		}
 
 		/// Temporarily pauses the active randomness subscription.
@@ -791,6 +793,7 @@ mod example_consumer {
 		fn consume_sub_info(&mut self, sub_info: SubInfoResponse) -> Result<(), Error> {
 			self.ensure_authorized_deliverer()?;
 			self.sub_info_received = true;
+			self.sub_info = Some(SubInfoResponseLocal::from(sub_info));
 			Ok(())
 		}
 	}

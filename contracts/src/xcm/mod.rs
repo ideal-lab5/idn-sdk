@@ -177,10 +177,10 @@ use sp_idn_traits::pulse::Pulse as TPulse;
 use types::{
 	AccountId, Balance, CallData, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata,
 	OriginKind, PalletIndex, ParaId, Pulse, Quote, SubInfoResponse, SubscriptionId,
-	UpdateSubParams,
+	UpdateSubParams, SubscriptionState
 };
 
-pub use bp_idn::{Call as RuntimeCall, IdnManagerCall, types::SubInfoRequest};
+pub use bp_idn::{Call as RuntimeCall, IdnManagerCall, types::{SubInfoRequest}};
 
 use crate::xcm::constants::{CONSUME_PULSE_SEL, CONSUME_QUOTE_SEL, CONSUME_SUB_INFO_SEL};
 
@@ -326,6 +326,159 @@ impl From<EnvError> for Error {
 		}
 	}
 }
+
+/// Enums used to store the SubscriptionState in the Ink! Smart contract
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
+#[derive(Debug, Clone)]
+#[ink::scale_derive(Encode, Decode)]
+pub enum SubscriptionStateLocal {
+    Active,
+    Paused,
+	Finalized
+}
+
+impl From<SubscriptionState> for SubscriptionStateLocal {
+    fn from(s: SubscriptionState) -> Self {
+        match s {
+            SubscriptionState::Active => Self::Active,
+            SubscriptionState::Paused => Self::Paused,
+            SubscriptionState::Finalized => Self::Finalized,
+        }
+    }
+}
+
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
+#[derive(Debug, Clone)]
+#[ink::scale_derive(Encode, Decode)]
+pub enum OriginKindLocal {
+	Native,
+	SovereignAccount,
+	Superuser,
+	Xcm,
+}
+
+impl From<OriginKind> for OriginKindLocal {
+    fn from(s: OriginKind) -> Self {
+        match s {
+            OriginKind::Native => Self::Native,
+            OriginKind::SovereignAccount => Self::SovereignAccount,
+            OriginKind::Superuser => Self::Superuser,
+			OriginKind::Xcm => Self::Xcm,
+        }
+    }
+}
+
+// #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
+// #[derive(Debug, Clone)]
+// #[ink::scale_derive(Encode, Decode)]
+// pub struct LocationLocal {
+// 	pub parents: u8,
+	
+// 	pub interior: Vec<Vec<u8>>,
+// }
+
+// impl From<IdnXcm::Location> for LocationLocal {
+//     fn from(loc: IdnXcm::Location) -> Self {
+//         // helper to convert Junctions -> Vec<Vec<u8>>
+//         fn junctions_to_vec(j: bp_idn::types::xcm::Junctions) -> Vec<Vec<u8>> {
+//             match j {
+//                 bp_idn::types::xcm::Junctions::Here => Vec::new(),
+//         		bp_idn::types::xcm::Junctions::X1(arc) => encode_arc(&arc),
+//         		bp_idn::types::xcm::Junctions::X2(arc) => encode_arc(&arc),
+//         		bp_idn::types::xcm::Junctions::X3(arc) => encode_arc(&arc),
+//         		bp_idn::types::xcm::Junctions::X4(arc) => encode_arc(&arc),
+//         		bp_idn::types::xcm::Junctions::X5(arc) => encode_arc(&arc),
+//         		bp_idn::types::xcm::Junctions::X6(arc) => encode_arc(&arc),
+//         		bp_idn::types::xcm::Junctions::X7(arc) => encode_arc(&arc),
+//         		bp_idn::types::xcm::Junctions::X8(arc) => encode_arc(&arc),
+//             }
+//         }
+
+// 		fn encode_arc<T: AsRef<[bp_idn::types::xcm::Junction]>>(arc: &alloc::sync::Arc<T>) -> Vec<Vec<u8>> {
+//         	arc.as_ref().as_ref().iter().map(|j| j.encode()).collect()
+//     	}
+
+//         Self {
+//             parents: loc.parents,
+//             interior: junctions_to_vec(loc.interior),
+//         }
+//     }
+// }
+
+
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
+#[derive(Debug, Clone)]
+#[ink::scale_derive(Encode, Decode)]
+pub struct SubDetailsLocal {
+		subscriber: Vec<u8>,
+		// target: LocationLocal,
+		// call: Vec<u8>,
+		origin_kind: OriginKindLocal,
+}
+
+impl From<SubscriptionDetails> for SubDetailsLocal {
+	fn from(sub_details: SubscriptionDetails) -> Self {
+		Self {
+			subscriber: sub_details.subscriber.encode(),
+			// target: LocationLocal::from(sub_details.target),
+			// call: sub_details.call.into(),
+			origin_kind: OriginKindLocal::from(sub_details.origin_kind),
+			
+		}
+	}
+}
+
+/// Struct used to store the Subscription within the SubInfoResponse returned from IDN when request_sub_info is invoked
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
+#[derive(Debug, Clone)]
+#[ink::scale_derive(Encode, Decode)]
+pub struct SubLocal {
+	pub id: [u8; 32],
+	pub credits_left: u64,
+	pub state: SubscriptionStateLocal,
+	pub created_at: u32,
+	pub updated_at: u32,
+	pub credits: u64,
+	pub frequency: u32,
+	pub metadata: Option<Vec<u8>>,
+	pub last_delivered: Option<u32>,
+	pub sub_details: SubDetailsLocal
+}
+
+impl From<Subscription> for SubLocal {
+	fn from(sub: Subscription) -> Self {
+		Self {
+			id: sub.id,
+			credits_left: sub.credits_left,
+			state: SubscriptionStateLocal::from(sub.state),
+			created_at: sub.created_at,
+			updated_at: sub.updated_at,
+			credits: sub.credits,
+			frequency: sub.frequency,
+			metadata: sub.metadata.map(|v| v.into()),
+			last_delivered: sub.last_delivered,
+			sub_details: SubDetailsLocal::from(sub.details)
+		}	
+	}
+}
+/// Struct used to store the SubInfoResponse returned from IDN when request_sub_info is invoked
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
+#[derive(Debug, Clone)]
+#[ink::scale_derive(Encode, Decode)]
+pub struct SubInfoResponseLocal {
+    pub req_ref: [u8; 32],
+    pub sub: SubLocal,
+}
+
+impl From<SubInfoResponse> for SubInfoResponseLocal {
+	fn from(sub_info: SubInfoResponse) -> Self {
+		Self {
+			req_ref: sub_info.req_ref,
+			sub: SubLocal::from(sub_info.sub),
+		}
+	}
+}
+
 
 /// Result type for IDN client operations
 ///
