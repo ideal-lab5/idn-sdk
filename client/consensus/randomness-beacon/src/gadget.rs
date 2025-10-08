@@ -215,7 +215,6 @@ where
 mod tests {
 	use super::*;
 	use crate::mock::MockClient;
-	use pallet_randomness_beacon::RandomnessBeaconApi;
 	use sp_consensus_randomness_beacon::types::CanonicalPulse;
 	use sp_runtime::{
 		generic::Header,

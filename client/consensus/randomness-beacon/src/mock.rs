@@ -7,11 +7,8 @@ use sc_transaction_pool_api::{
 	ImportNotificationStream, PoolStatus, ReadyTransactions, TransactionFor, TransactionPool,
 	TransactionSource, TransactionStatusStreamFor, TxHash, TxInvalidityReportMap,
 };
-use sp_application_crypto::{sr25519, AppCrypto};
 use sp_api::ApiError;
 use sp_blockchain::Result as BlockchainResult;
-use sp_consensus_aura::sr25519::AuthorityPair;
-use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 use sp_runtime::{
 	generic::Header,
 	traits::{BlakeTwo256, Block as BlockT},
@@ -47,14 +44,12 @@ pub(crate) type TestBlock =
 #[derive(Clone)]
 pub(crate) struct MockRuntimeApiState {
     pub latest_round: Arc<Mutex<u64>>,
-    pub max_rounds: Arc<Mutex<u8>>,
 }
 
 impl MockRuntimeApiState {
     pub fn new() -> Self {
         Self {
             latest_round: Arc::new(Mutex::new(0)),
-            max_rounds: Arc::new(Mutex::new(6)),
         }
     }
 }

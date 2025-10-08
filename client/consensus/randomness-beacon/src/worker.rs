@@ -123,218 +123,152 @@ where
 	}
 }
 
-// #[cfg(test)]
-// mod tests {
-// 	use super::*;
-// 	use crate::mock::*;
-// 	use std::sync::Arc;
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::mock::*;
+	use std::sync::Arc;
 
-// 	#[tokio::test]
-// 	async fn test_can_construct_pulse_worker() {
-// 		let keystore = create_test_keystore_with_key().await;
-// 		let client = Arc::new(MockClient::new());
-// 		let pool = Arc::new(MockTransactionPool::new());
-// 		let constructor = Arc::new(MockExtrinsicConstructor::new());
+	#[tokio::test]
+	async fn test_can_construct_pulse_worker() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
 
-// 		let _worker = PulseWorker::<
-// 			TestBlock,
-// 			MockClient,
-// 			MockTransactionPool,
-// 			MockExtrinsicConstructor,
-// 		>::new(client, keystore, pool, constructor);
-// 		// If we get here, construction succeeded
-// 	}
+		let _worker = PulseWorker::<
+			TestBlock,
+			MockClient,
+			MockTransactionPool,
+		>::new(client, pool);
+		// If we get here, construction succeeded
+	}
 
-// 	#[tokio::test]
-// 	async fn test_submit_pulse_success() {
-// 		let keystore = create_test_keystore_with_key().await;
-// 		let client = Arc::new(MockClient::new());
-// 		let pool = Arc::new(MockTransactionPool::new());
-// 		let constructor = Arc::new(MockExtrinsicConstructor::new());
+	#[tokio::test]
+	async fn test_submit_pulse_success() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
 
-// 		let worker = PulseWorker::new(client.clone(), keystore, pool.clone(), constructor);
+		let worker = PulseWorker::new(client.clone(), pool.clone());
 
-// 		// Create a test signature
-// 		let asig = vec![0u8; 48];
+		// Create a test signature
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
-// 		// Submit pulse
-// 		let result = worker.submit_pulse(asig, 100, 101).await;
+		// Submit pulse
+		let result = worker.submit_pulse(asig, 100, 101).await;
 
-// 		assert!(result.is_ok(), "Pulse submission should succeed");
+		assert!(result.is_ok(), "Pulse submission should succeed");
 
-// 		// Verify transaction was submitted to pool: submit one should have been called
-// 		let txs = pool.pool.lock().clone().leak();
-// 		assert!(txs.len() == 1, "The transaction should be included in the pool");
-// 	}
+		// Verify transaction was submitted to pool
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 1, "The transaction should be included in the pool");
+	}
 
-// 	#[tokio::test]
-// 	async fn test_submit_pulse_no_authority_key() {
-// 		let keystore = create_test_keystore_empty();
-// 		let client = Arc::new(MockClient::new());
-// 		let pool = Arc::new(MockTransactionPool::new());
-// 		let constructor = Arc::new(MockExtrinsicConstructor::new());
+	#[tokio::test]
+	async fn test_submit_pulse_invalid_signature_size() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
 
-// 		let worker = PulseWorker::new(client, keystore, pool, constructor);
+		let worker = PulseWorker::new(client, pool.clone());
 
-// 		let asig = vec![0u8; 48];
+		// Create invalid signature (wrong size)
+		let asig = vec![0u8; 32]; // Too small
 
-// 		// Should fail because no authority key exists
-// 		let result = worker.submit_pulse(asig, 100, 101).await;
+		// Should fail because signature size is wrong
+		let result = worker.submit_pulse(asig, 100, 101).await;
 
-// 		assert!(result.is_err(), "Should fail when no authority key found");
-// 		assert!(matches!(result, Err(GadgetError::NoAuthorityKeys)));
-// 	}
+		assert!(result.is_err(), "Should fail when signature size is invalid");
+		assert!(matches!(result, Err(GadgetError::InvalidSignatureSize(32, 48))));
 
-// 	#[tokio::test]
-// 	async fn test_submit_pulse_extrinsic_construction_fails() {
-// 		let keystore = create_test_keystore_with_key().await;
-// 		let client = Arc::new(MockClient::new());
-// 		let pool = Arc::new(MockTransactionPool::new());
-// 		let constructor = Arc::new(MockExtrinsicConstructor::new());
+		// Verify nothing was submitted
+		assert_eq!(
+			pool.pool.lock().len(),
+			0,
+			"Should not submit if signature size is invalid"
+		);
+	}
 
-// 		// Make constructor fail
-// 		constructor.set_should_fail(true);
+	#[tokio::test]
+	async fn test_submit_pulse_signature_too_long() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
 
-// 		let worker = PulseWorker::new(client, keystore, pool.clone(), constructor);
+		let worker = PulseWorker::new(client, pool.clone());
 
-// 		let asig = vec![0u8; 48];
+		let asig = vec![0u8; 64]; // Too long
 
-// 		// Should fail at extrinsic construction
-// 		let result = worker.submit_pulse(asig, 100, 101).await;
+		let result = worker.submit_pulse(asig, 100, 101).await;
+		
+		assert!(result.is_err(), "Should fail when signature is too long");
+		assert!(matches!(result, Err(GadgetError::InvalidSignatureSize(64, 48))));
+		
+		// Verify nothing was submitted
+		assert_eq!(pool.pool.lock().len(), 0);
+	}
 
-// 		assert!(result.is_err(), "Should fail when extrinsic construction fails");
+	#[tokio::test]
+	async fn test_submit_pulse_tx_pool_failure() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		
+		// Make pool fail
+		pool.set_should_fail(true);
 
-// 		// Verify nothing was submitted
-// 		assert_eq!(
-// 			pool.pool.lock().clone().leak().len(),
-// 			0,
-// 			"Should not submit if construction fails"
-// 		);
-// 	}
+		let worker = PulseWorker::new(client.clone(), pool.clone());
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
-// 	#[tokio::test]
-// 	async fn test_submit_pulse_tx_inclusion_failure() {
-// 		let keystore = create_test_keystore_with_key().await;
-// 		let client = Arc::new(MockClient::new());
+		// Submit pulse - should fail at pool submission
+		let result = worker.submit_pulse(asig, 100, 101).await;
+		
+		assert!(result.is_err(), "Should fail when pool submission fails");
+		assert!(matches!(result, Err(GadgetError::TransactionSubmissionFailed)));
+		
+		// Verify pool is empty
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 0, "The transaction pool should be empty");
+	}
 
-// 		let tx_pool = MockTransactionPool::new();
-// 		tx_pool.set_should_fail(true);
-// 		let pool = Arc::new(tx_pool);
+	#[tokio::test]
+	async fn test_submit_multiple_pulses() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
 
-// 		let constructor = Arc::new(MockExtrinsicConstructor::new());
+		let worker = PulseWorker::new(client, pool.clone());
 
-// 		let worker = PulseWorker::new(client.clone(), keystore, pool.clone(), constructor);
-// 		let asig = vec![0u8; 48];
+		// Submit multiple pulses
+		for i in 0..3 {
+			let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+			let result = worker.submit_pulse(asig, 100 + i, 100 + i).await;
+			assert!(result.is_ok(), "Pulse submission {} should succeed", i);
+		}
 
-// 		// Submit pulse
-// 		let _result = worker.submit_pulse(asig, 100, 101).await;
-// 		let txs = pool.pool.lock().clone().leak();
-// 		assert!(txs.len() == 0, "The transaction pool should be empty");
-// 	}
+		// Verify all transactions were submitted
+		let submitted = pool.pool.lock().clone();
+		assert_eq!(submitted.len(), 3, "Should have submitted three transactions");
+	}
 
-// 	#[tokio::test]
-// 	async fn test_get_authority_key_success() {
-// 		let keystore = create_test_keystore_with_key().await;
-// 		let client = Arc::new(MockClient::new());
-// 		let pool = Arc::new(MockTransactionPool::new());
-// 		let constructor = Arc::new(MockExtrinsicConstructor::new());
+	#[tokio::test]
+	async fn test_construct_extrinsic_valid() {
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+		
+		let result = PulseWorker::<TestBlock, MockClient, MockTransactionPool>::construct_extrinsic(
+			asig,
+			100,
+			101
+		);
+		
+		assert!(result.is_ok(), "Should successfully construct extrinsic with valid signature");
+	}
 
-// 		let worker: PulseWorker<
-// 			TestBlock,
-// 			MockClient,
-// 			MockTransactionPool,
-// 			MockExtrinsicConstructor,
-// 		> = PulseWorker::new(client, keystore, pool, constructor);
-
-// 		let key = worker.get_authority_key();
-// 		assert!(key.is_ok(), "Should successfully retrieve authority key");
-// 	}
-
-// 	#[tokio::test]
-// 	async fn test_get_authority_key_not_found() {
-// 		let keystore = create_test_keystore_empty();
-// 		let client = Arc::new(MockClient::new());
-// 		let pool = Arc::new(MockTransactionPool::new());
-// 		let constructor = Arc::new(MockExtrinsicConstructor::new());
-
-// 		let worker: PulseWorker<
-// 			TestBlock,
-// 			MockClient,
-// 			MockTransactionPool,
-// 			MockExtrinsicConstructor,
-// 		> = PulseWorker::new(client, keystore, pool, constructor);
-
-// 		let key = worker.get_authority_key();
-// 		assert!(key.is_err(), "Should fail when no authority key exists");
-// 	}
-
-// 	#[tokio::test]
-// 	async fn test_submit_multiple_pulses() {
-// 		let keystore = create_test_keystore_with_key().await;
-// 		let client = Arc::new(MockClient::new());
-// 		let pool = Arc::new(MockTransactionPool::new());
-// 		let constructor = Arc::new(MockExtrinsicConstructor::new());
-
-// 		let worker = PulseWorker::new(client, keystore, pool.clone(), constructor);
-
-// 		// Submit multiple pulses
-// 		for i in 0..3 {
-// 			let asig = vec![0u8; 48];
-// 			let result = worker.submit_pulse(asig, 100 + i, 100 + i).await;
-// 			assert!(result.is_ok(), "Pulse submission {} should succeed", i);
-// 		}
-
-// 		// Verify all transactions were submitted
-// 		let submitted = pool.pool.lock().clone().leak();
-// 		assert_eq!(submitted.len(), 3, "Should have submitted three transactions");
-// 	}
-
-// 	// 	#[test]
-// 	// fn test_error_on_invalid_sig_size() {
-// 	// 	let client = Arc::new(MockParachainClient::new());
-// 	// 	let keystore = create_test_keystore_with_key();
-// 	// 	let constructor = RuntimeExtrinsicConstructor::new(client, keystore);
-
-// 	// 	// invalid signature size - buffer too small
-// 	// 	let signer = sr25519::Public::from_raw([1u8; 32]);
-// 	// 	let invalid_sig = vec![0u8; 32];
-
-// 	// 	let result = constructor.construct_pulse_extrinsic(signer, invalid_sig.clone(), 100, 101);
-
-// 	// 	assert!(result.is_err());
-// 	// 	assert!(matches!(result, Err(GadgetError::InvalidSignatureSize(32, 48))));
-// 	// }
-
-// 	// #[test]
-// 	// fn test_error_on_invalid_sig_size_too_long() {
-// 	// 	let client = Arc::new(MockParachainClient::new());
-// 	// 	let keystore = create_test_keystore_with_key();
-
-// 	// 	let constructor = RuntimeExtrinsicConstructor::new(client, keystore);
-
-// 	// 	let signer = sr25519::Public::from_raw([1u8; 32]);
-// 	// 	let invalid_sig = vec![0u8; 64]; // Too long
-
-// 	// 	let result = constructor.construct_pulse_extrinsic(signer, invalid_sig.clone(), 100, 101);
-// 	// 	assert!(result.is_err());
-// 	// 	assert!(matches!(result, Err(GadgetError::InvalidSignatureSize(64, 48))));
-// 	// }
-
-// 	// #[test]
-// 	// fn test_correct_sig_size_accepted() {
-// 	// 	let client = Arc::new(MockParachainClient::new());
-// 	// 	let keystore = create_test_keystore_with_key();
-
-// 	// 	let constructor = RuntimeExtrinsicConstructor::new(client, keystore.clone());
-
-// 	// 	let signer = keystore
-// 	// 		.sr25519_public_keys(AuthorityPair::ID)
-// 	// 		.into_iter()
-// 	// 		.next()
-// 	// 		.expect("Should have a key in keystore");
-
-// 	// 	let valid_sig = vec![0u8; SERIALIZED_SIG_SIZE]; // Correct size
-// 	// 	let result = constructor.construct_pulse_extrinsic(signer, valid_sig, 100, 101);
-// 	// 	assert!(result.is_ok());
-// 	// }
-// }
+	#[tokio::test]
+	async fn test_construct_extrinsic_invalid_size() {
+		let asig = vec![0u8; 32]; // Wrong size
+		
+		let result = PulseWorker::<TestBlock, MockClient, MockTransactionPool>::construct_extrinsic(
+			asig,
+			100,
+			101
+		);
+		
+		assert!(result.is_err(), "Should fail with invalid signature size");
+		assert!(matches!(result, Err(GadgetError::InvalidSignatureSize(32, 48))));
+	}
+}
