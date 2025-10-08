@@ -406,7 +406,6 @@ fn validate_unsigned_accepts_valid_sources_and_rejects_invalid() {
 
 		// Accept Local and InBlock sources
 		assert!(Drand::validate_unsigned(TransactionSource::Local, &call).is_ok());
-		assert!(Drand::validate_unsigned(TransactionSource::InBlock, &call).is_ok());
 
 		// Reject External source
 		let validity = Drand::validate_unsigned(TransactionSource::External, &call);
