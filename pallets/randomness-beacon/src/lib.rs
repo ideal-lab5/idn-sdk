@@ -268,7 +268,7 @@ pub mod pallet {
 		#[allow(clippy::useless_conversion)]
 		pub fn try_submit_asig(
 			origin: OriginFor<T>,
-			asig: OpaqueSignature, // offchain aggregation
+			asig: OpaqueSignature,
 			start: RoundNumber,
 			end: RoundNumber,
 		) -> DispatchResult {
@@ -358,7 +358,6 @@ impl<T: Config> Pallet<T> {
 		T::MaxSigsPerBlock::get()
 	}
 }
-
 
 impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T>
 where
