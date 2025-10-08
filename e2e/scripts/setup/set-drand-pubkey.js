@@ -6,19 +6,12 @@ async function run(nodeName, networkInfo, args) {
     const api = await zombie.connect(wsUri, userDefinedTypes);
 
     await zombie.util.cryptoWaitReady();
-
-    const drand_info = await fetch('https://api.drand.sh/v2/chains/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/rounds/latest');
-    const drand_resp = await drand_info.json();
-
-    const round = drand_resp["round"];
     
     const keyring = new zombie.Keyring({ type: "sr25519" });
     const alice = keyring.addFromUri("//Alice");
     const sudoPair = keyring.getPair(alice.publicKey);
 
-    const call = {publicKey: DRAND_PUBKEY, genesisRound: round};
-
-    const unsub = await api.tx.sudo.sudo(api.tx.randBeacon.setBeaconConfig(call)).signAndSend(sudoPair, (result)=>{
+    const unsub = await api.tx.sudo.sudo(api.tx.randBeacon.setBeaconConfig(DRAND_PUBKEY)).signAndSend(sudoPair, (result)=>{
         if (result.status.isInBlock) {
             console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
           } else if (result.status.isFinalized) {
