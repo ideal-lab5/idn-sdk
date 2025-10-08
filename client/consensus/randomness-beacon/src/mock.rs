@@ -69,26 +69,25 @@ impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
 		Ok(6)
 	}
 
-    
-    fn build_extrinsic(
+	fn build_extrinsic(
 		&self,
 		_hash: <TestBlock as BlockT>::Hash,
-        asig: Vec<u8>,
-        start: u64,
-        end: u64
-    ) -> Result<<TestBlock as BlockT>::Extrinsic, ApiError> {
-        if start == 0 {
+		asig: Vec<u8>,
+		start: u64,
+		end: u64,
+	) -> Result<<TestBlock as BlockT>::Extrinsic, ApiError> {
+		if start == 0 {
 			// just an arbitrary api error
 			return Err(ApiError::UsingSameInstanceForDifferentBlocks);
 		}
-        
-        // Encode the call data
-        use codec::Encode;
-        let call_data = (asig, start, end).encode();
-        
-        // Wrap in OpaqueExtrinsic
-        Ok(OpaqueExtrinsic::from_bytes(&call_data).unwrap())
-    }
+
+		// Encode the call data
+		use codec::Encode;
+		let call_data = (asig, start, end).encode();
+
+		// Wrap in OpaqueExtrinsic
+		Ok(OpaqueExtrinsic::from_bytes(&call_data).unwrap())
+	}
 
 	fn __runtime_api_internal_call_api_at(
 		&self,

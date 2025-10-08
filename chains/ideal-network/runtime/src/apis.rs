@@ -356,7 +356,7 @@ impl_runtime_apis! {
 
 	impl pallet_randomness_beacon::RandomnessBeaconApi<Block> for Runtime {
 
-		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> Option<<Block as BlockT>::Extrinsic> {
+		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> <Block as BlockT>::Extrinsic {
 			// Try to convert Vec<u8> to fixed size array
 			let formatted: [u8; 48] = match asig.try_into() {
 				Ok(arr) => arr,
@@ -371,7 +371,7 @@ impl_runtime_apis! {
 				}
 			);
 
-			Some(crate::UncheckedExtrinsic::new_bare(call))
+			crate::UncheckedExtrinsic::new_bare(call)
 		}
 
 		fn latest_round() -> sp_consensus_randomness_beacon::types::RoundNumber {

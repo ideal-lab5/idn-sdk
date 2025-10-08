@@ -384,6 +384,6 @@ sp_api::decl_runtime_apis! {
 	pub trait RandomnessBeaconApi {
 		fn latest_round() -> sp_consensus_randomness_beacon::types::RoundNumber;
 		fn max_rounds() -> u8;
-		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> Option<Block::Extrinsic>;
+		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> Block::Extrinsic;
 	}
 }
