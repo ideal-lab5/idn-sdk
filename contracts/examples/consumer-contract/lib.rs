@@ -115,7 +115,7 @@ mod example_consumer {
 			IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
 			Quote, SubInfoResponse, SubscriptionId, RequestReference
 		},
-		Error, IdnClient, IdnConsumer, SubLocal, SubInfoResponseLocal, SubscriptionStateLocal
+		Error, IdnClient, IdnConsumer, SubInfo
 	};
 	use ink::prelude::vec::Vec;
 	use scale_info::prelude::vec;
@@ -178,7 +178,7 @@ mod example_consumer {
 		idn_client: IdnClient,
 		sub_info_received: bool,
 		quote_received: bool,
-		sub_info: Option<SubInfoResponseLocal>
+		sub_info: Option<SubInfo>
 	}
 
 	/// Errors that can occur during Example Consumer contract operations.
@@ -446,7 +446,7 @@ mod example_consumer {
 		/// This function is a way to verify that consume_sub_info has been properly invoked
 		/// via the XCM callback after a user calls request_sub_info.
 		#[ink(message)]
-		pub fn check_sub_info(&self) -> Option<SubInfoResponseLocal> {
+		pub fn check_sub_info(&self) -> Option<SubInfo> {
 			self.sub_info.clone()
 		}
 
@@ -793,7 +793,7 @@ mod example_consumer {
 		fn consume_sub_info(&mut self, sub_info: SubInfoResponse) -> Result<(), Error> {
 			self.ensure_authorized_deliverer()?;
 			self.sub_info_received = true;
-			self.sub_info = Some(SubInfoResponseLocal::from(sub_info));
+			self.sub_info = Some(sub_info.into());
 			Ok(())
 		}
 	}
