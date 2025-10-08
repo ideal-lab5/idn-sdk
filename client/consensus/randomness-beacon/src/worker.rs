@@ -18,10 +18,10 @@ use crate::{
 	error::Error as GadgetError,
 	gadget::{PulseSubmitter, SERIALIZED_SIG_SIZE},
 };
+use pallet_randomness_beacon::RandomnessBeaconApi;
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
 use sp_api::ProvideRuntimeApi;
-use pallet_randomness_beacon::RandomnessBeaconApi;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
@@ -88,13 +88,16 @@ where
 					target: LOG_TARGET,
 					"Submitted pulse extrinsic",
 				);
-			}
+			},
 			Ok(None) => {
-				return Err(GadgetError::InvalidSignatureSize(asig.len() as u8, SERIALIZED_SIG_SIZE as u8));
-			}
+				return Err(GadgetError::InvalidSignatureSize(
+					asig.len() as u8,
+					SERIALIZED_SIG_SIZE as u8,
+				));
+			},
 			Err(_e) => {
 				// Handle runtime API error?
-			}
+			},
 		}
 
 		Ok(best_hash)
