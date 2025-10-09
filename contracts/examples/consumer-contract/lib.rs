@@ -114,7 +114,7 @@ mod example_consumer {
 			types::{
 				ConsumerParaId, ContractsCallIndex, ContractsPalletIndex, Credits, IdnBalance,
 				IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
-				Quote, SubInfoResponse, SubscriptionId, RequestReference, SubInfo
+				Quote, SubInfoResponse, SubscriptionId, RequestReference
 			}, Error, IdnClient, IdnConsumer
 		},
 	};
@@ -181,7 +181,7 @@ mod example_consumer {
 		/// Limited to 100 most recent entries.
 		quote_history: Vec<Quote>,
 		/// The most recently received SubInfoResponse.
-		sub_info: Option<SubInfo>,
+		sub_info_history: Vec<SubInfoResponse>,
 	}
 
 	/// Errors that can occur during Example Consumer contract operations.
@@ -314,7 +314,7 @@ mod example_consumer {
 				randomness_history: Vec::new(),
 				pulse_history: Vec::new(),
 				quote_history: Vec::new(),
-				sub_info: None,
+				sub_info_history: Vec::new(),
 				idn_client: IdnClient::new(
 					idn_para_id.into(),
 					idn_manager_pallet_index.into(),
@@ -448,8 +448,8 @@ mod example_consumer {
 		/// This function is a way to verify that consume_sub_info has been properly invoked
 		/// via the XCM callback after a user calls request_sub_info.
 		#[ink(message)]
-		pub fn get_sub_info(&self) -> Option<SubInfo> {
-			self.sub_info.clone()
+		pub fn get_sub_info_history(&self) -> Vec<SubInfoResponse> {
+			self.sub_info_history.clone()
 		}
 
 		/// Temporarily pauses the active randomness subscription.
@@ -730,6 +730,15 @@ mod example_consumer {
 			}
 			self.quote_history.push(quote);
 		}
+
+				/// Adds a quote to the history, maintaining max 100 items
+		fn add_to_sub_info_history(&mut self, sub_info: SubInfoResponse) {
+			if self.sub_info_history.len() >= MAX_HISTORY_SIZE {
+				// Remove the oldest item to make space
+				self.sub_info_history.remove(0);
+			}
+			self.sub_info_history.push(sub_info);
+		}
 	}
 
 	/// Implementation of the IdnConsumer trait for receiving IDN callbacks.
@@ -776,7 +785,7 @@ mod example_consumer {
 			subscription_id: SubscriptionId,
 		) -> Result<(), Error> {
 			// Make sure the caller is the IDN account
-			// self.ensure_authorized_deliverer()?;
+			self.ensure_authorized_deliverer()?;
 
 			// Verify that the subscription ID matches our active subscription
 			if subscription_id != self.ensure_active_sub()? {
@@ -804,7 +813,7 @@ mod example_consumer {
 		#[ink(message)]
 		fn consume_sub_info(&mut self, sub_info: SubInfoResponse) -> Result<(), Error> {
 			self.ensure_authorized_deliverer()?;
-			self.sub_info = Some(sub_info.into());
+			self.add_to_sub_info_history(sub_info);
 			Ok(())
 		}
 	}
