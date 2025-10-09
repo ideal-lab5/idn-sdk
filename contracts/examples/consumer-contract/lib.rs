@@ -347,6 +347,14 @@ mod example_consumer {
 			Ok(())
 		}
 
+		/// Adds a quote to the history, maintaining max 100 items
+		fn add_to_quote_history(&mut self, quote: Quote) {
+			if self.quote_history.len() >= MAX_HISTORY_SIZE {
+				// Remove the oldest item to make space
+				self.quote_history.remove(0);
+			}
+			self.quote_history.push(quote);
+		}
 
 		/// This function is a way to verify that consume_quote has been properly invoked
 		/// via the XCM callback after a user calls request_quote.
@@ -439,6 +447,15 @@ mod example_consumer {
 				.request_sub_info(subscription_id, metadata, None, None, None)
 				.map_err(ContractError::IdnClientError)?;
 			Ok(())
+		}
+
+		/// Adds a SubInfoResponse to the history, maintaining max 100 items
+		fn add_to_sub_info_history(&mut self, sub_info: SubInfoResponse) {
+			if self.sub_info_history.len() >= MAX_HISTORY_SIZE {
+				// Remove the oldest item to make space
+				self.sub_info_history.remove(0);
+			}
+			self.sub_info_history.push(sub_info);
 		}
 
 		/// This function is a way to verify that consume_sub_info has been properly invoked
@@ -716,24 +733,6 @@ mod example_consumer {
 				self.pulse_history.remove(0);
 			}
 			self.pulse_history.push((pulse, validity));
-		}
-
-		/// Adds a quote to the history, maintaining max 100 items
-		fn add_to_quote_history(&mut self, quote: Quote) {
-			if self.quote_history.len() >= MAX_HISTORY_SIZE {
-				// Remove the oldest item to make space
-				self.quote_history.remove(0);
-			}
-			self.quote_history.push(quote);
-		}
-
-				/// Adds a quote to the history, maintaining max 100 items
-		fn add_to_sub_info_history(&mut self, sub_info: SubInfoResponse) {
-			if self.sub_info_history.len() >= MAX_HISTORY_SIZE {
-				// Remove the oldest item to make space
-				self.sub_info_history.remove(0);
-			}
-			self.sub_info_history.push(sub_info);
 		}
 	}
 
