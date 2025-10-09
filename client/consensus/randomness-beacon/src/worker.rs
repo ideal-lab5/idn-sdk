@@ -15,77 +15,40 @@
  */
 
 use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
+use pallet_randomness_beacon::RandomnessBeaconApi;
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
 use sp_api::ProvideRuntimeApi;
-use sp_application_crypto::AppCrypto;
-use sp_core::sr25519;
-use sp_keystore::KeystorePtr;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
 const LOG_TARGET: &str = "pulse-worker";
 
-/// Trait for constructing runtime-specific extrinsics
-pub trait ExtrinsicConstructor<Block: BlockT>: Send + Sync {
-	/// Construct a signed extrinsic for pulse submission
-	fn construct_pulse_extrinsic(
-		&self,
-		signer: sr25519::Public,
-		asig: Vec<u8>,
-		start: u64,
-		end: u64,
-	) -> Result<Block::Extrinsic, GadgetError>;
-}
-
 /// The worker responsible for submitting pulses to the runtime
-pub struct PulseWorker<Block, Client, Pool, Constructor>
+pub struct PulseWorker<Block, Client, Pool>
 where
 	Block: BlockT,
 {
 	client: Arc<Client>,
-	keystore: KeystorePtr,
 	transaction_pool: Arc<Pool>,
-	extrinsic_constructor: Arc<Constructor>,
 	_phantom: std::marker::PhantomData<Block>,
 }
 
-impl<Block, Client, Pool, Constructor> PulseWorker<Block, Client, Pool, Constructor>
+impl<Block, Client, Pool> PulseWorker<Block, Client, Pool>
 where
 	Block: BlockT,
 {
-	pub fn new(
-		client: Arc<Client>,
-		keystore: KeystorePtr,
-		transaction_pool: Arc<Pool>,
-		extrinsic_constructor: Arc<Constructor>,
-	) -> Self {
-		Self {
-			client,
-			keystore,
-			transaction_pool,
-			extrinsic_constructor,
-			_phantom: Default::default(),
-		}
-	}
-
-	/// get aura keys
-	fn get_authority_key(&self) -> Result<sr25519::Public, GadgetError> {
-		self.keystore
-			.sr25519_public_keys(sp_consensus_aura::sr25519::AuthorityPair::ID)
-			.first()
-			.cloned()
-			.ok_or_else(|| GadgetError::NoAuthorityKeys)
+	pub fn new(client: Arc<Client>, transaction_pool: Arc<Pool>) -> Self {
+		Self { client, transaction_pool, _phantom: Default::default() }
 	}
 }
 
-impl<Block, Client, Pool, Constructor> PulseSubmitter<Block>
-	for PulseWorker<Block, Client, Pool, Constructor>
+impl<Block, Client, Pool> PulseSubmitter<Block> for PulseWorker<Block, Client, Pool>
 where
 	Block: BlockT,
 	Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
+	Client::Api: RandomnessBeaconApi<Block>,
 	Pool: TransactionPool<Block = Block> + 'static,
-	Constructor: ExtrinsicConstructor<Block> + 'static,
 {
 	async fn submit_pulse(
 		&self,
@@ -93,8 +56,6 @@ where
 		start: u64,
 		end: u64,
 	) -> Result<Block::Hash, GadgetError> {
-		let public = self.get_authority_key()?;
-
 		log::info!(
 			target: LOG_TARGET,
 			"Constructing pulse extrinsic for rounds {}-{}",
@@ -102,16 +63,25 @@ where
 			end
 		);
 
-		let extrinsic =
-			self.extrinsic_constructor.construct_pulse_extrinsic(public, asig, start, end)?;
-
-		// Submit to transaction pool
 		let best_hash = self.client.info().best_hash;
+		let extrinsic = self
+			.client
+			.runtime_api()
+			.build_extrinsic(best_hash, asig.clone(), start, end)
+			.map_err(|e| GadgetError::RuntimeApiError(e.to_string()))?;
 		let _hash = self
 			.transaction_pool
 			.submit_one(best_hash, TransactionSource::Local, extrinsic)
 			.await
-			.map_err(|_| GadgetError::TransactionSubmissionFailed);
+			.map_err(|e| {
+				log::error!(
+					target: LOG_TARGET,
+					"❌ Failed to submit to pool at hash {:?}: {:?}",
+					best_hash,
+					e
+				);
+				GadgetError::TransactionSubmissionFailed
+			})?;
 
 		log::info!(
 			target: LOG_TARGET,
@@ -126,165 +96,96 @@ where
 mod tests {
 	use super::*;
 	use crate::mock::*;
+	use sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE;
 	use std::sync::Arc;
 
 	#[tokio::test]
 	async fn test_can_construct_pulse_worker() {
-		let keystore = create_test_keystore_with_key().await;
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
-		let constructor = Arc::new(MockExtrinsicConstructor::new());
 
-		let _worker = PulseWorker::<
-			TestBlock,
-			MockClient,
-			MockTransactionPool,
-			MockExtrinsicConstructor,
-		>::new(client, keystore, pool, constructor);
+		let _worker = PulseWorker::<TestBlock, MockClient, MockTransactionPool>::new(client, pool);
 		// If we get here, construction succeeded
 	}
 
 	#[tokio::test]
 	async fn test_submit_pulse_success() {
-		let keystore = create_test_keystore_with_key().await;
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
-		let constructor = Arc::new(MockExtrinsicConstructor::new());
 
-		let worker = PulseWorker::new(client.clone(), keystore, pool.clone(), constructor);
+		let worker = PulseWorker::new(client.clone(), pool.clone());
 
 		// Create a test signature
-		let asig = vec![0u8; 48];
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
 		// Submit pulse
 		let result = worker.submit_pulse(asig, 100, 101).await;
 
 		assert!(result.is_ok(), "Pulse submission should succeed");
 
-		// Verify transaction was submitted to pool: submit one should have been called
-		let txs = pool.pool.lock().clone().leak();
-		assert!(txs.len() == 1, "The transaction should be included in the pool");
+		// Verify transaction was submitted to pool
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 1, "The transaction should be included in the pool");
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_no_authority_key() {
-		let keystore = create_test_keystore_empty();
+	async fn test_submit_pulse_handles_runtime_call_failure() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
-		let constructor = Arc::new(MockExtrinsicConstructor::new());
 
-		let worker = PulseWorker::new(client, keystore, pool, constructor);
+		let worker = PulseWorker::new(client, pool.clone());
 
-		let asig = vec![0u8; 48];
+		// Create invalid signature (wrong size)
+		let asig = vec![0u8; 32]; // Too small
 
-		// Should fail because no authority key exists
-		let result = worker.submit_pulse(asig, 100, 101).await;
+		// arbitrary failures are triggered if start == 0
+		let result = worker.submit_pulse(asig, 0, 101).await;
 
-		assert!(result.is_err(), "Should fail when no authority key found");
-		assert!(matches!(result, Err(GadgetError::NoAuthorityKeys)));
-	}
-
-	#[tokio::test]
-	async fn test_submit_pulse_extrinsic_construction_fails() {
-		let keystore = create_test_keystore_with_key().await;
-		let client = Arc::new(MockClient::new());
-		let pool = Arc::new(MockTransactionPool::new());
-		let constructor = Arc::new(MockExtrinsicConstructor::new());
-
-		// Make constructor fail
-		constructor.set_should_fail(true);
-
-		let worker = PulseWorker::new(client, keystore, pool.clone(), constructor);
-
-		let asig = vec![0u8; 48];
-
-		// Should fail at extrinsic construction
-		let result = worker.submit_pulse(asig, 100, 101).await;
-
-		assert!(result.is_err(), "Should fail when extrinsic construction fails");
+		assert!(result.is_err(), "Should fail when signature size is invalid");
+		assert!(matches!(result, Err(GadgetError::RuntimeApiError(_))));
 
 		// Verify nothing was submitted
-		assert_eq!(
-			pool.pool.lock().clone().leak().len(),
-			0,
-			"Should not submit if construction fails"
-		);
+		assert_eq!(pool.pool.lock().len(), 0, "Should not submit if signature size is invalid");
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_tx_inclusion_failure() {
-		let keystore = create_test_keystore_with_key().await;
-		let client = Arc::new(MockClient::new());
-
-		let tx_pool = MockTransactionPool::new();
-		tx_pool.set_should_fail(true);
-		let pool = Arc::new(tx_pool);
-
-		let constructor = Arc::new(MockExtrinsicConstructor::new());
-
-		let worker = PulseWorker::new(client.clone(), keystore, pool.clone(), constructor);
-		let asig = vec![0u8; 48];
-
-		// Submit pulse
-		let _result = worker.submit_pulse(asig, 100, 101).await;
-		let txs = pool.pool.lock().clone().leak();
-		assert!(txs.len() == 0, "The transaction pool should be empty");
-	}
-
-	#[tokio::test]
-	async fn test_get_authority_key_success() {
-		let keystore = create_test_keystore_with_key().await;
+	async fn test_submit_pulse_tx_pool_failure() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
-		let constructor = Arc::new(MockExtrinsicConstructor::new());
 
-		let worker: PulseWorker<
-			TestBlock,
-			MockClient,
-			MockTransactionPool,
-			MockExtrinsicConstructor,
-		> = PulseWorker::new(client, keystore, pool, constructor);
+		// Make pool fail
+		pool.set_should_fail(true);
 
-		let key = worker.get_authority_key();
-		assert!(key.is_ok(), "Should successfully retrieve authority key");
-	}
+		let worker = PulseWorker::new(client.clone(), pool.clone());
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
-	#[tokio::test]
-	async fn test_get_authority_key_not_found() {
-		let keystore = create_test_keystore_empty();
-		let client = Arc::new(MockClient::new());
-		let pool = Arc::new(MockTransactionPool::new());
-		let constructor = Arc::new(MockExtrinsicConstructor::new());
+		// Submit pulse: should fail at pool submission
+		let result = worker.submit_pulse(asig, 100, 101).await;
 
-		let worker: PulseWorker<
-			TestBlock,
-			MockClient,
-			MockTransactionPool,
-			MockExtrinsicConstructor,
-		> = PulseWorker::new(client, keystore, pool, constructor);
+		assert!(result.is_err(), "Should fail when pool submission fails");
+		assert!(matches!(result, Err(GadgetError::TransactionSubmissionFailed)));
 
-		let key = worker.get_authority_key();
-		assert!(key.is_err(), "Should fail when no authority key exists");
+		// Verify pool is empty
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 0, "The transaction pool should be empty");
 	}
 
 	#[tokio::test]
 	async fn test_submit_multiple_pulses() {
-		let keystore = create_test_keystore_with_key().await;
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
-		let constructor = Arc::new(MockExtrinsicConstructor::new());
 
-		let worker = PulseWorker::new(client, keystore, pool.clone(), constructor);
+		let worker = PulseWorker::new(client, pool.clone());
 
 		// Submit multiple pulses
 		for i in 0..3 {
-			let asig = vec![0u8; 48];
+			let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 			let result = worker.submit_pulse(asig, 100 + i, 100 + i).await;
 			assert!(result.is_ok(), "Pulse submission {} should succeed", i);
 		}
 
 		// Verify all transactions were submitted
-		let submitted = pool.pool.lock().clone().leak();
+		let submitted = pool.pool.lock().clone();
 		assert_eq!(submitted.len(), 3, "Should have submitted three transactions");
 	}
 }

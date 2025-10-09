@@ -87,12 +87,7 @@ mod benchmarks {
 		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), pubkey).unwrap();
 
 		#[extrinsic_call]
-		_(
-			RawOrigin::Signed([42u8; 32].into()),
-			asig_bytes.clone().try_into().unwrap(),
-			0u64,
-			r.into(),
-		);
+		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), 0u64, r.into());
 
 		assert_eq!(
 			SparseAccumulation::<T>::get(),

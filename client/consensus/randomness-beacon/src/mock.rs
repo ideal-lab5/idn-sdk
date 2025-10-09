@@ -1,34 +1,118 @@
-use crate::{error::Error as GadgetError, worker::ExtrinsicConstructor};
+use crate::error::Error as GadgetError;
 use async_trait::async_trait;
+use pallet_randomness_beacon::RandomnessBeaconApi;
 use parking_lot::Mutex;
 use sc_client_api::blockchain::{BlockStatus, Info};
 use sc_transaction_pool_api::{
 	ImportNotificationStream, PoolStatus, ReadyTransactions, TransactionFor, TransactionPool,
 	TransactionSource, TransactionStatusStreamFor, TxHash, TxInvalidityReportMap,
 };
-use sp_application_crypto::{sr25519, AppCrypto};
+use sp_api::ApiError;
 use sp_blockchain::Result as BlockchainResult;
-use sp_consensus_aura::sr25519::AuthorityPair;
-use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 use sp_runtime::{
 	generic::Header,
 	traits::{BlakeTwo256, Block as BlockT},
 	OpaqueExtrinsic,
 };
+use sp_version::RuntimeVersion;
 use std::{collections::HashMap, pin::Pin, sync::Arc};
 
 // Test block type
 pub(crate) type TestBlock =
 	sp_runtime::generic::Block<Header<u64, BlakeTwo256>, sp_runtime::OpaqueExtrinsic>;
 
+#[derive(Clone)]
+pub(crate) struct MockRuntimeApiState {
+	pub latest_round: Arc<Mutex<u64>>,
+}
+
+impl MockRuntimeApiState {
+	pub fn new() -> Self {
+		Self { latest_round: Arc::new(Mutex::new(0)) }
+	}
+}
+
+// Update MockClient to hold the state
 pub(crate) struct MockClient {
 	best_hash: Mutex<Option<<TestBlock as BlockT>::Hash>>,
 	best_number: Mutex<u64>,
+	pub runtime_api_state: MockRuntimeApiState, // Add this
 }
 
 impl MockClient {
 	pub fn new() -> Self {
-		Self { best_hash: Mutex::new(Some(Default::default())), best_number: Mutex::new(0) }
+		Self {
+			best_hash: Mutex::new(Some(Default::default())),
+			best_number: Mutex::new(0),
+			runtime_api_state: MockRuntimeApiState::new(),
+		}
+	}
+}
+
+// Update MockRuntimeApi to hold the state
+pub(crate) struct MockRuntimeApi {
+	state: MockRuntimeApiState,
+}
+
+impl MockRuntimeApi {
+	pub fn new(state: MockRuntimeApiState) -> Self {
+		Self { state }
+	}
+}
+
+impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
+	fn latest_round(&self, _hash: <TestBlock as BlockT>::Hash) -> Result<u64, ApiError> {
+		Ok(*self.state.latest_round.lock())
+	}
+
+	fn max_rounds(&self, _hash: <TestBlock as BlockT>::Hash) -> Result<u8, ApiError> {
+		Ok(6)
+	}
+
+	fn build_extrinsic(
+		&self,
+		_hash: <TestBlock as BlockT>::Hash,
+		asig: Vec<u8>,
+		start: u64,
+		end: u64,
+	) -> Result<<TestBlock as BlockT>::Extrinsic, ApiError> {
+		if start == 0 {
+			// just an arbitrary api error
+			return Err(ApiError::UsingSameInstanceForDifferentBlocks);
+		}
+
+		// Encode the call data
+		use codec::Encode;
+		let call_data = (asig, start, end).encode();
+
+		// Wrap in OpaqueExtrinsic
+		Ok(OpaqueExtrinsic::from_bytes(&call_data).unwrap())
+	}
+
+	fn __runtime_api_internal_call_api_at(
+		&self,
+		_: <sp_runtime::generic::Block<
+			sp_runtime::generic::Header<u64, BlakeTwo256>,
+			OpaqueExtrinsic,
+		> as BlockT>::Hash,
+		_: Vec<u8>,
+		_: &dyn Fn(RuntimeVersion) -> &'static str,
+	) -> Result<Vec<u8>, ApiError> {
+		todo!()
+	}
+}
+
+impl sp_api::Core<TestBlock> for MockRuntimeApi {
+	fn __runtime_api_internal_call_api_at(
+		&self,
+		_: <sp_runtime::generic::Block<
+			sp_runtime::generic::Header<u64, BlakeTwo256>,
+			OpaqueExtrinsic,
+		> as BlockT>::Hash,
+		_: Vec<u8>,
+		_: &dyn Fn(RuntimeVersion) -> &'static str,
+	) -> Result<Vec<u8>, ApiError> {
+		todo!()
 	}
 }
 
@@ -66,11 +150,12 @@ impl sc_client_api::HeaderBackend<TestBlock> for MockClient {
 	}
 }
 
+// Update ProvideRuntimeApi to use the state
 impl sp_api::ProvideRuntimeApi<TestBlock> for MockClient {
 	type Api = MockRuntimeApi;
 
 	fn runtime_api(&self) -> sp_api::ApiRef<'_, Self::Api> {
-		MockRuntimeApi.into()
+		MockRuntimeApi::new(self.runtime_api_state.clone()).into()
 	}
 }
 
@@ -88,7 +173,7 @@ impl sp_externalities::Extension for MockExtension {
 	}
 }
 
-pub(crate) struct MockRuntimeApi;
+// pub(crate) struct MockRuntimeApi;
 impl sp_api::ApiExt<TestBlock> for MockRuntimeApi {
 	fn execute_in_transaction<F: FnOnce(&Self) -> sp_api::TransactionOutcome<R>, R>(
 		&self,
@@ -338,49 +423,4 @@ impl TransactionPool for MockTransactionPool {
 	> {
 		unimplemented!()
 	}
-}
-
-// Mock Extrinsic Constructor
-pub(crate) struct MockExtrinsicConstructor {
-	should_fail: Mutex<bool>,
-}
-
-impl MockExtrinsicConstructor {
-	pub fn new() -> Self {
-		Self { should_fail: Mutex::new(false) }
-	}
-
-	pub fn set_should_fail(&self, fail: bool) {
-		*self.should_fail.lock() = fail;
-	}
-}
-
-impl ExtrinsicConstructor<TestBlock> for MockExtrinsicConstructor {
-	fn construct_pulse_extrinsic(
-		&self,
-		_signer: sr25519::Public,
-		_asig: Vec<u8>,
-		_start: u64,
-		_end: u64,
-	) -> Result<<TestBlock as BlockT>::Extrinsic, GadgetError> {
-		if *self.should_fail.lock() {
-			return Err(GadgetError::ExtrinsicConstructionFailed);
-		}
-		// Return a dummy opaque extrinsic
-		Ok(sp_runtime::OpaqueExtrinsic::from_bytes([0u8; 32].as_slice()).unwrap())
-	}
-}
-
-pub(crate) async fn create_test_keystore_with_key() -> KeystorePtr {
-	let keystore = MemoryKeystore::new();
-	// generate an aura key
-	keystore
-		.sr25519_generate_new(AuthorityPair::ID, Some("//Alice"))
-		.expect("Failed to generate key");
-
-	Arc::new(keystore)
-}
-
-pub(crate) fn create_test_keystore_empty() -> KeystorePtr {
-	Arc::new(MemoryKeystore::new())
 }
