@@ -359,7 +359,7 @@ impl_runtime_apis! {
 
 		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> crate::UncheckedExtrinsic {
 			// if a wrong-sized signature is injected, specify a default
-			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] = 
+			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] =
 				asig.try_into().unwrap_or([0u8;SERIALIZED_SIG_SIZE]);
 
 			let call = crate::RuntimeCall::RandBeacon(
