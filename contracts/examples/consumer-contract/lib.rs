@@ -113,9 +113,9 @@ mod example_consumer {
 		types::{
 			ConsumerParaId, ContractsCallIndex, ContractsPalletIndex, Credits, IdnBalance,
 			IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
-			Quote, SubInfoResponse, SubscriptionId
+			Quote, SubInfoResponse, SubscriptionId,
 		},
-		Error, IdnClient, IdnConsumer
+		Error, IdnClient, IdnConsumer,
 	};
 	use ink::prelude::vec::Vec;
 	use scale_info::prelude::vec;
