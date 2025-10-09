@@ -114,7 +114,7 @@ mod example_consumer {
 			types::{
 				ConsumerParaId, ContractsCallIndex, ContractsPalletIndex, Credits, IdnBalance,
 				IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
-				Quote, SubInfoResponse, SubscriptionId, RequestReference
+				Quote, SubInfoResponse, SubscriptionId
 			}, Error, IdnClient, IdnConsumer
 		},
 	};
@@ -340,11 +340,10 @@ mod example_consumer {
 			frequency: IdnBlockNumber,
 			metadata: Option<Metadata>,
 			sub_id: Option<SubscriptionId>,
-			req_ref: Option<RequestReference>,
 		) -> Result<(), ContractError> {
 			self.ensure_authorized()?;
 			self.idn_client
-				.request_quote(number_of_pulses, frequency, metadata, sub_id, req_ref, None)
+				.request_quote(number_of_pulses, frequency, metadata, sub_id, None, None)
 				.map_err(ContractError::IdnClientError)?;
 			Ok(())
 		}
@@ -433,14 +432,12 @@ mod example_consumer {
 		#[ink(message)]
 		pub fn request_sub_info(
 			&mut self,
-			// Optional quote request reference, if None, a new one will be generated
-			req_ref: Option<RequestReference>,
 			metadata: Option<Metadata>,
 		) -> Result<(), ContractError> {
 			self.ensure_authorized()?;
 			let subscription_id = self.ensure_active_sub()?;
 			self.idn_client
-				.request_sub_info(subscription_id, req_ref, metadata, None, None)
+				.request_sub_info(subscription_id, metadata, None, None, None)
 				.map_err(ContractError::IdnClientError)?;
 			Ok(())
 		}

@@ -701,7 +701,7 @@ impl IdnClient {
 	/// # Errors
 	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
 	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
-	pub fn request_sub_info(&self, sub_id: SubscriptionId, req_ref: Option<RequestReference>, metadata: Option<Metadata>, call_params: Option<ContractCallParams>, origin_kind: Option<OriginKind>,) -> Result<()> {
+	pub fn request_sub_info(&self, sub_id: SubscriptionId, metadata: Option<Metadata>, req_ref: Option<RequestReference>,  call_params: Option<ContractCallParams>, origin_kind: Option<OriginKind>,) -> Result<()> {
 		let req_ref = match req_ref {
 			Some(req_ref) => req_ref,
 			None => {
