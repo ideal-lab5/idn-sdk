@@ -109,15 +109,14 @@
 
 #[ink::contract]
 mod example_consumer {
-	use idn_contracts::{
-		xcm::{
-			types::{
+	use idn_contracts::xcm::{ 
+		types::{
 				ConsumerParaId, ContractsCallIndex, ContractsPalletIndex, Credits, IdnBalance,
 				IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
 				Quote, SubInfoResponse, SubscriptionId
-			}, Error, IdnClient, IdnConsumer
-		},
-	};
+			},
+			Error, IdnClient, IdnConsumer
+		};
 	use ink::prelude::vec::Vec;
 	use scale_info::prelude::vec;
 	use sp_idn_traits::pulse::Pulse as TPulse;
