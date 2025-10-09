@@ -137,7 +137,6 @@
 pub mod constants;
 pub mod types;
 
-use bp_idn::types::{QuoteRequest, QuoteSubParams, RequestReference, Subscription, SubscriptionDetails};
 use constants::BEACON_PUBKEY;
 use ink::{
 	env::{
@@ -177,10 +176,21 @@ use sp_idn_traits::pulse::Pulse as TPulse;
 use types::{
 	AccountId, Balance, CallData, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata,
 	OriginKind, PalletIndex, ParaId, Pulse, Quote, SubInfoResponse, SubscriptionId,
-	UpdateSubParams
+	UpdateSubParams,
 };
-
-pub use bp_idn::{Call as RuntimeCall, IdnManagerCall, types::{SubInfoRequest}};
+pub use bp_idn::{
+	Call as RuntimeCall, 
+	IdnManagerCall, 
+	types::{
+		SubInfoRequest, 
+		QuoteRequest, 
+		QuoteSubParams, 
+		RequestReference, 
+		Subscription, 
+		SubscriptionDetails,
+		SubscriptionState
+	}
+};
 
 use crate::xcm::constants::{CONSUME_PULSE_SEL, CONSUME_QUOTE_SEL, CONSUME_SUB_INFO_SEL};
 
@@ -733,7 +743,7 @@ impl IdnClient {
 		};
 		let dummy_sub = Subscription {
 			id: sub_id.into(),
-			state: bp_idn::types::SubscriptionState::Active,
+			state: SubscriptionState::Active,
 			metadata: metadata,
 			last_delivered: Some(u32::default()),
 			details: dummy_details,
