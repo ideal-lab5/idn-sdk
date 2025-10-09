@@ -1118,7 +1118,6 @@ mod tests {
 
 	#[test]
 	fn test_edge_cases() {
-		let client = mock_client();
 
 		// Test constructor with edge case values
 		let edge_client = IdnClient::new(u32::MAX, u8::MAX, u32::MAX, u8::MAX, u8::MAX, u128::MAX);
