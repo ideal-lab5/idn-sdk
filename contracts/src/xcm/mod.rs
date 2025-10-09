@@ -1162,7 +1162,16 @@ mod tests {
 	fn test_subscription_management_api() {
 		let client = mock_client();
 
+
+		let quote_result = client.request_quote(1, 1, None, None, None, None);
+
+		assert!(quote_result.is_ok());
+
 		let sub_id = create_subscription(&client).unwrap();
+
+		let sub_info_result = client.request_sub_info(sub_id, None, None, None, None);
+
+		assert!(sub_info_result.is_ok());
 
 		// Test pause subscription API
 		let pause_result = client.pause_subscription(sub_id);
@@ -1242,7 +1251,7 @@ mod tests {
 	}
 
 	#[ink::test]
-	fn test_pulse_callback_data() {
+	fn test_create_callback_data() {
 		// Setup ink! test environment
 		let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
 		ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
@@ -1264,6 +1273,20 @@ mod tests {
 		// but we can verify it's non-empty and consistent
 		let encoded_data = callback_data.unwrap();
 		assert!(!encoded_data.is_empty());
+	}
+
+	#[ink::test]
+	fn test_create_create_dummy_sub_info_response() {
+		let client = mock_client();
+
+		let sub_id = [1;32];
+		let req_ref = [2;32];
+		let dummy_sub_info_response = client.create_dummy_sub_info_response(sub_id, req_ref, None, None);
+		assert!(dummy_sub_info_response.is_ok());
+		// Ensure that we always return the same dummy SubInfoResponse given the same data
+		let dummy_sub_info_response2 = client.create_dummy_sub_info_response(sub_id, req_ref, None, None);
+
+		assert_eq!(dummy_sub_info_response2, dummy_sub_info_response);
 	}
 
 	#[ink::test]
