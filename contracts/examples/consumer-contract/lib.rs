@@ -1078,6 +1078,149 @@ mod example_consumer {
 		}
 
 		#[ink::test]
+		fn test_consume_quote() {
+			// Setup test environment with owner as caller first
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice will be owner
+
+			let mut contract = ExampleConsumer::new(
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
+			);
+			contract.subscription_id = Some([1u8; 32]);
+
+			let test_quote = Quote{req_ref: [12;32], fees: 111, deposit: 111};
+			let result = IdnConsumer::consume_quote(&mut contract, test_quote.clone());
+
+			// Succeed with quote consumption
+			match result {
+				Ok(_) => {},
+				Err(_) => panic!("Expected success but got an Error") // Expected error (authorization check fails)
+			}
+
+			assert_eq!(contract.get_quote_history().len(), 1);
+			assert_eq!(*contract.get_quote_history().get(0).unwrap(), test_quote);
+		}
+
+		#[ink::test]
+		fn test_unauthorized_consume_quote() {
+			// Setup test environment with owner as caller first
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice will be owner
+
+			let mut contract = ExampleConsumer::new(
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
+			);
+			contract.subscription_id = Some([1u8; 32]);
+
+			// Set caller to unauthorized account (charlie - not owner, not IDN account)
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.charlie);
+
+			let test_quote = Quote{req_ref: [12;32], fees: 111, deposit: 111};
+			let result = IdnConsumer::consume_quote(&mut contract, test_quote);
+
+			assert_eq!(contract.get_quote_history().len(), 0);
+			// Should fail with Unauthorized error
+			match result {
+				Ok(_) => panic!("Expected Unauthorized error but got success"),
+				Err(_) => {}, // Expected error (authorization check fails)
+			}
+			
+		}
+
+		#[ink::test]
+		fn test_consume_sub_info() {
+			// Setup test environment with owner as caller first
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice will be owner
+
+			let mut contract = ExampleConsumer::new(
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
+			);
+			let sub_id = [1u8; 32];
+			contract.subscription_id = Some(sub_id);
+			let sub_info_response = contract.idn_client.create_dummy_sub_info_response(sub_id, [2;32], None, None).unwrap();
+
+			let result = IdnConsumer::consume_sub_info(&mut contract, sub_info_response.clone());
+
+			// Succeed with sub_info_response consumption
+			match result {
+				Ok(_) => {},
+				Err(_) => panic!("Expected success but got an Error") // Expected error (authorization check fails)
+			}
+			assert_eq!(contract.get_sub_info_history().len(), 1);
+			assert_eq!(*contract.get_sub_info_history().get(0).unwrap(), sub_info_response);
+		}
+
+
+		#[ink::test]
+		fn test_unauthorized_consume_sub_info() {
+			// Setup test environment with owner as caller first
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice will be owner
+
+			let mut contract = ExampleConsumer::new(
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
+			);
+			let sub_id = [1u8; 32];
+			contract.subscription_id = Some(sub_id);
+			let sub_info_response = contract.idn_client.create_dummy_sub_info_response(sub_id, [2;32], None, None).unwrap();
+
+			// Set caller to unauthorized account (charlie - not owner, not IDN account)
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.charlie);
+			let result = IdnConsumer::consume_sub_info(&mut contract, sub_info_response);
+
+			// Succeed with sub_info_response consumption
+			match result {
+				Ok(_) => panic!("Expected Error but got success"),
+				Err(_) => {} // Expected error (authorization check fails)
+			}
+		}
+
+		#[ink::test]
+		fn test_request_sub_info_no_active_subscription() {
+			// Setup test environment with owner as caller first
+			let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+			ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice); // Alice will be owner
+
+			let mut contract = ExampleConsumer::new(
+				IdnParaId::OnPaseo,               // idn_para_id
+				IdnManagerPalletIndex::Other(10), // idn_manager_pallet_index
+				ConsumerParaId::Other(1000),      // self_para_id
+				ContractsPalletIndex::Other(50),  // self_contracts_pallet_index
+				ContractsCallIndex::Other(16),    // self_contract_call_index
+				Some(1_000_000),                  // max_idn_xcm_fees
+			);
+
+			let result = contract.request_sub_info(None);
+
+			// Succeed with sub_info_response consumption
+			match result {
+				Ok(_) => panic!("Expected Error but got success"),
+				Err(_) => {} // Expected error (authorization check fails)
+			}
+		}
+
+		#[ink::test]
 		fn test_unauthorized_idn_caller() {
 			let mut contract = ExampleConsumer::new(
 				IdnParaId::OnPaseo,               // idn_para_id

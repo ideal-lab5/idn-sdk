@@ -720,7 +720,8 @@ impl IdnClient {
 			},
 		};
 
-		let dummy_params = self.create_dummy_sub_info_response(sub_id, req_ref, metadata, call_params)?;
+		let dummy_sub_info_response = self.create_dummy_sub_info_response(sub_id, req_ref, metadata, call_params)?;
+		let dummy_params = dummy_sub_info_response.encode();
 
 		let req = SubInfoRequest { sub_id, req_ref, call: self.create_callback_data(CONSUME_SUB_INFO_SEL, dummy_params, None)?, origin_kind: origin_kind.unwrap_or(OriginKind::Native) };
 
@@ -730,7 +731,7 @@ impl IdnClient {
 	}
 
 	/// This function is used to create the encoded callback data for the SubInfoResponse. See create_callback_data for how dummy data is used.
-	pub fn create_dummy_sub_info_response(&self, sub_id: SubscriptionId, req_ref: [u8;32], metadata: Option<Metadata>, call_params: Option<ContractCallParams>) -> Result<Vec<u8>> {
+	pub fn create_dummy_sub_info_response(&self, sub_id: SubscriptionId, req_ref: [u8;32], metadata: Option<Metadata>, call_params: Option<ContractCallParams>) -> Result<SubInfoResponse> {
 
 		let dummy_pulse = Pulse::default();
 		let dummy_sub_id = SubscriptionId::default();
@@ -754,8 +755,7 @@ impl IdnClient {
 			frequency: u32::default(),
 		};
 		let dummy_sub_response = SubInfoResponse{req_ref: req_ref, sub: dummy_sub};
-		let dummy_params = dummy_sub_response.encode();
-		Ok(dummy_params)
+		Ok(dummy_sub_response)
 
 	}
 	/// Validates the cryptographic authenticity and correctness of a randomness pulse.
