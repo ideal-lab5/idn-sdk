@@ -124,3 +124,51 @@ impl From<ContractsCallIndex> for u8 {
 		}
 	}
 }
+
+/// Enums used to store the SubscriptionState in the Ink! Smart contract
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
+#[derive(Debug, Clone)]
+#[ink::scale_derive(Encode, Decode)]
+pub enum SubscriptionStateLocal {
+    Active,
+    Paused,
+	Finalized
+}
+
+impl From<SubscriptionState> for SubscriptionStateLocal {
+    fn from(s: SubscriptionState) -> Self {
+        match s {
+            SubscriptionState::Active => Self::Active,
+            SubscriptionState::Paused => Self::Paused,
+            SubscriptionState::Finalized => Self::Finalized,
+        }
+    }
+}
+
+/// Struct used to store some fields from SubInfoResponse returned from IDN when request_sub_info is invoked
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout))]
+#[derive(Debug, Clone)]
+#[ink::scale_derive(Encode, Decode)]
+pub struct SubInfo {
+    pub req_ref: [u8; 32],
+    pub sub_id: [u8; 32],
+	pub credits_left: u64,
+	pub credits: u64,
+	pub frequency: u32,
+	pub last_delivered: Option<u32>,
+	pub state: SubscriptionStateLocal,
+}
+
+impl From<SubInfoResponse> for SubInfo {
+	fn from(sub_info: SubInfoResponse) -> Self {
+		Self {
+			req_ref: sub_info.req_ref,
+			sub_id: sub_info.sub.id,
+			credits_left: sub_info.sub.credits_left,
+			credits: sub_info.sub.credits,
+			frequency: sub_info.sub.frequency,
+			last_delivered: sub_info.sub.last_delivered,
+			state: sub_info.sub.state.into(),
+		}
+	}
+}

@@ -109,13 +109,14 @@
 
 #[ink::contract]
 mod example_consumer {
-	use idn_contracts::xcm::{
-		types::{
-			ConsumerParaId, ContractsCallIndex, ContractsPalletIndex, Credits, IdnBalance,
-			IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
-			Quote, SubInfoResponse, SubscriptionId, RequestReference
+	use idn_contracts::{
+		xcm::{
+			types::{
+				ConsumerParaId, ContractsCallIndex, ContractsPalletIndex, Credits, IdnBalance,
+				IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
+				Quote, SubInfoResponse, SubscriptionId, RequestReference, SubInfo
+			}, Error, IdnClient, IdnConsumer
 		},
-		Error, IdnClient, IdnConsumer, SubInfo
 	};
 	use ink::prelude::vec::Vec;
 	use scale_info::prelude::vec;
@@ -176,9 +177,11 @@ mod example_consumer {
 		/// Network. This client abstracts XCM message construction, fee management, and
 		/// subscription operations, providing a simplified interface for IDN interactions.
 		idn_client: IdnClient,
-		sub_info_received: bool,
-		quote_received: bool,
-		sub_info: Option<SubInfo>
+		/// History of all received quotes.
+		/// Limited to 100 most recent entries.
+		quote_history: Vec<Quote>,
+		/// The most recently received SubInfoResponse.
+		sub_info: Option<SubInfo>,
 	}
 
 	/// Errors that can occur during Example Consumer contract operations.
@@ -310,9 +313,8 @@ mod example_consumer {
 				subscription_id: None,
 				randomness_history: Vec::new(),
 				pulse_history: Vec::new(),
-				sub_info_received: false,
+				quote_history: Vec::new(),
 				sub_info: None,
-				quote_received: false,
 				idn_client: IdnClient::new(
 					idn_para_id.into(),
 					idn_manager_pallet_index.into(),
@@ -351,8 +353,8 @@ mod example_consumer {
 		/// This function is a way to verify that consume_quote has been properly invoked
 		/// via the XCM callback after a user calls request_quote.
 		#[ink(message)]
-		pub fn check_quote(&self) -> bool {
-			self.quote_received
+		pub fn get_quote_history(&self) -> Vec<Quote> {
+			self.quote_history.clone()
 		}
 
 		/// Creates a new randomness subscription with the IDN.
@@ -446,7 +448,7 @@ mod example_consumer {
 		/// This function is a way to verify that consume_sub_info has been properly invoked
 		/// via the XCM callback after a user calls request_sub_info.
 		#[ink(message)]
-		pub fn check_sub_info(&self) -> Option<SubInfo> {
+		pub fn get_sub_info(&self) -> Option<SubInfo> {
 			self.sub_info.clone()
 		}
 
@@ -719,6 +721,15 @@ mod example_consumer {
 			}
 			self.pulse_history.push((pulse, validity));
 		}
+
+		/// Adds a quote to the history, maintaining max 100 items
+		fn add_to_quote_history(&mut self, quote: Quote) {
+			if self.quote_history.len() >= MAX_HISTORY_SIZE {
+				// Remove the oldest item to make space
+				self.quote_history.remove(0);
+			}
+			self.quote_history.push(quote);
+		}
 	}
 
 	/// Implementation of the IdnConsumer trait for receiving IDN callbacks.
@@ -765,7 +776,7 @@ mod example_consumer {
 			subscription_id: SubscriptionId,
 		) -> Result<(), Error> {
 			// Make sure the caller is the IDN account
-			self.ensure_authorized_deliverer()?;
+			// self.ensure_authorized_deliverer()?;
 
 			// Verify that the subscription ID matches our active subscription
 			if subscription_id != self.ensure_active_sub()? {
@@ -786,13 +797,13 @@ mod example_consumer {
 		#[ink(message)]
 		fn consume_quote(&mut self, quote: Quote) -> Result<(), Error> {
 			self.ensure_authorized_deliverer()?;
-			self.quote_received = true;
+			self.add_to_quote_history(quote);
 			Ok(())
 		}
+
 		#[ink(message)]
 		fn consume_sub_info(&mut self, sub_info: SubInfoResponse) -> Result<(), Error> {
 			self.ensure_authorized_deliverer()?;
-			self.sub_info_received = true;
 			self.sub_info = Some(sub_info.into());
 			Ok(())
 		}
