@@ -131,7 +131,7 @@ pub mod pallet {
 	type PubkeyOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Pubkey;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + pallet_aura::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
@@ -382,8 +382,15 @@ where
 
 sp_api::decl_runtime_apis! {
 	pub trait RandomnessBeaconApi {
+		/// Get the latest round finalized on-chain
 		fn latest_round() -> sp_consensus_randomness_beacon::types::RoundNumber;
+		/// Get the maximum number of outputs from the beacon we can verify simultaneously onchain
 		fn max_rounds() -> u8;
-		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> Block::Extrinsic;
+		/// Build an unsigned extrinsic with signed payload
+        fn build_extrinsic(
+            asig: Vec<u8>,
+            start: u64,
+            end: u64,
+        ) -> Block::Extrinsic;
 	}
 }

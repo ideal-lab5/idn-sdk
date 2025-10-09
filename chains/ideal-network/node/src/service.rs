@@ -480,7 +480,8 @@ pub async fn start_parachain_node(
 /// builds the pulse worker for ingesting pulses and submitting signatures
 fn build_pulse_worker(
 	client: Arc<ParachainClient>,
+	keystore: KeystorePtr,
 	pool: Arc<sc_transaction_pool::TransactionPoolHandle<Block, ParachainClient>>,
 ) -> Arc<impl PulseSubmitter<Block>> {
-	Arc::new(PulseWorker::new(client, pool))
+	Arc::new(PulseWorker::new(client, pool, keystore))
 }

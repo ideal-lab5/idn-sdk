@@ -25,12 +25,14 @@ hex.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
+pallet-aura.workspace = true
 sp-api.workspace = true
 sp-idn-crypto.workspace = true
 sp-idn-traits.workspace = true
 sp-consensus-randomness-beacon.workspace = true
 sp-core.workspace = true
 sp-io.workspace = true
+sp-keystore.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
 # crypto dependencies
@@ -38,7 +40,6 @@ ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 ark-ec.workspace = true
 ark-std.workspace = true
-
 # IDN dependencies
 bp-idn.workspace = true
 
@@ -57,6 +58,7 @@ std = [
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
+	"pallet-aura/std",
 	"scale-info/std",
 	"sp-api/std",
 	"sp-core/std",

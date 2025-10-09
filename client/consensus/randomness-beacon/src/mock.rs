@@ -80,12 +80,9 @@ impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
 			// just an arbitrary api error
 			return Err(ApiError::UsingSameInstanceForDifferentBlocks);
 		}
-
-		// Encode the call data
+		// encode call data
 		use codec::Encode;
 		let call_data = (asig, start, end).encode();
-
-		// Wrap in OpaqueExtrinsic
 		Ok(OpaqueExtrinsic::from_bytes(&call_data).unwrap())
 	}
 

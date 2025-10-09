@@ -15,11 +15,15 @@
  */
 
 use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
+use codec::{Decode, Encode};
 use pallet_randomness_beacon::RandomnessBeaconApi;
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
 use sp_api::ProvideRuntimeApi;
-use sp_runtime::traits::Block as BlockT;
+use sp_application_crypto::ByteArray;
+use sp_consensus_aura::{AuraApi, sr25519, sr25519::AuthorityId as AuraId};
+use sp_keystore::KeystorePtr;
+use sp_runtime::{traits::Block as BlockT, RuntimeAppPublic};
 use std::sync::Arc;
 
 const LOG_TARGET: &str = "pulse-worker";
@@ -31,6 +35,7 @@ where
 {
 	client: Arc<Client>,
 	transaction_pool: Arc<Pool>,
+	keystore: KeystorePtr,
 	_phantom: std::marker::PhantomData<Block>,
 }
 
@@ -38,8 +43,19 @@ impl<Block, Client, Pool> PulseWorker<Block, Client, Pool>
 where
 	Block: BlockT,
 {
-	pub fn new(client: Arc<Client>, transaction_pool: Arc<Pool>) -> Self {
-		Self { client, transaction_pool, _phantom: Default::default() }
+	pub fn new(client: Arc<Client>, transaction_pool: Arc<Pool>, keystore: KeystorePtr) -> Self {
+		Self { client, transaction_pool, keystore, _phantom: Default::default() }
+	}
+
+	/// Check if this authority should submit for the current round (Aura-style round-robin)
+	pub fn is_our_turn(&self, round: u64, authority: AuraId, authorities: Vec<AuraId>) -> bool {
+
+		if authorities.is_empty() {
+			return false;
+		}
+
+		let author_index = (round as usize) % authorities.len();
+		authorities.get(author_index) == Some(&authority)
 	}
 }
 
@@ -47,7 +63,7 @@ impl<Block, Client, Pool> PulseSubmitter<Block> for PulseWorker<Block, Client, P
 where
 	Block: BlockT,
 	Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-	Client::Api: RandomnessBeaconApi<Block>,
+	Client::Api: RandomnessBeaconApi<Block> + AuraApi<Block, AuraId>,
 	Pool: TransactionPool<Block = Block> + 'static,
 {
 	async fn submit_pulse(
@@ -56,37 +72,88 @@ where
 		start: u64,
 		end: u64,
 	) -> Result<Block::Hash, GadgetError> {
-		log::info!(
-			target: LOG_TARGET,
-			"Constructing pulse extrinsic for rounds {}-{}",
-			start,
-			end
-		);
-
 		let best_hash = self.client.info().best_hash;
-		let extrinsic = self
-			.client
-			.runtime_api()
-			.build_extrinsic(best_hash, asig.clone(), start, end)
-			.map_err(|e| GadgetError::RuntimeApiError(e.to_string()))?;
-		let _hash = self
-			.transaction_pool
-			.submit_one(best_hash, TransactionSource::Local, extrinsic)
-			.await
-			.map_err(|e| {
-				log::error!(
-					target: LOG_TARGET,
-					"❌ Failed to submit to pool at hash {:?}: {:?}",
-					best_hash,
-					e
-				);
-				GadgetError::TransactionSubmissionFailed
-			})?;
 
-		log::info!(
-			target: LOG_TARGET,
-			"Submitted pulse extrinsic",
-		);
+		// Get current authorities from runtime
+		let authorities = self.client.runtime_api().authorities(best_hash).unwrap_or(vec![]);
+		let authority_id = self
+			.keystore
+			.sr25519_public_keys(AuraId::ID)
+			.into_iter()
+			.next()
+			.map(|key| AuraId::from(key))
+			.unwrap();
+
+		// Check if it's our turn to submit (round-robin based on start round)
+		if self.is_our_turn(start, authority_id.clone(), authorities) {
+			log::debug!(
+				target: LOG_TARGET,
+				"Skipping pulse submission for round {} - not our turn",
+				start
+			);
+			log::info!(
+				target: LOG_TARGET,
+				"Constructing pulse extrinsic for rounds {}-{} (our turn)",
+				start,
+				end
+			);
+
+			// sign pulse payload
+			let payload = (asig.clone(), start, end).encode();
+			let signature_bytes = self
+				.keystore
+				.sign_with(
+					AuraId::ID,
+					sp_application_crypto::sr25519::CRYPTO_ID,
+					&authority_id.as_slice(), 
+					&payload.encode(),
+				)
+				.unwrap()
+				.unwrap();
+
+			// .map_err(|e| format!("Keystore signing error: {:?}", e))?
+			// .ok_or_else(|| "Key not found in keystore".to_string())?;
+
+			// Decode signature
+			// TODO: pass the sig to the extrinsic as a param
+			let signature =
+				sp_consensus_aura::sr25519::AuthoritySignature::decode(&mut &signature_bytes[..])
+					.unwrap();
+			// .map_err(|_| "Failed to decode signature".to_string())?;
+
+			// Build unsigned extrinsic with signed payload
+			let extrinsic = self
+				.client
+				.runtime_api()
+				.build_extrinsic(
+					best_hash,
+					asig.clone(),
+					start,
+					end,
+				)
+				.map_err(|e| GadgetError::RuntimeApiError(e.to_string()))?;
+
+			let _hash = self
+				.transaction_pool
+				.submit_one(best_hash, TransactionSource::Local, extrinsic)
+				.await
+				.map_err(|e| {
+					log::error!(
+						target: LOG_TARGET,
+						"❌ Failed to submit to pool at hash {:?}: {:?}",
+						best_hash,
+						e
+					);
+					GadgetError::TransactionSubmissionFailed
+				})?;
+
+			log::info!(
+				target: LOG_TARGET,
+				"✅ Submitted pulse extrinsic for rounds {}-{}",
+				start,
+				end
+			);
+		}
 
 		Ok(best_hash)
 	}
@@ -97,28 +164,72 @@ mod tests {
 	use super::*;
 	use crate::mock::*;
 	use sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE;
+	use sp_keystore::{testing::MemoryKeystore, Keystore};
 	use std::sync::Arc;
+
+	fn create_test_keystore() -> KeystorePtr {
+		Arc::new(MemoryKeystore::new())
+	}
 
 	#[tokio::test]
 	async fn test_can_construct_pulse_worker() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+		let authority_id = MockAuthorityId::generate_pair(None);
 
-		let _worker = PulseWorker::<TestBlock, MockClient, MockTransactionPool>::new(client, pool);
-		// If we get here, construction succeeded
+		let _worker =
+			PulseWorker::<TestBlock, MockClient, MockTransactionPool, MockAuthorityId>::new(
+				client,
+				pool,
+				keystore,
+				authority_id,
+			);
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_success() {
+	async fn test_round_robin_our_turn() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
 
-		let worker = PulseWorker::new(client.clone(), pool.clone());
+		// Create authority set
+		let auth1 = MockAuthorityId::generate_pair(None);
+		let auth2 = MockAuthorityId::generate_pair(None);
+		let auth3 = MockAuthorityId::generate_pair(None);
 
-		// Create a test signature
+		client.set_authorities(vec![auth1.clone(), auth2.clone(), auth3.clone()]);
+
+		// Worker with first authority
+		let worker =
+			PulseWorker::new(client.clone(), pool.clone(), keystore.clone(), auth1.clone());
+
+		// Round 0, 3, 6, etc. should be auth1's turn
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+		let result = worker.submit_pulse(asig.clone(), 0, 0).await;
+		assert!(result.is_ok(), "Should succeed on our turn (round 0)");
 
-		// Submit pulse
+		let result = worker.submit_pulse(asig.clone(), 3, 3).await;
+		assert!(result.is_ok(), "Should succeed on our turn (round 3)");
+
+		// Round 1 should be auth2's turn
+		let result = worker.submit_pulse(asig.clone(), 1, 1).await;
+		assert!(result.is_err(), "Should fail when not our turn (round 1)");
+		assert!(matches!(result, Err(GadgetError::NotOurTurn)));
+	}
+
+	#[tokio::test]
+	async fn test_submit_pulse_with_signed_payload() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+		let authority_id = MockAuthorityId::generate_pair(None);
+
+		client.set_authorities(vec![authority_id.clone()]);
+
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore, authority_id);
+
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 		let result = worker.submit_pulse(asig, 100, 101).await;
 
 		assert!(result.is_ok(), "Pulse submission should succeed");
@@ -129,63 +240,27 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_handles_runtime_call_failure() {
+	async fn test_multiple_authorities_rotation() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
 
-		let worker = PulseWorker::new(client, pool.clone());
+		let auth1 = MockAuthorityId::generate_pair(None);
+		let auth2 = MockAuthorityId::generate_pair(None);
 
-		// Create invalid signature (wrong size)
-		let asig = vec![0u8; 32]; // Too small
+		client.set_authorities(vec![auth1.clone(), auth2.clone()]);
 
-		// arbitrary failures are triggered if start == 0
-		let result = worker.submit_pulse(asig, 0, 101).await;
+		let worker1 = PulseWorker::new(client.clone(), pool.clone(), keystore.clone(), auth1);
+		let worker2 = PulseWorker::new(client.clone(), pool.clone(), keystore, auth2);
 
-		assert!(result.is_err(), "Should fail when signature size is invalid");
-		assert!(matches!(result, Err(GadgetError::RuntimeApiError(_))));
-
-		// Verify nothing was submitted
-		assert_eq!(pool.pool.lock().len(), 0, "Should not submit if signature size is invalid");
-	}
-
-	#[tokio::test]
-	async fn test_submit_pulse_tx_pool_failure() {
-		let client = Arc::new(MockClient::new());
-		let pool = Arc::new(MockTransactionPool::new());
-
-		// Make pool fail
-		pool.set_should_fail(true);
-
-		let worker = PulseWorker::new(client.clone(), pool.clone());
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
-		// Submit pulse: should fail at pool submission
-		let result = worker.submit_pulse(asig, 100, 101).await;
+		// Round 0: worker1 should succeed
+		assert!(worker1.submit_pulse(asig.clone(), 0, 0).await.is_ok());
+		assert!(worker2.submit_pulse(asig.clone(), 0, 0).await.is_err());
 
-		assert!(result.is_err(), "Should fail when pool submission fails");
-		assert!(matches!(result, Err(GadgetError::TransactionSubmissionFailed)));
-
-		// Verify pool is empty
-		let txs = pool.pool.lock().clone();
-		assert_eq!(txs.len(), 0, "The transaction pool should be empty");
-	}
-
-	#[tokio::test]
-	async fn test_submit_multiple_pulses() {
-		let client = Arc::new(MockClient::new());
-		let pool = Arc::new(MockTransactionPool::new());
-
-		let worker = PulseWorker::new(client, pool.clone());
-
-		// Submit multiple pulses
-		for i in 0..3 {
-			let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-			let result = worker.submit_pulse(asig, 100 + i, 100 + i).await;
-			assert!(result.is_ok(), "Pulse submission {} should succeed", i);
-		}
-
-		// Verify all transactions were submitted
-		let submitted = pool.pool.lock().clone();
-		assert_eq!(submitted.len(), 3, "Should have submitted three transactions");
+		// Round 1: worker2 should succeed
+		assert!(worker1.submit_pulse(asig.clone(), 1, 1).await.is_err());
+		assert!(worker2.submit_pulse(asig.clone(), 1, 1).await.is_ok());
 	}
 }

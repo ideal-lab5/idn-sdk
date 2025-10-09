@@ -227,6 +227,14 @@ impl pallet_transaction_payment::Config for Runtime {
 	type LengthToFee = FixedFee<1, <Self as pallet_balances::Config>::Balance>;
 }
 
+impl pallet_aura::Config for Runtime {
+	type AllowMultipleBlocksPerSlot = ConstBool<true>;
+	type AuthorityId = sp_consensus_aura::sr25519::AuthorityId;
+	type DisabledValidators = ();
+	type MaxAuthorities = ConstU32<100_000>;
+	type SlotDuration = ConstU64<6_000>;
+}
+
 impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
