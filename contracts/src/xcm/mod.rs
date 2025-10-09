@@ -954,8 +954,8 @@ impl IdnClient {
 	/// - [`Error::CallDataTooLong`]: If the generated call data exceeds size limits
 	fn create_callback_data(&self, selector: [u8; 4], dummy_params: Vec<u8>, call_params: Option<ContractCallParams>) -> Result<CallData> {
 		const DEF_VALUE: Balance = 0;
-		const DEF_REF_TIME: u64 = 2_000_000_000;
-		const DEF_PROOF_SIZE: u64 = 100_000;
+		const DEF_REF_TIME: u64 = 20_000_000_000;
+		const DEF_PROOF_SIZE: u64 = 1_000_000;
 		const DEF_STORAGE_DEPOSIT: Option<Balance> = None;
 
 		let mut data = Vec::new();
