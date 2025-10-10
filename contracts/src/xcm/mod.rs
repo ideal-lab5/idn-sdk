@@ -664,7 +664,7 @@ impl IdnClient {
 			Some(req_ref) => req_ref,
 			None => {
 				let salt = ink::env::block_number::<ink::env::DefaultEnvironment>().encode();
-				frequency.hash(&salt).into()
+				frequency.hash(&salt)
 			},
 		};
 
@@ -723,7 +723,7 @@ impl IdnClient {
 			Some(req_ref) => req_ref,
 			None => {
 				let salt = ink::env::block_number::<ink::env::DefaultEnvironment>().encode();
-				sub_id.hash(&salt).into()
+				sub_id.hash(&salt)
 			},
 		};
 
@@ -765,7 +765,7 @@ impl IdnClient {
 			)?,
 		};
 		let dummy_sub = Subscription {
-			id: sub_id.into(),
+			id: sub_id,
 			state: SubscriptionState::Active,
 			metadata,
 			last_delivered: Some(u32::default()),
