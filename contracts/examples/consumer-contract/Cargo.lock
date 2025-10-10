@@ -7747,6 +7747,7 @@ dependencies = [
  "scale-info",
  "serde",
  "sha2 0.10.9",
+ "sp-api 36.0.1",
  "sp-core 36.1.0",
  "sp-idn-crypto",
  "sp-idn-traits",

@@ -132,8 +132,8 @@ mod tests {
 		assert!(result.is_ok());
 		let items = result.unwrap();
 		assert!(items.len() == 2);
-		for i in 0..items.len() {
-			assert!(data.contains(&items[i]));
+		for item in &items {
+			assert!(data.contains(item));
 		}
 	}
 
@@ -149,8 +149,8 @@ mod tests {
 		assert!(result.is_ok());
 		let items = result.unwrap();
 		assert!(items.len() == 2);
-		for i in 0..items.len() {
-			assert!(data.contains(&items[i]));
+		for item in &items {
+			assert!(data.contains(item));
 		}
 	}
 }

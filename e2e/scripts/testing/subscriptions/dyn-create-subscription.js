@@ -15,8 +15,9 @@ async function run(nodeName, networkInfo, args) {
   // random subId
   const subId = new Uint8Array(33);
   crypto.getRandomValues(subId);
+  const originKind = "xcm"
 
-  const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoCreateSubscription(credits, frequency, metadata, subId))
+  const unsub = await api.tx.idnConsumer.createSubscription(credits, frequency, metadata, subId, originKind)
     .signAndSend(sudoPair, (result) => {
       if (result.status.isInBlock) {
         console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
