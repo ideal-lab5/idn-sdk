@@ -5,8 +5,6 @@ authors = ["Ideal Network <admin@idealnetwork.io>"]
 edition = "2021"
 publish = false
 
-[workspace]
-
 [dependencies]
 # Parity SCALE Codec
 codec = { package = "parity-scale-codec", version = "3.7.4", default-features = false, features = [

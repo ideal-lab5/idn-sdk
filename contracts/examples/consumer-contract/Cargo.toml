@@ -9,8 +9,6 @@ edition = "2021"
 readme = "README.md"
 description = "An example consumer contract for Ideal Network services"
 
-[workspace]
-
 [dependencies]
 ink = { version = "5.1.1", default-features = false }
 scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
