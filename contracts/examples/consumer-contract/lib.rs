@@ -1363,24 +1363,30 @@ mod example_consumer {
 		use ink_e2e::ContractsBackend;
 		type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+		/// The test is marked as ignored since as a part of the test, the contract 
+		/// will be compiled and deployed to a Substrate node that is running in the background.
+		/// see https://use.ink/docs/v5/basics/contract-testing/end-to-end-e2e-testing
 		#[ink_e2e::test]
+		#[ignore]
 		async fn basic_contract_works<Client: ContractsBackend>(
 			mut client: Client,
 		) -> E2EResult<()> {
 			// Contract parameters
 			let idn_para_id = 2000;
 			let idn_manager_pallet_index = 10;
-			let destination_para_id = 1000;
-			let contracts_pallet_index = 50;
+			let self_para_id = 1000;
+			let self_contracts_pallet_index = 50;
+			let self_contract_call_index = 16;
+			let max_idn_xcm_fees = 1_000_000;
 
 			// Deploy the contract
 			let mut constructor = ExampleConsumerRef::new(
 				IdnParaId::Other(idn_para_id),                          // idn_para_id
 				IdnManagerPalletIndex::Other(idn_manager_pallet_index), // idn_manager_pallet_index
-				ConsumerParaId::Other(destination_para_id),             // self_para_id
-				ContractsPalletIndex::Other(contracts_pallet_index),    /* self_contracts_pallet_index */
-				ContractsCallIndex::Other(16),                          // self_contract_call_index
-				Some(1_000_000),                                        // max_idn_xcm_fees
+				ConsumerParaId::Other(self_para_id),             // self_para_id
+				ContractsPalletIndex::Other(self_contracts_pallet_index),    /* self_contracts_pallet_index */
+				ContractsCallIndex::Other(self_contract_call_index),    // self_contract_call_index
+				Some(max_idn_xcm_fees),                                        // max_idn_xcm_fees
 			);
 
 			// Verify that the contract can be deployed
