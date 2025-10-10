@@ -702,10 +702,9 @@ impl IdnClient {
 	/// - `sub_id`: The subscription ID of the subscription
 	/// - `req_ref`: An optional unique identifier associated with the request being sent
 	/// - `metadata`: Optional bounded data for application-specific context. This must match the
-	///    metadata that was passed
-	///    when creating the subscription.
+	///   metadata that was passed when creating the subscription.
 	/// - `call_params`: Optional execution parameters (gas limits, storage deposits). This must
-	///    match the call_params that was passed when creating the subscription
+	///   match the call_params that was passed when creating the subscription
 	/// - `origin_kind`: Optional [`OriginKind`] for the XCM message; defaults to
 	///   `OriginKind::Native`
 	///
