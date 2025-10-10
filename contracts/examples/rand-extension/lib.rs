@@ -57,7 +57,8 @@ mod rand_extension {
 			let caller = self.env().caller();
 			let acct_id_bytes: &[u8] = caller.as_ref();
 			let mut data = self.value.to_vec();
-			// shuffle self.value with the latest runtime randomness xor'd with the acct_id_bytes (32 bytes)
+			// shuffle self.value with the latest runtime randomness xor'd with the acct_id_bytes
+			// (32 bytes)
 			shuffle(self.env(), &mut data, acct_id_bytes.try_into().unwrap())?;
 			self.value = data.try_into().unwrap();
 			Ok(())

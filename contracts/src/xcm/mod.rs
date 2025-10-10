@@ -701,10 +701,11 @@ impl IdnClient {
 	/// # Parameters
 	/// - `sub_id`: The subscription ID of the subscription
 	/// - `req_ref`: An optional unique identifier associated with the request being sent
-	/// - `metadata`: Optional bounded data for application-specific context. This must match the metadata that was passed
+	/// - `metadata`: Optional bounded data for application-specific context. This must match the
+	///    metadata that was passed
 	///    when creating the subscription.
-	/// - `call_params`: Optional execution parameters (gas limits, storage deposits). This must match the call_params that was passed
-	///    when creating the subscription
+	/// - `call_params`: Optional execution parameters (gas limits, storage deposits). This must
+	///    match the call_params that was passed when creating the subscription
 	/// - `origin_kind`: Optional [`OriginKind`] for the XCM message; defaults to
 	///   `OriginKind::Native`
 	///
@@ -743,7 +744,8 @@ impl IdnClient {
 		self.xcm_send(call)
 	}
 
-	/// This function is used to create the encoded callback data for the SubInfoResponse. See create_callback_data for how dummy data is used.
+	/// This function is used to create the encoded callback data for the SubInfoResponse. See
+	/// create_callback_data for how dummy data is used.
 	pub fn create_dummy_sub_info_response(
 		&self,
 		sub_id: SubscriptionId,
@@ -966,7 +968,8 @@ impl IdnClient {
 	///
 	/// # Parameters
 	/// - `call_params`: Optional execution parameters (gas limits, storage deposits)
-	/// - `dummy_params`:  These dummy params are needed to get the full encoded length of the call data, which we will truncate later
+	/// - `dummy_params`:  These dummy params are needed to get the full encoded length of the call
+	///   data, which we will truncate later
 	///
 	/// # Returns
 	/// Encoded call data ready for XCM contract invocation
