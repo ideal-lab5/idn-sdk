@@ -167,6 +167,13 @@ use ink::{
 };
 
 // These are needed for both test and non-test
+pub use bp_idn::{
+	types::{
+		QuoteRequest, QuoteSubParams, RequestReference, SubInfoRequest, Subscription,
+		SubscriptionDetails, SubscriptionState,
+	},
+	Call as RuntimeCall, IdnManagerCall,
+};
 use codec::{Compact, Decode, Encode};
 use ink::xcm::lts::{Junction, Location};
 #[cfg(not(test))]
@@ -177,19 +184,6 @@ use types::{
 	AccountId, Balance, CallData, CreateSubParams, Credits, IdnBlockNumber, IdnXcm, Metadata,
 	OriginKind, PalletIndex, ParaId, Pulse, Quote, SubInfoResponse, SubscriptionId,
 	UpdateSubParams,
-};
-pub use bp_idn::{
-	Call as RuntimeCall, 
-	IdnManagerCall, 
-	types::{
-		SubInfoRequest, 
-		QuoteRequest, 
-		QuoteSubParams, 
-		RequestReference, 
-		Subscription, 
-		SubscriptionDetails,
-		SubscriptionState
-	}
 };
 
 use crate::xcm::constants::{CONSUME_PULSE_SEL, CONSUME_QUOTE_SEL, CONSUME_SUB_INFO_SEL};
@@ -336,8 +330,6 @@ impl From<EnvError> for Error {
 		}
 	}
 }
-
-
 
 /// Result type for IDN client operations
 ///
@@ -660,15 +652,14 @@ impl IdnClient {
 	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
 	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
 	pub fn request_quote(
-			&self,
-			number_of_pulses: IdnBlockNumber,
-			frequency: IdnBlockNumber,
-			metadata: Option<Metadata>,
-			sub_id: Option<SubscriptionId>,
-			req_ref: Option<RequestReference>,
-			origin_kind: Option<OriginKind>,
-		) -> Result<()> {
-
+		&self,
+		number_of_pulses: IdnBlockNumber,
+		frequency: IdnBlockNumber,
+		metadata: Option<Metadata>,
+		sub_id: Option<SubscriptionId>,
+		req_ref: Option<RequestReference>,
+		origin_kind: Option<OriginKind>,
+	) -> Result<()> {
 		let req_ref = match req_ref {
 			Some(req_ref) => req_ref,
 			None => {
@@ -678,11 +669,20 @@ impl IdnClient {
 		};
 
 		let mut dummy_params = Vec::new();
-		let create_sub_params = CreateSubParams { credits: 0, target: self.self_para_sibling_location(), call: self.create_callback_data(CONSUME_QUOTE_SEL, dummy_params.clone(), None)?, origin_kind: origin_kind.clone().unwrap_or(OriginKind::Native), frequency, metadata, sub_id};
+		let create_sub_params = CreateSubParams {
+			credits: 0,
+			target: self.self_para_sibling_location(),
+			call: self.create_callback_data(CONSUME_QUOTE_SEL, dummy_params.clone(), None)?,
+			origin_kind: origin_kind.clone().unwrap_or(OriginKind::Native),
+			frequency,
+			metadata,
+			sub_id,
+		};
 
-		let quote = Quote { req_ref , fees: u128::default(), deposit: u128::default() };
+		let quote = Quote { req_ref, fees: u128::default(), deposit: u128::default() };
 		dummy_params = quote.encode();
-		let quote_request = QuoteRequest{req_ref, create_sub_params, lifetime_pulses: number_of_pulses};
+		let quote_request =
+			QuoteRequest { req_ref, create_sub_params, lifetime_pulses: number_of_pulses };
 		let req = QuoteSubParams {
 			quote_request,
 			call: self.create_callback_data(CONSUME_QUOTE_SEL, dummy_params, None)?,
@@ -707,11 +707,18 @@ impl IdnClient {
 	///    when creating the subscription
 	/// - `origin_kind`: Optional [`OriginKind`] for the XCM message; defaults to
 	///   `OriginKind::Native`
-	/// 
+	///
 	/// # Errors
 	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
 	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
-	pub fn request_sub_info(&self, sub_id: SubscriptionId, metadata: Option<Metadata>, req_ref: Option<RequestReference>,  call_params: Option<ContractCallParams>, origin_kind: Option<OriginKind>,) -> Result<()> {
+	pub fn request_sub_info(
+		&self,
+		sub_id: SubscriptionId,
+		metadata: Option<Metadata>,
+		req_ref: Option<RequestReference>,
+		call_params: Option<ContractCallParams>,
+		origin_kind: Option<OriginKind>,
+	) -> Result<()> {
 		let req_ref = match req_ref {
 			Some(req_ref) => req_ref,
 			None => {
@@ -720,10 +727,16 @@ impl IdnClient {
 			},
 		};
 
-		let dummy_sub_info_response = self.create_dummy_sub_info_response(sub_id, req_ref, metadata, call_params)?;
+		let dummy_sub_info_response =
+			self.create_dummy_sub_info_response(sub_id, req_ref, metadata, call_params)?;
 		let dummy_params = dummy_sub_info_response.encode();
 
-		let req = SubInfoRequest { sub_id, req_ref, call: self.create_callback_data(CONSUME_SUB_INFO_SEL, dummy_params, None)?, origin_kind: origin_kind.unwrap_or(OriginKind::Native) };
+		let req = SubInfoRequest {
+			sub_id,
+			req_ref,
+			call: self.create_callback_data(CONSUME_SUB_INFO_SEL, dummy_params, None)?,
+			origin_kind: origin_kind.unwrap_or(OriginKind::Native),
+		};
 
 		let call = RuntimeCall::IdnManager(IdnManagerCall::get_subscription_info { req });
 
@@ -731,8 +744,13 @@ impl IdnClient {
 	}
 
 	/// This function is used to create the encoded callback data for the SubInfoResponse. See create_callback_data for how dummy data is used.
-	pub fn create_dummy_sub_info_response(&self, sub_id: SubscriptionId, req_ref: [u8;32], metadata: Option<Metadata>, call_params: Option<ContractCallParams>) -> Result<SubInfoResponse> {
-
+	pub fn create_dummy_sub_info_response(
+		&self,
+		sub_id: SubscriptionId,
+		req_ref: [u8; 32],
+		metadata: Option<Metadata>,
+		call_params: Option<ContractCallParams>,
+	) -> Result<SubInfoResponse> {
 		let dummy_pulse = Pulse::default();
 		let dummy_sub_id = SubscriptionId::default();
 		let dummy_details_parameters = (dummy_pulse, dummy_sub_id).encode();
@@ -740,12 +758,16 @@ impl IdnClient {
 			subscriber: sub_id.into(),
 			target: self.self_para_sibling_location(),
 			origin_kind: OriginKind::Native,
-			call: self.create_callback_data(CONSUME_PULSE_SEL, dummy_details_parameters, call_params)?,
+			call: self.create_callback_data(
+				CONSUME_PULSE_SEL,
+				dummy_details_parameters,
+				call_params,
+			)?,
 		};
 		let dummy_sub = Subscription {
 			id: sub_id.into(),
 			state: SubscriptionState::Active,
-			metadata: metadata,
+			metadata,
 			last_delivered: Some(u32::default()),
 			details: dummy_details,
 			credits_left: u64::default(),
@@ -754,9 +776,8 @@ impl IdnClient {
 			credits: u64::default(),
 			frequency: u32::default(),
 		};
-		let dummy_sub_response = SubInfoResponse{req_ref: req_ref, sub: dummy_sub};
+		let dummy_sub_response = SubInfoResponse { req_ref, sub: dummy_sub };
 		Ok(dummy_sub_response)
-
 	}
 	/// Validates the cryptographic authenticity and correctness of a randomness pulse.
 	///
@@ -952,7 +973,12 @@ impl IdnClient {
 	///
 	/// # Errors
 	/// - [`Error::CallDataTooLong`]: If the generated call data exceeds size limits
-	fn create_callback_data(&self, selector: [u8; 4], dummy_params: Vec<u8>, call_params: Option<ContractCallParams>) -> Result<CallData> {
+	fn create_callback_data(
+		&self,
+		selector: [u8; 4],
+		dummy_params: Vec<u8>,
+		call_params: Option<ContractCallParams>,
+	) -> Result<CallData> {
 		const DEF_VALUE: Balance = 0;
 		const DEF_REF_TIME: u64 = 20_000_000_000;
 		const DEF_PROOF_SIZE: u64 = 1_000_000;
@@ -963,11 +989,14 @@ impl IdnClient {
 		data.extend_from_slice(&dummy_params);
 
 		let mut call = self.generate_call(
-			call_params.as_ref().map(|p| p.value).unwrap_or(DEF_VALUE),            // value - no balance transfer needed for pulse callbacks
+			call_params.as_ref().map(|p| p.value).unwrap_or(DEF_VALUE), // value - no balance transfer needed for pulse callbacks
 			call_params.as_ref().map(|p| p.gas_limit_ref_time).unwrap_or(DEF_REF_TIME), // gas_limit_ref_time - reasonable default
-			call_params.as_ref().map(|p| p.gas_limit_proof_size).unwrap_or(DEF_PROOF_SIZE),       // gas_limit_proof_size - reasonable default
-			call_params.as_ref().map(|p| p.storage_deposit_limit).unwrap_or(DEF_STORAGE_DEPOSIT),          // storage_deposit_limit - use None for default
-			data,          // data - the encoded selector and params
+			call_params.as_ref().map(|p| p.gas_limit_proof_size).unwrap_or(DEF_PROOF_SIZE), // gas_limit_proof_size - reasonable default
+			call_params
+				.as_ref()
+				.map(|p| p.storage_deposit_limit)
+				.unwrap_or(DEF_STORAGE_DEPOSIT), // storage_deposit_limit - use None for default
+			data, // data - the encoded selector and params
 		);
 
 		// Truncate the call data to remove the dummy params, real params will be provided by the
@@ -1099,9 +1128,8 @@ mod tests {
 		assert_eq!(client.get_idn_para_id(), IDN_PARA_ID_PASEO);
 		assert_eq!(client.get_self_contracts_pallet_index(), CONTRACTS_PALLET_INDEX_PASEO);
 		assert_eq!(client.get_self_para_id(), CONSUMER_PARA_ID_PASEO);
-		assert!(client.request_sub_info([0;32], None, None, None, None).is_ok());
+		assert!(client.request_sub_info([0; 32], None, None, None, None).is_ok());
 		assert!(client.request_quote(100, 4, None, None, None, None).is_ok());
-		
 	}
 
 	#[test]
@@ -1128,7 +1156,6 @@ mod tests {
 
 	#[test]
 	fn test_edge_cases() {
-
 		// Test constructor with edge case values
 		let edge_client = IdnClient::new(u32::MAX, u8::MAX, u32::MAX, u8::MAX, u8::MAX, u128::MAX);
 		assert_eq!(edge_client.get_idn_manager_pallet_index(), u8::MAX);
@@ -1136,7 +1163,7 @@ mod tests {
 		assert_eq!(edge_client.get_self_contracts_pallet_index(), u8::MAX);
 		assert_eq!(edge_client.get_self_para_id(), u32::MAX);
 		assert_eq!(edge_client.max_idn_xcm_fees, u128::MAX);
-		assert!(edge_client.request_sub_info([0;32], None, None, None, None).is_ok());
+		assert!(edge_client.request_sub_info([0; 32], None, None, None, None).is_ok());
 		assert!(edge_client.request_quote(100, 4, None, None, None, None).is_ok());
 	}
 
@@ -1161,7 +1188,6 @@ mod tests {
 	#[test]
 	fn test_subscription_management_api() {
 		let client = mock_client();
-
 
 		let quote_result = client.request_quote(1, 1, None, None, None, None);
 
@@ -1279,12 +1305,14 @@ mod tests {
 	fn test_create_create_dummy_sub_info_response() {
 		let client = mock_client();
 
-		let sub_id = [1;32];
-		let req_ref = [2;32];
-		let dummy_sub_info_response = client.create_dummy_sub_info_response(sub_id, req_ref, None, None);
+		let sub_id = [1; 32];
+		let req_ref = [2; 32];
+		let dummy_sub_info_response =
+			client.create_dummy_sub_info_response(sub_id, req_ref, None, None);
 		assert!(dummy_sub_info_response.is_ok());
 		// Ensure that we always return the same dummy SubInfoResponse given the same data
-		let dummy_sub_info_response2 = client.create_dummy_sub_info_response(sub_id, req_ref, None, None);
+		let dummy_sub_info_response2 =
+			client.create_dummy_sub_info_response(sub_id, req_ref, None, None);
 
 		assert_eq!(dummy_sub_info_response2, dummy_sub_info_response);
 	}
