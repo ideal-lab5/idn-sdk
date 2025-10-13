@@ -96,7 +96,7 @@ use sp_idn_traits::{
 use sp_std::fmt::Debug;
 
 extern crate alloc;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 pub mod types;
 pub mod weights;
@@ -203,6 +203,32 @@ pub mod pallet {
 		StartExpired,
 	}
 
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			// reject if not from local
+			if !matches!(source, TransactionSource::Local) {
+				return InvalidTransaction::Call.into();
+			}
+
+			match call {
+				Call::try_submit_asig { asig, start, end } => {
+					ValidTransaction::with_tag_prefix("RandomnessBeacon")
+						// prioritize execution
+						.priority(TransactionPriority::MAX)
+						// unique tag per call
+						.and_provides(vec![(b"beacon_pulse", asig, start, end).encode()])
+						.longevity(5)
+						.propagate(false)
+						.build()
+				},
+				_ => InvalidTransaction::Call.into(),
+			}
+		}
+	}
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to
@@ -230,7 +256,8 @@ pub mod pallet {
 		///
 		/// * `origin`: An unsigned origin.
 		/// * `asig`: An aggregated signature as bytes
-		/// * `height`: The number of signatures aggregated in asig
+		/// * `start`: The round number where sig aggregation began
+		/// * `end`: The round number where sig aggregation stopped
 		#[pallet::call_index(0)]
 		#[pallet::weight((<T as pallet::Config>::WeightInfo::try_submit_asig(
 			T::MaxSigsPerBlock::get().into())
@@ -244,27 +271,33 @@ pub mod pallet {
 			asig: OpaqueSignature,
 			start: RoundNumber,
 			end: RoundNumber,
-		) -> DispatchResultWithPostInfo {
-			ensure_signed(origin)?;
+		) -> DispatchResult {
+			ensure_none(origin)?;
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
 
 			let pk = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
 			// 0 < num_sigs <= MaxSigsPerBlock
-			let height = end - start;
-			ensure!(height > 0, Error::<T>::ZeroHeightProvided);
+			let height = end.saturating_sub(start);
+			// must allow start = end if start > 0
+			if height == 0 {
+				// we allow height == 0 iff there is a single pulse being ingested (start == end)
+				ensure!(start == end, Error::<T>::ZeroHeightProvided);
+			}
 			ensure!(
 				height <= T::MaxSigsPerBlock::get() as u64,
 				Error::<T>::ExcessiveHeightProvided
 			);
 
 			let latest_round: RoundNumber = LatestRound::<T>::get();
-			// start must be greater than last known latest round
-			ensure!(start >= latest_round, Error::<T>::StartExpired);
+			// we expect sequential pulse ingestion w/o gaps unless it's the first pulse we ingest
+			if latest_round > 0 {
+				ensure!(start == latest_round, Error::<T>::StartExpired);
+			}
 
 			// build the message
 			let mut amsg = zero_on_g1();
-			for r in start..end + 1 {
+			for r in start..=end {
 				let msg = compute_round_on_g1(r).map_err(|_| Error::<T>::SerializationFailed)?;
 				amsg = (amsg + msg).into();
 			}
@@ -292,9 +325,7 @@ pub mod pallet {
 
 			// events
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
-			// successful verification is beneficial to the network, so we do not charge when the
-			// signature is correct
-			Ok(Pays::No.into())
+			Ok(())
 		}
 
 		/// Set the genesis round exactly once if you are root
@@ -316,6 +347,18 @@ pub mod pallet {
 	}
 }
 
+impl<T: Config> Pallet<T> {
+	/// get the latest round from the runtime
+	pub fn latest_round() -> sp_consensus_randomness_beacon::types::RoundNumber {
+		LatestRound::<T>::get()
+	}
+
+	/// get the max number of pulses we can hold in a block
+	pub fn max_rounds() -> u8 {
+		T::MaxSigsPerBlock::get()
+	}
+}
+
 impl<T: Config> Randomness<T::Hash, BlockNumberFor<T>> for Pallet<T>
 where
 	T::Hash: From<H256>,
@@ -323,7 +366,6 @@ where
 	fn random(subject: &[u8]) -> (T::Hash, BlockNumberFor<T>) {
 		match SparseAccumulation::<T>::get() {
 			Some(accumulation) => {
-				// Hash the aggregated signature directly as suggested by the colleague
 				let randomness_hash = accumulation.signature.hash(subject).into();
 				(randomness_hash, frame_system::Pallet::<T>::block_number())
 			},
@@ -339,19 +381,9 @@ where
 }
 
 sp_api::decl_runtime_apis! {
-	pub trait ExtrinsicBuilderApi<AccountId, RuntimeCall, Signature, TxExtension, Nonce>
-	where
-		AccountId: Encode + Decode,
-		RuntimeCall: Encode + Decode,
-		Signature: Encode + Decode,
-		TxExtension : Encode + Decode,
-		Nonce: Encode + Decode,
-	{
-		fn construct_pulse_payload(
-			asig: Signature,
-			start: u64,
-			end: u64,
-			nonce: Nonce,
-		) -> (Vec<u8>, RuntimeCall, TxExtension);
+	pub trait RandomnessBeaconApi {
+		fn latest_round() -> sp_consensus_randomness_beacon::types::RoundNumber;
+		fn max_rounds() -> u8;
+		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> Block::Extrinsic;
 	}
 }
