@@ -94,8 +94,8 @@ This example contract uses the IDN Client library's fallback gas configuration b
 
 When `None` is passed as `call_params`, the library uses these default values:
 
-- **Gas Limit Ref Time**: `20_000_000_000` (20 billion reference time units)
-- **Gas Limit Proof Size**: `1_000_000` (1 MB proof size)
+- **Gas Limit Ref Time**: `4_000_000_000` (4 billion reference time units)
+- **Gas Limit Proof Size**: `200_000` (200 KB proof size)
 - **Storage Deposit Limit**: `None` (unlimited/default handling)
 - **Value Transfer**: `0` (no token transfer with pulse delivery)
 

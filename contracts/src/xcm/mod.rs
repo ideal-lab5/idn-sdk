@@ -982,8 +982,8 @@ impl IdnClient {
 		call_params: Option<ContractCallParams>,
 	) -> Result<CallData> {
 		const DEF_VALUE: Balance = 0;
-		const DEF_REF_TIME: u64 = 20_000_000_000;
-		const DEF_PROOF_SIZE: u64 = 1_000_000;
+		const DEF_REF_TIME: u64 = 4_000_000_000;
+		const DEF_PROOF_SIZE: u64 = 200_000;
 		const DEF_STORAGE_DEPOSIT: Option<Balance> = None;
 
 		let mut data = Vec::new();
