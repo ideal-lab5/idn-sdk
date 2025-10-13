@@ -90,7 +90,7 @@ jobs:
       - name: Build
         run: cargo build --verbose --all-features -p idn-node --release
   
-  build_consumer_contract:
+  consumer_contract:
     runs-on: ubuntu-latest
 
     steps:
@@ -109,45 +109,15 @@ jobs:
           cargo +nightly fmt --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- --check
 
       - name: Run cargo doc for the contract
-        run: cargo doc --no-deps --all-features -p idn-node
+        run: cargo doc --no-deps --manifest-path ./contracts/examples/consumer-contract/Cargo.toml
       
-      - name: Test
-        run: cargo test --all-features --manifest-path ./contracts/examples/consumer-contract/Cargo.toml
+      - name: Run Tests
+        run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features --doctests 
       
       - name: Build
         run: cargo build --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --release
   
-  test_consumer_contract:
-    runs-on: ubuntu-latest
-    steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-    
-        - name: Setup Environment
-          uses: ./.github/actions/setup-rust
-    
-        - name: Install llvm-cov
-          uses: taiki-e/install-action@cargo-llvm-cov
-    
-        - name: Run Tests
-          run: |
-            cargo +nightly llvm-cov --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features --doctests \
-              --cobertura --output-path consumer_contract_tests.xml
-    
-        - name: Generate Code Coverage Summary
-          uses: irongut/CodeCoverageSummary@v1.3.0
-          with:
-            filename: consumer_contract_tests.xml
-            badge: true
-            fail_below_min: true
-            thresholds: '85 90'
-            output: both
-            format: markdown
-          
-        - name: Export Job Summary
-          run: echo "$(<code-coverage-results.md)" >> $GITHUB_STEP_SUMMARY
-          
-  build_randomness_contract:
+  randomness_contract:
     runs-on: ubuntu-latest
 
     steps:
@@ -166,40 +136,14 @@ jobs:
           cargo +nightly fmt --manifest-path ./contracts/examples/rand-extension/Cargo.toml -- --check
 
       - name: Run cargo doc for the contract
-        run: cargo doc --no-deps --all-features -p idn-node
+        run: cargo doc --no-deps --all-features --manifest-path ./contracts/examples/rand-extension/Cargo.toml
+      
+      - name: Run Tests
+        run: cargo test --manifest-path ./contracts/examples/rand-extension/Cargo.toml --all-features --doctests 
       
       - name: Build
         run: cargo build --manifest-path ./contracts/examples/rand-extension/Cargo.toml --release
 
-  test_randomness_contract:
-    runs-on: ubuntu-latest
-    steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
-    
-        - name: Setup Environment
-          uses: ./.github/actions/setup-rust
-    
-        - name: Install llvm-cov
-          uses: taiki-e/install-action@cargo-llvm-cov
-    
-        - name: Run Tests
-          run: |
-            cargo +nightly llvm-cov --manifest-path ./contracts/examples/rand-extension/Cargo.toml --all-features --doctests \
-              --cobertura --output-path randomness_contract_tests.xml
-    
-        - name: Generate Code Coverage Summary
-          uses: irongut/CodeCoverageSummary@v1.3.0
-          with:
-            filename: randomness_contract_tests.xml
-            badge: true
-            fail_below_min: true
-            thresholds: '85 90'
-            output: both
-            format: markdown
-          
-        - name: Export Job Summary
-          run: echo "$(<code-coverage-results.md)" >> $GITHUB_STEP_SUMMARY
   test:
     runs-on: ubuntu-latest
 
