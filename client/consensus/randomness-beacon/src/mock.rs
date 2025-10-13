@@ -36,7 +36,7 @@ impl MockRuntimeApiState {
 pub(crate) struct MockClient {
 	best_hash: Mutex<Option<<TestBlock as BlockT>::Hash>>,
 	best_number: Mutex<u64>,
-	pub runtime_api_state: MockRuntimeApiState, // Add this
+	pub runtime_api_state: MockRuntimeApiState,
 }
 
 impl MockClient {

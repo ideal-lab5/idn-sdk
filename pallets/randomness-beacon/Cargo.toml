@@ -26,6 +26,8 @@ frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
 pallet-aura.workspace = true
+# pallet-authorship.workspace = true
+pallet-session.workspace = true
 sp-api.workspace = true
 sp-idn-crypto.workspace = true
 sp-idn-traits.workspace = true
@@ -59,6 +61,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"pallet-aura/std",
+	"pallet-session/std",
 	"scale-info/std",
 	"sp-api/std",
 	"sp-core/std",

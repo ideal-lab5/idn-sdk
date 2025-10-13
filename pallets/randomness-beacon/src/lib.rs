@@ -115,6 +115,8 @@ mod benchmarking;
 
 const LOG_TARGET: &str = "pallet-randomness-beacon";
 
+// pub type AuthorityOf<T> = <T as pallet_aura::Config>::Authorities;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -123,6 +125,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_consensus_randomness_beacon::types::{OpaqueSignature, RoundNumber};
 	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
+	use sp_runtime::traits::{Convert, IdentifyAccount, Verify};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -131,7 +134,7 @@ pub mod pallet {
 	type PubkeyOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Pubkey;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_aura::Config {
+	pub trait Config: frame_system::Config + pallet_session::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// A type representing the weights required by the dispatchables of this pallet.
@@ -153,6 +156,15 @@ pub mod pallet {
 		type Dispatcher: Dispatcher<Self::Pulse>;
 		/// The fallback randomness source
 		type FallbackRandomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
+		/// Signature type that the extension of this pallet can verify.
+		type Signature: Verify<Signer = Self::AccountIdentifier>
+			+ Parameter
+			+ Encode
+			+ Decode
+			+ Send
+			+ Sync;
+		/// The account identifier used by this pallet's signature type.
+		type AccountIdentifier: IdentifyAccount<AccountId = Self::AccountId>;
 	}
 
 	/// The round when we start consuming pulses
@@ -185,22 +197,26 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The beacon config is already set
+		/// The beacon config is already set.
 		BeaconConfigAlreadySet,
-		/// The beacon config is not set
+		/// The beacon config is not set.
 		BeaconConfigNotSet,
-		/// The pulse could not be verified
-		VerificationFailed,
-		/// There must be at least one signature to construct an asig
-		ZeroHeightProvided,
-		/// The height exceeds the maximum allowed signatures per block
+		/// The height exceeds the maximum allowed signatures per block.
 		ExcessiveHeightProvided,
-		/// Only one aggregated signature can be provided per block
+		/// The signature could not be verified (authority sig, not from the beacon).
+		InvalidSignature,
+		/// The caller was not a network authority.
+		NotAnAuthority,
+		/// Only one aggregated signature can be provided per block.
 		SignatureAlreadyVerified,
-		/// A critical error occurred where serialization failed
+		/// A critical error occurred where serialization failed.
 		SerializationFailed,
-		/// The round of this pulse has already happened
+		/// The round of this pulse has already happened.
 		StartExpired,
+		/// The pulse could not be verified.
+		VerificationFailed,
+		/// There must be at least one signature to construct an asig.
+		ZeroHeightProvided,
 	}
 
 	#[pallet::validate_unsigned]
@@ -215,6 +231,7 @@ pub mod pallet {
 
 			match call {
 				Call::try_submit_asig { asig, start, end } => {
+					log::info!("************************************************ VALID");
 					ValidTransaction::with_tag_prefix("RandomnessBeacon")
 						// prioritize execution
 						.priority(TransactionPriority::MAX)
@@ -224,7 +241,10 @@ pub mod pallet {
 						.propagate(false)
 						.build()
 				},
-				_ => InvalidTransaction::Call.into(),
+				_ => {
+					log::info!("************************************************ INVALID");
+					InvalidTransaction::Call.into()
+				},
 			}
 		}
 	}
@@ -271,11 +291,26 @@ pub mod pallet {
 			asig: OpaqueSignature,
 			start: RoundNumber,
 			end: RoundNumber,
+			// signature: T::Signature,
+			// signer: T::AccountId,
 		) -> DispatchResult {
+			log::info!("************************************************ extrinsic VALID");
+			// verify caller is authority
 			ensure_none(origin)?;
+
+
+			// // verify the signature on the payload
+			// let payload = (asig.clone(), start, end).encode();
+			// ensure!(signature.verify(&payload[..], &signer), Error::<T>::InvalidSignature);
+			// // convert the signer AccountId to ValidatorId
+			// let signer_validator_id =
+			// 	T::ValidatorIdOf::convert(signer.clone()).ok_or(Error::<T>::NotAnAuthority)?;
+			// let authorities = pallet_session::Validators::<T>::get();
+			// // verify the signer is an authorit y (validator)
+			// ensure!(authorities.contains(&signer_validator_id), Error::<T>::NotAnAuthority);
+
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
-
 			let pk = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
 			// 0 < num_sigs <= MaxSigsPerBlock
 			let height = end.saturating_sub(start);
@@ -387,10 +422,12 @@ sp_api::decl_runtime_apis! {
 		/// Get the maximum number of outputs from the beacon we can verify simultaneously onchain
 		fn max_rounds() -> u8;
 		/// Build an unsigned extrinsic with signed payload
-        fn build_extrinsic(
-            asig: Vec<u8>,
-            start: u64,
-            end: u64,
-        ) -> Block::Extrinsic;
+		fn build_extrinsic(
+			asig: Vec<u8>,
+			start: u64,
+			end: u64,
+			signature: Vec<u8>,
+			signer: sp_runtime::MultiSigner,
+		) -> Block::Extrinsic;
 	}
 }

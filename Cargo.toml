@@ -8,8 +8,8 @@ members = [
     "pallets/randomness-beacon",
     "pallets/idn-consumer",
     "pallets/idn-manager",
-    "chains/kitchensink/runtime",
-    "chains/kitchensink/node",
+    # "chains/kitchensink/runtime",
+    # "chains/kitchensink/node",
     "chains/ideal-network/runtime",
     "chains/ideal-network/node",
     "chains/ideal-network/bridge",
@@ -112,7 +112,7 @@ pallet-aura = { version = "39.0.0", default-features = false }
 pallet-authorship = { version = "40.0.0", default-features = false }
 pallet-balances = { version = "41.1.0", default-features = false }
 pallet-message-queue = { version = "43.1.0", default-features = false }
-pallet-session = { version = "40.0.0", default-features = false }
+pallet-session = { version = "40.0.0", default-features = false, features = ['historical']}
 pallet-sudo = { version = "40.0.0", default-features = false }
 pallet-timestamp = { version = "39.0.0", default-features = false }
 pallet-transaction-payment = { version = "40.0.0", default-features = false }

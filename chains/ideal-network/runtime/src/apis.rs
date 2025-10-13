@@ -24,6 +24,7 @@ use crate::{
 	CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS,
 };
 use bp_idn::types::SERIALIZED_SIG_SIZE;
+use codec::Decode;
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	weights::{Weight, WeightToFee as _},
@@ -356,20 +357,40 @@ impl_runtime_apis! {
 	}
 
 	impl pallet_randomness_beacon::RandomnessBeaconApi<Block> for Runtime {
-
-		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> crate::UncheckedExtrinsic {
+		fn build_extrinsic(
+			asig: Vec<u8>,
+			start: u64,
+			end: u64,
+			signature: Vec<u8>,
+			signer: sp_runtime::MultiSigner,
+		) -> crate::UncheckedExtrinsic {
+			use sp_runtime::traits::IdentifyAccount;
+			use codec::Decode;
+			
 			// if a wrong-sized signature is injected, specify a default
 			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] =
-				asig.try_into().unwrap_or([0u8;SERIALIZED_SIG_SIZE]);
-
+				asig.try_into().unwrap_or([0u8; SERIALIZED_SIG_SIZE]);
+			
+			// Decode as MultiSignature (not AuthoritySignature)
+			let sig = sp_runtime::MultiSignature::decode(&mut &signature[..])
+				.unwrap_or_else(|_| {
+					sp_runtime::MultiSignature::Sr25519(
+						sp_core::sr25519::Signature::from_raw([0u8; 64])
+					)
+				});
+			
+			// convert MultiSigner to AccountId
+			let account_id: AccountId = signer.into_account();
+			
 			let call = crate::RuntimeCall::RandBeacon(
 				pallet_randomness_beacon::Call::try_submit_asig {
 					asig: formatted,
 					start,
 					end,
+					// signature: sig,
+					// signer: account_id,
 				}
 			);
-
 			crate::UncheckedExtrinsic::new_bare(call)
 		}
 

@@ -380,6 +380,8 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
 	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
+	type Signature = sp_runtime::MultiSignature;
+	type AccountIdentifier = sp_runtime::MultiSigner;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

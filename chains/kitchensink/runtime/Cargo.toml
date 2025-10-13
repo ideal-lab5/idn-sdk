@@ -31,6 +31,7 @@ xcm.workspace = true
 xcm-executor.workspace = true
 xcm-builder.workspace = true
 pallet-aura.workspace = true
+pallet-session.workspace = true
 pallet-insecure-randomness-collective-flip.workspace = true
 # IDN Deps
 bp-idn.workspace = true
@@ -60,6 +61,7 @@ std = [
 	"pallet-aura/std",
 	"pallet-idn-manager/std",
 	"pallet-randomness-beacon/std",
+	"pallet-session/std",
 	"xcm/std",
 	"xcm-builder/std",
 	"pallet-idn-consumer/std",

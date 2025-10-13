@@ -23,7 +23,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::ByteArray;
 use sp_consensus_aura::{AuraApi, sr25519, sr25519::AuthorityId as AuraId};
 use sp_keystore::KeystorePtr;
-use sp_runtime::{traits::Block as BlockT, RuntimeAppPublic};
+use sp_runtime::{MultiSigner, traits::Block as BlockT, RuntimeAppPublic};
 use std::sync::Arc;
 
 const LOG_TARGET: &str = "pulse-worker";
@@ -83,9 +83,10 @@ where
 			.next()
 			.map(|key| AuraId::from(key))
 			.unwrap();
+		let signer = MultiSigner::Sr25519(authority_id.clone().into());
 
 		// Check if it's our turn to submit (round-robin based on start round)
-		if self.is_our_turn(start, authority_id.clone(), authorities) {
+		// if self.is_our_turn(start, authority_id.clone(), authorities) {
 			log::debug!(
 				target: LOG_TARGET,
 				"Skipping pulse submission for round {} - not our turn",
@@ -100,7 +101,7 @@ where
 
 			// sign pulse payload
 			let payload = (asig.clone(), start, end).encode();
-			let signature_bytes = self
+			let signature = self
 				.keystore
 				.sign_with(
 					AuraId::ID,
@@ -116,10 +117,12 @@ where
 
 			// Decode signature
 			// TODO: pass the sig to the extrinsic as a param
-			let signature =
-				sp_consensus_aura::sr25519::AuthoritySignature::decode(&mut &signature_bytes[..])
-					.unwrap();
+			// let signature =
+			// 	sp_consensus_aura::sr25519::AuthoritySignature::decode(&mut &signature_bytes[..])
+			// 		.unwrap();
 			// .map_err(|_| "Failed to decode signature".to_string())?;
+
+			// get our id
 
 			// Build unsigned extrinsic with signed payload
 			let extrinsic = self
@@ -130,6 +133,8 @@ where
 					asig.clone(),
 					start,
 					end,
+					signature,
+					signer,
 				)
 				.map_err(|e| GadgetError::RuntimeApiError(e.to_string()))?;
 
@@ -153,7 +158,7 @@ where
 				start,
 				end
 			);
-		}
+		// }
 
 		Ok(best_hash)
 	}
