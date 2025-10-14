@@ -17,13 +17,17 @@
 use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
 use codec::{Decode, Encode};
 use pallet_randomness_beacon::RandomnessBeaconApi;
+use parking_lot::Mutex;
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::ByteArray;
-use sp_consensus_aura::{AuraApi, sr25519, sr25519::AuthorityId as AuraId};
+use sp_consensus_aura::{sr25519, sr25519::AuthorityId as AuraId, AuraApi};
 use sp_keystore::KeystorePtr;
-use sp_runtime::{MultiSigner, traits::Block as BlockT, RuntimeAppPublic};
+use sp_runtime::{
+	traits::{Block as BlockT, NumberFor},
+	MultiSigner, RuntimeAppPublic,
+};
 use std::sync::Arc;
 
 const LOG_TARGET: &str = "pulse-worker";
@@ -36,6 +40,7 @@ where
 	client: Arc<Client>,
 	transaction_pool: Arc<Pool>,
 	keystore: KeystorePtr,
+	last_submitted_block: Arc<Mutex<Option<NumberFor<Block>>>>,
 	_phantom: std::marker::PhantomData<Block>,
 }
 
@@ -44,12 +49,19 @@ where
 	Block: BlockT,
 {
 	pub fn new(client: Arc<Client>, transaction_pool: Arc<Pool>, keystore: KeystorePtr) -> Self {
-		Self { client, transaction_pool, keystore, _phantom: Default::default() }
+		let last_submitted_block = Arc::new(parking_lot::Mutex::new(None));
+		Self {
+			client,
+			transaction_pool,
+			keystore,
+			last_submitted_block,
+			_phantom: Default::default(),
+		}
 	}
 
+	// TODO: consider abstracing this to a trait that can be impld in the pallet isntead
 	/// Check if this authority should submit for the current round (Aura-style round-robin)
 	pub fn is_our_turn(&self, round: u64, authority: AuraId, authorities: Vec<AuraId>) -> bool {
-
 		if authorities.is_empty() {
 			return false;
 		}
@@ -72,9 +84,11 @@ where
 		start: u64,
 		end: u64,
 	) -> Result<Block::Hash, GadgetError> {
-		let best_hash = self.client.info().best_hash;
+		let info = self.client.info();
+		let best_hash = info.best_hash;
+		let current_block = info.best_number;
 
-		// Get current authorities from runtime
+		// Get authorities OUTSIDE lock
 		let authorities = self.client.runtime_api().authorities(best_hash).unwrap_or(vec![]);
 		let authority_id = self
 			.keystore
@@ -83,82 +97,111 @@ where
 			.next()
 			.map(|key| AuraId::from(key))
 			.unwrap();
-		let signer = MultiSigner::Sr25519(authority_id.clone().into());
 
-		// Check if it's our turn to submit (round-robin based on start round)
-		// if self.is_our_turn(start, authority_id.clone(), authorities) {
+		// Check if it's our turn OUTSIDE lock
+		if !self.is_our_turn(0, authority_id.clone(), authorities) {
 			log::debug!(
 				target: LOG_TARGET,
 				"Skipping pulse submission for round {} - not our turn",
 				start
 			);
-			log::info!(
-				target: LOG_TARGET,
-				"Constructing pulse extrinsic for rounds {}-{} (our turn)",
-				start,
-				end
-			);
+			return Ok(best_hash);
+		}
+ 
+		// CRITICAL: Read current_block INSIDE the lock and do atomic check-and-set
+		{
+			let mut last_block = self.last_submitted_block.lock();
 
-			// sign pulse payload
-			let payload = (asig.clone(), start, end).encode();
-			let signature = self
-				.keystore
-				.sign_with(
-					AuraId::ID,
-					sp_application_crypto::sr25519::CRYPTO_ID,
-					&authority_id.as_slice(), 
-					&payload.encode(),
-				)
-				.unwrap()
-				.unwrap();
+			// Read current block while holding lock to ensure consistency
+			// let current_block = self.client.info().best_number;
 
-			// .map_err(|e| format!("Keystore signing error: {:?}", e))?
-			// .ok_or_else(|| "Key not found in keystore".to_string())?;
-
-			// Decode signature
-			// TODO: pass the sig to the extrinsic as a param
-			// let signature =
-			// 	sp_consensus_aura::sr25519::AuthoritySignature::decode(&mut &signature_bytes[..])
-			// 		.unwrap();
-			// .map_err(|_| "Failed to decode signature".to_string())?;
-
-			// get our id
-
-			// Build unsigned extrinsic with signed payload
-			let extrinsic = self
-				.client
-				.runtime_api()
-				.build_extrinsic(
-					best_hash,
-					asig.clone(),
-					start,
-					end,
-					signature,
-					signer,
-				)
-				.map_err(|e| GadgetError::RuntimeApiError(e.to_string()))?;
-
-			let _hash = self
-				.transaction_pool
-				.submit_one(best_hash, TransactionSource::Local, extrinsic)
-				.await
-				.map_err(|e| {
-					log::error!(
+			// Check if we already submitted in this block
+			if let Some(last) = *last_block {
+				if last == current_block {
+					log::debug!(
 						target: LOG_TARGET,
-						"❌ Failed to submit to pool at hash {:?}: {:?}",
-						best_hash,
-						e
+						"⏭️  Already submitted in block #{}, skipping rounds {}-{}",
+						current_block,
+						start,
+						end
 					);
-					GadgetError::TransactionSubmissionFailed
-				})?;
+					return Ok(best_hash);
+				}
+			}
 
-			log::info!(
+			// Reserve this block immediately
+			*last_block = Some(current_block);
+
+			log::debug!(
 				target: LOG_TARGET,
-				"✅ Submitted pulse extrinsic for rounds {}-{}",
+				"🔐 Reserved block #{} for submission of rounds {}-{}",
+				current_block,
 				start,
 				end
 			);
-		// }
+		} // lock dropped
+
+		let signer = MultiSigner::Sr25519(authority_id.clone().into());
+
+		log::info!(
+			target: LOG_TARGET,
+			"Constructing pulse extrinsic for rounds {}-{} (our turn)",
+			start,
+			end
+		);
+
+		// sign pulse payload
+		let payload = (asig.clone(), start, end).encode();
+		let signature = self
+			.keystore
+			.sign_with(
+				AuraId::ID,
+				sp_application_crypto::sr25519::CRYPTO_ID,
+				&authority_id.as_slice(),
+				&payload,
+			)
+			.unwrap()
+			.unwrap();
+		// .map_err(|e| {
+		// 	log::error!(target: LOG_TARGET, "Keystore signing error: {:?}", e);
+		// 	GadgetError::
+		// })?
+		// .ok_or_else(|| {
+		// 	log::error!(target: LOG_TARGET, "Key not found in keystore");
+		// 	GadgetError::KeystoreError
+		// })?;
+
+		// Build unsigned extrinsic with signed payload
+		let extrinsic = self
+			.client
+			.runtime_api()
+			.build_extrinsic(best_hash, asig.clone(), start, end, signature, signer)
+			.map_err(|e| {
+				log::error!(target: LOG_TARGET, "Failed to build extrinsic: {:?}", e);
+				GadgetError::RuntimeApiError(e.to_string())
+			})?;
+
+		let tx_hash = self
+			.transaction_pool
+			.submit_one(best_hash, TransactionSource::Local, extrinsic)
+			.await
+			.map_err(|e| {
+				log::error!(
+					target: LOG_TARGET,
+					"❌ Failed to submit to pool at hash {:?}: {:?}",
+					best_hash,
+					e
+				);
+				GadgetError::TransactionSubmissionFailed
+			})?;
+
+		log::info!(
+			target: LOG_TARGET,
+			"✅ Submitted pulse extrinsic for rounds {}-{}, tx_hash: {:?}",
+			start,
+			end,
+			tx_hash
+		);
 
 		Ok(best_hash)
 	}

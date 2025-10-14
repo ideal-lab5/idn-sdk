@@ -27,7 +27,10 @@ use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
-use std::{pin::Pin, sync::Arc};
+use std::{
+	pin::Pin,
+	sync::{Arc, Mutex},
+};
 
 const LOG_TARGET: &str = "rand-beacon-gadget";
 
@@ -104,6 +107,8 @@ pub struct PulseFinalizationGadget<Block, Client, S, const MAX_QUEUE_SIZE: usize
 	client: Arc<Client>,
 	pulse_submitter: Arc<S>,
 	pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
+	finalized_round: Arc<Mutex<u64>>,
+	submission_lock: Arc<tokio::sync::Mutex<()>>,
 	_phantom: std::marker::PhantomData<Block>,
 }
 
@@ -120,7 +125,16 @@ where
 		pulse_submitter: Arc<S>,
 		pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
 	) -> Self {
-		Self { client, pulse_submitter, pulse_receiver, _phantom: Default::default() }
+		let finalized_round = Arc::new(Mutex::new(0u64));
+		let submission_lock = Arc::new(tokio::sync::Mutex::new(()));
+		Self {
+			client,
+			pulse_submitter,
+			pulse_receiver,
+			finalized_round,
+			submission_lock,
+			_phantom: Default::default(),
+		}
 	}
 
 	/// Run the main loop indefinitely.
@@ -150,9 +164,30 @@ where
 		&self,
 		notification: &UnpinnedFinalityNotification<Block>,
 	) -> Result<(), GadgetError> {
+		// acquire a lock to ensure only one submission at a time
+		let _guard = self.submission_lock.lock().await;
 		// get 'finalized' round from the runtime
 		let at_hash = self.client.info().best_hash;
-		let latest_round = self.client.runtime_api().latest_round(at_hash).unwrap_or(0);
+		// the network does not finalize blocks immediately (e.g. around when block #7 is authored)
+		// thus, in the initial few rounds, the client will always read '0' from the runtime as the latest round
+		let runtime_round = self.client.runtime_api().latest_round(at_hash).unwrap_or(0);
+		let local_round = *self.finalized_round.lock().unwrap();
+		let latest_round = runtime_round.max(local_round);
+
+		// // 🛡️ CRITICAL: Only submit if on-chain hasn't progressed beyond our tracking
+		// // If runtime_round >= local_round, it means our previous submission was executed
+		// if runtime_round >= local_round && local_round > 0 {
+		// 	log::info!(
+		// 		target: LOG_TARGET,
+		// 		"On-chain already at round {}, updating local state from {}",
+		// 		runtime_round,
+		// 		local_round
+		// 	);
+		// 	*self.finalized_round.lock().unwrap() = runtime_round;
+		// 	// Don't submit - either our tx succeeded or someone else submitted
+		// 	return Ok(());
+		// }
+
 		let max_rounds = self
 			.client
 			.runtime_api()
@@ -160,13 +195,19 @@ where
 			.expect("The max rounds is defined. qed.");
 		// get fresh pulses
 		let pulses = self.pulse_receiver.read().await;
+		log::info!("TOTAL PULSES IN RECEIVER QUEUE {:?}", pulses.len());
 		// only take up to as many pulses that we know will be valid in the runtime
 		// this allows the node to hold a 'backlog' or queue of pulses in the case that
-		// block proposal or block finality significantly lags
+		// block proposal or block finality significantly lags.
+		// This also filters any expired pulses that are lingering in the drand receiver.
 		let new_pulses: Vec<_> = pulses
 			.clone()
 			.into_iter()
 			.filter(|p| p.round >= latest_round)
+			// get up to max_rounds from the 
+			// idea: reverse the list, take the first element only
+			// then we can actually do round robin since we know it's always going to be a fresh pulse
+			// ... unless finality notifications come too frequently...
 			.take(max_rounds as usize)
 			.collect();
 
@@ -176,10 +217,11 @@ where
 
 			log::info!(
 				target: LOG_TARGET,
-				"Block #{:?} finalized (round {}), submitting {} new pulses",
+				"Block #{:?} finalized (round {}), submitting pulses for rounds {} - {}",
 				notification.header.number(),
 				latest_round,
-				end.saturating_sub(start)
+				start,
+				end,
 			);
 
 			// aggregate sigs
@@ -197,6 +239,8 @@ where
 				.expect("The signature is well formatted. qed.");
 
 			self.pulse_submitter.submit_pulse(asig_bytes, start, end).await?;
+			*self.finalized_round.lock().unwrap() = end;
+			// self.pulse_receiver.consume((end - start + 1) as usize).await;
 		} else {
 			log::info!(
 				target: LOG_TARGET,

@@ -85,14 +85,16 @@ pub use pallet::*;
 
 use frame_support::pallet_prelude::*;
 
-use frame_support::traits::Randomness;
+use frame_support::{traits::Randomness, BoundedSlice, BoundedVec};
 use frame_system::pallet_prelude::BlockNumberFor;
+use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_core::H256;
 use sp_idn_crypto::verifier::SignatureVerifier;
 use sp_idn_traits::{
 	pulse::{Dispatcher, Pulse as TPulse},
 	Hashable,
 };
+use sp_runtime::RuntimeAppPublic;
 use sp_std::fmt::Debug;
 
 extern crate alloc;
@@ -115,7 +117,8 @@ mod benchmarking;
 
 const LOG_TARGET: &str = "pallet-randomness-beacon";
 
-// pub type AuthorityOf<T> = <T as pallet_aura::Config>::Authorities;
+/// The public key type
+type PubkeyOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Pubkey;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -123,15 +126,12 @@ pub mod pallet {
 	use ark_serialize::CanonicalSerialize;
 	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
-	use sp_consensus_randomness_beacon::types::{OpaqueSignature, RoundNumber};
+	use sp_consensus_randomness_beacon::types::OpaqueSignature;
 	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
 	use sp_runtime::traits::{Convert, IdentifyAccount, Verify};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
-
-	/// The public key type
-	type PubkeyOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Pubkey;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_session::Config {
@@ -165,11 +165,24 @@ pub mod pallet {
 			+ Sync;
 		/// The account identifier used by this pallet's signature type.
 		type AccountIdentifier: IdentifyAccount<AccountId = Self::AccountId>;
+		// /// The identifier type for an authority.
+		// type AuthorityId: Member
+		// 	+ Parameter
+		// 	+ RuntimeAppPublic
+		// 	+ MaybeSerializeDeserialize
+		// 	+ MaxEncodedLen;
+		// /// The maximum number of authorities that the pallet can hold.
+		// type MaxAuthorities: Get<u32>;
 	}
 
-	/// The round when we start consuming pulses
+	// /// The current authority set.
+	// #[pallet::storage]
+	// pub type Authorities<T: Config> =
+	// 	StorageValue<_, BoundedVec<T::AuthorityId, T::MaxAuthorities>, ValueQuery>;
+
+	/// The beacon public key
 	#[pallet::storage]
-	pub type BeaconConfig<T: Config> = StorageValue<_, PubkeyOf<T>, OptionQuery>;
+	pub type BeaconConfig<T: Config> = StorageValue<_, OpaquePublicKey, OptionQuery>;
 
 	/// The latest observed round
 	#[pallet::storage]
@@ -185,6 +198,26 @@ pub mod pallet {
 	/// It is then checked at the end of each block execution in the `on_finalize` hook.
 	#[pallet::storage]
 	pub(super) type DidUpdate<T: Config> = StorageValue<_, bool, ValueQuery>;
+
+	#[pallet::genesis_config]
+	#[derive(frame_support::DefaultNoBound)]
+	pub struct GenesisConfig<T: Config> {
+		/// The randomness beacon public key
+		pub beacon_pubkey_hex: Vec<u8>,
+		_phantom: core::marker::PhantomData<T>,
+		// /// The set of authorities
+		// pub authorities: Vec<T::AuthorityId>,
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			// set authorities
+			// Pallet::<T>::initialize_authorities(self.authorities.as_slice());
+			// set beacon pk
+			Pallet::<T>::initialize_beacon_pubkey(&self.beacon_pubkey_hex)
+		}
+	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -203,10 +236,12 @@ pub mod pallet {
 		BeaconConfigNotSet,
 		/// The height exceeds the maximum allowed signatures per block.
 		ExcessiveHeightProvided,
+		/// The caller was not a network authority.
+		InvalidAuthority,
 		/// The signature could not be verified (authority sig, not from the beacon).
 		InvalidSignature,
-		/// The caller was not a network authority.
-		NotAnAuthority,
+		/// The Authorities vec is empty
+		NoAvailableAuthorities,
 		/// Only one aggregated signature can be provided per block.
 		SignatureAlreadyVerified,
 		/// A critical error occurred where serialization failed.
@@ -223,28 +258,29 @@ pub mod pallet {
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
 
+		/// It restricts calls to `try_submit_asig` to local calls (i.e. extrinsics generated
+		/// on this node) or that already in a block. This guarantees that only block authors can include
+		/// unsigned equivocation reports.
 		fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 			// reject if not from local
-			if !matches!(source, TransactionSource::Local) {
+			if !matches!(source, TransactionSource::Local | TransactionSource::InBlock) {
 				return InvalidTransaction::Call.into();
 			}
 
 			match call {
-				Call::try_submit_asig { asig, start, end } => {
-					log::info!("************************************************ VALID");
+				Call::try_submit_asig { asig, start, end, .. } => {
 					ValidTransaction::with_tag_prefix("RandomnessBeacon")
 						// prioritize execution
 						.priority(TransactionPriority::MAX)
 						// unique tag per call
 						.and_provides(vec![(b"beacon_pulse", asig, start, end).encode()])
+						// how long?
 						.longevity(5)
+						// we do not propagate to other nodes, local only
 						.propagate(false)
 						.build()
 				},
-				_ => {
-					log::info!("************************************************ INVALID");
-					InvalidTransaction::Call.into()
-				},
+				_ => InvalidTransaction::Call.into(),
 			}
 		}
 	}
@@ -291,23 +327,17 @@ pub mod pallet {
 			asig: OpaqueSignature,
 			start: RoundNumber,
 			end: RoundNumber,
-			// signature: T::Signature,
-			// signer: T::AccountId,
+			signature: T::Signature,
 		) -> DispatchResult {
-			log::info!("************************************************ extrinsic VALID");
-			// verify caller is authority
 			ensure_none(origin)?;
-
-
-			// // verify the signature on the payload
-			// let payload = (asig.clone(), start, end).encode();
-			// ensure!(signature.verify(&payload[..], &signer), Error::<T>::InvalidSignature);
-			// // convert the signer AccountId to ValidatorId
-			// let signer_validator_id =
-			// 	T::ValidatorIdOf::convert(signer.clone()).ok_or(Error::<T>::NotAnAuthority)?;
-			// let authorities = pallet_session::Validators::<T>::get();
-			// // verify the signer is an authorit y (validator)
-			// ensure!(authorities.contains(&signer_validator_id), Error::<T>::NotAnAuthority);
+			// get the expected authority from the list, use to verify the signature isntead of INCLUSION check
+			// here we need to pass something to make it monotic... 
+			let expected_authority = Self::get_expected_authority(start)?;
+			let payload = (asig.to_vec().clone(), start, end).encode();
+			ensure!(
+				signature.verify(&payload[..], &expected_authority),
+				Error::<T>::InvalidSignature
+			);
 
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
@@ -327,7 +357,8 @@ pub mod pallet {
 			let latest_round: RoundNumber = LatestRound::<T>::get();
 			// we expect sequential pulse ingestion w/o gaps unless it's the first pulse we ingest
 			if latest_round > 0 {
-				ensure!(start == latest_round, Error::<T>::StartExpired);
+				// ideally this should be a string equality
+				ensure!(start >= latest_round, Error::<T>::StartExpired);
 			}
 
 			// build the message
@@ -372,7 +403,7 @@ pub mod pallet {
 		#[allow(clippy::useless_conversion)]
 		pub fn set_beacon_config(
 			origin: OriginFor<T>,
-			pk: PubkeyOf<T>,
+			pk: OpaquePublicKey,
 		) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
 			BeaconConfig::<T>::set(Some(pk));
@@ -383,8 +414,56 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+
+
+	/// Initial the beacon public key.
+	///
+	/// The storage will be applied immediately.
+	///
+	/// The beacon_pubkey_hex must be 96  bytes.
+	pub fn initialize_beacon_pubkey(beacon_pubkey_hex: &[u8]) {
+		if !beacon_pubkey_hex.is_empty() {
+			assert!(<BeaconConfig<T>>::get().is_none(), "Beacon config is already initialized!");
+			let bytes = hex::decode(beacon_pubkey_hex)
+				.expect("The beacon public key must be hex-encoded and 96 bytes.");
+			let bpk: OpaquePublicKey =
+				bytes.try_into().expect("The beacon public key must be exactly 96 bytes.");
+			// let pubkey = PubkeyOf::<T>::from(bpk);
+			BeaconConfig::<T>::set(Some(bpk));
+		}
+	}
+
+	/// Get the expected authority account for a given round using Aura's session keys
+	fn get_expected_authority(start_round: RoundNumber) -> Result<T::AccountId, Error<T>> {
+		// Get current validators from session pallet
+		let validators = pallet_session::Validators::<T>::get();
+
+		if validators.is_empty() {
+			return Err(Error::<T>::NoAvailableAuthorities);
+		}
+
+		// Use round-robin to select validator
+		let author_index = (start_round as usize) % validators.len();
+		let validator_id =
+			validators.get(author_index).ok_or(Error::<T>::NoAvailableAuthorities)?;
+
+		// Convert ValidatorId to AccountId
+		let account_id = T::AccountId::decode(&mut validator_id.encode().as_ref())
+			.map_err(|_| Error::<T>::InvalidAuthority)?;
+
+		Ok(account_id)
+	}
+
+	// fn get_expected_authority(start_round: RoundNumber) -> Option<T::AuthorityId> {
+	// 	let authorities = Authorities::<T>::get();
+	// 	let author_index = (start_round as usize) % authorities.len();
+	// 	authorities.get(author_index).cloned()
+	// 	// just get alice
+	// 	// authorities.get(0).cloned()
+	// }
+
 	/// get the latest round from the runtime
-	pub fn latest_round() -> sp_consensus_randomness_beacon::types::RoundNumber {
+	pub fn latest_round() -> RoundNumber {
 		LatestRound::<T>::get()
 	}
 

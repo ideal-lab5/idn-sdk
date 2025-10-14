@@ -444,7 +444,11 @@ pub async fn start_parachain_node(
 		}
 
 		// setup the PFG for pulse ingestion
-		let pulse_worker = build_pulse_worker(client.clone(), params.keystore_container.keystore(), transaction_pool.clone());
+		let pulse_worker = build_pulse_worker(
+			client.clone(),
+			params.keystore_container.keystore(),
+			transaction_pool.clone(),
+		);
 
 		let finality_notifications = client.finality_notification_stream();
 		let pfg =

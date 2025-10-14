@@ -369,7 +369,7 @@ impl pallet_idn_manager::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MaxSigsPerBlock: u8 = crate::constants::idn::MAX_QUEUE_SIZE as u8;
+	pub const MaxSigsPerBlock: u8 = 6;
 }
 
 impl pallet_randomness_beacon::Config for Runtime {
@@ -382,6 +382,9 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
 	type Signature = sp_runtime::MultiSignature;
 	type AccountIdentifier = sp_runtime::MultiSigner;
+	// aura authorities 
+	// type AuthorityId = AuraId;
+	// type MaxAuthorities = ConstU32<100_000>;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

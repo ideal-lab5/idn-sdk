@@ -26,6 +26,6 @@ pub const PRIMARY: &str =
 pub const SECONDARY: &str =
 	"/ip4/54.193.191.250/tcp/44544/p2p/12D3KooWQqDi3D3KLfDjWATQUUE4o5aSshwBFi9JM36wqEPMPD5y";
 /// The maximum queue size for the mpsc channel that stores raw pulse data (protobuf)
-pub const MAX_QUEUE_SIZE: usize = 10;
+pub const MAX_QUEUE_SIZE: usize = 6;
 /// The number of seconds the node waits without a new message until it restarts the swarm
 pub const NO_MESSAGE_TIMEOUT: usize = 12;

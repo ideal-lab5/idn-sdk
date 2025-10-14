@@ -64,12 +64,13 @@ impl<T: frame_system::Config> pallet_randomness_beacon::WeightInfo for WeightInf
 		//  Measured:  `206`
 		//  Estimated: `4225`
 		// Minimum execution time: 22_331_931_000 picoseconds.
-		Weight::from_parts(19_615_005_780, 0)
-			.saturating_add(Weight::from_parts(0, 4225))
-			// Standard Error: 2_534_400
-			.saturating_add(Weight::from_parts(2_915_409_976, 0).saturating_mul(r.into()))
-			.saturating_add(T::DbWeight::get().reads(4))
-			.saturating_add(T::DbWeight::get().writes(3))
+		Weight::from_parts(0, 0)
+		// Weight::from_parts(19_615_005_780, 0)
+			// .saturating_add(Weight::from_parts(0, 4225))
+			// // Standard Error: 2_534_400
+			// .saturating_add(Weight::from_parts(2_915_409_976, 0).saturating_mul(r.into()))
+			// .saturating_add(T::DbWeight::get().reads(4))
+			// .saturating_add(T::DbWeight::get().writes(3))
 	}
 	/// Storage: `RandBeacon::DidUpdate` (r:1 w:1)
 	/// Proof: `RandBeacon::DidUpdate` (`max_values`: Some(1), `max_size`: Some(1), added: 496, mode: `MaxEncodedLen`)

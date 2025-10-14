@@ -300,6 +300,20 @@ impl<const N: usize> DrandReceiver<N> {
 		DrandReceiver { pulses }
 	}
 
+	/// Consume the runtime pulses from storage
+	pub async fn consume(&self, n: usize) -> Vec<CanonicalPulse> {
+		let mut pulses_out = Vec::new();
+		let mut pulses = self.pulses.lock().await;
+
+		for i in 0.. n {
+			if let Some(pulse) = pulses.pop_front() {
+				pulses_out.push(pulse);
+			}
+		}
+
+		pulses_out
+	}
+
 	/// Read the runtime pulses from storage
 	pub async fn read(&self) -> Vec<CanonicalPulse> {
 		let pulses = self.pulses.lock().await;
