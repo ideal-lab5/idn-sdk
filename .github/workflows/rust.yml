@@ -148,7 +148,7 @@ jobs:
         run: cargo install cargo-contract@5.0.3
       
       - name: Build
-        run: cargo build --manifest-path ./contracts/examples/rand-extension/Cargo.toml --release
+        run: cargo contract build --manifest-path ./contracts/examples/rand-extension/Cargo.toml --release
 
   test:
     runs-on: ubuntu-latest
