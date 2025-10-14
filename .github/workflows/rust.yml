@@ -111,6 +111,9 @@ jobs:
       - name: Run cargo doc for the contract
         run: cargo doc --no-deps --manifest-path ./contracts/examples/consumer-contract/Cargo.toml
 
+      - name: Install wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
+
       - name: Install substrate-node for e2e test
         run: cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git
       
