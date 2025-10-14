@@ -21,9 +21,9 @@ use crate::{
 	configs::{xcm_config, RuntimeBlockWeights},
 	constants::relay::fee::WeightToFee,
 	BlockNumber, Contracts, EventRecord, Hash, OriginCaller, PolkadotXcm, RuntimeEvent,
-	TxExtension, CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS,
+	CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS,
 };
-use codec::Encode;
+use bp_idn::types::SERIALIZED_SIG_SIZE;
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	weights::{Weight, WeightToFee as _},
@@ -32,10 +32,8 @@ use pallet_aura::Authorities;
 use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_consensus_randomness_beacon::types::OpaqueSignature;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
-	generic::{Era, SignedPayload},
 	traits::Block as BlockT,
 	transaction_validity::{TransactionSource, TransactionValidity},
 	AccountId32, ApplyExtrinsicResult,
@@ -357,34 +355,30 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_randomness_beacon::ExtrinsicBuilderApi<Block, AccountId, RuntimeCall, OpaqueSignature, TxExtension, Nonce> for Runtime {
-		fn construct_pulse_payload(
-			asig: OpaqueSignature,
-			start: u64,
-			end: u64,
-			nonce: Nonce,
-		) -> (Vec<u8>, RuntimeCall, TxExtension) {
-			let call = RuntimeCall::RandBeacon(
-				pallet_randomness_beacon::Call::try_submit_asig { asig, start, end }
+	impl pallet_randomness_beacon::RandomnessBeaconApi<Block> for Runtime {
+
+		fn build_extrinsic(asig: Vec<u8>, start: u64, end: u64) -> crate::UncheckedExtrinsic {
+			// if a wrong-sized signature is injected, specify a default
+			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] =
+				asig.try_into().unwrap_or([0u8;SERIALIZED_SIG_SIZE]);
+
+			let call = crate::RuntimeCall::RandBeacon(
+				pallet_randomness_beacon::Call::try_submit_asig {
+					asig: formatted,
+					start,
+					end,
+				}
 			);
 
-			let tx_ext: TxExtension = (
-				frame_system::CheckNonZeroSender::<Runtime>::new(),
-				frame_system::CheckSpecVersion::<Runtime>::new(),
-				frame_system::CheckTxVersion::<Runtime>::new(),
-				frame_system::CheckGenesis::<Runtime>::new(),
-				frame_system::CheckEra::<Runtime>::from(Era::immortal()),
-				frame_system::CheckNonce::<Runtime>::from(nonce),
-				frame_system::CheckWeight::<Runtime>::new(),
-				pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
-				frame_metadata_hash_extension::CheckMetadataHash::<Runtime>::new(false),
-				frame_system::WeightReclaim::<Runtime>::new(),
-			);
+			crate::UncheckedExtrinsic::new_bare(call)
+		}
 
-			let payload = SignedPayload::new(call.clone(), tx_ext.clone())
-				.expect("SignedPayload construction should succeed");
+		fn latest_round() -> sp_consensus_randomness_beacon::types::RoundNumber {
+			pallet_randomness_beacon::Pallet::<Runtime>::latest_round()
+		}
 
-			(payload.encode(), call, tx_ext)
+		fn max_rounds() -> u8 {
+			pallet_randomness_beacon::Pallet::<Runtime>::max_rounds()
 		}
 	}
 
