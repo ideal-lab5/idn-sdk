@@ -1366,11 +1366,7 @@ mod example_consumer {
 		use ink_e2e::ContractsBackend;
 		type E2EResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-		/// The test is marked as ignored since as a part of the test, the contract
-		/// will be compiled and deployed to a Substrate node that is running in the background.
-		/// see https://use.ink/docs/v5/basics/contract-testing/end-to-end-e2e-testing
 		#[ink_e2e::test]
-		#[ignore]
 		async fn basic_contract_works<Client: ContractsBackend>(
 			mut client: Client,
 		) -> E2EResult<()> {

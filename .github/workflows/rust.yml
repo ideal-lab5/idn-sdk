@@ -110,6 +110,9 @@ jobs:
 
       - name: Run cargo doc for the contract
         run: cargo doc --no-deps --manifest-path ./contracts/examples/consumer-contract/Cargo.toml
+
+      - name: Install substrate-node for e2e test
+        run: cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git
       
       - name: Run Tests
         run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
