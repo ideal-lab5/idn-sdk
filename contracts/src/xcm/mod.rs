@@ -143,7 +143,6 @@ use ink::{
 		hash::{Blake2x256, CryptoHash},
 		Error as EnvError,
 	},
-	selector_bytes,
 	xcm::lts::prelude::Weight,
 };
 
@@ -168,6 +167,13 @@ use ink::{
 };
 
 // These are needed for both test and non-test
+pub use bp_idn::{
+	types::{
+		QuoteRequest, QuoteSubParams, RequestReference, SubInfoRequest, Subscription,
+		SubscriptionDetails, SubscriptionState,
+	},
+	Call as RuntimeCall, IdnManagerCall,
+};
 use codec::{Compact, Decode, Encode};
 use ink::xcm::lts::{Junction, Location};
 #[cfg(not(test))]
@@ -180,7 +186,7 @@ use types::{
 	UpdateSubParams,
 };
 
-pub use bp_idn::{Call as RuntimeCall, IdnManagerCall};
+use crate::xcm::constants::{CONSUME_PULSE_SEL, CONSUME_QUOTE_SEL, CONSUME_SUB_INFO_SEL};
 
 /// Contract-compatible trait for hashing with a salt
 ///
@@ -514,10 +520,14 @@ impl IdnClient {
 			return Err(Error::InvalidParams);
 		}
 
+		let dummy_pulse = Pulse::default();
+		let dummy_sub_id = SubscriptionId::default();
+		let dummy_params = (dummy_pulse, dummy_sub_id).encode();
+
 		let mut params = CreateSubParams {
 			credits,
 			target: self.self_para_sibling_location(),
-			call: self.pulse_callback_data(call_params)?,
+			call: self.create_callback_data(CONSUME_PULSE_SEL, dummy_params, call_params)?,
 			frequency,
 			metadata,
 			sub_id,
@@ -629,14 +639,57 @@ impl IdnClient {
 	/// information. The quote response is delivered via the [`IdnConsumer::consume_quote`]
 	/// callback method.
 	///
-	/// # Returns
-	/// Currently returns [`Error::MethodNotImplemented`] as this feature is not yet implemented.
+	/// # Parameters
+	/// - `number_of_pulses`: The number of pulses required for the lifetime of the subscription
+	/// - `frequency`: The number of blocks between pulses
+	/// - `metadata`: Optional bounded data for application-specific context
+	/// - `sub_id`: The subscription ID that would be associated with the subscription
+	/// - `req_ref`: An optional unique identifier associated with the request being sent
+	/// - `origin_kind`: Optional [`OriginKind`] for the XCM message; defaults to
+	///   `OriginKind::Native`
 	///
 	/// # Errors
-	/// - [`Error::MethodNotImplemented`]: This method is not yet implemented
-	pub fn request_quote(&self) -> Result<()> {
-		// TODO: implement
-		Err(Error::MethodNotImplemented)
+	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
+	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
+	pub fn request_quote(
+		&self,
+		number_of_pulses: IdnBlockNumber,
+		frequency: IdnBlockNumber,
+		metadata: Option<Metadata>,
+		sub_id: Option<SubscriptionId>,
+		req_ref: Option<RequestReference>,
+		origin_kind: Option<OriginKind>,
+	) -> Result<()> {
+		let req_ref = match req_ref {
+			Some(req_ref) => req_ref,
+			None => {
+				let salt = ink::env::block_number::<ink::env::DefaultEnvironment>().encode();
+				frequency.hash(&salt)
+			},
+		};
+
+		let mut dummy_params = Vec::new();
+		let create_sub_params = CreateSubParams {
+			credits: 0,
+			target: self.self_para_sibling_location(),
+			call: self.create_callback_data(CONSUME_QUOTE_SEL, dummy_params.clone(), None)?,
+			origin_kind: origin_kind.clone().unwrap_or(OriginKind::Native),
+			frequency,
+			metadata,
+			sub_id,
+		};
+
+		let quote = Quote { req_ref, fees: u128::default(), deposit: u128::default() };
+		dummy_params = quote.encode();
+		let quote_request =
+			QuoteRequest { req_ref, create_sub_params, lifetime_pulses: number_of_pulses };
+		let req = QuoteSubParams {
+			quote_request,
+			call: self.create_callback_data(CONSUME_QUOTE_SEL, dummy_params, None)?,
+			origin_kind: origin_kind.unwrap_or(OriginKind::Native),
+		};
+		let call = RuntimeCall::IdnManager(IdnManagerCall::quote_subscription { params: req });
+		self.xcm_send(call)
 	}
 
 	/// Requests information about a subscription from the IDN.
@@ -645,16 +698,88 @@ impl IdnClient {
 	/// a subscription's current state, remaining credits, and other parameters.
 	/// The response is delivered via the [`IdnConsumer::consume_sub_info`] callback method.
 	///
-	/// # Returns
-	/// Currently returns [`Error::MethodNotImplemented`] as this feature is not yet implemented.
+	/// # Parameters
+	/// - `sub_id`: The subscription ID of the subscription
+	/// - `req_ref`: An optional unique identifier associated with the request being sent
+	/// - `metadata`: Optional bounded data for application-specific context. This must match the
+	///   metadata that was passed when creating the subscription.
+	/// - `call_params`: Optional execution parameters (gas limits, storage deposits). This must
+	///   match the call_params that was passed when creating the subscription
+	/// - `origin_kind`: Optional [`OriginKind`] for the XCM message; defaults to
+	///   `OriginKind::Native`
 	///
 	/// # Errors
-	/// - [`Error::MethodNotImplemented`]: This method is not yet implemented
-	pub fn request_sub_info(&self) -> Result<()> {
-		// TODO: implement
-		Err(Error::MethodNotImplemented)
+	/// - [`Error::XcmSendFailed`]: If the XCM message fails to send
+	/// - [`Error::XcmExecutionFailed`]: If the XCM message execution fails
+	pub fn request_sub_info(
+		&self,
+		sub_id: SubscriptionId,
+		metadata: Option<Metadata>,
+		req_ref: Option<RequestReference>,
+		call_params: Option<ContractCallParams>,
+		origin_kind: Option<OriginKind>,
+	) -> Result<()> {
+		let req_ref = match req_ref {
+			Some(req_ref) => req_ref,
+			None => {
+				let salt = ink::env::block_number::<ink::env::DefaultEnvironment>().encode();
+				sub_id.hash(&salt)
+			},
+		};
+
+		let dummy_sub_info_response =
+			self.create_dummy_sub_info_response(sub_id, req_ref, metadata, call_params)?;
+		let dummy_params = dummy_sub_info_response.encode();
+
+		let req = SubInfoRequest {
+			sub_id,
+			req_ref,
+			call: self.create_callback_data(CONSUME_SUB_INFO_SEL, dummy_params, None)?,
+			origin_kind: origin_kind.unwrap_or(OriginKind::Native),
+		};
+
+		let call = RuntimeCall::IdnManager(IdnManagerCall::get_subscription_info { req });
+
+		self.xcm_send(call)
 	}
 
+	/// This function is used to create the encoded callback data for the SubInfoResponse. See
+	/// create_callback_data for how dummy data is used.
+	pub fn create_dummy_sub_info_response(
+		&self,
+		sub_id: SubscriptionId,
+		req_ref: [u8; 32],
+		metadata: Option<Metadata>,
+		call_params: Option<ContractCallParams>,
+	) -> Result<SubInfoResponse> {
+		let dummy_pulse = Pulse::default();
+		let dummy_sub_id = SubscriptionId::default();
+		let dummy_details_parameters = (dummy_pulse, dummy_sub_id).encode();
+		let dummy_details = SubscriptionDetails {
+			subscriber: sub_id.into(),
+			target: self.self_para_sibling_location(),
+			origin_kind: OriginKind::Native,
+			call: self.create_callback_data(
+				CONSUME_PULSE_SEL,
+				dummy_details_parameters,
+				call_params,
+			)?,
+		};
+		let dummy_sub = Subscription {
+			id: sub_id,
+			state: SubscriptionState::Active,
+			metadata,
+			last_delivered: Some(u32::default()),
+			details: dummy_details,
+			credits_left: u64::default(),
+			created_at: u32::default(),
+			updated_at: u32::default(),
+			credits: u64::default(),
+			frequency: u32::default(),
+		};
+		let dummy_sub_response = SubInfoResponse { req_ref, sub: dummy_sub };
+		Ok(dummy_sub_response)
+	}
 	/// Validates the cryptographic authenticity and correctness of a randomness pulse.
 	///
 	/// This method verifies that a pulse was legitimately generated by the Drand Quicknet's
@@ -827,54 +952,60 @@ impl IdnClient {
 		[88u8; 32].into()
 	}
 
-	/// Get the call data for the [`IdnConsumer::consume_pulse`] call
+	/// Get the call data for the [`IdnConsumer`] calls
 	///
 	/// Constructs the encoded call data needed for the IDN chain to invoke the
-	/// `consume_pulse` method on this contract when delivering randomness pulses.
+	/// designated method on this contract when delivering subscription related data.
 	/// The call data includes the method selector and placeholder parameters that
-	/// will be replaced with actual pulse data during XCM execution.
+	/// will be replaced with actual data during XCM execution.
 	///
 	/// # Process
-	/// 1. Creates dummy pulse and subscription ID for call data sizing
-	/// 2. Encodes the method selector for `IdnConsumer::consume_pulse`
+	/// 1. Uses dummy params for call data sizing
+	/// 2. Encodes the method selector
 	/// 3. Generates a complete contract call with gas limits and parameters
 	/// 4. Truncates dummy parameters, leaving space for real data injection
 	///
 	/// # Parameters
 	/// - `call_params`: Optional execution parameters (gas limits, storage deposits)
+	/// - `dummy_params`:  These dummy params are needed to get the full encoded length of the call
+	///   data, which we will truncate later
 	///
 	/// # Returns
 	/// Encoded call data ready for XCM contract invocation
 	///
 	/// # Errors
 	/// - [`Error::CallDataTooLong`]: If the generated call data exceeds size limits
-	fn pulse_callback_data(&self, call_params: Option<ContractCallParams>) -> Result<CallData> {
-		// These dummy params are needed to get the full encoded
-		// length of the call data, which we will truncate later
-		let dummy_pulse = Pulse::default();
-		let dummy_sub_id = SubscriptionId::default();
+	fn create_callback_data(
+		&self,
+		selector: [u8; 4],
+		dummy_params: Vec<u8>,
+		call_params: Option<ContractCallParams>,
+	) -> Result<CallData> {
 		const DEF_VALUE: Balance = 0;
-		const DEF_REF_TIME: u64 = 2_000_000_000;
-		const DEF_PROOF_SIZE: u64 = 100_000;
+		const DEF_REF_TIME: u64 = 4_000_000_000;
+		const DEF_PROOF_SIZE: u64 = 200_000;
 		const DEF_STORAGE_DEPOSIT: Option<Balance> = None;
 
-		let params = (dummy_pulse, dummy_sub_id).encode();
-		let selector = selector_bytes!("IdnConsumer::consume_pulse");
 		let mut data = Vec::new();
 		data.extend_from_slice(&selector);
-		data.extend_from_slice(&params);
+		data.extend_from_slice(&dummy_params);
 
 		let mut call = self.generate_call(
-			call_params.as_ref().map(|p| p.value).unwrap_or(DEF_VALUE),            // value - no balance transfer needed for pulse callbacks
+			call_params.as_ref().map(|p| p.value).unwrap_or(DEF_VALUE), // value - no balance transfer needed for pulse callbacks
 			call_params.as_ref().map(|p| p.gas_limit_ref_time).unwrap_or(DEF_REF_TIME), // gas_limit_ref_time - reasonable default
-			call_params.as_ref().map(|p| p.gas_limit_proof_size).unwrap_or(DEF_PROOF_SIZE),       // gas_limit_proof_size - reasonable default
-			call_params.as_ref().map(|p| p.storage_deposit_limit).unwrap_or(DEF_STORAGE_DEPOSIT),          // storage_deposit_limit - use None for default
-			data,          // data - the encoded selector and params
+			call_params.as_ref().map(|p| p.gas_limit_proof_size).unwrap_or(DEF_PROOF_SIZE), // gas_limit_proof_size - reasonable default
+			call_params
+				.as_ref()
+				.map(|p| p.storage_deposit_limit)
+				.unwrap_or(DEF_STORAGE_DEPOSIT), // storage_deposit_limit - use None for default
+			data, // data - the encoded selector and params
 		);
 
 		// Truncate the call data to remove the dummy params, real params will be provided by the
 		// IDN chain when dispatching the call
-		call.truncate(call.len().saturating_sub(params.len()));
+		// We truncate the call before actually trying to create the CallData
+		// nullifying adding the dummy data to the generated call
+		call.truncate(call.len().saturating_sub(dummy_params.len()));
 		CallData::try_from(call).map_err(|_| Error::CallDataTooLong)
 	}
 
@@ -999,10 +1130,8 @@ mod tests {
 		assert_eq!(client.get_idn_para_id(), IDN_PARA_ID_PASEO);
 		assert_eq!(client.get_self_contracts_pallet_index(), CONTRACTS_PALLET_INDEX_PASEO);
 		assert_eq!(client.get_self_para_id(), CONSUMER_PARA_ID_PASEO);
-
-		// Test unimplemented methods return correct errors
-		assert_eq!(client.request_quote(), Err(Error::MethodNotImplemented));
-		assert_eq!(client.request_sub_info(), Err(Error::MethodNotImplemented));
+		assert!(client.request_sub_info([0; 32], None, None, None, None).is_ok());
+		assert!(client.request_quote(100, 4, None, None, None, None).is_ok());
 	}
 
 	#[test]
@@ -1029,8 +1158,6 @@ mod tests {
 
 	#[test]
 	fn test_edge_cases() {
-		let client = mock_client();
-
 		// Test constructor with edge case values
 		let edge_client = IdnClient::new(u32::MAX, u8::MAX, u32::MAX, u8::MAX, u8::MAX, u128::MAX);
 		assert_eq!(edge_client.get_idn_manager_pallet_index(), u8::MAX);
@@ -1038,10 +1165,8 @@ mod tests {
 		assert_eq!(edge_client.get_self_contracts_pallet_index(), u8::MAX);
 		assert_eq!(edge_client.get_self_para_id(), u32::MAX);
 		assert_eq!(edge_client.max_idn_xcm_fees, u128::MAX);
-
-		// Test that methods still return the expected errors for unimplemented functionality
-		assert_eq!(client.request_quote(), Err(Error::MethodNotImplemented));
-		assert_eq!(edge_client.request_sub_info(), Err(Error::MethodNotImplemented));
+		assert!(edge_client.request_sub_info([0; 32], None, None, None, None).is_ok());
+		assert!(edge_client.request_quote(100, 4, None, None, None, None).is_ok());
 	}
 
 	#[test]
@@ -1066,7 +1191,15 @@ mod tests {
 	fn test_subscription_management_api() {
 		let client = mock_client();
 
+		let quote_result = client.request_quote(1, 1, None, None, None, None);
+
+		assert!(quote_result.is_ok());
+
 		let sub_id = create_subscription(&client).unwrap();
+
+		let sub_info_result = client.request_sub_info(sub_id, None, None, None, None);
+
+		assert!(sub_info_result.is_ok());
 
 		// Test pause subscription API
 		let pause_result = client.pause_subscription(sub_id);
@@ -1146,7 +1279,7 @@ mod tests {
 	}
 
 	#[ink::test]
-	fn test_pulse_callback_data() {
+	fn test_create_callback_data() {
 		// Setup ink! test environment
 		let accounts = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
 		ink::env::test::set_caller::<ink::env::DefaultEnvironment>(accounts.alice);
@@ -1154,13 +1287,13 @@ mod tests {
 		let client = mock_client();
 
 		// Test that pulse callback data is generated correctly
-		let callback_data = client.pulse_callback_data(None);
+		let callback_data = client.create_callback_data(CONSUME_PULSE_SEL, Vec::new(), None);
 
 		// Should return Ok(CallData)
 		assert!(callback_data.is_ok());
 
 		// The callback data should be consistent across calls
-		let callback_data_2 = client.pulse_callback_data(None);
+		let callback_data_2 = client.create_callback_data(CONSUME_PULSE_SEL, Vec::new(), None);
 		assert_eq!(callback_data, callback_data_2);
 
 		// Verify the encoded data contains the expected structure
@@ -1168,6 +1301,22 @@ mod tests {
 		// but we can verify it's non-empty and consistent
 		let encoded_data = callback_data.unwrap();
 		assert!(!encoded_data.is_empty());
+	}
+
+	#[ink::test]
+	fn test_create_create_dummy_sub_info_response() {
+		let client = mock_client();
+
+		let sub_id = [1; 32];
+		let req_ref = [2; 32];
+		let dummy_sub_info_response =
+			client.create_dummy_sub_info_response(sub_id, req_ref, None, None);
+		assert!(dummy_sub_info_response.is_ok());
+		// Ensure that we always return the same dummy SubInfoResponse given the same data
+		let dummy_sub_info_response2 =
+			client.create_dummy_sub_info_response(sub_id, req_ref, None, None);
+
+		assert_eq!(dummy_sub_info_response2, dummy_sub_info_response);
 	}
 
 	#[ink::test]

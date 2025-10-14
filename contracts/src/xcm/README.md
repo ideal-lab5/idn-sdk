@@ -350,6 +350,7 @@ IDN contract integration requires **TWO separate funding requirements** for prop
    - Ensure subscription is in Active state (not Paused)
    - Confirm contract account has XCM execution permissions
    - Validate pulse authenticity using `is_valid_pulse()`
+   - Validate that fees are properly estimated in ContractCallParams. If fees are underestimated, then the contract can (silently) fail pulse ingestion.
 
 4. **Fee Estimation Errors**
 
