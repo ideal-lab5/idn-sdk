@@ -37,15 +37,16 @@ fn can_construct_pallet_and_set_genesis_params() {
 #[test]
 fn can_fail_write_pulse_when_beacon_config_not_set() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
-		let encoded_data = Vec::new();
-
-		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+	let start: u64 = 1000;
+	let end: u64 = 1001;
+	let encoded_data = (asig.clone().to_vec(), start, end).encode();
+	let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
+	let signature = user_1_pair.sign(&encoded_data);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), asig.try_into().unwrap(), 1000, 1001, temp_sig),
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig.try_into().unwrap(), start, end, signature.into()),
 			Error::<Test>::BeaconConfigNotSet,
 		);
 	});
@@ -84,10 +85,11 @@ fn can_submit_valid_pulses_under_the_limit() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000, PULSE1001]);
 	let bpk = get_beacon_pk();
 
-			let encoded_data = Vec::new();
-
-		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+	let start: u64 = 1000;
+	let end: u64 = 1001;
+	let encoded_data = (asig.clone().to_vec(), start, end).encode();
+	let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
+	let signature = user_1_pair.sign(&encoded_data);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
@@ -96,9 +98,9 @@ fn can_submit_valid_pulses_under_the_limit() {
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig.clone().try_into().unwrap(),
-			1000,
-			1001,
-			temp_sig
+			start,
+			end,
+			signature.into()
 		));
 
 		let maybe_res = SparseAccumulation::<Test>::get();
@@ -122,10 +124,12 @@ fn can_submit_single_pulse() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000]);
 	let bpk = get_beacon_pk();
 
-			let encoded_data = Vec::new();
-
-		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+	// let asig: [u8;48] = [1; 48];
+	let start: u64 = 1000;
+	let end: u64 = 1000;
+	let encoded_data = (asig.clone().to_vec(), start, end).encode();
+	let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
+	let signature = user_1_pair.sign(&encoded_data);
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
@@ -134,9 +138,9 @@ fn can_submit_single_pulse() {
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig.clone().try_into().unwrap(),
-			1000,
-			1000,
-			temp_sig
+			start,
+			end,
+			signature.into()
 		));
 
 		let latest_round = LatestRound::<Test>::get();
@@ -155,14 +159,17 @@ fn can_fail_when_start_greater_than_end() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
-				let encoded_data = Vec::new();
+		let asig: [u8;48] = [1; 48];
+		let start: u64 = 1001;
+		let end: u64 = 1000;
+		let encoded_data = (asig.clone().to_vec(), start, end).encode();
 
 		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+		let signature = user_1_pair.sign(&encoded_data);
 
 		// start > end should fail with ZeroHeightProvided
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1001, 1000, temp_sig),
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig, start, end, signature.into()),
 			Error::<Test>::ZeroHeightProvided
 		);
 	});
@@ -175,13 +182,16 @@ fn can_fail_when_sig_height_exceeds_max() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
-				let encoded_data = Vec::new();
+		let asig: [u8;48] = [1; 48];
+		let start: u64 = 1000;
+		let end: u64 = 10000;
+		let encoded_data = (asig.clone().to_vec(), start, end).encode();
 
 		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+		let signature = user_1_pair.sign(&encoded_data);
 
 		assert_noop!(
-			Drand::try_submit_asig(RuntimeOrigin::none(), [1; 48], 1000, 10000, temp_sig),
+			Drand::try_submit_asig(RuntimeOrigin::none(), asig, start, end, signature.into()),
 			Error::<Test>::ExcessiveHeightProvided
 		);
 	});
@@ -197,28 +207,36 @@ fn can_submit_valid_sigs_in_sequence() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
-				let encoded_data = Vec::new();
+
+		let start1: u64 = 1000;
+		let end1: u64 = 1001;
+		let encoded_data1 = (asig1.to_vec(), start1, end1).encode();
 
 		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+		let signature = user_1_pair.sign(&encoded_data1);
 
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig1.try_into().unwrap(),
-			1000,
-			1001,
-			temp_sig.clone()
+			start1,
+			end1,
+			signature.into()
 		));
 
 		Drand::on_finalize(1);
 		System::set_block_number(2);
 
+		let start2: u64 = 1002;
+		let end2: u64 = 1003;
+		let encoded_data2 = (asig2.to_vec(), start2, end2).encode();
+		let signature2 = user_1_pair.sign(&encoded_data2);
+
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig2.clone().try_into().unwrap(),
-			1002,
-			1003,
-			temp_sig
+			start2,
+			end2,
+			signature2.into()
 		));
 
 		let maybe_res = SparseAccumulation::<Test>::get();
@@ -243,17 +261,20 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
-				let encoded_data = Vec::new();
+
+		let start: u64 = 1000;
+		let end: u64 = 1001;
+		let encoded_data = (asig.clone().to_vec(), start, end).encode();
 
 		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+		let signature = user_1_pair.sign(&encoded_data);
 
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig.clone().try_into().unwrap(),
-			1000,
-			1001,
-			temp_sig.clone()
+			start,
+			end,
+			signature.clone().into()
 		));
 		assert_noop!(
 			Drand::try_submit_asig(
@@ -261,7 +282,7 @@ fn can_fail_multiple_calls_to_try_submit_asig_per_block() {
 				asig.clone().try_into().unwrap(),
 				1000,
 				1001,
-				temp_sig
+				signature.into()
 			),
 			Error::<Test>::SignatureAlreadyVerified,
 		);
@@ -274,10 +295,12 @@ fn can_fail_to_submit_non_sequential_pulses() {
 	let (asig2, _amsg2, _raw2) = get(vec![PULSE1003]); // Gap: skipping 1002
 
 	let bpk = get_beacon_pk();
-			let encoded_data = Vec::new();
 
-		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+	let start1: u64 = 1000;
+	let end1: u64 = 1001;
+	let encoded_data1 = (asig1.clone().to_vec(), start1, end1).encode();
+	let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
+	let signature1 = user_1_pair.sign(&encoded_data1);
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
@@ -286,22 +309,27 @@ fn can_fail_to_submit_non_sequential_pulses() {
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig1.clone().try_into().unwrap(),
-			1000,
-			1001,
-			temp_sig.clone()
+			start1,
+			end1,
+			signature1.into()
 		));
 
 		Drand::on_finalize(1);
 		System::set_block_number(2);
+
+	let start2: u64 = 1001;
+	let end2: u64 = 1003;
+	let encoded_data2 = (asig2.clone().to_vec(), start2, end2).encode();
+	let signature2 = user_1_pair.sign(&encoded_data2);
 
 		// Try to submit 1003, but we expect 1002 (latest_round = 1002)
 		assert_noop!(
 			Drand::try_submit_asig(
 				RuntimeOrigin::none(),
 				asig2.clone().try_into().unwrap(),
-				1003,
-				1003,
-				temp_sig
+				start2,
+				end2,
+				signature2.into()
 			),
 			Error::<Test>::StartExpired,
 		);
@@ -326,17 +354,20 @@ fn can_fail_to_resubmit_old_pulses() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
-				let encoded_data = Vec::new();
+
+		let start: u64 = 1000;
+		let end: u64 = 1001;
+		let encoded_data = (asig.clone().to_vec(), start, end).encode();
 
 		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+		let signature = user_1_pair.sign(&encoded_data);
 
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig.clone().try_into().unwrap(),
-			1000,
-			1001,
-			temp_sig.clone()
+			start,
+			end,
+			signature.clone().into()
 		));
 
 		Drand::on_finalize(1);
@@ -347,9 +378,9 @@ fn can_fail_to_resubmit_old_pulses() {
 			Drand::try_submit_asig(
 				RuntimeOrigin::none(),
 				asig.clone().try_into().unwrap(),
-				1000,
-				1001,
-				temp_sig
+				start,
+				end,
+				signature.clone().into()
 			),
 			Error::<Test>::StartExpired,
 		);
@@ -365,30 +396,38 @@ fn can_fail_with_invalid_signature() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
-				let encoded_data = Vec::new();
+		let start: u64 = 1000;
+		let end: u64 = 1001;
+		let encoded_data = (asig.clone().to_vec(), start, end).encode();
 
 		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+		let signature = user_1_pair.sign(&encoded_data);
 
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig.clone().try_into().unwrap(),
 			1000,
 			1001,
-			temp_sig.clone()
+			signature.into()
 		));
 
 		Drand::on_finalize(1);
 		System::set_block_number(2);
+
+		let start2: u64 = 1002;
+		let end2: u64 = 1003;
+		// let user_2_pair = sp_core::sr25519::Pair::from_string("//Bob", None).unwrap();
+		let econded_data2 = (asig.clone().to_vec(), start2, end2).encode();
+		let signature2 = user_1_pair.sign(&econded_data2);
 
 		// Try to submit with wrong signature for rounds 1002-1003
 		assert_noop!(
 			Drand::try_submit_asig(
 				RuntimeOrigin::none(),
 				asig.clone().try_into().unwrap(),
-				1002,
-				1003,
-				temp_sig
+				start2,
+				end2,
+				signature2.into()
 			),
 			Error::<Test>::VerificationFailed,
 		);
@@ -412,18 +451,20 @@ fn first_pulse_can_be_any_round() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		assert_ok!(Drand::set_beacon_config(RuntimeOrigin::root(), bpk.try_into().unwrap()));
-				let encoded_data = Vec::new();
+		let start: u64 = 1000;
+		let end: u64 = 1000;
+		let encoded_data = (asig.clone().to_vec(), start, end).encode();
 
 		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+		let signature = user_1_pair.sign(&encoded_data);
 
 		// First pulse can start at any round since latest_round == 0
 		assert_ok!(Drand::try_submit_asig(
 			RuntimeOrigin::none(),
 			asig.clone().try_into().unwrap(),
-			1000,
-			1000,
-			temp_sig
+			start,
+			end,
+			signature.into()
 		));
 
 		let latest_round = LatestRound::<Test>::get();
@@ -445,9 +486,7 @@ fn can_call_on_initialize() {
 use crate::Call;
 use codec::Encode;
 use frame_support::pallet_prelude::ValidateUnsigned;
-use sp_runtime::{transaction_validity::{
-	InvalidTransaction, TransactionPriority, TransactionSource,
-}, MultiSigner};
+use sp_runtime::{MultiSignature, transaction_validity::{InvalidTransaction, TransactionPriority, TransactionSource}};
 
 #[test]
 fn validate_unsigned_accepts_valid_sources_and_rejects_invalid() {
@@ -464,8 +503,7 @@ fn validate_unsigned_accepts_valid_sources_and_rejects_invalid() {
 		let encoded_data = Vec::new();
 
 		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let user_1_signer = MultiSigner::Sr25519(user_1_pair.public());
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+		let temp_sig =MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
 
 		let call = Call::try_submit_asig { asig: asig.try_into().unwrap(), start: 1000, end: 1001 , signature: temp_sig};
 
@@ -492,7 +530,7 @@ fn validate_unsigned_has_correct_properties() {
 		let encoded_data = Vec::new();
 
 		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+		let temp_sig =MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
 		let call = Call::try_submit_asig { asig: formatted.clone(), start: 1000, end: 1001, signature: temp_sig };
 
 		let validity = Drand::validate_unsigned(TransactionSource::Local, &call).unwrap();
@@ -518,7 +556,7 @@ fn validate_unsigned_provides_unique_tags() {
 		let encoded_data = Vec::new();
 
 		let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =sp_runtime::MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
+		let temp_sig =MultiSignature::Sr25519(user_1_pair.sign(&encoded_data));
 		let call1 =
 			Call::try_submit_asig { asig: asig1.try_into().unwrap(), start: 1000, end: 1001, signature: temp_sig.clone() };
 

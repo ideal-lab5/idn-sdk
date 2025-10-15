@@ -22,7 +22,7 @@ use frame_support::{derive_impl, parameter_types, traits::ConstU8};
 use pallet_session::{SessionHandler, ShouldEndSession};
 use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
-use sp_runtime::{impl_opaque_keys, key_types::DUMMY, testing::UintAuthorityId, traits::{ConvertInto, IdentityLookup, OpaqueKeys}, AccountId32, BuildStorage, MultiSignature, MultiSigner, RuntimeAppPublic};
+use sp_runtime::{impl_opaque_keys, key_types::DUMMY, testing::UintAuthorityId, traits::{ConvertInto, IdentifyAccount, IdentityLookup, OpaqueKeys}, AccountId32, BuildStorage, MultiSignature, MultiSigner, RuntimeAppPublic};
 
 type Block = frame_system::mocking::MockBlock<Test>;
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
@@ -120,13 +120,17 @@ impl frame_support::traits::Randomness<H256, BlockNumberFor<Test>> for MockFallb
 	}
 }
 
+use sp_core::Pair;
+
 pub struct MockFindAuthor;
 impl FindAuthor<AccountId32> for MockFindAuthor {
 	fn find_author<'a, I>(_digests: I) -> Option<AccountId32>
 	where
 		I: 'a + IntoIterator<Item = (frame_support::ConsensusEngineId, &'a [u8])>,
 	{
-		Some([1;32].into())
+        let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
+		let id = user_1_pair.public().into_account().into();
+		Some(id)
 	}
 }
 

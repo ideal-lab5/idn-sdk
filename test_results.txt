@@ -1,0 +1,225 @@
+
+running 22 tests
+test mock::test_genesis_config_builds ... ok
+test types::test::test_accumulation_max_encoded_len ... ok
+test types::test::test_accumulation_type_info ... ok
+test tests::can_construct_pallet_and_set_genesis_params ... ok
+test tests::can_call_on_initialize ... ok
+test tests::can_not_set_beacon_config_as_non_root ... ok
+test tests::can_set_beacon_config_once_as_root ... ok
+test mock::__construct_runtime_integrity_test::runtime_integrity_tests ... ok
+test tests::can_submit_single_pulse ... FAILED
+test tests::can_fail_with_invalid_signature ... FAILED
+test tests::first_pulse_can_be_any_round ... FAILED
+test tests::can_fail_write_pulse_when_beacon_config_not_set ... FAILED
+test tests::can_fail_to_resubmit_old_pulses ... FAILED
+test tests::validate_unsigned_accepts_valid_sources_and_rejects_invalid ... ok
+test tests::can_submit_valid_pulses_under_the_limit ... FAILED
+test tests::can_fail_when_sig_height_exceeds_max ... FAILED
+test tests::can_fail_multiple_calls_to_try_submit_asig_per_block ... FAILED
+test tests::can_fail_when_start_greater_than_end ... FAILED
+test tests::can_submit_valid_sigs_in_sequence ... FAILED
+test tests::can_fail_to_submit_non_sequential_pulses ... FAILED
+test tests::validate_unsigned_has_correct_properties ... ok
+test tests::validate_unsigned_provides_unique_tags ... ok
+
+failures:
+
+---- tests::can_submit_single_pulse stdout ----
+
+thread 'tests::can_submit_single_pulse' panicked at pallets/randomness-beacon/src/tests.rs:134:9:
+Expected Ok(_). Got Err(
+    Module(
+        ModuleError {
+            index: 2,
+            error: [
+                4,
+                0,
+                0,
+                0,
+            ],
+            message: Some(
+                "InvalidSignature",
+            ),
+        },
+    ),
+)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- tests::can_fail_with_invalid_signature stdout ----
+
+thread 'tests::can_fail_with_invalid_signature' panicked at pallets/randomness-beacon/src/tests.rs:373:9:
+Expected Ok(_). Got Err(
+    Module(
+        ModuleError {
+            index: 2,
+            error: [
+                4,
+                0,
+                0,
+                0,
+            ],
+            message: Some(
+                "InvalidSignature",
+            ),
+        },
+    ),
+)
+
+---- tests::first_pulse_can_be_any_round stdout ----
+
+thread 'tests::first_pulse_can_be_any_round' panicked at pallets/randomness-beacon/src/tests.rs:421:9:
+Expected Ok(_). Got Err(
+    Module(
+        ModuleError {
+            index: 2,
+            error: [
+                4,
+                0,
+                0,
+                0,
+            ],
+            message: Some(
+                "InvalidSignature",
+            ),
+        },
+    ),
+)
+
+---- tests::can_fail_write_pulse_when_beacon_config_not_set stdout ----
+
+thread 'tests::can_fail_write_pulse_when_beacon_config_not_set' panicked at pallets/randomness-beacon/src/tests.rs:47:9:
+assertion `left == right` failed
+  left: Err(Module(ModuleError { index: 2, error: [4, 0, 0, 0], message: Some("InvalidSignature") }))
+ right: Err(Module(ModuleError { index: 2, error: [1, 0, 0, 0], message: Some("BeaconConfigNotSet") }))
+
+---- tests::can_fail_to_resubmit_old_pulses stdout ----
+
+thread 'tests::can_fail_to_resubmit_old_pulses' panicked at pallets/randomness-beacon/src/tests.rs:334:9:
+Expected Ok(_). Got Err(
+    Module(
+        ModuleError {
+            index: 2,
+            error: [
+                4,
+                0,
+                0,
+                0,
+            ],
+            message: Some(
+                "InvalidSignature",
+            ),
+        },
+    ),
+)
+
+---- tests::can_submit_valid_pulses_under_the_limit stdout ----
+
+thread 'tests::can_submit_valid_pulses_under_the_limit' panicked at pallets/randomness-beacon/src/tests.rs:96:9:
+Expected Ok(_). Got Err(
+    Module(
+        ModuleError {
+            index: 2,
+            error: [
+                4,
+                0,
+                0,
+                0,
+            ],
+            message: Some(
+                "InvalidSignature",
+            ),
+        },
+    ),
+)
+
+---- tests::can_fail_when_sig_height_exceeds_max stdout ----
+
+thread 'tests::can_fail_when_sig_height_exceeds_max' panicked at pallets/randomness-beacon/src/tests.rs:183:9:
+assertion `left == right` failed
+  left: Err(Module(ModuleError { index: 2, error: [4, 0, 0, 0], message: Some("InvalidSignature") }))
+ right: Err(Module(ModuleError { index: 2, error: [2, 0, 0, 0], message: Some("ExcessiveHeightProvided") }))
+
+---- tests::can_fail_multiple_calls_to_try_submit_asig_per_block stdout ----
+
+thread 'tests::can_fail_multiple_calls_to_try_submit_asig_per_block' panicked at pallets/randomness-beacon/src/tests.rs:251:9:
+Expected Ok(_). Got Err(
+    Module(
+        ModuleError {
+            index: 2,
+            error: [
+                4,
+                0,
+                0,
+                0,
+            ],
+            message: Some(
+                "InvalidSignature",
+            ),
+        },
+    ),
+)
+
+---- tests::can_fail_when_start_greater_than_end stdout ----
+
+thread 'tests::can_fail_when_start_greater_than_end' panicked at pallets/randomness-beacon/src/tests.rs:164:9:
+assertion `left == right` failed
+  left: Err(Module(ModuleError { index: 2, error: [4, 0, 0, 0], message: Some("InvalidSignature") }))
+ right: Err(Module(ModuleError { index: 2, error: [10, 0, 0, 0], message: Some("ZeroHeightProvided") }))
+
+---- tests::can_submit_valid_sigs_in_sequence stdout ----
+
+thread 'tests::can_submit_valid_sigs_in_sequence' panicked at pallets/randomness-beacon/src/tests.rs:205:9:
+Expected Ok(_). Got Err(
+    Module(
+        ModuleError {
+            index: 2,
+            error: [
+                4,
+                0,
+                0,
+                0,
+            ],
+            message: Some(
+                "InvalidSignature",
+            ),
+        },
+    ),
+)
+
+---- tests::can_fail_to_submit_non_sequential_pulses stdout ----
+
+thread 'tests::can_fail_to_submit_non_sequential_pulses' panicked at pallets/randomness-beacon/src/tests.rs:286:9:
+Expected Ok(_). Got Err(
+    Module(
+        ModuleError {
+            index: 2,
+            error: [
+                4,
+                0,
+                0,
+                0,
+            ],
+            message: Some(
+                "InvalidSignature",
+            ),
+        },
+    ),
+)
+
+
+failures:
+    tests::can_fail_multiple_calls_to_try_submit_asig_per_block
+    tests::can_fail_to_resubmit_old_pulses
+    tests::can_fail_to_submit_non_sequential_pulses
+    tests::can_fail_when_sig_height_exceeds_max
+    tests::can_fail_when_start_greater_than_end
+    tests::can_fail_with_invalid_signature
+    tests::can_fail_write_pulse_when_beacon_config_not_set
+    tests::can_submit_single_pulse
+    tests::can_submit_valid_pulses_under_the_limit
+    tests::can_submit_valid_sigs_in_sequence
+    tests::first_pulse_can_be_any_round
+
+test result: FAILED. 11 passed; 11 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
