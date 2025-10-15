@@ -83,7 +83,7 @@ where
 			.into_iter()
 			.next()
 			.map(|key| AuraId::from(key))
-			.unwrap();
+			.ok_or(GadgetError::NoAuthorityKeys)?;
 
 		// CRITICAL: Read current_block INSIDE the lock and do atomic check-and-set
 		{
@@ -105,14 +105,6 @@ where
 
 			// Reserve this block immediately
 			*last_block = Some(current_block);
-
-			log::debug!(
-				target: LOG_TARGET,
-				"🔐 Reserved block #{} for submission of rounds {}-{}",
-				current_block,
-				start,
-				end
-			);
 		} // lock dropped
 
 		log::info!(
@@ -132,16 +124,14 @@ where
 				&authority_id.as_slice(),
 				&payload,
 			)
-			.unwrap()
-			.unwrap();
-		// .map_err(|e| {
-		// 	log::error!(target: LOG_TARGET, "Keystore signing error: {:?}", e);
-		// 	GadgetError::
-		// })?
-		// .ok_or_else(|| {
-		// 	log::error!(target: LOG_TARGET, "Key not found in keystore");
-		// 	GadgetError::KeystoreError
-		// })?;
+			.map_err(|e| {
+				log::error!(target: LOG_TARGET, "Keystore signing error: {:?}", e);
+				GadgetError::KeystoreError(e.to_string())
+			})?
+			.ok_or_else(|| {
+				log::error!(target: LOG_TARGET, "Key not found in keystore");
+				GadgetError::NoAuthorityKeys
+			})?;
 
 		// Build unsigned extrinsic with signed payload
 		let extrinsic = self
@@ -198,87 +188,293 @@ mod tests {
 		let keystore = create_test_keystore();
 
 		let _worker =
-			PulseWorker::<TestBlock, MockClient, MockTransactionPool>::new(
-				client,
-				pool,
-				keystore,
-			);
+			PulseWorker::<TestBlock, MockClient, MockTransactionPool>::new(client, pool, keystore);
 	}
 
-	// #[tokio::test]
-	// async fn test_round_robin_our_turn() {
-	// 	let client = Arc::new(MockClient::new());
-	// 	let pool = Arc::new(MockTransactionPool::new());
-	// 	let keystore = create_test_keystore();
+	#[tokio::test]
+	async fn test_submit_pulse_with_signed_payload() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
 
-	// 	// Create authority set
-	// 	let auth1 = MockAuthorityId::generate_pair(None);
-	// 	let auth2 = MockAuthorityId::generate_pair(None);
-	// 	let auth3 = MockAuthorityId::generate_pair(None);
+		// insert key to keystore
+		let key = keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
 
-	// 	client.set_authorities(vec![auth1.clone(), auth2.clone(), auth3.clone()]);
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
 
-	// 	// Worker with first authority
-	// 	let worker =
-	// 		PulseWorker::new(client.clone(), pool.clone(), keystore.clone(), auth1.clone());
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+		let result = worker.submit_pulse(asig, 100, 101).await;
 
-	// 	// Round 0, 3, 6, etc. should be auth1's turn
-	// 	let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-	// 	let result = worker.submit_pulse(asig.clone(), 0, 0).await;
-	// 	assert!(result.is_ok(), "Should succeed on our turn (round 0)");
+		assert!(result.is_ok(), "Pulse submission should succeed");
 
-	// 	let result = worker.submit_pulse(asig.clone(), 3, 3).await;
-	// 	assert!(result.is_ok(), "Should succeed on our turn (round 3)");
+		// Verify transaction was submitted to pool
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 1, "The transaction should be included in the pool");
+	}
 
-	// 	// Round 1 should be auth2's turn
-	// 	let result = worker.submit_pulse(asig.clone(), 1, 1).await;
-	// 	assert!(result.is_err(), "Should fail when not our turn (round 1)");
-	// 	assert!(matches!(result, Err(GadgetError::NotOurTurn)));
-	// }
+	#[tokio::test]
+	async fn test_submit_pulse_with_signed_payload_fails_with_empty_keystore() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+		// DO NOT insert key to keystore
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+		let result = worker.submit_pulse(asig, 100, 101).await;
 
-	// #[tokio::test]
-	// async fn test_submit_pulse_with_signed_payload() {
-	// 	let client = Arc::new(MockClient::new());
-	// 	let pool = Arc::new(MockTransactionPool::new());
-	// 	let keystore = create_test_keystore();
-	// 	let authority_id = MockAuthorityId::generate_pair(None);
+		assert!(result.is_err(), "Pulse submission should succeed");
+		assert!(matches!(result, Err(GadgetError::NoAuthorityKeys)));
 
-	// 	client.set_authorities(vec![authority_id.clone()]);
+		// Verify transaction was NOT submitted to pool
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 0, "The transaction should be included in the pool");
+	}
 
-	// 	let worker = PulseWorker::new(client.clone(), pool.clone(), keystore, authority_id);
+	#[tokio::test]
+	async fn test_submit_pulse_with_signed_payload_fails_with_signing_error() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+		// DO NOT insert key to keystore
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+		let result = worker.submit_pulse(asig, 100, 101).await;
 
-	// 	let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-	// 	let result = worker.submit_pulse(asig, 100, 101).await;
+		assert!(result.is_err(), "Pulse submission should succeed");
+		assert!(matches!(result, Err(GadgetError::NoAuthorityKeys)));
 
-	// 	assert!(result.is_ok(), "Pulse submission should succeed");
+		// Verify transaction was NOT submitted to pool
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 0, "The transaction should be included in the pool");
+	}
 
-	// 	// Verify transaction was submitted to pool
-	// 	let txs = pool.pool.lock().clone();
-	// 	assert_eq!(txs.len(), 1, "The transaction should be included in the pool");
-	// }
+	#[tokio::test]
+	async fn test_submit_pulse_fails_on_signing_error() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let failing_keystore = Arc::new(FailingKeystore::new(true));
 
-	// #[tokio::test]
-	// async fn test_multiple_authorities_rotation() {
-	// 	let client = Arc::new(MockClient::new());
-	// 	let pool = Arc::new(MockTransactionPool::new());
-	// 	let keystore = create_test_keystore();
+		// Key exists, but signing will fail
+		failing_keystore
+			.sr25519_generate_new(AuraId::ID, None)
+			.expect("Failed to generate key");
 
-	// 	let auth1 = MockAuthorityId::generate_pair(None);
-	// 	let auth2 = MockAuthorityId::generate_pair(None);
+		let worker = PulseWorker::new(client.clone(), pool.clone(), failing_keystore);
 
-	// 	client.set_authorities(vec![auth1.clone(), auth2.clone()]);
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+		let result = worker.submit_pulse(asig, 100, 101).await;
 
-	// 	let worker1 = PulseWorker::new(client.clone(), pool.clone(), keystore.clone(), auth1);
-	// 	let worker2 = PulseWorker::new(client.clone(), pool.clone(), keystore, auth2);
+		assert!(result.is_err(), "Pulse submission should fail");
+		assert!(matches!(result, Err(GadgetError::KeystoreError(_))));
 
-	// 	let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+		// Verify transaction was NOT submitted to pool
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 0, "No transaction should be in the pool");
+	}
 
-	// 	// Round 0: worker1 should succeed
-	// 	assert!(worker1.submit_pulse(asig.clone(), 0, 0).await.is_ok());
-	// 	assert!(worker2.submit_pulse(asig.clone(), 0, 0).await.is_err());
+	#[tokio::test]
+	async fn test_submit_pulse_prevents_duplicate_submission_in_same_block() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
 
-	// 	// Round 1: worker2 should succeed
-	// 	assert!(worker1.submit_pulse(asig.clone(), 1, 1).await.is_err());
-	// 	assert!(worker2.submit_pulse(asig.clone(), 1, 1).await.is_ok());
-	// }
+		keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
+
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
+
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+
+		// First submission should succeed
+		let result1 = worker.submit_pulse(asig.clone(), 100, 101).await;
+		assert!(result1.is_ok(), "First pulse submission should succeed");
+
+		// Second submission in same block should be skipped (returns Ok but doesn't submit)
+		let result2 = worker.submit_pulse(asig.clone(), 102, 103).await;
+		assert!(result2.is_ok(), "Second submission should return Ok (but skip)");
+
+		// Verify only ONE transaction was submitted to pool
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 1, "Only one transaction should be in the pool");
+	}
+
+	#[tokio::test]
+	async fn test_submit_pulse_allows_submission_in_different_blocks() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+
+		keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
+
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
+
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+
+		// First submission in block 1
+		let result1 = worker.submit_pulse(asig.clone(), 100, 101).await;
+		assert!(result1.is_ok(), "First pulse submission should succeed");
+
+		// Advance to next block
+		client.set_block_number(1);
+
+		// Second submission in block 2 should also succeed
+		let result2 = worker.submit_pulse(asig.clone(), 102, 103).await;
+		assert!(result2.is_ok(), "Second submission should succeed in new block");
+
+		// Verify TWO transactions were submitted
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 2, "Two transactions should be in the pool");
+	}
+
+	#[tokio::test]
+	async fn test_submit_pulse_with_different_round_ranges() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+
+		keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
+
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
+
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+
+		// Test single round
+		let result1 = worker.submit_pulse(asig.clone(), 100, 100).await;
+		assert!(result1.is_ok(), "Single round submission should succeed");
+		// Advance to next block
+		client.set_block_number(1);
+
+		// Test multiple rounds
+		let result2 = worker.submit_pulse(asig.clone(), 200, 250).await;
+		assert!(result2.is_ok(), "Multi-round submission should succeed");
+
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 2, "Both submissions should be in the pool");
+	}
+
+	#[tokio::test]
+	async fn test_submit_pulse_fails_when_transaction_pool_rejects() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+
+		keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
+
+		// Configure pool to reject submissions
+		pool.set_should_fail(true);
+
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
+
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+		let result = worker.submit_pulse(asig, 100, 101).await;
+
+		assert!(result.is_err(), "Pulse submission should fail");
+		assert!(matches!(result, Err(GadgetError::TransactionSubmissionFailed)));
+
+		// Verify transaction was NOT added to pool
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 0, "No transaction should be in the pool");
+	}
+
+	#[tokio::test]
+	async fn test_submit_pulse_fails_when_runtime_api_fails() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+
+		keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
+
+		// // Configure client to fail on build_extrinsic
+		// client.set_build_extrinsic_should_fail(true);
+
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
+
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+		// the api MOCK is hardcoded to fail when start == 0 when building the extrinsic\
+		let result = worker.submit_pulse(asig, 0, 101).await;
+
+		assert!(result.is_err(), "Pulse submission should fail");
+		assert!(matches!(result, Err(GadgetError::RuntimeApiError(_))));
+
+		// Verify transaction was NOT submitted to pool
+		let txs = pool.pool.lock().clone();
+		assert_eq!(txs.len(), 0, "No transaction should be in the pool");
+	}
+
+	#[tokio::test]
+	async fn test_submit_pulse_with_empty_signature() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+
+		keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
+
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
+
+		// Empty signature
+		let asig = vec![];
+		let result = worker.submit_pulse(asig, 100, 101).await;
+
+		// Should still succeed - validation happens in runtime
+		assert!(result.is_ok(), "Submission with empty sig should succeed");
+	}
+
+	#[tokio::test]
+	async fn test_submit_pulse_with_maximum_round_values() {
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+
+		keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
+
+		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
+
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+
+		// Test with maximum u64 values
+		let result = worker.submit_pulse(asig, u64::MAX - 1, u64::MAX).await;
+		assert!(result.is_ok(), "Submission with max round values should succeed");
+	}
+
+	#[tokio::test]
+	async fn test_worker_thread_safety_concurrent_submissions() {
+		use std::sync::Arc;
+		use tokio::task;
+
+		let client = Arc::new(MockClient::new());
+		let pool = Arc::new(MockTransactionPool::new());
+		let keystore = create_test_keystore();
+
+		keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
+
+		let worker = Arc::new(PulseWorker::new(client.clone(), pool.clone(), keystore));
+
+		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
+
+		// Spawn multiple concurrent submission attempts
+		let mut handles = vec![];
+		for i in 0..10 {
+			let worker_clone = Arc::clone(&worker);
+			let asig_clone = asig.clone();
+
+			let handle = task::spawn(async move {
+				worker_clone.submit_pulse(asig_clone, 100 + i, 101 + i).await
+			});
+			handles.push(handle);
+		}
+
+		// Wait for all submissions
+		let results: Vec<_> = futures::future::join_all(handles).await;
+
+		// At least one should succeed, rest should be skipped (all in same block)
+		let succeeded = results.iter().filter(|r| r.as_ref().unwrap().is_ok()).count();
+		assert!(succeeded >= 1, "At least one submission should succeed");
+
+		// Should only have ONE transaction in pool due to duplicate prevention
+		let txs = pool.pool.lock().clone();
+		assert_eq!(
+			txs.len(),
+			1,
+			"Only one transaction should be in the pool despite concurrent attempts"
+		);
+	}
 }

@@ -9,6 +9,7 @@ use sc_transaction_pool_api::{
 };
 use sp_api::ApiError;
 use sp_blockchain::Result as BlockchainResult;
+use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::{
 	generic::Header,
 	traits::{BlakeTwo256, Block as BlockT},
@@ -47,6 +48,10 @@ impl MockClient {
 			runtime_api_state: MockRuntimeApiState::new(),
 		}
 	}
+
+	pub fn set_block_number(&self, number: u64) {
+		*self.best_number.lock() = number;
+	}
 }
 
 // Update MockRuntimeApi to hold the state
@@ -75,7 +80,7 @@ impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
 		asig: Vec<u8>,
 		start: u64,
 		end: u64,
-		signature: Vec<u8>, 
+		signature: Vec<u8>,
 	) -> Result<<TestBlock as BlockT>::Extrinsic, ApiError> {
 		if start == 0 {
 			// just an arbitrary api error
@@ -86,6 +91,32 @@ impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
 		let call_data = (asig, start, end).encode();
 		// Note: This is not a functional extrinsic
 		Ok(OpaqueExtrinsic::from_bytes(&call_data).unwrap())
+	}
+
+	fn __runtime_api_internal_call_api_at(
+		&self,
+		_: <sp_runtime::generic::Block<
+			sp_runtime::generic::Header<u64, BlakeTwo256>,
+			OpaqueExtrinsic,
+		> as BlockT>::Hash,
+		_: Vec<u8>,
+		_: &dyn Fn(RuntimeVersion) -> &'static str,
+	) -> Result<Vec<u8>, ApiError> {
+		todo!()
+	}
+}
+
+// impl the aura api
+impl sp_consensus_aura::AuraApi<TestBlock, AuraId> for MockRuntimeApi {
+	fn slot_duration(
+		&self,
+		_hash: <TestBlock as BlockT>::Hash,
+	) -> Result<sp_consensus_aura::SlotDuration, ApiError> {
+		Ok(sp_consensus_aura::SlotDuration::from_millis(6000))
+	}
+
+	fn authorities(&self, _hash: <TestBlock as BlockT>::Hash) -> Result<Vec<AuraId>, ApiError> {
+		Ok(Vec::new())
 	}
 
 	fn __runtime_api_internal_call_api_at(
@@ -421,5 +452,162 @@ impl TransactionPool for MockTransactionPool {
 		dyn sc_transaction_pool_api::ReadyTransactions<Item = Arc<Self::InPoolTransaction>> + Send,
 	> {
 		unimplemented!()
+	}
+}
+
+use sp_core::crypto::{CryptoTypeId, KeyTypeId};
+use sp_keystore::{testing::MemoryKeystore, Error as KeystoreError, Keystore};
+use sp_runtime::testing::sr25519::vrf::{VrfPreOutput, VrfSignature};
+
+pub struct FailingKeystore {
+	inner: Arc<MemoryKeystore>,
+	should_fail_signing: bool,
+}
+
+impl FailingKeystore {
+	pub fn new(should_fail_signing: bool) -> Self {
+		Self { inner: Arc::new(MemoryKeystore::new()), should_fail_signing }
+	}
+}
+
+impl Keystore for FailingKeystore {
+	fn sr25519_public_keys(&self, key_type: KeyTypeId) -> Vec<sp_core::sr25519::Public> {
+		self.inner.sr25519_public_keys(key_type)
+	}
+
+	fn sr25519_generate_new(
+		&self,
+		key_type: KeyTypeId,
+		seed: Option<&str>,
+	) -> Result<sp_core::sr25519::Public, KeystoreError> {
+		self.inner.sr25519_generate_new(key_type, seed)
+	}
+
+	fn sr25519_sign(
+		&self,
+		key_type: KeyTypeId,
+		public: &sp_core::sr25519::Public,
+		msg: &[u8],
+	) -> Result<Option<sp_core::sr25519::Signature>, KeystoreError> {
+		if self.should_fail_signing {
+			Err(KeystoreError::Unavailable)
+		} else {
+			self.inner.sr25519_sign(key_type, public, msg)
+		}
+	}
+
+	fn sr25519_vrf_sign(
+		&self,
+		key_type: KeyTypeId,
+		public: &sp_core::sr25519::Public,
+		data: &sp_core::sr25519::vrf::VrfSignData,
+	) -> Result<Option<sp_core::sr25519::vrf::VrfSignature>, KeystoreError> {
+		if self.should_fail_signing {
+			Err(KeystoreError::Unavailable)
+		} else {
+			self.inner.sr25519_vrf_sign(key_type, public, data)
+		}
+	}
+
+	fn sr25519_vrf_pre_output(
+		&self,
+		key_type: KeyTypeId,
+		public: &sp_core::sr25519::Public,
+		input: &sp_core::sr25519::vrf::VrfInput,
+	) -> Result<Option<sp_core::sr25519::vrf::VrfPreOutput>, KeystoreError> {
+		if self.should_fail_signing {
+			Err(KeystoreError::Unavailable)
+		} else {
+			self.inner.sr25519_vrf_pre_output(key_type, public, input)
+		}
+	}
+
+	fn sign_with(
+		&self,
+		key_type: KeyTypeId,
+		crypto_id: CryptoTypeId,
+		public: &[u8],
+		msg: &[u8],
+	) -> Result<Option<Vec<u8>>, KeystoreError> {
+		if self.should_fail_signing {
+			Err(KeystoreError::Unavailable)
+		} else {
+			self.inner.sign_with(key_type, crypto_id, public, msg)
+		}
+	}
+
+	fn ed25519_public_keys(&self, key_type: KeyTypeId) -> Vec<sp_core::ed25519::Public> {
+		self.inner.ed25519_public_keys(key_type)
+	}
+
+	fn ed25519_generate_new(
+		&self,
+		key_type: KeyTypeId,
+		seed: Option<&str>,
+	) -> Result<sp_core::ed25519::Public, KeystoreError> {
+		self.inner.ed25519_generate_new(key_type, seed)
+	}
+
+	fn ed25519_sign(
+		&self,
+		key_type: KeyTypeId,
+		public: &sp_core::ed25519::Public,
+		msg: &[u8],
+	) -> Result<Option<sp_core::ed25519::Signature>, KeystoreError> {
+		if self.should_fail_signing {
+			Err(KeystoreError::Unavailable)
+		} else {
+			self.inner.ed25519_sign(key_type, public, msg)
+		}
+	}
+
+	fn ecdsa_public_keys(&self, key_type: KeyTypeId) -> Vec<sp_core::ecdsa::Public> {
+		self.inner.ecdsa_public_keys(key_type)
+	}
+
+	fn ecdsa_generate_new(
+		&self,
+		key_type: KeyTypeId,
+		seed: Option<&str>,
+	) -> Result<sp_core::ecdsa::Public, KeystoreError> {
+		self.inner.ecdsa_generate_new(key_type, seed)
+	}
+
+	fn ecdsa_sign(
+		&self,
+		key_type: KeyTypeId,
+		public: &sp_core::ecdsa::Public,
+		msg: &[u8],
+	) -> Result<Option<sp_core::ecdsa::Signature>, KeystoreError> {
+		if self.should_fail_signing {
+			Err(KeystoreError::Unavailable)
+		} else {
+			self.inner.ecdsa_sign(key_type, public, msg)
+		}
+	}
+
+	fn ecdsa_sign_prehashed(
+		&self,
+		key_type: KeyTypeId,
+		public: &sp_core::ecdsa::Public,
+		msg: &[u8; 32],
+	) -> Result<Option<sp_core::ecdsa::Signature>, KeystoreError> {
+		if self.should_fail_signing {
+			Err(KeystoreError::Unavailable)
+		} else {
+			self.inner.ecdsa_sign_prehashed(key_type, public, msg)
+		}
+	}
+
+	fn insert(&self, key_type: KeyTypeId, suri: &str, public: &[u8]) -> Result<(), ()> {
+		self.inner.insert(key_type, suri, public)
+	}
+
+	fn keys(&self, key_type: KeyTypeId) -> Result<Vec<Vec<u8>>, KeystoreError> {
+		self.inner.keys(key_type)
+	}
+
+	fn has_keys(&self, public_keys: &[(Vec<u8>, KeyTypeId)]) -> bool {
+		self.inner.has_keys(public_keys)
 	}
 }

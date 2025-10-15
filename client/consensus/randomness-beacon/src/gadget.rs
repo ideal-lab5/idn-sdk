@@ -195,7 +195,8 @@ where
 			// If it does not, then Drand has malfuntioned and pulse ingestion should fail [beacon
 			// compromised] get up to max_rounds from the tail of the list (newest rounds first)
 			.rev()
-			.take(max_rounds as usize)
+			// just always get the latest pulse
+			.take(1) 
 			.collect();
 
 		// since we reversed the list
