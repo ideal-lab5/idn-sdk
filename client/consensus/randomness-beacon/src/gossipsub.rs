@@ -188,8 +188,9 @@ impl TracingEvent {
 	fn value(&self) -> &str {
 		match *self {
 			TracingEvent::NewPulse => "🎲 New pulse received and stored.",
-			TracingEvent::NondecodableMessage =>
-				"❓A message was received but we could not decode it.",
+			TracingEvent::NondecodableMessage => {
+				"❓A message was received but we could not decode it."
+			},
 			TracingEvent::PongFailed => "💀 Peer failed to pong!",
 			TracingEvent::PingSuccess => "🏓 Ping to peer succeeded.",
 			TracingEvent::RedialFailure => "❌ Failed to redial peer.",
@@ -298,6 +299,20 @@ impl<const N: usize> DrandReceiver<N> {
 		});
 
 		DrandReceiver { pulses }
+	}
+
+	/// Consume the runtime pulses from storage
+	pub async fn consume(&self, n: usize) -> Vec<CanonicalPulse> {
+		let mut pulses_out = Vec::new();
+		let mut pulses = self.pulses.lock().await;
+
+		for i in 0..n {
+			if let Some(pulse) = pulses.pop_front() {
+				pulses_out.push(pulse);
+			}
+		}
+
+		pulses_out
 	}
 
 	/// Read the runtime pulses from storage

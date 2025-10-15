@@ -259,6 +259,17 @@ pub mod pallet {
 
 			match call {
 				Call::try_submit_asig { asig, start, end, .. } => {
+					// invalidate early if start < latest_round since it will fail anyway
+					let latest_round = LatestRound::<T>::get();
+					if *start < latest_round {
+						log::info!(
+							"Invalidating transation early: start = {:?} is less than {:?}",
+							start,
+							latest_round
+						);
+						return InvalidTransaction::Call.into();
+					}
+
 					ValidTransaction::with_tag_prefix("RandomnessBeacon")
 						// prioritize execution
 						.priority(TransactionPriority::MAX)
