@@ -86,21 +86,18 @@ pub use pallet::*;
 use ark_serialize::CanonicalSerialize;
 use frame_support::pallet_prelude::*;
 
-use frame_support::{
-	traits::{FindAuthor, Randomness},
-	BoundedSlice, BoundedVec,
-};
+use frame_support::traits::{FindAuthor, Randomness};
 use frame_system::pallet_prelude::BlockNumberFor;
-use sp_consensus_randomness_beacon::types::OpaqueSignature;
-use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
+use sp_consensus_randomness_beacon::types::{OpaquePublicKey, OpaqueSignature, RoundNumber};
 use sp_core::H256;
-use sp_idn_crypto::verifier::SignatureVerifier;
-use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
+use sp_idn_crypto::{
+	bls12_381::zero_on_g1, drand::compute_round_on_g1, verifier::SignatureVerifier,
+};
 use sp_idn_traits::{
 	pulse::{Dispatcher, Pulse as TPulse},
 	Hashable,
 };
-use sp_runtime::{traits::Verify, RuntimeAppPublic};
+use sp_runtime::traits::Verify;
 use sp_std::fmt::Debug;
 
 extern crate alloc;
@@ -123,15 +120,12 @@ mod benchmarking;
 
 const LOG_TARGET: &str = "pallet-randomness-beacon";
 
-/// The public key type
-type PubkeyOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Pubkey;
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
 	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
-	use sp_runtime::traits::{Convert, IdentifyAccount, Verify};
+	use sp_runtime::traits::{IdentifyAccount, Verify};
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -255,8 +249,8 @@ pub mod pallet {
 		type Call = Call<T>;
 
 		/// It restricts calls to `try_submit_asig` to local calls (i.e. extrinsics generated
-		/// on this node) or that already in a block. This guarantees that only block authors can include
-		/// unsigned equivocation reports.
+		/// on this node) or that already in a block. This guarantees that only block authors can
+		/// include unsigned equivocation reports.
 		fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 			// reject if not from local
 			if !matches!(source, TransactionSource::Local | TransactionSource::InBlock) {
@@ -420,7 +414,6 @@ impl<T: Config> Pallet<T> {
 	/// * `asig`: The signature to verify
 	/// * `start`: The first round to use when constructing the message
 	/// * `end`: The last round to use when constructing the message
-	///
 	fn verify_beacon_signature(
 		pk: OpaquePublicKey,
 		asig: OpaqueSignature,
@@ -448,7 +441,7 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Verify that the `signature` is a valid signature on the `payload` 
+	/// Verify that the `signature` is a valid signature on the `payload`
 	/// under the current block author's public key
 	fn verify_signature(payload: Vec<u8>, signature: T::Signature) -> DispatchResult {
 		let digest = <frame_system::Pallet<T>>::digest();

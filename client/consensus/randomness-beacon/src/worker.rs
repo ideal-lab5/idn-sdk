@@ -15,14 +15,14 @@
  */
 
 use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
-use codec::{Decode, Encode};
+use codec::Encode;
 use pallet_randomness_beacon::RandomnessBeaconApi;
 use parking_lot::Mutex;
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::ByteArray;
-use sp_consensus_aura::{sr25519, sr25519::AuthorityId as AuraId, AuraApi};
+use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AuraApi};
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
 	traits::{Block as BlockT, NumberFor},
@@ -88,8 +88,6 @@ where
 		let best_hash = info.best_hash;
 		let current_block = info.best_number;
 
-		// Get authorities OUTSIDE lock
-		let authorities = self.client.runtime_api().authorities(best_hash).unwrap_or(vec![]);
 		let authority_id = self
 			.keystore
 			.sr25519_public_keys(AuraId::ID)
@@ -127,8 +125,6 @@ where
 				end
 			);
 		} // lock dropped
-
-		let signer = MultiSigner::Sr25519(authority_id.clone().into());
 
 		log::info!(
 			target: LOG_TARGET,

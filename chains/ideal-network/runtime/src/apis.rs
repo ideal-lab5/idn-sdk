@@ -24,7 +24,6 @@ use crate::{
 	CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS,
 };
 use bp_idn::types::SERIALIZED_SIG_SIZE;
-use codec::Decode;
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	weights::{Weight, WeightToFee as _},
@@ -363,10 +362,6 @@ impl_runtime_apis! {
 			end: u64,
 			signature: Vec<u8>,
 		) -> crate::UncheckedExtrinsic {
-
-			use sp_runtime::traits::IdentifyAccount;
-			use codec::Decode;
-
 			// if a wrong-sized signature is injected, specify a default
 			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] =
 			asig.try_into().unwrap_or([0u8; SERIALIZED_SIG_SIZE]);

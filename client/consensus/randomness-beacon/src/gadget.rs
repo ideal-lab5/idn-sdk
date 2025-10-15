@@ -169,24 +169,11 @@ where
 		// get 'finalized' round from the runtime
 		let at_hash = self.client.info().best_hash;
 		// the network does not finalize blocks immediately (e.g. around when block #7 is authored)
-		// thus, in the initial few rounds, the client will always read '0' from the runtime as the latest round
+		// thus, in the initial few rounds, the client will always read '0' from the runtime as the
+		// latest round
 		let runtime_round = self.client.runtime_api().latest_round(at_hash).unwrap_or(0);
 		let local_round = *self.finalized_round.lock().unwrap();
 		let latest_round = runtime_round.max(local_round);
-
-		// // 🛡️ CRITICAL: Only submit if on-chain hasn't progressed beyond our tracking
-		// // If runtime_round >= local_round, it means our previous submission was executed
-		// if runtime_round >= local_round && local_round > 0 {
-		// 	log::info!(
-		// 		target: LOG_TARGET,
-		// 		"On-chain already at round {}, updating local state from {}",
-		// 		runtime_round,
-		// 		local_round
-		// 	);
-		// 	*self.finalized_round.lock().unwrap() = runtime_round;
-		// 	// Don't submit - either our tx succeeded or someone else submitted
-		// 	return Ok(());
-		// }
 
 		let max_rounds = self
 			.client
@@ -204,10 +191,11 @@ where
 			.clone()
 			.into_iter()
 			.filter(|p| p.round >= latest_round)
-			// get up to max_rounds from the 
-			// idea: reverse the list, take the first element only
-			// then we can actually do round robin since we know it's always going to be a fresh pulse
-			// ... unless finality notifications come too frequently...
+			// Q: should we sort here?
+			// Drand *should* output pulses in sequence and gossip them in order.
+			// If it does not, then Drand has malfuntioned and pulse ingestion should fail [beacon
+			// compromised] get up to max_rounds from the tail of the list (newest rounds first)
+			.rev()
 			.take(max_rounds as usize)
 			.collect();
 
