@@ -444,7 +444,11 @@ pub async fn start_parachain_node(
 		}
 
 		// setup the PFG for pulse ingestion
-		let pulse_worker = build_pulse_worker(client.clone(), transaction_pool.clone());
+		let pulse_worker = build_pulse_worker(
+			client.clone(),
+			params.keystore_container.keystore(),
+			transaction_pool.clone(),
+		);
 
 		let finality_notifications = client.finality_notification_stream();
 		let pfg =
@@ -480,6 +484,7 @@ pub async fn start_parachain_node(
 /// builds the pulse worker for ingesting pulses and submitting signatures
 fn build_pulse_worker(
 	client: Arc<ParachainClient>,
+	keystore: KeystorePtr,
 	pool: Arc<sc_transaction_pool::TransactionPoolHandle<Block, ParachainClient>>,
 ) -> Arc<impl PulseSubmitter<Block>> {
 	Arc::new(PulseWorker::new(client, pool, keystore))
