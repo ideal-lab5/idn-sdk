@@ -134,21 +134,6 @@ impl FindAuthor<AccountId32> for MockFindAuthor {
 	}
 }
 
-pub struct TestSessionManager;
-impl pallet_session::SessionManager<AccountId32> for TestSessionManager {
-	fn end_session(_: u32) {}
-	fn start_session(_: u32) {}
-	fn new_session(idx: u32) -> Option<Vec<AccountId32>> {
-		if idx == 0 || idx == 1 {
-			Some(vec![[1;32].into(), [2;32].into()])
-		} else if idx == 2 {
-			Some(vec![[3;32].into(), [4;32].into()])
-		} else {
-			None
-		}
-	}
-}
-
 impl_opaque_keys! {
 	pub struct MockSessionKeys {
 		pub dummy: UintAuthorityId,
@@ -221,7 +206,7 @@ impl pallet_session::Config for Test {
 	type ValidatorIdOf = ConvertInto;
 	type ShouldEndSession = TestShouldEndSession;
 	type NextSessionRotation = ();
-	type SessionManager = TestSessionManager;
+	type SessionManager = ();
 	type SessionHandler = TestSessionHandler;
 	type Keys = MockSessionKeys;
 	type DisablingStrategy = ();
