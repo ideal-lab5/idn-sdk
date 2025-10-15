@@ -503,9 +503,9 @@ fn validate_unsigned_accepts_valid_sources_and_rejects_invalid() {
 		let encoded_data = Vec::new();
 
 		let alice_keypair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =MultiSignature::Sr25519(alice_keypair.sign(&encoded_data));
+		let singature =MultiSignature::Sr25519(alice_keypair.sign(&encoded_data));
 
-		let call = Call::try_submit_asig { asig: asig.try_into().unwrap(), start: 1000, end: 1001 , signature: temp_sig};
+		let call = Call::try_submit_asig { asig: asig.try_into().unwrap(), start: 1000, end: 1001 , signature: singature};
 
 		// Accept Local and InBlock sources
 		assert!(Drand::validate_unsigned(TransactionSource::Local, &call).is_ok());
@@ -530,8 +530,8 @@ fn validate_unsigned_has_correct_properties() {
 		let encoded_data = Vec::new();
 
 		let alice_keypair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =MultiSignature::Sr25519(alice_keypair.sign(&encoded_data));
-		let call = Call::try_submit_asig { asig: formatted.clone(), start: 1000, end: 1001, signature: temp_sig };
+		let singature =MultiSignature::Sr25519(alice_keypair.sign(&encoded_data));
+		let call = Call::try_submit_asig { asig: formatted.clone(), start: 1000, end: 1001, signature: singature };
 
 		let validity = Drand::validate_unsigned(TransactionSource::Local, &call).unwrap();
 
@@ -556,12 +556,12 @@ fn validate_unsigned_provides_unique_tags() {
 		let encoded_data = Vec::new();
 
 		let alice_keypair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let temp_sig =MultiSignature::Sr25519(alice_keypair.sign(&encoded_data));
+		let singature =MultiSignature::Sr25519(alice_keypair.sign(&encoded_data));
 		let call1 =
-			Call::try_submit_asig { asig: asig1.try_into().unwrap(), start: 1000, end: 1001, signature: temp_sig.clone() };
+			Call::try_submit_asig { asig: asig1.try_into().unwrap(), start: 1000, end: 1001, signature: singature.clone() };
 
 		let call2 =
-			Call::try_submit_asig { asig: asig2.try_into().unwrap(), start: 1002, end: 1003, signature: temp_sig };
+			Call::try_submit_asig { asig: asig2.try_into().unwrap(), start: 1002, end: 1003, signature: singature };
 
 		let validity1 = Drand::validate_unsigned(TransactionSource::Local, &call1).unwrap();
 		let validity2 = Drand::validate_unsigned(TransactionSource::Local, &call2).unwrap();
