@@ -75,6 +75,7 @@ impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
 		asig: Vec<u8>,
 		start: u64,
 		end: u64,
+		signature: Vec<u8>, 
 	) -> Result<<TestBlock as BlockT>::Extrinsic, ApiError> {
 		if start == 0 {
 			// just an arbitrary api error
@@ -83,6 +84,7 @@ impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
 		// encode call data
 		use codec::Encode;
 		let call_data = (asig, start, end).encode();
+		// Note: This is not a functional extrinsic
 		Ok(OpaqueExtrinsic::from_bytes(&call_data).unwrap())
 	}
 
