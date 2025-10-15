@@ -97,23 +97,10 @@ where
 			.next()
 			.map(|key| AuraId::from(key))
 			.unwrap();
-
-		// Check if it's our turn OUTSIDE lock
-		if !self.is_our_turn(0, authority_id.clone(), authorities) {
-			log::debug!(
-				target: LOG_TARGET,
-				"Skipping pulse submission for round {} - not our turn",
-				start
-			);
-			return Ok(best_hash);
-		}
- 
 		// CRITICAL: Read current_block INSIDE the lock and do atomic check-and-set
+		// this is only useful in a single colaltor setup
 		{
 			let mut last_block = self.last_submitted_block.lock();
-
-			// Read current block while holding lock to ensure consistency
-			// let current_block = self.client.info().best_number;
 
 			// Check if we already submitted in this block
 			if let Some(last) = *last_block {
@@ -175,7 +162,7 @@ where
 		let extrinsic = self
 			.client
 			.runtime_api()
-			.build_extrinsic(best_hash, asig.clone(), start, end, signature, signer)
+			.build_extrinsic(best_hash, asig.clone(), start, end, signature)
 			.map_err(|e| {
 				log::error!(target: LOG_TARGET, "Failed to build extrinsic: {:?}", e);
 				GadgetError::RuntimeApiError(e.to_string())

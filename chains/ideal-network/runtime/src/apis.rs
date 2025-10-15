@@ -362,61 +362,20 @@ impl_runtime_apis! {
 			start: u64,
 			end: u64,
 			signature: Vec<u8>,
-			signer: sp_runtime::MultiSigner,
 		) -> crate::UncheckedExtrinsic {
+
 			use sp_runtime::traits::IdentifyAccount;
 			use codec::Decode;
 
 			// if a wrong-sized signature is injected, specify a default
 			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] =
-				asig.try_into().unwrap_or([0u8; SERIALIZED_SIG_SIZE]);
+			asig.try_into().unwrap_or([0u8; SERIALIZED_SIG_SIZE]);
 
-			// // decode as MultiSignature
-			// let sig = sp_runtime::MultiSignature::decode(&mut &signature[..])
-			// 	.unwrap_or_else(|_| {
-			// 		sp_runtime::MultiSignature::Sr25519(
-			// 			sp_core::sr25519::Signature::from_raw([0u8; 64])
-			// 		)
-			// 	});
-
-		let sig = match signature.len() {
-				// Raw Sr25519 signature (64 bytes) - this is what the keystore returns
-				64 => {
-					log::debug!(
-						target: "randomness-beacon-api",
-						"Converting raw 64-byte signature to MultiSignature::Sr25519"
-					);
-
-					let mut sig_array = [0u8; 64];
-					sig_array.copy_from_slice(&signature);
-					sp_runtime::MultiSignature::Sr25519(
-						sp_core::sr25519::Signature::from_raw(sig_array)
-					)
-				},
-
-				// Already encoded MultiSignature - try to decode
-				_ => {
-					log::debug!(
-						target: "randomness-beacon-api",
-						"Attempting to decode signature as MultiSignature (length: {})",
-						signature.len()
-					);
-
-					sp_runtime::MultiSignature::decode(&mut &signature[..])
-						.map_err(|e| {
-							log::error!(
-								target: "randomness-beacon-api",
-								"❌ Failed to decode signature: {:?}",
-								e
-							);
-							e
-						})
-						.expect("Signature must be either 64 bytes (raw Sr25519) or valid encoded MultiSignature")
-				}
-			};
-
-			// convert MultiSigner to AccountId
-			// let account_id: AccountId = signer.into_account();
+			let mut sig_array = [0u8; 64];
+			sig_array.copy_from_slice(&signature);
+			let sig = sp_runtime::MultiSignature::Sr25519(
+				sp_core::sr25519::Signature::from_raw(sig_array)
+			);
 
 			let call = crate::RuntimeCall::RandBeacon(
 				pallet_randomness_beacon::Call::try_submit_asig {
@@ -424,7 +383,6 @@ impl_runtime_apis! {
 					start,
 					end,
 					signature: sig,
-					// signer: account_id,
 				}
 			);
 			crate::UncheckedExtrinsic::new_bare(call)

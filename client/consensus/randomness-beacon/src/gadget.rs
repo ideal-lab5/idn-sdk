@@ -240,7 +240,6 @@ where
 
 			self.pulse_submitter.submit_pulse(asig_bytes, start, end).await?;
 			*self.finalized_round.lock().unwrap() = end;
-			// self.pulse_receiver.consume((end - start + 1) as usize).await;
 		} else {
 			log::info!(
 				target: LOG_TARGET,

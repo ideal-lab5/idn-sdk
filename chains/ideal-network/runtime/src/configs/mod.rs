@@ -382,9 +382,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
 	type Signature = sp_runtime::MultiSignature;
 	type AccountIdentifier = sp_runtime::MultiSigner;
-	// aura authorities 
-	// type AuthorityId = AuraId;
-	// type MaxAuthorities = ConstU32<100_000>;
+	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Aura>;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

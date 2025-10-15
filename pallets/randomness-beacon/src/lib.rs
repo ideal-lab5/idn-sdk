@@ -83,18 +83,24 @@
 
 pub use pallet::*;
 
+use ark_serialize::CanonicalSerialize;
 use frame_support::pallet_prelude::*;
 
-use frame_support::{traits::Randomness, BoundedSlice, BoundedVec};
+use frame_support::{
+	traits::{FindAuthor, Randomness},
+	BoundedSlice, BoundedVec,
+};
 use frame_system::pallet_prelude::BlockNumberFor;
+use sp_consensus_randomness_beacon::types::OpaqueSignature;
 use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_core::H256;
 use sp_idn_crypto::verifier::SignatureVerifier;
+use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
 use sp_idn_traits::{
 	pulse::{Dispatcher, Pulse as TPulse},
 	Hashable,
 };
-use sp_runtime::RuntimeAppPublic;
+use sp_runtime::{traits::Verify, RuntimeAppPublic};
 use sp_std::fmt::Debug;
 
 extern crate alloc;
@@ -123,11 +129,8 @@ type PubkeyOf<T> = <<T as pallet::Config>::Pulse as TPulse>::Pubkey;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use ark_serialize::CanonicalSerialize;
 	use frame_support::ensure;
 	use frame_system::pallet_prelude::*;
-	use sp_consensus_randomness_beacon::types::OpaqueSignature;
-	use sp_idn_crypto::{bls12_381::zero_on_g1, drand::compute_round_on_g1};
 	use sp_runtime::traits::{Convert, IdentifyAccount, Verify};
 
 	#[pallet::pallet]
@@ -137,12 +140,16 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + pallet_session::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
 		/// A type representing the weights required by the dispatchables of this pallet.
 		type WeightInfo: WeightInfo;
+
 		/// something that knows how to aggregate and verify beacon pulses.
 		type SignatureVerifier: SignatureVerifier;
+
 		/// The number of signatures per block.
 		type MaxSigsPerBlock: Get<u8>;
+
 		/// The pulse type
 		type Pulse: TPulse
 			+ Encode
@@ -152,10 +159,13 @@ pub mod pallet {
 			+ TypeInfo
 			+ PartialEq
 			+ From<Accumulation>;
+
 		/// Something that can dispatch pulses
 		type Dispatcher: Dispatcher<Self::Pulse>;
+
 		/// The fallback randomness source
 		type FallbackRandomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
+
 		/// Signature type that the extension of this pallet can verify.
 		type Signature: Verify<Signer = Self::AccountIdentifier>
 			+ Parameter
@@ -163,22 +173,13 @@ pub mod pallet {
 			+ Decode
 			+ Send
 			+ Sync;
+
 		/// The account identifier used by this pallet's signature type.
 		type AccountIdentifier: IdentifyAccount<AccountId = Self::AccountId>;
-		// /// The identifier type for an authority.
-		// type AuthorityId: Member
-		// 	+ Parameter
-		// 	+ RuntimeAppPublic
-		// 	+ MaybeSerializeDeserialize
-		// 	+ MaxEncodedLen;
-		// /// The maximum number of authorities that the pallet can hold.
-		// type MaxAuthorities: Get<u32>;
-	}
 
-	// /// The current authority set.
-	// #[pallet::storage]
-	// pub type Authorities<T: Config> =
-	// 	StorageValue<_, BoundedVec<T::AuthorityId, T::MaxAuthorities>, ValueQuery>;
+		///
+		type FindAuthor: FindAuthor<Self::AccountId>;
+	}
 
 	/// The beacon public key
 	#[pallet::storage]
@@ -205,16 +206,11 @@ pub mod pallet {
 		/// The randomness beacon public key
 		pub beacon_pubkey_hex: Vec<u8>,
 		_phantom: core::marker::PhantomData<T>,
-		// /// The set of authorities
-		// pub authorities: Vec<T::AuthorityId>,
 	}
 
 	#[pallet::genesis_build]
 	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
-			// set authorities
-			// Pallet::<T>::initialize_authorities(self.authorities.as_slice());
-			// set beacon pk
 			Pallet::<T>::initialize_beacon_pubkey(&self.beacon_pubkey_hex)
 		}
 	}
@@ -246,7 +242,7 @@ pub mod pallet {
 		SignatureAlreadyVerified,
 		/// A critical error occurred where serialization failed.
 		SerializationFailed,
-		/// The round of this pulse has already happened.
+		/// The first round provided has already happened.
 		StartExpired,
 		/// The pulse could not be verified.
 		VerificationFailed,
@@ -269,6 +265,12 @@ pub mod pallet {
 
 			match call {
 				Call::try_submit_asig { asig, start, end, .. } => {
+					// invalidate early if start < latest_round since it will fail anyway
+					let latest_round = LatestRound::<T>::get();
+					if *start < latest_round {
+						return InvalidTransaction::Call.into();
+					}
+
 					ValidTransaction::with_tag_prefix("RandomnessBeacon")
 						// prioritize execution
 						.priority(TransactionPriority::MAX)
@@ -276,7 +278,7 @@ pub mod pallet {
 						.and_provides(vec![(b"beacon_pulse", asig, start, end).encode()])
 						// how long?
 						.longevity(5)
-						// we do not propagate to other nodes, local only
+						// do not propagate to other nodes
 						.propagate(false)
 						.build()
 				},
@@ -330,17 +332,14 @@ pub mod pallet {
 			signature: T::Signature,
 		) -> DispatchResult {
 			ensure_none(origin)?;
-			// get the expected authority from the list, use to verify the signature isntead of INCLUSION check
-			// here we need to pass something to make it monotic... 
-			let expected_authority = Self::get_expected_authority(start)?;
+
+			// verify that that the block author signed this tx
 			let payload = (asig.to_vec().clone(), start, end).encode();
-			ensure!(
-				signature.verify(&payload[..], &expected_authority),
-				Error::<T>::InvalidSignature
-			);
+			Self::verify_signature(payload, signature)?;
 
 			// the extrinsic can only be successfully executed once per block
 			ensure!(!DidUpdate::<T>::exists(), Error::<T>::SignatureAlreadyVerified);
+
 			let pk = BeaconConfig::<T>::get().ok_or(Error::<T>::BeaconConfigNotSet)?;
 			// 0 < num_sigs <= MaxSigsPerBlock
 			let height = end.saturating_sub(start);
@@ -355,29 +354,14 @@ pub mod pallet {
 			);
 
 			let latest_round: RoundNumber = LatestRound::<T>::get();
-			// we expect sequential pulse ingestion w/o gaps unless it's the first pulse we ingest
+			// we accept any *new* pulses, a somewhat weaker condition than expecting
+			// a monotonically increasing sequence of pulses.
+			// This will be strengthened in: https://github.com/ideal-lab5/idn-sdk/issues/392
 			if latest_round > 0 {
-				// ideally this should be a string equality
 				ensure!(start >= latest_round, Error::<T>::StartExpired);
 			}
 
-			// build the message
-			let mut amsg = zero_on_g1();
-			for r in start..=end {
-				let msg = compute_round_on_g1(r).map_err(|_| Error::<T>::SerializationFailed)?;
-				amsg = (amsg + msg).into();
-			}
-			// convert to bytes
-			let mut amsg_bytes = Vec::new();
-			amsg.serialize_compressed(&mut amsg_bytes)
-				.map_err(|_| Error::<T>::SerializationFailed)?;
-			// verify the signature
-			T::SignatureVerifier::verify(
-				pk.as_ref().to_vec(),
-				asig.clone().as_ref().to_vec(),
-				amsg_bytes,
-			)
-			.map_err(|_| Error::<T>::VerificationFailed)?;
+			Self::verify_beacon_signature(pk, asig, start, end)?;
 
 			// update storage
 			LatestRound::<T>::set(end + 1);
@@ -414,8 +398,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-
-
 	/// Initial the beacon public key.
 	///
 	/// The storage will be applied immediately.
@@ -428,39 +410,55 @@ impl<T: Config> Pallet<T> {
 				.expect("The beacon public key must be hex-encoded and 96 bytes.");
 			let bpk: OpaquePublicKey =
 				bytes.try_into().expect("The beacon public key must be exactly 96 bytes.");
-			// let pubkey = PubkeyOf::<T>::from(bpk);
 			BeaconConfig::<T>::set(Some(bpk));
 		}
 	}
 
-	/// Get the expected authority account for a given round using Aura's session keys
-	fn get_expected_authority(start_round: RoundNumber) -> Result<T::AccountId, Error<T>> {
-		// Get current validators from session pallet
-		let validators = pallet_session::Validators::<T>::get();
-
-		if validators.is_empty() {
-			return Err(Error::<T>::NoAvailableAuthorities);
+	/// Verify that asig is a BLS signature on the message $\sum_{i = start}^{end} Sha256(i)$
+	///
+	/// *`pk`: The beacon public key
+	/// * `asig`: The signature to verify
+	/// * `start`: The first round to use when constructing the message
+	/// * `end`: The last round to use when constructing the message
+	///
+	fn verify_beacon_signature(
+		pk: OpaquePublicKey,
+		asig: OpaqueSignature,
+		start: RoundNumber,
+		end: RoundNumber,
+	) -> DispatchResult {
+		// build the message
+		let mut amsg = zero_on_g1();
+		for r in start..=end {
+			let msg = compute_round_on_g1(r).map_err(|_| Error::<T>::SerializationFailed)?;
+			amsg = (amsg + msg).into();
 		}
 
-		// Use round-robin to select validator
-		let author_index = (start_round as usize) % validators.len();
-		let validator_id =
-			validators.get(author_index).ok_or(Error::<T>::NoAvailableAuthorities)?;
-
-		// Convert ValidatorId to AccountId
-		let account_id = T::AccountId::decode(&mut validator_id.encode().as_ref())
-			.map_err(|_| Error::<T>::InvalidAuthority)?;
-
-		Ok(account_id)
+		// convert to bytes
+		let mut amsg_bytes = Vec::new();
+		amsg.serialize_compressed(&mut amsg_bytes)
+			.map_err(|_| Error::<T>::SerializationFailed)?;
+		// verify the signature
+		T::SignatureVerifier::verify(
+			pk.as_ref().to_vec(),
+			asig.clone().as_ref().to_vec(),
+			amsg_bytes,
+		)
+		.map_err(|_| Error::<T>::VerificationFailed)?;
+		Ok(())
 	}
 
-	// fn get_expected_authority(start_round: RoundNumber) -> Option<T::AuthorityId> {
-	// 	let authorities = Authorities::<T>::get();
-	// 	let author_index = (start_round as usize) % authorities.len();
-	// 	authorities.get(author_index).cloned()
-	// 	// just get alice
-	// 	// authorities.get(0).cloned()
-	// }
+	/// Verify that the `signature` is a valid signature on the `payload` 
+	/// under the current block author's public key
+	fn verify_signature(payload: Vec<u8>, signature: T::Signature) -> DispatchResult {
+		let digest = <frame_system::Pallet<T>>::digest();
+		let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
+		let author_id = T::FindAuthor::find_author(pre_runtime_digests)
+			.ok_or(DispatchError::Other("No block author found"))?;
+		// verify sig
+		ensure!(signature.verify(&payload[..], &author_id), Error::<T>::InvalidSignature);
+		Ok(())
+	}
 
 	/// get the latest round from the runtime
 	pub fn latest_round() -> RoundNumber {
@@ -506,7 +504,6 @@ sp_api::decl_runtime_apis! {
 			start: u64,
 			end: u64,
 			signature: Vec<u8>,
-			signer: sp_runtime::MultiSigner,
 		) -> Block::Extrinsic;
 	}
 }
