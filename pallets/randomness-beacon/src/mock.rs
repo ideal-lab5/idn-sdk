@@ -128,8 +128,8 @@ impl FindAuthor<AccountId32> for MockFindAuthor {
 	where
 		I: 'a + IntoIterator<Item = (frame_support::ConsensusEngineId, &'a [u8])>,
 	{
-        let user_1_pair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let id = user_1_pair.public().into_account().into();
+        let alice_keypair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
+		let id = alice_keypair.public().into_account().into();
 		Some(id)
 	}
 }
