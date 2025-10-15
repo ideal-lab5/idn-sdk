@@ -322,7 +322,6 @@ fn can_fail_to_submit_non_sequential_pulses() {
 	let encoded_data2 = (asig2.clone().to_vec(), start2, end2).encode();
 	let signature2 = alice_keypair.sign(&encoded_data2);
 
-		// Try to submit 1003, but we expect 1002 (latest_round = 1002)
 		assert_noop!(
 			Drand::try_submit_asig(
 				RuntimeOrigin::none(),
