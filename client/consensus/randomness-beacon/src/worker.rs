@@ -58,17 +58,6 @@ where
 			_phantom: Default::default(),
 		}
 	}
-
-	// TODO: consider abstracing this to a trait that can be impld in the pallet isntead
-	/// Check if this authority should submit for the current round (Aura-style round-robin)
-	pub fn is_our_turn(&self, round: u64, authority: AuraId, authorities: Vec<AuraId>) -> bool {
-		if authorities.is_empty() {
-			return false;
-		}
-
-		let author_index = (round as usize) % authorities.len();
-		authorities.get(author_index) == Some(&authority)
-	}
 }
 
 impl<Block, Client, Pool> PulseSubmitter<Block> for PulseWorker<Block, Client, Pool>
@@ -88,7 +77,6 @@ where
 		let best_hash = info.best_hash;
 		let current_block = info.best_number;
 
-		// Get authorities OUTSIDE lock
 		let authority_id = self
 			.keystore
 			.sr25519_public_keys(AuraId::ID)
@@ -96,36 +84,6 @@ where
 			.next()
 			.map(|key| AuraId::from(key))
 			.unwrap();
-		// CRITICAL: Read current_block INSIDE the lock and do atomic check-and-set
-		// this is only useful in a single colaltor setup
-		{
-			let mut last_block = self.last_submitted_block.lock();
-
-			// Check if we already submitted in this block
-			if let Some(last) = *last_block {
-				if last == current_block {
-					log::debug!(
-						target: LOG_TARGET,
-						"⏭️  Already submitted in block #{}, skipping rounds {}-{}",
-						current_block,
-						start,
-						end
-					);
-					return Ok(best_hash);
-				}
-			}
-
-			// Reserve this block immediately
-			*last_block = Some(current_block);
-
-			log::debug!(
-				target: LOG_TARGET,
-				"🔐 Reserved block #{} for submission of rounds {}-{}",
-				current_block,
-				start,
-				end
-			);
-		} // lock dropped
 
 		log::info!(
 			target: LOG_TARGET,
