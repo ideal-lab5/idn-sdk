@@ -94,8 +94,8 @@ This example contract uses the IDN Client library's fallback gas configuration b
 
 When `None` is passed as `call_params`, the library uses these default values:
 
-- **Gas Limit Ref Time**: `2_000_000_000` (2 billion reference time units)
-- **Gas Limit Proof Size**: `100_000` (100 KB proof size)
+- **Gas Limit Ref Time**: `4_000_000_000` (4 billion reference time units)
+- **Gas Limit Proof Size**: `200_000` (200 KB proof size)
 - **Storage Deposit Limit**: `None` (unlimited/default handling)
 - **Value Transfer**: `0` (no token transfer with pulse delivery)
 
@@ -330,6 +330,22 @@ When deploying on a real network:
 7. **Verify HRMP Channels**: Ensure HRMP channels are established between your parachain and IDN
 8. **Implement Error Handling**: Set up proper error handling for production use with Result types
 9. **Test Thoroughly**: Use the comprehensive test suite to validate your deployment configuration
+
+## Running Example Consumer Contract on Zombienet with IDN and IDNC
+1. **Build IDN and IDNC**: run `cargo build -p idn-node --release` and `cargo build -p idn-consumer-node --release`
+2. **Build Example Consumer Contract**: Verify that `cargo contract` is installed. Run `cargo contract build --release` in consumer-contract directory
+3. **Start Zombienet**: navigate to the e2e directory located in `../../../e2e/` and follow the zombienet README.md instructions.
+4. **Instantiate the contract**: Once the IDN and IDNC are producing blocks instantiate the contract either via [the Ink! UI](https://ui.use.ink/) or cargo contract. If using cargo contract the command will be `cargo contract instantiate --suri //Alice --args "Other(4502)" "Other(40)" "Other(4594)" "Other(16)" "Other(6)" "None" -x`
+5. **Funding the contract**: Once the contract is instantiated (and uploaded) there will be an associated Code hash and Contract given. If using cargo contract this will be the last two lines that are returned. Take the contract address (not the Code hash) and esnure that the contract address is funded on both the IDN and IDNC. This is to ensure that the XCM execution fees can be paid for on both chains.
+6. **Interacting with the contract**: Once the contract is funded on both chains there are some messages that are implemented for interaction with the IDN. The most relevant are `request_quote(...)`, `get_quote_history(...)`, `create_subscription(...)`, `get_pulse_history()`, `request_sub_info(...)`, and `get_sub_info_history()`. The folowing are examples on how to interact with these via the cargo contract command:
+- **Requesting a quote**: `cargo contract call --contract YOUR_CONTRACT_ADDRESS --message request_quote --suri //Alice --args "100" "4" "None" "None" -x`
+- **Checking all previous quotes**: `cargo contract call --contract YOUR_CONTRACT_ADDRESS --suri //Alice --message get_quote_history`
+- **Creating a subscription**: `cargo contract call --contract YOUR_CONTRACT_ADDRESS --suri //Alice --message create_subscription --args "1000000" "4" "None" -x`
+- **Seeing all pulses consumed by the contract**: `cargo contract call --contract YOUR_CONTRACT_ADDRESS --suri //Alice --message get_pulse_history`
+- **Requesting subscription info**: `cargo contract call --contract YOUR_CONTRACT_ADDRESS --message request_sub_info --suri //Alice --args "None" -x`
+- **Checking all previously returned subscription infos**: `cargo contract call --contract 5Cfev7dXQMjqxr4wa7QE1uBn6CUu1N2wDH1YUFHkYoRXMYC1 --suri //Alice --message get_sub_info_history`
+
+
 
 ## License
 

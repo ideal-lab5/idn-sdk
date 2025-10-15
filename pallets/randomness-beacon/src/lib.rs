@@ -281,6 +281,32 @@ pub mod pallet {
 		}
 	}
 
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			// reject if not from local
+			if !matches!(source, TransactionSource::Local) {
+				return InvalidTransaction::Call.into();
+			}
+
+			match call {
+				Call::try_submit_asig { asig, start, end } => {
+					ValidTransaction::with_tag_prefix("RandomnessBeacon")
+						// prioritize execution
+						.priority(TransactionPriority::MAX)
+						// unique tag per call
+						.and_provides(vec![(b"beacon_pulse", asig, start, end).encode()])
+						.longevity(5)
+						.propagate(false)
+						.build()
+				},
+				_ => InvalidTransaction::Call.into(),
+			}
+		}
+	}
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		/// A dummy `on_initialize` to return the amount of weight that `on_finalize` requires to

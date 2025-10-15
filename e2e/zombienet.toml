@@ -31,6 +31,7 @@ chain_spec_path="chainspec/paseo-local-plain.json"
 id = 4502
 chain = "idn-dev"
 name = "ideal-network"
+default_args = ["-lxcm=trace,parachain=trace,pallet-idn-manager=trace"]
 
     [[parachains.collators]]
     name = "idn-alice"
