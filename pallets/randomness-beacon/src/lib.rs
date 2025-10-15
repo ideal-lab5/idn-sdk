@@ -259,12 +259,6 @@ pub mod pallet {
 
 			match call {
 				Call::try_submit_asig { asig, start, end, .. } => {
-					// invalidate early if start < latest_round since it will fail anyway
-					let latest_round = LatestRound::<T>::get();
-					if *start < latest_round {
-						return InvalidTransaction::Call.into();
-					}
-
 					ValidTransaction::with_tag_prefix("RandomnessBeacon")
 						// prioritize execution
 						.priority(TransactionPriority::MAX)
@@ -437,7 +431,10 @@ impl<T: Config> Pallet<T> {
 			asig.clone().as_ref().to_vec(),
 			amsg_bytes,
 		)
-		.map_err(|_| Error::<T>::VerificationFailed)?;
+		.map_err(|_| {
+			log::info!("asig verification failed for rounds: {} - {}", start, end);
+			Error::<T>::VerificationFailed
+		})?;
 		Ok(())
 	}
 

@@ -182,7 +182,6 @@ where
 			.expect("The max rounds is defined. qed.");
 		// get fresh pulses
 		let pulses = self.pulse_receiver.read().await;
-		log::info!("TOTAL PULSES IN RECEIVER QUEUE {:?}", pulses.len());
 		// only take up to as many pulses that we know will be valid in the runtime
 		// this allows the node to hold a 'backlog' or queue of pulses in the case that
 		// block proposal or block finality significantly lags.
@@ -199,7 +198,8 @@ where
 			.take(max_rounds as usize)
 			.collect();
 
-		if let (Some(first), Some(last)) = (new_pulses.first(), new_pulses.last()) {
+		// since we reversed the list
+		if let (Some(first), Some(last)) = (new_pulses.last(), new_pulses.first()) {
 			let start = first.round;
 			let end = last.round;
 

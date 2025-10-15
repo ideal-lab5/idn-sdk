@@ -26,7 +26,7 @@ use sp_consensus_aura::{sr25519::AuthorityId as AuraId, AuraApi};
 use sp_keystore::KeystorePtr;
 use sp_runtime::{
 	traits::{Block as BlockT, NumberFor},
-	MultiSigner, RuntimeAppPublic,
+	RuntimeAppPublic,
 };
 use std::sync::Arc;
 
@@ -49,7 +49,7 @@ where
 	Block: BlockT,
 {
 	pub fn new(client: Arc<Client>, transaction_pool: Arc<Pool>, keystore: KeystorePtr) -> Self {
-		let last_submitted_block = Arc::new(parking_lot::Mutex::new(None));
+		let last_submitted_block = Arc::new(Mutex::new(None));
 		Self {
 			client,
 			transaction_pool,
@@ -77,6 +77,7 @@ where
 		let best_hash = info.best_hash;
 		let current_block = info.best_number;
 
+		// Get authorities OUTSIDE lock
 		let authority_id = self
 			.keystore
 			.sr25519_public_keys(AuraId::ID)
@@ -84,6 +85,36 @@ where
 			.next()
 			.map(|key| AuraId::from(key))
 			.unwrap();
+
+		// CRITICAL: Read current_block INSIDE the lock and do atomic check-and-set
+		{
+			let mut last_block = self.last_submitted_block.lock();
+
+			// Check if we already submitted in this block
+			if let Some(last) = *last_block {
+				if last == current_block {
+					log::debug!(
+						target: LOG_TARGET,
+						"⏭️  Already submitted in block #{}, skipping rounds {}-{}",
+						current_block,
+						start,
+						end
+					);
+					return Ok(best_hash);
+				}
+			}
+
+			// Reserve this block immediately
+			*last_block = Some(current_block);
+
+			log::debug!(
+				target: LOG_TARGET,
+				"🔐 Reserved block #{} for submission of rounds {}-{}",
+				current_block,
+				start,
+				end
+			);
+		} // lock dropped
 
 		log::info!(
 			target: LOG_TARGET,
