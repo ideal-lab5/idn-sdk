@@ -63,7 +63,7 @@ std = [
 	"pallet-aura/std",
 	"pallet-session/std",
 	"scale-info/std",
-	"sp-api/std",q
+	"sp-api/std",
 	"sp-consensus-aura/std",
 	"sp-core/std",
 	"sp-idn-crypto/std",
