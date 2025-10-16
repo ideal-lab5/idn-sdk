@@ -364,7 +364,7 @@ pub mod pallet {
 			Self::verify_beacon_signature(pk, asig, start, end)?;
 
 			// update storage
-			NextRound::<T>::set(end + 1);
+			NextRound::<T>::set(end.saturating_add(1));
 			let sacc = Accumulation::new(asig, start, end);
 			SparseAccumulation::<T>::set(Some(sacc.clone()));
 			DidUpdate::<T>::put(true);
