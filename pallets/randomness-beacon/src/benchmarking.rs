@@ -78,10 +78,10 @@ mod benchmarks {
 
 		// prepare the message and sig
 		for i in start..=end {
-			let msg = compute_round_on_g1(i.into()).unwrap();
+			let msg = compute_round_on_g1(i).unwrap();
 			amsg = (amsg + msg).into();
 
-			let sig = drand.sign(i.into());
+			let sig = drand.sign(i);
 			asig = (asig + sig).into();
 		}
 
