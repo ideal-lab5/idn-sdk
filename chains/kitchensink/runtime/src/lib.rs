@@ -33,6 +33,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use bp_idn::types::{BlockNumber, RuntimePulse};
+use frame_support::traits::FindAuthor;
 use pallet_idn_manager::{
 	impls::{DepositCalculatorImpl, DiffBalanceImpl, FeesManagerImpl},
 	BalanceOf, SubscriptionOf,
@@ -227,6 +228,20 @@ impl pallet_transaction_payment::Config for Runtime {
 	type LengthToFee = FixedFee<1, <Self as pallet_balances::Config>::Balance>;
 }
 
+use sp_core::Pair;
+
+pub struct MockFindAuthor;
+impl FindAuthor<AccountId32> for MockFindAuthor {
+	fn find_author<'a, I>(_digests: I) -> Option<AccountId32>
+	where
+		I: 'a + IntoIterator<Item = (frame_support::ConsensusEngineId, &'a [u8])>,
+	{
+        let alice_keypair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
+		let id = alice_keypair.public().into_account().into();
+		Some(id)
+	}
+}
+
 impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
@@ -237,7 +252,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type FallbackRandomness = RandomnessCollectiveFlip;
 	type Signature = sp_runtime::MultiSignature;
 	type AccountIdentifier = sp_runtime::MultiSigner;
-	type FindAuthor = 
+	type FindAuthor = MockFindAuthor;
 }
 
 pub const MOCK_IDN_PARA_ID: u32 = 88;

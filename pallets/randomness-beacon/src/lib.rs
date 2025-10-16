@@ -170,7 +170,7 @@ pub mod pallet {
 		/// The account identifier used by this pallet's signature type.
 		type AccountIdentifier: IdentifyAccount<AccountId = Self::AccountId>;
 
-		///
+		/// Find the author of a block.
 		type FindAuthor: FindAuthor<Self::AccountId>;
 	}
 
