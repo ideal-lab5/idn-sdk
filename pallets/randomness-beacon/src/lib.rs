@@ -58,13 +58,15 @@
 //!
 //! - `BeaconConfig`: Stores the beacon configuration details.
 //! - `GenesisRound`: The first round number from which randomness pulses are considered valid.
-//! - `NextRound`: Tracks the next minimum future round number for which a signature can be consumed.
+//! - `NextRound`: Tracks the next minimum future round number for which a signature can be
+//!   consumed.
 //! - `Accumulation`: Stores the latest aggregated signature for verification purposes.
 //!
 //! ## Usage
 //!
 //! This pallet is designed to securely ingest verifiable randomness into the runtime.
-//! Authorized callers (block authors) can inject signatures into the runtime, which are verified on-chain.
+//! Authorized callers (block authors) can inject signatures into the runtime, which are verified
+//! on-chain.
 //!
 //! ## Interface
 //!
@@ -445,7 +447,7 @@ impl<T: Config> Pallet<T> {
 			log::info!("asig verification failed for rounds: {} - {}", start, end);
 			Error::<T>::VerificationFailed
 		})?;
-		
+
 		Ok(())
 	}
 

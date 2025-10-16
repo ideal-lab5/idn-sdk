@@ -31,7 +31,7 @@ use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
-use sp_runtime:: MultiSignature;
+use sp_runtime::MultiSignature;
 
 #[benchmarks(
 where

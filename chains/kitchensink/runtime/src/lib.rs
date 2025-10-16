@@ -236,7 +236,7 @@ impl FindAuthor<AccountId32> for MockFindAuthor {
 	where
 		I: 'a + IntoIterator<Item = (frame_support::ConsensusEngineId, &'a [u8])>,
 	{
-        let alice_keypair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
+		let alice_keypair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
 		let id = alice_keypair.public().into_account().into();
 		Some(id)
 	}
