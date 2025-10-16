@@ -29,11 +29,14 @@ use frame_system::RawOrigin;
 use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
+use sp_core::Pair;
+use sp_runtime::MultiSignature;
 
 #[benchmarks(
 where
 	<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
 	<T as frame_system::Config>::AccountId: From<[u8; 32]>,
+	T::Signature: From<MultiSignature>
 )]
 mod benchmarks {
 	use super::*;
@@ -68,6 +71,8 @@ mod benchmarks {
 
 		let mut asig = G1Affine::zero();
 		let mut amsg = G1Affine::zero();
+		let start: u64 = 0;
+		let end: u64 = r.into();
 
 		(0..r + 1).for_each(|i| {
 			let msg = compute_round_on_g1(i.into()).unwrap();
@@ -83,11 +88,18 @@ mod benchmarks {
 		let mut amsg_bytes = Vec::new();
 		amsg.serialize_compressed(&mut amsg_bytes).unwrap();
 
-		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
-		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), pubkey).unwrap();
+		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), opk).unwrap();
+		let encoded_data = (asig_bytes.clone(), start, end).encode();
+		let alice_keypair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
+		let signature = alice_keypair.sign(&encoded_data);
+		let mut sig_array = [0u8; 64];
+		sig_array.copy_from_slice(&signature);
+		let sig = sp_runtime::MultiSignature::Sr25519(
+			sp_core::sr25519::Signature::from_raw(sig_array)
+		);
 
 		#[extrinsic_call]
-		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), 0u64, r.into());
+		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), start, end, sig.into());
 
 		assert_eq!(
 			SparseAccumulation::<T>::get(),
@@ -119,9 +131,9 @@ mod benchmarks {
 		let public_key = [1; 96];
 
 		#[extrinsic_call]
-		_(RawOrigin::Root, public_key.into());
+		_(RawOrigin::Root, public_key);
 
-		assert_eq!(BeaconConfig::<T>::get().unwrap(), public_key.into());
+		assert_eq!(BeaconConfig::<T>::get().unwrap(), public_key);
 
 		Ok(())
 	}
