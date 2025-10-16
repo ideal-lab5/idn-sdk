@@ -383,8 +383,8 @@ impl_runtime_apis! {
 			crate::UncheckedExtrinsic::new_bare(call)
 		}
 
-		fn latest_round() -> sp_consensus_randomness_beacon::types::RoundNumber {
-			pallet_randomness_beacon::Pallet::<Runtime>::latest_round()
+		fn next_round() -> sp_consensus_randomness_beacon::types::RoundNumber {
+			pallet_randomness_beacon::Pallet::<Runtime>::next_round()
 		}
 
 		fn max_rounds() -> u8 {

@@ -107,7 +107,7 @@ pub struct PulseFinalizationGadget<Block, Client, S, const MAX_QUEUE_SIZE: usize
 	client: Arc<Client>,
 	pulse_submitter: Arc<S>,
 	pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
-	finalized_round: Arc<Mutex<u64>>,
+	next_round: Arc<Mutex<u64>>,
 	submission_lock: Arc<tokio::sync::Mutex<()>>,
 	_phantom: std::marker::PhantomData<Block>,
 }
@@ -125,13 +125,13 @@ where
 		pulse_submitter: Arc<S>,
 		pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
 	) -> Self {
-		let finalized_round = Arc::new(Mutex::new(0u64));
+		let next_round = Arc::new(Mutex::new(0u64));
 		let submission_lock = Arc::new(tokio::sync::Mutex::new(()));
 		Self {
 			client,
 			pulse_submitter,
 			pulse_receiver,
-			finalized_round,
+			next_round,
 			submission_lock,
 			_phantom: Default::default(),
 		}
@@ -164,17 +164,18 @@ where
 		&self,
 		notification: &UnpinnedFinalityNotification<Block>,
 	) -> Result<(), GadgetError> {
-		// acquire a lock to ensure only one submission at a time
+		// acquire a lock to ensure only one submission at a time since finality notifications
+		// can come in rapid succession sometimes
 		let _guard = self.submission_lock.lock().await;
 		// get 'finalized' round from the runtime
 		let at_hash = self.client.info().best_hash;
 		// the network does not finalize blocks immediately (e.g. around when block #7 is authored)
 		// thus, in the initial few rounds, the client will always read '0' from the runtime as the
 		// latest round
-		let runtime_round = self.client.runtime_api().latest_round(at_hash).unwrap_or(0);
+		let runtime_round = self.client.runtime_api().next_round(at_hash).unwrap_or(0);
 		// this represents the NEXT smallest round we can ingest
-		let local_round = *self.finalized_round.lock().unwrap() + 1;
-		let latest_round = runtime_round.max(local_round);
+		let local_round = *self.next_round.lock().unwrap();
+		let next_round = runtime_round.max(local_round);
 
 		let max_rounds = self
 			.client
@@ -186,9 +187,9 @@ where
 
 		log::debug!(
 			target: LOG_TARGET,
-			"Consumed {} pulses from queue, latest_round={}",
+			"Consumed {} pulses from queue, next_round={}",
 			pulses.len(),
-			latest_round
+			next_round
 		);
 		// only take up to as many pulses that we know will be valid in the runtime
 		// this allows the node to hold a 'backlog' or queue of pulses in the case that
@@ -197,7 +198,7 @@ where
 		let new_pulses: Vec<_> = pulses
 			.clone()
 			.into_iter()
-			.filter(|p| p.round >= latest_round)
+			.filter(|p| p.round >= next_round)
 			.rev()
 			// just always get the latest pulse for now
 			// see: https://github.com/ideal-lab5/idn-sdk/issues/392
@@ -213,7 +214,7 @@ where
 				target: LOG_TARGET,
 				"Block #{:?} finalized (round {}), submitting pulses for rounds {} - {}",
 				notification.header.number(),
-				latest_round,
+				next_round,
 				start,
 				end,
 			);
@@ -233,13 +234,13 @@ where
 				.expect("The signature is well formatted. qed.");
 
 			self.pulse_submitter.submit_pulse(asig_bytes, start, end).await?;
-			*self.finalized_round.lock().unwrap() = end;
+			*self.next_round.lock().unwrap() = end + 1;
 		} else {
 			log::info!(
 				target: LOG_TARGET,
 				"Block #{:?} finalized (round {}), No new pulses.",
 				notification.header.number(),
-				latest_round,
+				next_round,
 			);
 		}
 
@@ -364,7 +365,7 @@ mod tests {
 			PulseFinalizationGadget::new(client.clone(), mock_submitter.clone(), pulse_receiver);
 
 		// Set latest round to 100 via the client's runtime API state
-		*client.runtime_api_state.latest_round.lock() = 100;
+		*client.runtime_api_state.next_round.lock() = 101;
 
 		tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -391,7 +392,7 @@ mod tests {
 		let gadget =
 			PulseFinalizationGadget::new(client.clone(), mock_submitter.clone(), pulse_receiver);
 
-		*client.runtime_api_state.latest_round.lock() = 99;
+		*client.runtime_api_state.next_round.lock() = 100;
 
 		tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -424,12 +425,12 @@ mod tests {
 		let notification1 = create_unpinned_notification(1);
 		gadget.handle_finality_notification(&notification1).await.unwrap();
 
-		// Verify finalized_round was updated
-		assert_eq!(*gadget.finalized_round.lock().unwrap(), 100);
+		// Verify next_round was updated
+		assert_eq!(*gadget.next_round.lock().unwrap(), 101);
 
 		tokio::time::sleep(Duration::from_millis(50)).await;
 
-		// Add new pulse after finalized_round updated
+		// Add new pulse after next_round updated
 		pulse_tx.unbounded_send(create_test_pulse(102)).unwrap();
 		tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -466,7 +467,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_gadget_updates_finalized_round_after_submission() {
+	async fn test_gadget_updates_next_round_after_submission() {
 		let mock_submitter = Arc::new(MockPulseSubmitter::new());
 		let client = Arc::new(MockClient::new());
 
@@ -481,13 +482,13 @@ mod tests {
 		tokio::time::sleep(Duration::from_millis(50)).await;
 
 		// Initial state
-		assert_eq!(*gadget.finalized_round.lock().unwrap(), 0);
+		assert_eq!(*gadget.next_round.lock().unwrap(), 0);
 
 		let notification = create_unpinned_notification(1);
 		gadget.handle_finality_notification(&notification).await.unwrap();
 
-		// Verify finalized_round was updated to the end round
-		assert_eq!(*gadget.finalized_round.lock().unwrap(), 100);
+		// Verify next_round was updated to the end round
+		assert_eq!(*gadget.next_round.lock().unwrap(), 101);
 
 		let submissions = mock_submitter.get_submissions();
 		assert_eq!(submissions.len(), 1);
@@ -516,8 +517,8 @@ mod tests {
 		let result = gadget.handle_finality_notification(&notification1).await;
 		assert!(result.is_err(), "Should return error when submission fails");
 
-		// Verify finalized_round was NOT updated on failure
-		assert_eq!(*gadget.finalized_round.lock().unwrap(), 0);
+		// Verify next_round was NOT updated on failure
+		assert_eq!(*gadget.next_round.lock().unwrap(), 0);
 
 		// Add new pulse and fix submitter
 		pulse_tx.unbounded_send(create_test_pulse(101)).unwrap();
@@ -531,7 +532,7 @@ mod tests {
 		let submissions = mock_submitter.get_submissions();
 		assert_eq!(submissions.len(), 1, "Gadget should recover and process after error");
 		assert_eq!(submissions[0].1, 101);
-		assert_eq!(*gadget.finalized_round.lock().unwrap(), 101);
+		assert_eq!(*gadget.next_round.lock().unwrap(), 102);
 	}
 
 	#[tokio::test]
@@ -549,9 +550,9 @@ mod tests {
 		let gadget =
 			PulseFinalizationGadget::new(client.clone(), mock_submitter.clone(), pulse_receiver);
 
-		// Set runtime round to 90 but local finalized_round to 100
-		*client.runtime_api_state.latest_round.lock() = 90;
-		*gadget.finalized_round.lock().unwrap() = 100;
+		// Set runtime round to 90 but local next_round to 100
+		*client.runtime_api_state.next_round.lock() = 90;
+		*gadget.next_round.lock().unwrap() = 100;
 
 		tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -630,7 +631,7 @@ mod tests {
 		assert!(result1.unwrap().is_ok());
 		assert!(result2.unwrap().is_ok());
 
-		// Should have exactly one submission (second one would see finalized_round already updated)
+		// Should have exactly one submission (second one would see next_round already updated)
 		let submissions = mock_submitter.get_submissions();
 		assert_eq!(submissions.len(), 1, "Lock should prevent duplicate submissions");
 	}

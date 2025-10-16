@@ -198,7 +198,7 @@ mod tests {
 		let keystore = create_test_keystore();
 
 		// insert key to keystore
-		let key = keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
+		keystore.sr25519_generate_new(AuraId::ID, None).expect("Failed to generate key");
 
 		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
 

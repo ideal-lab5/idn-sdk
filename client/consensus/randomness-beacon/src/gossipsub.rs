@@ -306,7 +306,7 @@ impl<const N: usize> DrandReceiver<N> {
 		let mut pulses_out = Vec::new();
 		let mut pulses = self.pulses.lock().await;
 
-		for i in 0..n {
+		for _ in 0..n {
 			if let Some(pulse) = pulses.pop_front() {
 				pulses_out.push(pulse);
 			}
@@ -873,6 +873,11 @@ mod tests {
 		let actual = receiver.read().await;
 		assert_eq!(actual.len(), 1, "There should be one opaque pulse in the vec");
 		assert_eq!(actual[0], opaque);
+
+		let consumed = receiver.consume(1).await;
+		assert_eq!(consumed.len(), 1, "There should be one opaque pulse in the vec to consume");
+		let actual = receiver.read().await;
+		assert_eq!(actual.len(), 0, "The queue should be empty.");
 	}
 
 	#[tokio::test]

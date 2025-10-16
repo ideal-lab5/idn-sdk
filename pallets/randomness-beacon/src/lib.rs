@@ -58,20 +58,19 @@
 //!
 //! - `BeaconConfig`: Stores the beacon configuration details.
 //! - `GenesisRound`: The first round number from which randomness pulses are considered valid.
-//! - `LatestRound`: Tracks the latest verified round number.
+//! - `NextRound`: Tracks the next minimum future round number for which a signature can be consumed.
 //! - `Accumulation`: Stores the latest aggregated signature for verification purposes.
 //!
 //! ## Usage
 //!
 //! This pallet is designed to securely ingest verifiable randomness into the runtime.
-//! It exposes an inherent provider that automatically processes randomness pulses included
-//! in block production.
+//! Authorized callers (block authors) can inject signatures into the runtime, which are verified on-chain.
 //!
 //! ## Interface
 //!
 //! - **Extrinsics**
 //!   - `try_submit_asig`: Submit an aggregated signature for verification. This is an unsigned
-//!     extrinsic, intended to be called from the inherent.
+//!     extrinsic, intended to be called by and hold a signature produced by the block author.
 //!
 //! - **Inherent Implementation**
 //!   - This pallet provides an inherent that automatically submits aggregated randomness pulses
@@ -181,7 +180,7 @@ pub mod pallet {
 
 	/// The latest observed round
 	#[pallet::storage]
-	pub type LatestRound<T: Config> = StorageValue<_, RoundNumber, ValueQuery>;
+	pub type NextRound<T: Config> = StorageValue<_, RoundNumber, ValueQuery>;
 
 	/// The aggregated signature and (start, end) rounds
 	#[pallet::storage]
@@ -259,13 +258,13 @@ pub mod pallet {
 
 			match call {
 				Call::try_submit_asig { asig, start, end, .. } => {
-					// invalidate early if start < latest_round since it will fail anyway
-					let latest_round = LatestRound::<T>::get();
-					if *start < latest_round {
+					// invalidate early if start < next_round since it will fail anyway
+					let next_round = NextRound::<T>::get();
+					if *start < next_round {
 						log::info!(
 							"Invalidating transation early: start = {:?} is less than {:?}",
 							start,
-							latest_round
+							next_round
 						);
 						return InvalidTransaction::Call.into();
 					}
@@ -352,18 +351,18 @@ pub mod pallet {
 				Error::<T>::ExcessiveHeightProvided
 			);
 
-			let latest_round: RoundNumber = LatestRound::<T>::get();
+			let next_round: RoundNumber = NextRound::<T>::get();
 			// we accept any *new* pulses, a somewhat weaker condition than expecting
 			// a monotonically increasing sequence of pulses.
 			// This will be strengthened in: https://github.com/ideal-lab5/idn-sdk/issues/392
-			if latest_round > 0 {
-				ensure!(start >= latest_round, Error::<T>::StartExpired);
+			if next_round > 0 {
+				ensure!(start >= next_round, Error::<T>::StartExpired);
 			}
 
 			Self::verify_beacon_signature(pk, asig, start, end)?;
 
 			// update storage
-			LatestRound::<T>::set(end + 1);
+			NextRound::<T>::set(end + 1);
 			let sacc = Accumulation::new(asig, start, end);
 			SparseAccumulation::<T>::set(Some(sacc.clone()));
 			DidUpdate::<T>::put(true);
@@ -446,6 +445,7 @@ impl<T: Config> Pallet<T> {
 			log::info!("asig verification failed for rounds: {} - {}", start, end);
 			Error::<T>::VerificationFailed
 		})?;
+		
 		Ok(())
 	}
 
@@ -462,8 +462,8 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// get the latest round from the runtime
-	pub fn latest_round() -> RoundNumber {
-		LatestRound::<T>::get()
+	pub fn next_round() -> RoundNumber {
+		NextRound::<T>::get()
 	}
 
 	/// get the max number of pulses we can hold in a block
@@ -496,7 +496,7 @@ where
 sp_api::decl_runtime_apis! {
 	pub trait RandomnessBeaconApi {
 		/// Get the latest round finalized on-chain
-		fn latest_round() -> sp_consensus_randomness_beacon::types::RoundNumber;
+		fn next_round() -> sp_consensus_randomness_beacon::types::RoundNumber;
 		/// Get the maximum number of outputs from the beacon we can verify simultaneously onchain
 		fn max_rounds() -> u8;
 		/// Build an unsigned extrinsic with signed payload

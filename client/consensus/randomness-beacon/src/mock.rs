@@ -24,12 +24,12 @@ pub(crate) type TestBlock =
 
 #[derive(Clone)]
 pub(crate) struct MockRuntimeApiState {
-	pub latest_round: Arc<Mutex<u64>>,
+	pub next_round: Arc<Mutex<u64>>,
 }
 
 impl MockRuntimeApiState {
 	pub fn new() -> Self {
-		Self { latest_round: Arc::new(Mutex::new(0)) }
+		Self { next_round: Arc::new(Mutex::new(0)) }
 	}
 }
 
@@ -66,8 +66,8 @@ impl MockRuntimeApi {
 }
 
 impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
-	fn latest_round(&self, _hash: <TestBlock as BlockT>::Hash) -> Result<u64, ApiError> {
-		Ok(*self.state.latest_round.lock())
+	fn next_round(&self, _hash: <TestBlock as BlockT>::Hash) -> Result<u64, ApiError> {
+		Ok(*self.state.next_round.lock())
 	}
 
 	fn max_rounds(&self, _hash: <TestBlock as BlockT>::Hash) -> Result<u8, ApiError> {
@@ -80,7 +80,7 @@ impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
 		asig: Vec<u8>,
 		start: u64,
 		end: u64,
-		signature: Vec<u8>,
+		_signature: Vec<u8>,
 	) -> Result<<TestBlock as BlockT>::Extrinsic, ApiError> {
 		if start == 0 {
 			// just an arbitrary api error
@@ -457,7 +457,6 @@ impl TransactionPool for MockTransactionPool {
 
 use sp_core::crypto::{CryptoTypeId, KeyTypeId};
 use sp_keystore::{testing::MemoryKeystore, Error as KeystoreError, Keystore};
-use sp_runtime::testing::sr25519::vrf::{VrfPreOutput, VrfSignature};
 
 pub struct FailingKeystore {
 	inner: Arc<MemoryKeystore>,

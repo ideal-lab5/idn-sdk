@@ -513,6 +513,18 @@ fn validate_unsigned_accepts_valid_sources_and_rejects_invalid() {
 		let validity = Drand::validate_unsigned(TransactionSource::External, &call);
 		assert_eq!(validity.unwrap_err(), InvalidTransaction::Call.into());
 
+		// Reject old pulses
+		// submit a valid signature
+		
+		let old_call = Call::try_submit_asig {
+			asig: asig.try_into().unwrap(),
+			start: 0, end: 1,
+			signature: signature
+		};
+
+		let validity = Drand::validate_unsigned(TransactionSource::Local, &old_call);
+		assert_eq!(validity.unwrap_err(), InvalidTransaction::Call.into());
+
 		// Reject other calls
 		let other_call = Call::set_beacon_config { pk: bpk.try_into().unwrap() };
 		let validity = Drand::validate_unsigned(TransactionSource::Local, &other_call);
