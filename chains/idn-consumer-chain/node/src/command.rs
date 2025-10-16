@@ -123,7 +123,6 @@ macro_rules! construct_async_run {
 	}}
 }
 
-
 /// Parse command line arguments into service configuration.
 #[allow(clippy::result_large_err)]
 pub fn run() -> Result<()> {

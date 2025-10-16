@@ -73,10 +73,6 @@ where
 		start: u64,
 		end: u64,
 	) -> Result<Block::Hash, GadgetError> {
-		let info = self.client.info();
-		let best_hash = info.best_hash;
-		let current_block = info.best_number;
-
 		let authority_id = self
 			.keystore
 			.sr25519_public_keys(AuraId::ID)
@@ -85,27 +81,27 @@ where
 			.map(|key| AuraId::from(key))
 			.ok_or(GadgetError::NoAuthorityKeys)?;
 
-		// CRITICAL: Read current_block INSIDE the lock and do atomic check-and-set
-		{
+		let best_hash = {
 			let mut last_block = self.last_submitted_block.lock();
 
-			// Check if we already submitted in this block
+			let info = self.client.info();
+			let current_block = info.best_number;
+			let best_hash = info.best_hash;
+
 			if let Some(last) = *last_block {
 				if last == current_block {
 					log::debug!(
 						target: LOG_TARGET,
 						"⏭️  Already submitted in block #{}, skipping rounds {}-{}",
-						current_block,
-						start,
-						end
+						current_block, start, end
 					);
 					return Ok(best_hash);
 				}
 			}
 
-			// Reserve this block immediately
 			*last_block = Some(current_block);
-		} // lock dropped
+			best_hash
+		};
 
 		log::info!(
 			target: LOG_TARGET,
@@ -143,19 +139,19 @@ where
 				GadgetError::RuntimeApiError(e.to_string())
 			})?;
 
-		let tx_hash = self
+		let tx_hash = match self
 			.transaction_pool
 			.submit_one(best_hash, TransactionSource::Local, extrinsic)
 			.await
-			.map_err(|e| {
-				log::error!(
-					target: LOG_TARGET,
-					"❌ Failed to submit to pool at hash {:?}: {:?}",
-					best_hash,
-					e
-				);
-				GadgetError::TransactionSubmissionFailed
-			})?;
+		{
+			Ok(hash) => hash,
+			Err(e) => {
+				log::error!(target: LOG_TARGET, "❌ Failed to submit to pool: {:?}", e);
+				// reset tracker if pool submission failed
+				*self.last_submitted_block.lock() = None;
+				return Err(GadgetError::TransactionSubmissionFailed);
+			},
+		};
 
 		log::info!(
 			target: LOG_TARGET,
