@@ -180,7 +180,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type BeaconConfig<T: Config> = StorageValue<_, OpaquePublicKey, OptionQuery>;
 
-	/// The latest observed round
+	/// The next smallest round number for which a signature can be accepted
 	#[pallet::storage]
 	pub type NextRound<T: Config> = StorageValue<_, RoundNumber, ValueQuery>;
 
