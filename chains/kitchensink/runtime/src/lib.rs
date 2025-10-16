@@ -227,44 +227,6 @@ impl pallet_transaction_payment::Config for Runtime {
 	type LengthToFee = FixedFee<1, <Self as pallet_balances::Config>::Balance>;
 }
 
-// impl pallet_aura::Config for Runtime {
-// 	type AllowMultipleBlocksPerSlot = ConstBool<true>;
-// 	type AuthorityId = sp_consensus_aura::sr25519::AuthorityId;
-// 	type DisabledValidators = ();
-// 	type MaxAuthorities = ConstU32<100_000>;
-// 	type SlotDuration = ConstU64<6_000>;
-// }
-// // since  the kitchenksink does not actually use this pallet, we mock it
-// pub struct MockSessionHandler;
-// impl pallet_session::SessionHandler<AuthorityId> for MockSessionHandler {
-// 	const KEY_TYPE_IDS: &'static [KeyTypeId] = &[key_types::DUMMY];
-
-// 	fn on_new_session<Ks: OpaqueKeys>(
-// 		_changed: bool,
-// 		_validators: &[(AuthorityId, Ks)],
-// 		_queued_validators: &[(AuthorityId, Ks)],
-// 	) {
-// 	}
-
-// 	fn on_disabled(_validator_index: u32) {}
-
-// 	fn on_genesis_session<Ks: OpaqueKeys>(_validators: &[(AuthorityId, Ks)]) {}
-// }
-
-// impl pallet_session::Config for Runtime {
-// 	type RuntimeEvent = RuntimeEvent;
-// 	type ValidatorId = <Self as frame_system::Config>::AccountId;
-// 	type ValidatorIdOf = sp_runtime::traits::ConvertInto;
-// 	type ShouldEndSession = Aura;
-// 	type NextSessionRotation = Aura;
-// 	type SessionManager = ();
-// 	type SessionHandler = MockSessionHandler;
-// 	type Keys = sp_runtime::testing::UintAuthorityId;
-// 	type DisablingStrategy = pallet_session::disabling::UpToLimitWithReEnablingDisablingStrategy;
-// 	type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
-// 	type Currency = Balances;
-// }
-
 impl pallet_randomness_beacon::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
@@ -275,6 +237,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type FallbackRandomness = RandomnessCollectiveFlip;
 	type Signature = sp_runtime::MultiSignature;
 	type AccountIdentifier = sp_runtime::MultiSigner;
+	type FindAuthor = 
 }
 
 pub const MOCK_IDN_PARA_ID: u32 = 88;
