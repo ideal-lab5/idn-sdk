@@ -29,10 +29,9 @@ use frame_benchmarking::v2::*;
 use frame_system::RawOrigin;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
-use sp_core::Pair;
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
-use sp_runtime::{traits::IdentifyAccount, MultiSignature};
+use sp_runtime:: MultiSignature;
 
 #[benchmarks(
 where
