@@ -17,7 +17,7 @@
 use crate::{
 	mock::{ALICE, *},
 	weights::WeightInfo,
-	BeaconConfig, DidUpdate, Error, LatestRound, SparseAccumulation,
+	BeaconConfig, DidUpdate, Error, NextRound, SparseAccumulation,
 };
 use frame_support::{assert_noop, assert_ok, traits::OnFinalize};
 use sp_idn_crypto::test_utils::{get, get_beacon_pk, PULSE1000, PULSE1001, PULSE1002, PULSE1003};
@@ -29,7 +29,7 @@ fn can_construct_pallet_and_set_genesis_params() {
 		let actual_initial_sigs = SparseAccumulation::<Test>::get();
 		assert!(actual_initial_sigs.is_none());
 
-		let latest_round = LatestRound::<Test>::get();
+		let latest_round = NextRound::<Test>::get();
 		assert_eq!(latest_round, 0);
 	});
 }
@@ -106,7 +106,7 @@ fn can_submit_valid_pulses_under_the_limit() {
 		let maybe_res = SparseAccumulation::<Test>::get();
 		assert!(maybe_res.is_some());
 
-		let latest_round = LatestRound::<Test>::get();
+		let latest_round = NextRound::<Test>::get();
 		assert_eq!(1002, latest_round);
 
 		let did_update = DidUpdate::<Test>::get();
@@ -143,7 +143,7 @@ fn can_submit_single_pulse() {
 			signature.into()
 		));
 
-		let latest_round = LatestRound::<Test>::get();
+		let latest_round = NextRound::<Test>::get();
 		assert_eq!(1001, latest_round);
 
 		let aggr = SparseAccumulation::<Test>::get().unwrap();
@@ -247,7 +247,7 @@ fn can_submit_valid_sigs_in_sequence() {
 		assert_eq!(1002, aggr.start);
 		assert_eq!(1003, aggr.end);
 
-		let actual_latest = LatestRound::<Test>::get();
+		let actual_latest = NextRound::<Test>::get();
 		assert_eq!(1004, actual_latest);
 	});
 }
@@ -339,7 +339,7 @@ fn can_fail_to_submit_non_sequential_pulses() {
 		assert_eq!(1000, aggr.start);
 		assert_eq!(1001, aggr.end);
 
-		let actual_latest = LatestRound::<Test>::get();
+		let actual_latest = NextRound::<Test>::get();
 		assert_eq!(1002, actual_latest);
 	});
 }
@@ -437,7 +437,7 @@ fn can_fail_with_invalid_signature() {
 		assert_eq!(1000, aggr.start);
 		assert_eq!(1001, aggr.end);
 
-		let actual_latest = LatestRound::<Test>::get();
+		let actual_latest = NextRound::<Test>::get();
 		assert_eq!(1002, actual_latest);
 	});
 }
@@ -466,7 +466,7 @@ fn first_pulse_can_be_any_round() {
 			signature.into()
 		));
 
-		let latest_round = LatestRound::<Test>::get();
+		let latest_round = NextRound::<Test>::get();
 		assert_eq!(1001, latest_round);
 	});
 }
@@ -502,9 +502,9 @@ fn validate_unsigned_accepts_valid_sources_and_rejects_invalid() {
 		let encoded_data = Vec::new();
 
 		let alice_keypair = sp_core::sr25519::Pair::from_string("//Alice", None).unwrap();
-		let signature =MultiSignature::Sr25519(alice_keypair.sign(&encoded_data));
+		let signature = MultiSignature::Sr25519(alice_keypair.sign(&encoded_data));
 
-		let call = Call::try_submit_asig { asig: asig.try_into().unwrap(), start: 1000, end: 1001 , signature: signature};
+		let call = Call::try_submit_asig { asig: asig.clone().try_into().unwrap(), start: 1000, end: 1001 , signature: signature.clone()};
 
 		// Accept Local and InBlock sources
 		assert!(Drand::validate_unsigned(TransactionSource::Local, &call).is_ok());
