@@ -55,9 +55,7 @@ use frame_support::{
 	pallet_prelude::{Encode, EnsureOrigin, Get, IsType, Pays},
 };
 use frame_system::{ensure_signed, pallet_prelude::OriginFor};
-use scale_info::{
-	prelude::{boxed::Box, sync::Arc, vec},
-};
+use scale_info::prelude::{boxed::Box, sync::Arc, vec};
 use sp_idn_traits::Hashable;
 use sp_runtime::traits::TryConvert;
 use traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer};
