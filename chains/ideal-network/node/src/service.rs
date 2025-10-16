@@ -85,6 +85,7 @@ pub type Service = PartialComponents<
 ///
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
+#[allow(clippy::result_large_err)]
 #[docify::export(component_instantiation)]
 pub fn new_partial(config: &Configuration) -> Result<Service, sc_service::Error> {
 	let telemetry = config
@@ -188,6 +189,7 @@ fn build_import_queue(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::result_large_err)]
 fn start_consensus(
 	client: Arc<ParachainClient>,
 	backend: Arc<ParachainBackend>,
