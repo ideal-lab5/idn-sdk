@@ -22,6 +22,7 @@ use ark_bls12_381::G1Affine;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use futures::{stream::Fuse, Future, FutureExt, StreamExt};
 use pallet_randomness_beacon::RandomnessBeaconApi;
+use parking_lot::Mutex;
 use sc_client_api::HeaderBackend;
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_api::ProvideRuntimeApi;
@@ -29,8 +30,9 @@ use sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 use std::{
 	pin::Pin,
-	sync::{Arc, Mutex},
+	sync::Arc,
 };
+use tokio::sync::Mutex as TokioMutex;
 
 const LOG_TARGET: &str = "rand-beacon-gadget";
 
@@ -108,7 +110,7 @@ pub struct PulseFinalizationGadget<Block, Client, S, const MAX_QUEUE_SIZE: usize
 	pulse_submitter: Arc<S>,
 	pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
 	next_round: Arc<Mutex<u64>>,
-	submission_lock: Arc<tokio::sync::Mutex<()>>,
+	submission_lock: Arc<TokioMutex<()>>,
 	_phantom: std::marker::PhantomData<Block>,
 }
 
@@ -126,7 +128,7 @@ where
 		pulse_receiver: DrandReceiver<MAX_QUEUE_SIZE>,
 	) -> Self {
 		let next_round = Arc::new(Mutex::new(0u64));
-		let submission_lock = Arc::new(tokio::sync::Mutex::new(()));
+		let submission_lock = Arc::new(TokioMutex::new(()));
 		Self {
 			client,
 			pulse_submitter,
@@ -174,7 +176,7 @@ where
 		// latest round
 		let runtime_round = self.client.runtime_api().next_round(at_hash).unwrap_or(0);
 		// this represents the NEXT smallest round we can ingest
-		let local_round = *self.next_round.lock().unwrap();
+		let local_round = *self.next_round.lock();
 		let next_round = runtime_round.max(local_round);
 
 		let max_rounds = self
@@ -234,7 +236,7 @@ where
 				.expect("The signature is well formatted. qed.");
 
 			self.pulse_submitter.submit_pulse(asig_bytes, start, end).await?;
-			*self.next_round.lock().unwrap() = end + 1;
+			*self.next_round.lock() = end + 1;
 		} else {
 			log::info!(
 				target: LOG_TARGET,
