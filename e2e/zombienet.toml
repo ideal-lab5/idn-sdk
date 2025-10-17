@@ -13,19 +13,19 @@ chain_spec_path="chainspec/paseo-local-plain.json"
     name = "bob"
     validator = true
 
-# [[parachains]]
-# id = 2001
-# chain = "idnc-dev"
-# name = "idn-consumer-chain"
+[[parachains]]
+id = 2001
+chain = "idnc-dev"
+name = "idn-consumer-chain"
 
-    # [[parachains.collators]]
-    # name = "idn-consumer-alice"
-    # command = "../target/release/idn-consumer-node"
-    # rpc_port = 9944
+    [[parachains.collators]]
+    name = "idn-consumer-alice"
+    command = "../target/release/idn-consumer-node"
+    rpc_port = 9944
 
-    # [[parachains.collators]]
-    # name = "idn-consumer-bob"
-    # command = "../target/release/idn-consumer-node"
+    [[parachains.collators]]
+    name = "idn-consumer-bob"
+    command = "../target/release/idn-consumer-node"
 
 [[parachains]]
 id = 4502
