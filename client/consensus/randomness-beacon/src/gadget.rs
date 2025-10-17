@@ -28,10 +28,7 @@ use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE;
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
-use std::{
-	pin::Pin,
-	sync::Arc,
-};
+use std::{pin::Pin, sync::Arc};
 use tokio::sync::Mutex as TokioMutex;
 
 const LOG_TARGET: &str = "rand-beacon-gadget";
