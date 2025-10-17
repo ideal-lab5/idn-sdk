@@ -1,5 +1,13 @@
 name: "Setup Rust Environment"
 description: "Sets up Rust toolchains and dependencies"
+on:
+  workflow_call:
+    inputs:
+      rust_version:
+        description: 'Rust version to install'
+        required: false
+        default: '1.90'
+        type: string
 runs:
   using: "composite"
   steps:
