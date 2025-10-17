@@ -53,7 +53,6 @@ pub mod fee {
 	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:
 	///   - Setting it to `0` will essentially disable the weight fee.
 	///   - Setting it to `1` will cause the literal `#[weight = x]` values to be charged.
-	#[allow(dead_code)]
 	pub struct WeightToFee;
 	impl frame_support::weights::WeightToFee for WeightToFee {
 		type Balance = Balance;
@@ -68,7 +67,6 @@ pub mod fee {
 	}
 
 	/// Maps the reference time component of `Weight` to a fee.
-	#[allow(dead_code)]
 	pub struct RefTimeToFee;
 	impl WeightToFeePolynomial for RefTimeToFee {
 		type Balance = Balance;
@@ -88,7 +86,6 @@ pub mod fee {
 	}
 
 	/// Maps the proof size component of `Weight` to a fee.
-	#[allow(dead_code)]
 	pub struct ProofSizeToFee;
 	impl WeightToFeePolynomial for ProofSizeToFee {
 		type Balance = Balance;
