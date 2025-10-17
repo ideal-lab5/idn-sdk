@@ -4,19 +4,19 @@ inputs:
   rust_version:
     description: 'Rust version to install'
     required: false
-    default: '1.85'
+    default: '1.90'
     type: string
 runs:
   using: "composite"
   steps:
     - name: Install Rust stable
-      uses: actions-rs/toolchain@v1
+      uses: actions-rs/toolchain@v1.0.6
       with:
         toolchain: ${{ inputs.rust_version }}
         override: true
 
     - name: Install Rust nightly
-      uses: actions-rs/toolchain@v1
+      uses: actions-rs/toolchain@v1.0.6
       with:
         toolchain: nightly
         override: false
