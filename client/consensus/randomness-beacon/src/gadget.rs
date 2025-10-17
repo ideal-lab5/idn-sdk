@@ -425,7 +425,7 @@ mod tests {
 		gadget.handle_finality_notification(&notification1).await.unwrap();
 
 		// Verify next_round was updated
-		assert_eq!(*gadget.next_round.lock().unwrap(), 101);
+		assert_eq!(*gadget.next_round.lock(), 101);
 
 		tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -481,13 +481,13 @@ mod tests {
 		tokio::time::sleep(Duration::from_millis(50)).await;
 
 		// Initial state
-		assert_eq!(*gadget.next_round.lock().unwrap(), 0);
+		assert_eq!(*gadget.next_round.lock(), 0);
 
 		let notification = create_unpinned_notification(1);
 		gadget.handle_finality_notification(&notification).await.unwrap();
 
 		// Verify next_round was updated to the end round
-		assert_eq!(*gadget.next_round.lock().unwrap(), 101);
+		assert_eq!(*gadget.next_round.lock(), 101);
 
 		let submissions = mock_submitter.get_submissions();
 		assert_eq!(submissions.len(), 1);
@@ -517,7 +517,7 @@ mod tests {
 		assert!(result.is_err(), "Should return error when submission fails");
 
 		// Verify next_round was NOT updated on failure
-		assert_eq!(*gadget.next_round.lock().unwrap(), 0);
+		assert_eq!(*gadget.next_round.lock(), 0);
 
 		// Add new pulse and fix submitter
 		pulse_tx.unbounded_send(create_test_pulse(101)).unwrap();
@@ -531,7 +531,7 @@ mod tests {
 		let submissions = mock_submitter.get_submissions();
 		assert_eq!(submissions.len(), 1, "Gadget should recover and process after error");
 		assert_eq!(submissions[0].1, 101);
-		assert_eq!(*gadget.next_round.lock().unwrap(), 102);
+		assert_eq!(*gadget.next_round.lock(), 102);
 	}
 
 	#[tokio::test]
@@ -551,7 +551,7 @@ mod tests {
 
 		// Set runtime round to 90 but local next_round to 100
 		*client.runtime_api_state.next_round.lock() = 90;
-		*gadget.next_round.lock().unwrap() = 100;
+		*gadget.next_round.lock() = 100;
 
 		tokio::time::sleep(Duration::from_millis(50)).await;
 
