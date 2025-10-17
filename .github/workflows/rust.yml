@@ -120,7 +120,7 @@ jobs:
         run: cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git
       
       - name: Run Tests
-        run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
+        run: cargo +1.85 test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
       
       - name: Install cargo-contract
         run: cargo install cargo-contract@5.0.3
