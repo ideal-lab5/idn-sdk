@@ -98,7 +98,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Environment
-        uses: ./.github/actions/setup-rust/actions/setup-rust
+        uses: ./.github/actions/setup-rust/
         with: 
           rust_version: "1.85"
 
