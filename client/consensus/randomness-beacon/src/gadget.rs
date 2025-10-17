@@ -236,7 +236,7 @@ where
 				.expect("The signature is well formatted. qed.");
 
 			self.pulse_submitter.submit_pulse(asig_bytes, start, end).await?;
-			*self.next_round.lock().unwrap() = end + 1;
+			*self.next_round.lock() = end + 1;
 		} else {
 			log::info!(
 				target: LOG_TARGET,
