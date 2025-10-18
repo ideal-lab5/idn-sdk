@@ -14,10 +14,9 @@ chain_spec_path="chainspec/paseo-local-plain.json"
     validator = true
 
 [[parachains]]
-id = 4594
+id = 2001
 chain = "idnc-dev"
 name = "idn-consumer-chain"
-default_args = ["-lruntime::revive=trace,xcm=trace,parachain=trace,pallet-idn-manager=trace"]
 
     [[parachains.collators]]
     name = "idn-consumer-alice"

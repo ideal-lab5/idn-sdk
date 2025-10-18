@@ -300,6 +300,20 @@ impl<const N: usize> DrandReceiver<N> {
 		DrandReceiver { pulses }
 	}
 
+	/// Consume the runtime pulses from storage
+	pub async fn consume(&self, n: usize) -> Vec<CanonicalPulse> {
+		let mut pulses_out = Vec::new();
+		let mut pulses = self.pulses.lock().await;
+
+		for _ in 0..n {
+			if let Some(pulse) = pulses.pop_front() {
+				pulses_out.push(pulse);
+			}
+		}
+
+		pulses_out
+	}
+
 	/// Read the runtime pulses from storage
 	pub async fn read(&self) -> Vec<CanonicalPulse> {
 		let pulses = self.pulses.lock().await;
@@ -858,6 +872,11 @@ mod tests {
 		let actual = receiver.read().await;
 		assert_eq!(actual.len(), 1, "There should be one opaque pulse in the vec");
 		assert_eq!(actual[0], opaque);
+
+		let consumed = receiver.consume(1).await;
+		assert_eq!(consumed.len(), 1, "There should be one opaque pulse in the vec to consume");
+		let actual = receiver.read().await;
+		assert_eq!(actual.len(), 0, "The queue should be empty.");
 	}
 
 	#[tokio::test]

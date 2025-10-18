@@ -52,13 +52,10 @@ use bp_idn::{
 use cumulus_primitives_core::{Instruction::WithdrawAsset, ParaId};
 use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
-	pallet_prelude::{Decode, DecodeWithMemTracking, Encode, EnsureOrigin, Get, IsType, Pays},
+	pallet_prelude::{Encode, EnsureOrigin, Get, IsType, Pays},
 };
 use frame_system::{ensure_signed, pallet_prelude::OriginFor};
-use scale_info::{
-	prelude::{boxed::Box, sync::Arc, vec},
-	TypeInfo,
-};
+use scale_info::prelude::{boxed::Box, sync::Arc, vec};
 use sp_idn_traits::Hashable;
 use sp_runtime::traits::TryConvert;
 use traits::{PulseConsumer, QuoteConsumer, SubInfoConsumer};
@@ -81,12 +78,6 @@ use xcm_builder::SendController;
 pub use bp_idn::types::{Quote, RuntimePulse as Pulse, SubInfoResponse, SubscriptionId};
 pub use pallet::*;
 pub use weights::WeightInfo;
-
-#[derive(Clone, PartialEq, Debug, Encode, Decode, TypeInfo, DecodeWithMemTracking)]
-struct SubFeesQuote {
-	quote_id: u8,
-	fees: Credits,
-}
 
 #[frame_support::pallet]
 pub mod pallet {

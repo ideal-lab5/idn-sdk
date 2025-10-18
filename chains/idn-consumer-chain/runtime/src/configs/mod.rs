@@ -101,6 +101,8 @@ parameter_types! {
 	pub const SS58Prefix: u16 = 0;
 }
 
+pub type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Runtime, Aura>;
+
 /// The default types are being injected by [`derive_impl`](`frame_support::derive_impl`) from
 /// [`ParaChainDefaultConfig`](`struct@frame_system::config_preludes::ParaChainDefaultConfig`),
 /// but overridden as needed.

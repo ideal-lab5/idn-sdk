@@ -47,6 +47,7 @@ pub type Service = sc_service::PartialComponents<
 	Option<Telemetry>,
 >;
 
+#[allow(clippy::result_large_err)]
 pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 	let telemetry = config
 		.telemetry_endpoints
@@ -106,6 +107,7 @@ pub fn new_partial(config: &Configuration) -> Result<Service, ServiceError> {
 }
 
 /// Builds a new service for a full client.
+#[allow(clippy::result_large_err)]
 pub fn new_full<Network: sc_network::NetworkBackend<Block, <Block as BlockT>::Hash>>(
 	config: Configuration,
 	consensus: Consensus,
