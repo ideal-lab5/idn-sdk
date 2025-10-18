@@ -99,8 +99,6 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-rust
-        with: 
-          rust_version: "1.87"
 
       - name: Run cargo clippy
         run: cargo clippy --all-features --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- -D warnings
