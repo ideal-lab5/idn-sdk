@@ -130,7 +130,6 @@ fn can_submit_single_pulse() {
 	let (asig, _amsg, _raw) = get(vec![PULSE1000]);
 	let bpk = get_beacon_pk();
 
-	// let asig: [u8;48] = [1; 48];
 	let start: u64 = 1000;
 	let end: u64 = 1000;
 	let encoded_data = (asig.clone().to_vec(), start, end).encode();
@@ -421,7 +420,6 @@ fn can_fail_with_invalid_signature() {
 
 		let start2: u64 = 1002;
 		let end2: u64 = 1003;
-		// let user_2_pair = sp_core::sr25519::Pair::from_string("//Bob", None).unwrap();
 		let econded_data2 = (asig.clone().to_vec(), start2, end2).encode();
 		let signature2 = alice_keypair.sign(&econded_data2);
 
