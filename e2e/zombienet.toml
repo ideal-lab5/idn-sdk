@@ -14,7 +14,7 @@ chain_spec_path="chainspec/paseo-local-plain.json"
     validator = true
 
 [[parachains]]
-id = 2001
+id = 4594
 chain = "idnc-dev"
 name = "idn-consumer-chain"
 
