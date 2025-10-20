@@ -221,18 +221,12 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The beacon config is already set.
-		BeaconConfigAlreadySet,
 		/// The beacon config is not set.
 		BeaconConfigNotSet,
 		/// The height exceeds the maximum allowed signatures per block.
 		ExcessiveHeightProvided,
-		/// The caller was not a network authority.
-		InvalidAuthority,
-		/// The signature could not be verified (authority sig, not from the beacon).
+		/// The provided authority signature could not be verified.
 		InvalidSignature,
-		/// The Authorities vec is empty
-		NoAvailableAuthorities,
 		/// Only one aggregated signature can be provided per block.
 		SignatureAlreadyVerified,
 		/// A critical error occurred where serialization failed.
