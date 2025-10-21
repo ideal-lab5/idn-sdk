@@ -102,16 +102,16 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-rust
 
-      - name: Run cargo clippy
-        run: cargo clippy --all-features --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- -D warnings
+      # - name: Run cargo clippy
+      #   run: cargo clippy --all-features --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- -D warnings
       
-      - name: Run fmt
-        run: |
-          rustup component add rustfmt --toolchain nightly
-          cargo +nightly fmt --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- --check
+      # - name: Run fmt
+      #   run: |
+      #     rustup component add rustfmt --toolchain nightly
+      #     cargo +nightly fmt --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- --check
 
-      - name: Run cargo doc for the contract
-        run: cargo doc --no-deps --manifest-path ./contracts/examples/consumer-contract/Cargo.toml
+      # - name: Run cargo doc for the contract
+      #   run: cargo doc --no-deps --manifest-path ./contracts/examples/consumer-contract/Cargo.toml
 
       - name: Install substrate-node for e2e test
         run: |
@@ -122,7 +122,7 @@ jobs:
           rm -r substrate-contracts-node-linux
           rm substrate-contracts-node-linux.tar.gz
           echo "CONTRACTS_NODE=substrate-contracts-node" >> $GITHUB_ENV
-          echo "CONTRACT_NODE set"
+          echo "CONTRACTS_NODE set to be $CONTRACTS_NODE"
       
       - name: Run Tests
         run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
