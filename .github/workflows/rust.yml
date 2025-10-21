@@ -118,7 +118,8 @@ jobs:
             mv substrate-contracts-node-linux/substrate-contracts-node . && \
             chmod +x substrate-contracts-node && \
             rm -r substrate-contracts-node-linux && \
-            rm substrate-contracts-node-linux.tar.gz
+            rm substrate-contracts-node-linux.tar.gz && \
+            export CONTRACTS_NODE="substrate-contracts-node"
       
       - name: Run Tests
         run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
