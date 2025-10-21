@@ -119,9 +119,9 @@ jobs:
 
       - name: Install substrate-node for e2e test
         run: |
-          wget https://github.com/paritytech/substrate-contracts-node/releases/download/v0.41.0/substrate-contracts-node-linux.tar.gz
+          wget https://github.com/paritytech/substrate-contracts-node/releases/download/v0.42.0/substrate-contracts-node-linux.tar.gz
           tar -xzf substrate-contracts-node-linux.tar.gz
-          mv artifacts/substrate-contracts-node-linux/substrate-contracts-node .
+          mv substrate-contracts-node-linux/substrate-contracts-node .
           chmod +x substrate-contracts-node
           rm -r substrate-contracts-node-linux
           rm substrate-contracts-node-linux.tar.gz
