@@ -113,6 +113,10 @@ jobs:
       # - name: Run cargo doc for the contract
       #   run: cargo doc --no-deps --manifest-path ./contracts/examples/consumer-contract/Cargo.toml
 
+            
+      - name: Install cargo-contract
+        run: cargo install cargo-contract@5.0.3
+
       - name: Install substrate-node for e2e test
         run: |
           wget https://github.com/paritytech/substrate-contracts-node/releases/download/v0.42.0/substrate-contracts-node-linux.tar.gz
@@ -130,9 +134,6 @@ jobs:
       
       - name: Run Tests
         run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
-      
-      - name: Install cargo-contract
-        run: cargo install cargo-contract@5.0.3
       
       - name: Build
         run: cargo contract build --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --release
