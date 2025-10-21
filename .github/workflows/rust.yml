@@ -124,7 +124,9 @@ jobs:
           echo "Present working directory is: $PWD"
           echo "Github workspace is: $GITHUB_WORKSPACE"
           echo "CONTRACTS_NODE=$GITHUB_WORKSPACE/substrate-contracts-node" >> $GITHUB_ENV
-          echo "CONTRACTS_NODE set to be $CONTRACTS_NODE"
+
+      - name: Check path
+        run: echo "CONTRACTS_NODE set to be $CONTRACTS_NODE"
       
       - name: Run Tests
         run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
