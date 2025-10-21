@@ -516,7 +516,7 @@ impl IdnClient {
 		call_params: Option<ContractCallParams>,
 		origin_kind: Option<OriginKind>,
 	) -> Result<SubscriptionId> {
-		if credits == 0 || frequency == 0 {
+		if credits == 0 {
 			return Err(Error::InvalidParams);
 		}
 
