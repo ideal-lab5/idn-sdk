@@ -92,6 +92,8 @@ jobs:
   
   consumer_contract:
     runs-on: ubuntu-latest
+    env:
+      CONTRACTS_NODE: "substrate-contracts-node"
 
     steps:
       - name: Checkout code
@@ -119,7 +121,8 @@ jobs:
           chmod +x substrate-contracts-node
           rm -r substrate-contracts-node-linux
           rm substrate-contracts-node-linux.tar.gz
-          export CONTRACTS_NODE="substrate-contracts-node"
+          echo "CONTRACTS_NODE=substrate-contracts-node" >> $GITHUB_ENV
+          echo "CONTRACT_NODE set"
       
       - name: Run Tests
         run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
