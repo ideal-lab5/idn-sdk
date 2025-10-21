@@ -1,23 +1,16 @@
 name: "Setup Rust Environment"
 description: "Sets up Rust toolchains and dependencies"
-inputs:
-  rust_version:
-    description: 'Rust version to install'
-    required: false
-    default: '1.90'
-    type: string
 runs:
   using: "composite"
   steps:
     - name: Install Rust stable
-      uses: actions-rs/toolchain@v1.0.6
+      uses: actions-rs/toolchain@v1
       with:
-        toolchain: ${{ inputs.rust_version }}
+        toolchain: "1.85"
         override: true
-        components: rustfmt, clippy, rust-src
 
     - name: Install Rust nightly
-      uses: actions-rs/toolchain@v1.0.6
+      uses: actions-rs/toolchain@v1 
       with:
         toolchain: nightly
         override: false
