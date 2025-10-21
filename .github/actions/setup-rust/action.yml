@@ -12,7 +12,7 @@ runs:
     - name: Install Rust stable
       uses: actions-rs/toolchain@v1.0.6
       with:
-        toolchain: ${{ inputs.rust_version }}
+        toolchain: "1.90"
         override: true
         components: rustfmt, clippy, rust-src
 

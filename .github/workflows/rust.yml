@@ -115,16 +115,10 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install substrate-node for e2e test
-        run: cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git
-
-      - name: Install rust 1.85 to run tests
-        run: rustup component add rust-src --toolchain 1.85-x86_64-unknown-linux-gnu
-
-      - name: Install clippy for rustc 1.85
-        run: rustup component add --toolchain 1.85-x86_64-unknown-linux-gnu clippy
+        run: cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git --force
       
       - name: Run Tests
-        run: cargo +1.85 test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
+        run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
       
       - name: Install cargo-contract
         run: cargo install cargo-contract@5.0.3
