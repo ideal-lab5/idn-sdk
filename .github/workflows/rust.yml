@@ -121,7 +121,7 @@ jobs:
         run: |
           wget https://github.com/paritytech/substrate-contracts-node/releases/download/v0.41.0/substrate-contracts-node-linux.tar.gz
           tar -xzf substrate-contracts-node-linux.tar.gz
-          mv substrate-contracts-node-linux/substrate-contracts-node .
+          mv artifacts/substrate-contracts-node-linux/substrate-contracts-node .
           chmod +x substrate-contracts-node
           rm -r substrate-contracts-node-linux
           rm substrate-contracts-node-linux.tar.gz
@@ -133,10 +133,10 @@ jobs:
         run: echo "CONTRACTS_NODE set to be $CONTRACTS_NODE"
       
       - name: Run Tests
-        run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
+        run: cargo test --manifest-path $GITHUB_WORKSPACE/contracts/examples/consumer-contract/Cargo.toml --all-features
       
       - name: Build
-        run: cargo contract build --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --release
+        run: cargo contract build --manifest-path $GITHUB_WORKSPACE/contracts/examples/consumer-contract/Cargo.toml --release
   
   # randomness_contract:
   #   runs-on: ubuntu-latest
