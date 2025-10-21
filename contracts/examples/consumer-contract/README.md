@@ -43,7 +43,7 @@ To deploy this contract:
 
 2. Deploy to your parachain using your preferred method (e.g., Contracts UI)
 
-3. **⚠️ CRITICAL**: Fund your contract's account on the IDN chain and the contract's account on the consumer chain. See the [detailed funding guide](../idn-client-contract-lib/README.md#account-funding-requirements) for step-by-step instructions.
+3. **⚠️ CRITICAL**: Fund your contract's account on the IDN chain and the contract's account on the consumer chain. See the [detailed funding guide](../../src/xcm/README.md#account-funding-requirements) for step-by-step instructions.
 
 4. Initialize with the required parameters:
 
