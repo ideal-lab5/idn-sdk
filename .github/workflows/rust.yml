@@ -121,7 +121,7 @@ jobs:
           chmod +x substrate-contracts-node
           rm -r substrate-contracts-node-linux
           rm substrate-contracts-node-linux.tar.gz
-          echo "CONTRACTS_NODE=substrate-contracts-node" >> $GITHUB_ENV
+          echo "CONTRACTS_NODE=$PWD/substrate-contracts-node" >> $GITHUB_ENV
           echo "CONTRACTS_NODE set to be $CONTRACTS_NODE"
       
       - name: Run Tests
