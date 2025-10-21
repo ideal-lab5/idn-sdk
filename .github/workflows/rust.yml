@@ -129,8 +129,11 @@ jobs:
           echo "Github workspace is: $GITHUB_WORKSPACE"
           echo "CONTRACTS_NODE=$GITHUB_WORKSPACE/substrate-contracts-node" >> $GITHUB_ENV
 
-      - name: Check path
-        run: echo "CONTRACTS_NODE set to be $CONTRACTS_NODE"
+      - name: Verify substrate-contracts-node
+        run: |
+          echo "CONTRACTS_NODE is: $CONTRACTS_NODE"
+          ls -la $CONTRACTS_NODE
+          $CONTRACTS_NODE --version
       
       - name: Run Tests
         run: cargo test --manifest-path $GITHUB_WORKSPACE/contracts/examples/consumer-contract/Cargo.toml --all-features
