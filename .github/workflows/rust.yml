@@ -134,12 +134,12 @@ jobs:
           echo "CONTRACTS_NODE is: $CONTRACTS_NODE"
           ls -la $CONTRACTS_NODE
           $CONTRACTS_NODE --version
-      
-      - name: Run Tests
-        run: cargo test --manifest-path $GITHUB_WORKSPACE/contracts/examples/consumer-contract/Cargo.toml
 
       - name: Run E2E Test
         run: cargo test --manifest-path $GITHUB_WORKSPACE/contracts/examples/consumer-contract/Cargo.toml --features e2e-tests
+      
+      - name: Run Tests
+        run: cargo test --manifest-path $GITHUB_WORKSPACE/contracts/examples/consumer-contract/Cargo.toml
       
       - name: Build
         run: cargo contract build --manifest-path $GITHUB_WORKSPACE/contracts/examples/consumer-contract/Cargo.toml --release
