@@ -10,7 +10,7 @@ runs:
         override: true
 
     - name: Install Rust nightly
-      uses: actions-rs/toolchain@v1 
+      uses: actions-rs/toolchain@v1
       with:
         toolchain: nightly
         override: false
