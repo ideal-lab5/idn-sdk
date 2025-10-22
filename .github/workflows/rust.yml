@@ -121,8 +121,6 @@ jobs:
           chmod +x substrate-contracts-node
           rm -r substrate-contracts-node-linux
           rm substrate-contracts-node-linux.tar.gz
-          echo "Present working directory is: $PWD"
-          echo "Github workspace is: $GITHUB_WORKSPACE"
           echo "CONTRACTS_NODE=$GITHUB_WORKSPACE/substrate-contracts-node" >> $GITHUB_ENV
 
       - name: Verify substrate-contracts-node
