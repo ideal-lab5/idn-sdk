@@ -115,13 +115,13 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install substrate-node for e2e test
-        run: cargo install contracts-node@0.42.0
+        run: cargo install contracts-node@0.42.0 --locked
       
       - name: Run Tests
         run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
       
       - name: Install cargo-contract
-        run: cargo install cargo-contract@5.0.3
+        run: cargo install cargo-contract@5.0.3 --locked
       
       - name: Build
         run: cargo contract build --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --release
@@ -151,7 +151,7 @@ jobs:
         run: cargo test --manifest-path ./contracts/examples/rand-extension/Cargo.toml --all-features
 
       - name: Install cargo-contract
-        run: cargo install cargo-contract@5.0.3
+        run: cargo install cargo-contract@5.0.3 --locked
       
       - name: Build
         run: cargo contract build --manifest-path ./contracts/examples/rand-extension/Cargo.toml --release
