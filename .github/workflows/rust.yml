@@ -99,6 +99,8 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-rust
+        with:
+          rust_version: "1.85"
 
       - name: Run cargo clippy
         run: cargo clippy --all-features --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- -D warnings
@@ -111,17 +113,29 @@ jobs:
       - name: Run cargo doc for the contract
         run: cargo doc --no-deps --manifest-path ./contracts/examples/consumer-contract/Cargo.toml
 
-      - name: Install wasm32-unknown-unknown target
-        run: rustup target add wasm32-unknown-unknown
-
       - name: Install substrate-node for e2e test
-        run: cargo install contracts-node --git https://github.com/paritytech/substrate-contracts-node.git
+        run: |
+          wget https://github.com/paritytech/substrate-contracts-node/releases/download/v0.42.0/substrate-contracts-node-linux.tar.gz
+          tar -xzf substrate-contracts-node-linux.tar.gz
+          mv substrate-contracts-node-linux/substrate-contracts-node .
+          chmod +x substrate-contracts-node
+          rm -r substrate-contracts-node-linux
+          rm substrate-contracts-node-linux.tar.gz
+          echo "Present working directory is: $PWD"
+          echo "Github workspace is: $GITHUB_WORKSPACE"
+          echo "CONTRACTS_NODE=$GITHUB_WORKSPACE/substrate-contracts-node" >> $GITHUB_ENV
+
+      - name: Verify substrate-contracts-node
+        run: |
+          echo "CONTRACTS_NODE is: $CONTRACTS_NODE"
+          ls -la $CONTRACTS_NODE
+          $CONTRACTS_NODE --version
       
       - name: Run Tests
         run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
       
       - name: Install cargo-contract
-        run: cargo install cargo-contract@5.0.3
+        run: cargo install cargo-contract@5.0.3 --locked
       
       - name: Build
         run: cargo contract build --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --release
