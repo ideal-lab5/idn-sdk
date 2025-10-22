@@ -23,6 +23,7 @@ use sp_runtime::traits::Zero;
 use sp_std::cmp::Ordering;
 
 /// A simple implementation of the `DiffBalance` trait.
+#[allow(dead_code)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct DiffBalanceImpl<Balance> {
 	balance: Balance,
@@ -42,8 +43,10 @@ impl<Balance: Copy> DiffBalance<Balance> for DiffBalanceImpl<Balance> {
 }
 
 /// Linear fee calculator with no discount
+#[allow(dead_code)]
 pub struct LinearFeeCalculator;
 
+#[allow(dead_code)]
 const BASE_FEE: u32 = 100;
 
 #[docify::export_content]
@@ -88,6 +91,7 @@ mod linear_fee_calculator {
 }
 
 /// Tiered fee calculator with predefined discount tiers
+#[allow(dead_code)]
 pub struct SteppedTieredFeeCalculator;
 
 #[docify::export_content]
