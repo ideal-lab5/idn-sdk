@@ -12,14 +12,14 @@ runs:
     - name: Install Rust stable
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: "1.90"
+        toolchain: ${{ inputs.rust_version }}
         override: true
         components: rustfmt, clippy, rust-src
 
     - name: Install Rust nightly
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: ${{ inputs.rust_version }}
+        toolchain: nightly
         override: false
 
     - name: Setup toolchains
