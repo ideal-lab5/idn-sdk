@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-#![cfg_attr(not(feature = "std"), no_std)]
-extern crate alloc;
+//! types needed to use ink! smart contracts that interact with the IDN through XCM
 
-pub mod ext;
-pub mod prelude;
-pub mod vraas;
-pub mod xcm;
+pub use crate::xcm::{
+	types::{Pulse, Quote, SubInfoResponse, SubscriptionId},
+	Error, IdnClient, IdnConsumer,
+};
+
+pub use sp_idn_traits::pulse::Pulse as TPulse;
+
+pub type IDNResult = crate::xcm::Result<()>;
