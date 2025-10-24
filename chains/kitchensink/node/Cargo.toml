@@ -7,7 +7,7 @@ authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
 edition.workspace = true
-publish = false
+publish = true
 build = "build.rs"
 
 [package.metadata.docs.rs]

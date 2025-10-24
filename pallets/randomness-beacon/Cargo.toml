@@ -4,12 +4,12 @@ description = "FRAME pallet for bridging to drand."
 authors = [
 	"Ideal Labs <hello@idealabs.network>",
 	]
-version = "0.0.1-dev"
+version = "0.0.1"
 license = "Apache-2.0"
 edition = "2021"
 homepage = "https://www.idealabs.network"
 repository.workspace = true
-publish = false
+publish = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
