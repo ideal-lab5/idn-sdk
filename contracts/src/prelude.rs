@@ -17,7 +17,11 @@
 //! types needed to use ink! smart contracts that interact with the IDN through XCM
 
 pub use crate::xcm::{
-	types::{Pulse, Quote, SubInfoResponse, SubscriptionId},
+	types::{
+		ConsumerParaId, ContractsCallIndex, ContractsPalletIndex, Credits, IdnBalance,
+		IdnBlockNumber, IdnManagerPalletIndex, IdnParaId, Metadata, PalletIndex, ParaId, Pulse,
+		Quote, SubInfoResponse, SubscriptionId,
+	},
 	Error, IdnClient, IdnConsumer,
 };
 
