@@ -112,10 +112,7 @@ pub fn dev_config() -> ChainSpec {
 			get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
 			get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
 			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
-			sr25519::Public::from_str("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C") // Treasury Account
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("5Eg2fntJDju46yds4uKzu2zuQssqw7JZWohhLMj6mZZjg2pK") // Sibling 2001 Account (consumer)
+			sr25519::Public::from_str("1LX9m9Ee8u653hU1sxvvRNpV1ZjYExa7K8r9zjDws9GDLvp") // Treasury Account
 				.unwrap()
 				.into(),
 		],
@@ -145,10 +142,10 @@ pub fn local_testnet_config() -> ChainSpec {
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
 		vec![
-			sr25519::Public::from_str("5DG98CDpGab5LbqDCxJFdJrF6eDCVgKpdZqSEmWzcZA5Hq88") // seed: "//Idn-local-testnet-collator-01"
+			sr25519::Public::from_str("12CSGXUt8MrYn8qjAbMFmTgPxGCrBysxi4ZvQ4WMAeBbURTK") // seed: "//Idn-local-testnet-collator-01"
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5FHLJBPPa8R9SW4vBXLMsWQkQiX2J2ZczJNgtLpy46AkLx6T") // seed: "//Idn-local-testnet-collator-02"
+			sr25519::Public::from_str("14DdSWeTRugct35S9APN1fEuGLWfzL7m4o7B3dpKcBCGXYRu") // seed: "//Idn-local-testnet-collator-02"
 				.unwrap()
 				.into(),
 		],
@@ -165,17 +162,14 @@ pub fn local_testnet_config() -> ChainSpec {
 			get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
 			get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
 			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
-			sr25519::Public::from_str("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C") // Treasury Account
+			sr25519::Public::from_str("1LX9m9Ee8u653hU1sxvvRNpV1ZjYExa7K8r9zjDws9GDLvp") // Treasury Account
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5Eg2fntQqi3CG6VPPPmF9GvorYw3v2v2WXeuZ6KdHgpWPLN9") // Sibling 4594 Account (consumer)
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
+			sr25519::Public::from_str("1qQysJYDavCwkoWNecVoPJqM5qe16UVAexZQknC8weaofXe") // local-testnet-root
 				.unwrap()
 				.into(),
 		],
-		sr25519::Public::from_str("5Cu7qY3UMoejWDnzR1ZVfEUgVTqzJnvM6AE5FTnqard4dRP2") // seed: "//Idn-local-testnet-root"
+		sr25519::Public::from_str("1qQysJYDavCwkoWNecVoPJqM5qe16UVAexZQknC8weaofXe")
 			.unwrap()
 			.into(),
 		4502.into(),
@@ -203,15 +197,15 @@ pub fn testnet_config() -> ChainSpec {
 	.with_genesis_config_patch(testnet_genesis(
 		// initial collators.
 		vec![
-			sr25519::Public::from_str("5CLVQw6AiHywt4w8RgqueWVvRCyRkjQiJsNfESDV2AsMdY2V") // idn-testnet-01
+			sr25519::Public::from_str("1GnZGMEa5FRKbwePKtunfL5Gpy5T2xrPN79PjCqaFtsopS5") // idn-testnet-01
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("5HDgmRx8pKeDGstHZrAMFzcRsXc3VFwf4yH6PQSJUvky7vHN") // idn-testnet-02
+			sr25519::Public::from_str("169yumDCg6ugiQtoXVDMQ9Saj9bhBZVo9U1aYhRf31nVJ7sS") // idn-testnet-02
 				.unwrap()
 				.into(),
 		],
 		vec![],
-		sr25519::Public::from_str("5Dcz93bWaQZuvjrgizvnPDSZDefrCFm4R58zsPmChrTe1ywQ") // idn-testnet-root
+		sr25519::Public::from_str("12ZHHNraSBqPNGsCgdynXNGi5GfVtZKCVZsV2gkZFwVACRDh") // idn-testnet-root
 			.unwrap()
 			.into(),
 		4502.into(),
@@ -237,6 +231,9 @@ fn testnet_genesis(
 		"collatorSelection": {
 			"invulnerables": invulnerables.clone(),
 			"candidacyBond": 0,
+		},
+		"randBeacon": {
+			"beaconPubkeyHex": b"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a".to_vec(),
 		},
 		"session": {
 			"keys": invulnerables

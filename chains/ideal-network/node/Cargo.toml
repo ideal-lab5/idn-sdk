@@ -1,6 +1,6 @@
 [package]
 name = "idn-node"
-version = "0.1.0"
+version = "0.3.0"
 authors.workspace = true
 description = "Ideal Network node"
 license.workspace = true
@@ -29,12 +29,16 @@ tokio.workspace = true
 
 # Local
 idn-runtime.workspace = true
+pallet-randomness-beacon.workspace = true
 sc-consensus-randomness-beacon.workspace = true
 sp-consensus-randomness-beacon.workspace = true
 
 # Substrate
 frame-benchmarking.workspace = true
 frame-benchmarking-cli.workspace = true
+frame-metadata-hash-extension.workspace = true
+frame-system.workspace = true
+pallet-transaction-payment.workspace = true
 pallet-transaction-payment-rpc.workspace = true
 prometheus-endpoint.workspace = true
 sc-basic-authorship.workspace = true
@@ -42,6 +46,7 @@ sc-chain-spec.workspace = true
 sc-cli.workspace = true
 sc-client-api.workspace = true
 sc-consensus.workspace = true
+sc-consensus-aura.workspace = true
 sc-executor.workspace = true
 sc-network.workspace = true
 sc-network-sync.workspace = true
@@ -55,6 +60,7 @@ sc-transaction-pool.workspace = true
 sc-transaction-pool-api.workspace = true
 sc-utils.workspace = true
 sp-api.workspace = true
+sp-application-crypto.workspace = true
 sp-block-builder.workspace = true
 sp-blockchain.workspace = true
 sp-consensus-aura.workspace = true
@@ -81,14 +87,18 @@ cumulus-client-consensus-proposer.workspace = true
 cumulus-client-service.workspace = true
 cumulus-primitives-core.workspace = true
 cumulus-primitives-parachain-inherent.workspace = true
+cumulus-primitives-storage-weight-reclaim.workspace = true
 cumulus-relay-chain-interface.workspace = true
+
+[dev-dependencies]
+parking_lot.workspace = true
+sp-externalities.workspace = true
+sp-state-machine.workspace = true
+sp-version.workspace = true
 
 [features]
 default = ["std"]
-std = [
-  "idn-runtime/std",
-  "xcm/std",
-  ]
+std = ["idn-runtime/std", "xcm/std"]
 runtime-benchmarks = [
   "cumulus-primitives-core/runtime-benchmarks",
   "frame-benchmarking-cli/runtime-benchmarks",

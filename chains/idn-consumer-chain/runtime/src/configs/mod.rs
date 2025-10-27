@@ -43,6 +43,8 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
+#[cfg(not(feature = "runtime-benchmarks"))]
+use pallet_idn_consumer::primitives::AllowSiblingOnly;
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use parachains_common::message_queue::{NarrowOriginToSibling, ParaIdToSibling};
 use polkadot_runtime_common::{
@@ -51,7 +53,11 @@ use polkadot_runtime_common::{
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_runtime::Perbill;
 use sp_version::RuntimeVersion;
-use xcm::latest::prelude::BodyId;
+use xcm::{
+	latest::prelude::BodyId,
+	v5::{Junction, Location},
+};
+use xcm_executor::traits::ConvertLocation;
 
 // Local module imports
 use super::{
@@ -92,8 +98,10 @@ parameter_types! {
 		})
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
-	pub const SS58Prefix: u16 = 42;
+	pub const SS58Prefix: u16 = 0;
 }
+
+pub type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Runtime, Aura>;
 
 /// The default types are being injected by [`derive_impl`](`frame_support::derive_impl`) from
 /// [`ParaChainDefaultConfig`](`struct@frame_system::config_preludes::ParaChainDefaultConfig`),
@@ -315,19 +323,36 @@ parameter_types! {
 	pub IdnConsumerParaId: ParaId = ParachainInfo::parachain_id();
 	pub const IdnConsumerPalletId: PalletId = PalletId(*b"idn_cons");
 	pub const MaxIdnXcmFees: u128 = 1_000_000_000_000;
+	pub const IdnParaId: u32 = crate::constants::IDN_PARACHAIN_ID;
+	pub IdnSovereignAccount: AccountId = {
+		let idn_location = Location::new(1, Junction::Parachain(IdnParaId::get()));
+		xcm_config::LocationToAccountId::convert_location(&idn_location)
+			.expect("IDN sovereign account derivation failed")
+	};
 }
 
 #[cfg(feature = "runtime-benchmarks")]
 mod bench_ensure_origin {
 	use crate::RuntimeOrigin;
 	use frame_support::pallet_prelude::EnsureOrigin;
-	use xcm::v5::{prelude::Junction, Location};
+	use frame_system::ensure_signed;
+	use sp_runtime::AccountId32;
+	use xcm::prelude::{Junction, Location};
+
+	pub const SIBLING_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+	pub const SIBLING_PARA_ID: u32 = 88;
 
 	pub struct BenchEnsureOrigin;
 	impl EnsureOrigin<RuntimeOrigin> for BenchEnsureOrigin {
 		type Success = Location;
-		fn try_origin(_origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
-			Ok(Location::new(1, Junction::Parachain(88)))
+
+		fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+			let caller: AccountId32 = ensure_signed(origin.clone()).unwrap();
+
+			if caller == SIBLING_PARA_ACCOUNT {
+				return Ok(Location::new(1, Junction::Parachain(SIBLING_PARA_ID)));
+			}
+			Err(origin)
 		}
 		fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
 			Ok(RuntimeOrigin::root())
@@ -342,9 +367,9 @@ impl pallet_idn_consumer::Config for Runtime {
 	type SubInfoConsumer = SubInfoConsumerImpl;
 	type SiblingIdnLocation = xcm_config::IdnLocation;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type IdnOrigin = EnsureXcm<frame_support::traits::Equals<xcm_config::IdnLocation>>;
+	type IdnOriginFilter = EnsureXcm<AllowSiblingOnly<IdnParaId>>;
 	#[cfg(feature = "runtime-benchmarks")]
-	type IdnOrigin = bench_ensure_origin::BenchEnsureOrigin;
+	type IdnOriginFilter = bench_ensure_origin::BenchEnsureOrigin;
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	type Xcm = PolkadotXcm;
 	#[cfg(feature = "runtime-benchmarks")]
@@ -352,8 +377,8 @@ impl pallet_idn_consumer::Config for Runtime {
 	type PalletId = IdnConsumerPalletId;
 	type ParaId = IdnConsumerParaId;
 	type MaxIdnXcmFees = MaxIdnXcmFees;
-	// TODO: run benchmarks against reference hw https://github.com/ideal-lab5/idn-sdk/issues/235
 	type WeightInfo = IdnConsumerWeightInfo<Self>;
+	type LocalOriginToLocation = xcm_config::LocalOriginToLocation;
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

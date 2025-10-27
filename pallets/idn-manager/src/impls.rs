@@ -50,9 +50,9 @@ use sp_arithmetic::traits::Unsigned;
 use sp_runtime::{traits::Zero, AccountId32, Saturating};
 use sp_std::{cmp::Ordering, marker::PhantomData};
 
-impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, SubscriptionId>
+impl<AccountId, BlockNumber, Credits: Unsigned, Metadata, SubscriptionId, CallData>
 	SubscriptionTrait<AccountId>
-	for Subscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId>
+	for Subscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId, CallData>
 {
 	fn subscriber(&self) -> &AccountId {
 		&self.details.subscriber
@@ -302,7 +302,7 @@ impl<
 	///    conversion fails
 	/// 2. Using saturating multiplication to prevent arithmetic overflow
 	fn calculate_storage_deposit(sub: &Sub) -> Deposit {
-		// [SRLabs] Note: There is a theoretical edge case where if the `Deposit` type (e.g., u64)
+		// [SECURITY] Note: There is a theoretical edge case where if the `Deposit` type (e.g., u64)
 		// is larger than the machine architecture size (e.g., 32-bit platforms), an attacker
 		// could create a subscription object larger than u32::MAX bits and only pay a deposit for
 		// u32::MAX bits, not the full size. This risk is mitigated in practice by platform

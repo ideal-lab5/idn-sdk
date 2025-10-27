@@ -167,10 +167,10 @@ impl PulseConsumer<Pulse, SubscriptionId, (), ()> for PulseConsumerImpl {
 		let pk = hex::decode(BEACON_PUBKEY).unwrap();
 		if pulse.authenticate(pk.try_into().expect("The public key is well-defined; qed.")) {
 			// Randomness consumption logic goes here.
-			log::info!("IDN Consumer: Verified pulse: {:?} with sub id: {:?}", pulse, sub_id);
+			log::info!(target: "runtime::consumer", "Verified pulse: {:?} with sub id: {:?}", pulse, sub_id);
 		} else {
-			log::error!(
-				"IDN Consumer: Unverified pulse ingested: {:?} with sub id: {:?}",
+			log::error!(target: "runtime::consumer",
+				"Unverified pulse ingested: {:?} with sub id: {:?}",
 				pulse,
 				sub_id
 			);
@@ -185,7 +185,7 @@ pub struct QuoteConsumerImpl;
 impl QuoteConsumer<Quote, (), ()> for QuoteConsumerImpl {
 	fn consume_quote(quote: Quote) -> Result<(), ()> {
 		// Quote consumption logic goes here.
-		log::info!("IDN Consumer: Consuming quote: {:?}", quote);
+		log::info!(target: "runtime::consumer", "Consuming quote: {:?}", quote);
 		Ok(())
 	}
 }
@@ -195,7 +195,7 @@ pub struct SubInfoConsumerImpl;
 impl SubInfoConsumer<SubInfoResponse, (), ()> for SubInfoConsumerImpl {
 	fn consume_sub_info(sub_info: SubInfoResponse) -> Result<(), ()> {
 		// Subscription info consumption logic goes here.
-		log::info!("IDN Consumer: Consuming subscription info: {:?}", sub_info);
+		log::info!(target: "runtime::consumer", "Consuming subscription info: {:?}", sub_info);
 		Ok(())
 	}
 }
@@ -233,7 +233,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: Cow::Borrowed("idn-consumer-runtime"),
 	impl_name: Cow::Borrowed("idn-consumer-runtime"),
 	authoring_version: 1,
-	spec_version: 2,
+	spec_version: 5,
 	impl_version: 0,
 	apis: apis::RUNTIME_API_VERSIONS,
 	transaction_version: 1,

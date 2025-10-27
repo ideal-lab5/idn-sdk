@@ -168,18 +168,30 @@ if args.command == 'bench':
             default_path = f"./{config['path']}/src/weights"
             xcm_path = f"./{config['path']}/src/weights/xcm"
             output_path = default_path if not pallet.startswith("pallet_xcm_benchmarks") else xcm_path
-            print(f'-- benchmarking {pallet} in {runtime} into {output_path}')
+            templates = config.get("benchmarks_templates", {}) or {}
+            template = templates.get(pallet)
+
+            
+            if pallet == "pallet_xcm_benchmarks::generic":
+                # Exclude extrinsics that involved features not present in idn atm.
+                # A custom configuration for runtime-benchmarks feature could be provided in the runtime for the relevant types otherwise.
+                extrinsic="--extrinsic=report_holding,unpaid_execution,set_fees_mode,clear_topic,set_topic,clear_transact_status,report_transact_status,expect_pallet,query_pallet,expect_transact_status,expect_error,expect_origin,expect_asset,burn_asset,unsubscribe_version,subscribe_version,trap,claim_asset,report_error,clear_origin,execute_with_origin,descend_origin,clear_error,set_appendix,set_error_handler,refund_surplus,transact,query_response,asset_claimer,pay_fees,buy_execution,report_holding"
+            else:
+                extrinsic="--extrinsic=*"
+
+            print(f'-- benchmarking {pallet} in {runtime} into {output_path} using template {template}')
 
             status = os.system(f"frame-omni-bencher v1 benchmark pallet "
-                               f"--extrinsic=* "
+                               f"{extrinsic} "
                                f"--runtime=target/{profile}/wbuild/{config['package']}/{config['package'].replace('-', '_')}.wasm "
                                f"--pallet={pallet} "
                                f"--header={header_path} "
-                               f"--output={output_path}/{pallet}_weights.rs "
+                               f"--output={output_path}/{pallet.replace('::', '_')}_weights.rs "
                                f"--wasm-execution=compiled  "
                                f"--steps=50 "
                                f"--repeat=20 "
                                f"--heap-pages=4096 "
+                               f"{f'--template={template} ' if template else ''}"
                                )
             if status != 0 and not args.continue_on_fail:
                 print(f'Failed to benchmark {pallet} in {runtime}')

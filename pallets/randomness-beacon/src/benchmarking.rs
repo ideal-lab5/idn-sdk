@@ -24,13 +24,22 @@ use ark_bls12_381::{Fr, G1Affine, G2Affine};
 use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
 use ark_std::{ops::Mul, test_rng, UniformRand};
+use codec::{Decode, Encode};
 use frame_benchmarking::v2::*;
 use frame_system::RawOrigin;
+use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_randomness_beacon::types::{OpaquePublicKey, RoundNumber};
 use sp_idn_crypto::drand::compute_round_on_g1;
 use sp_idn_traits::pulse::Pulse;
+use sp_runtime::MultiSignature;
 
-#[benchmarks(where <T::Pulse as Pulse>::Pubkey: From<[u8;96]>)]
+#[benchmarks(
+where
+	<T::Pulse as Pulse>::Pubkey: From<[u8;96]>,
+	<T as frame_system::Config>::AccountId: From<[u8; 32]>,
+	T::Signature: From<MultiSignature>,
+	T: pallet_session::Config,
+)]
 mod benchmarks {
 	use super::*;
 
@@ -65,26 +74,17 @@ mod benchmarks {
 
 		let mut asig = G1Affine::zero();
 		let mut amsg = G1Affine::zero();
+		let start: u64 = 0;
+		let end: u64 = r.into();
 
-		// TODO: https://github.com/ideal-lab5/idn-sdk/issues/343
-		#[allow(clippy::type_complexity)]
-		#[cfg(feature = "experimental")]
-		let runtime_calls: BTreeMap<
-			RoundNumber,
-			Vec<(TaskName, <T::Tlock as TlockConfig>::RuntimeCall)>,
-		> = BTreeMap::new();
-		#[cfg(not(feature = "experimental"))]
-		let runtime_calls = BTreeMap::new();
-		// compute the aggregated sig and message
-		// we use the asig to pass to the runtime
-		// and the amsg for verification
-		(0..r + 1).for_each(|i| {
-			let msg = compute_round_on_g1(i.into()).unwrap();
+		// prepare the message and sig
+		for i in start..=end {
+			let msg = compute_round_on_g1(i).unwrap();
 			amsg = (amsg + msg).into();
 
-			let sig = drand.sign(i.into());
+			let sig = drand.sign(i);
 			asig = (asig + sig).into();
-		});
+		}
 
 		// serialization
 		let mut asig_bytes = Vec::new();
@@ -92,13 +92,47 @@ mod benchmarks {
 		let mut amsg_bytes = Vec::new();
 		amsg.serialize_compressed(&mut amsg_bytes).unwrap();
 
-		let pubkey: <T::Pulse as Pulse>::Pubkey = opk.into();
-		let config = BeaconConfigurationOf::<T> { genesis_round: 0u64, public_key: pubkey };
+		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), opk).unwrap();
 
-		Pallet::<T>::set_beacon_config(RawOrigin::Root.into(), config).unwrap();
+		let encoded_data = (asig_bytes.clone(), start, end).encode();
+		// generate the key in the keystore using the seed phrase
+		let alice_public = sp_io::crypto::sr25519_generate(
+			sp_core::crypto::key_types::AURA,
+			Some("//Alice".as_bytes().to_vec()),
+		);
+
+		// convert sr25519::Public to AccountId
+		let alice_account: T::AccountId = alice_public.0.into();
+		// configure validators in the session pallet
+		let validator_id =
+			<T as pallet_session::Config>::ValidatorId::decode(&mut &alice_account.encode()[..])
+				.map_err(|_| BenchmarkError::Stop("Failed to convert AccountId to ValidatorId"))?;
+
+		let validators = vec![validator_id];
+		pallet_session::Validators::<T>::put(validators);
+
+		frame_system::Pallet::<T>::set_block_number(1u32.into());
+
+		// update the block number
+		frame_system::Pallet::<T>::set_block_number(1u32.into());
+		// set the block author in the header digest
+		let aura_id = AuraId::from(alice_public);
+		let pre_digest =
+			sp_runtime::DigestItem::PreRuntime(sp_consensus_aura::AURA_ENGINE_ID, aura_id.encode());
+		frame_system::Pallet::<T>::deposit_log(pre_digest);
+
+		// sign with the keystore
+		let signature = sp_io::crypto::sr25519_sign(
+			sp_core::crypto::key_types::AURA,
+			&alice_public,
+			&encoded_data,
+		)
+		.ok_or(BenchmarkError::Stop("Failed to sign"))?;
+
+		let sig = sp_runtime::MultiSignature::Sr25519(signature);
 
 		#[extrinsic_call]
-		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), 0u64, r.into(), runtime_calls);
+		_(RawOrigin::None, asig_bytes.clone().try_into().unwrap(), start, end, sig.into());
 
 		assert_eq!(
 			SparseAccumulation::<T>::get(),
@@ -128,13 +162,11 @@ mod benchmarks {
 	#[benchmark]
 	fn set_beacon_config() -> Result<(), BenchmarkError> {
 		let public_key = [1; 96];
-		let config =
-			BeaconConfigurationOf::<T> { genesis_round: 1u64, public_key: public_key.into() };
 
 		#[extrinsic_call]
-		_(RawOrigin::Root, config.clone());
+		_(RawOrigin::Root, public_key);
 
-		assert_eq!(BeaconConfig::<T>::get().unwrap(), config);
+		assert_eq!(BeaconConfig::<T>::get().unwrap(), public_key);
 
 		Ok(())
 	}

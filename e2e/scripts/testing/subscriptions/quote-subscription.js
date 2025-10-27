@@ -13,8 +13,9 @@ async function run(nodeName, networkInfo, args) {
     const metadata = null;
     const subId = null;
     const reqRef = null;
-
-    const unsub = await api.tx.sudo.sudo(api.tx.idnConsumer.sudoRequestQuote(credits, frequency, metadata, subId, reqRef)).signAndSend(sudoPair, (result)=>{
+    const originKind = "xcm"
+    
+    const unsub = await api.tx.idnConsumer.requestQuote(credits, frequency, metadata, subId, reqRef, originKind).signAndSend(sudoPair, (result)=>{
         if (result.status.isInBlock) {
             console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
           } else if (result.status.isFinalized) {

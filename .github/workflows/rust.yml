@@ -70,6 +70,84 @@ jobs:
       
       - name: Build
         run: cargo build --verbose --all-features -p idn-node --release
+  
+  consumer_contract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-rust
+        with:
+          rust_version: "1.85"
+
+      - name: Run cargo clippy
+        run: cargo clippy --all-features --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- -D warnings
+      
+      - name: Run fmt
+        run: |
+          rustup component add rustfmt --toolchain nightly
+          cargo +nightly fmt --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- --check
+
+      - name: Run cargo doc for the contract
+        run: cargo doc --no-deps --manifest-path ./contracts/examples/consumer-contract/Cargo.toml
+
+      - name: Install substrate-node for e2e test
+        run: |
+          wget https://github.com/paritytech/substrate-contracts-node/releases/download/v0.42.0/substrate-contracts-node-linux.tar.gz
+          tar -xzf substrate-contracts-node-linux.tar.gz
+          mv substrate-contracts-node-linux/substrate-contracts-node .
+          chmod +x substrate-contracts-node
+          rm -r substrate-contracts-node-linux
+          rm substrate-contracts-node-linux.tar.gz
+          echo "CONTRACTS_NODE=$GITHUB_WORKSPACE/substrate-contracts-node" >> $GITHUB_ENV
+
+      - name: Verify substrate-contracts-node
+        run: |
+          echo "CONTRACTS_NODE is: $CONTRACTS_NODE"
+          ls -la $CONTRACTS_NODE
+          $CONTRACTS_NODE --version
+      
+      - name: Run Tests
+        run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
+      
+      - name: Install cargo-contract
+        run: cargo install cargo-contract@5.0.3 --locked
+      
+      - name: Build
+        run: cargo contract build --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --release
+  
+  randomness_contract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-rust
+
+      - name: Run cargo clippy
+        run: cargo clippy --all-features --manifest-path ./contracts/examples/rand-extension/Cargo.toml -- -D warnings
+      
+      - name: Run fmt
+        run: |
+          rustup component add rustfmt --toolchain nightly
+          cargo +nightly fmt --manifest-path ./contracts/examples/rand-extension/Cargo.toml -- --check
+
+      - name: Run cargo doc for the contract
+        run: cargo doc --no-deps --all-features --manifest-path ./contracts/examples/rand-extension/Cargo.toml
+      
+      - name: Run Tests
+        run: cargo test --manifest-path ./contracts/examples/rand-extension/Cargo.toml --all-features
+
+      - name: Install cargo-contract
+        run: cargo install cargo-contract@5.0.3
+      
+      - name: Build
+        run: cargo contract build --manifest-path ./contracts/examples/rand-extension/Cargo.toml --release
 
   test:
     runs-on: ubuntu-latest
@@ -88,7 +166,11 @@ jobs:
       run: |
         cargo +nightly llvm-cov --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace --all-features --doctests\
           --cobertura --output-path cobertura.xml \
+<<<<<<< HEAD
           --ignore-filename-regex "(idn-consumer-(node|runtime)|ideal-network|benchmarking|weights)"
+=======
+          --ignore-filename-regex "(kitchensink|idn-consumer-(node|runtime)|ideal-network|benchmarking|weights|mock)"
+>>>>>>> main
 
     - name: Generate Code Coverage Summary
       uses: irongut/CodeCoverageSummary@v1.3.0

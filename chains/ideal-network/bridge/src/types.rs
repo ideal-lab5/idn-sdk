@@ -17,7 +17,7 @@
 //! Types of IDN runtime
 use ark_serialize::CanonicalSerialize;
 use codec::{Decode, DecodeWithMemTracking, Encode};
-use frame_support::{parameter_types, PalletId};
+use frame_support::parameter_types;
 use pallet_idn_manager::{
 	primitives::{
 		CreateSubParams as MngCreateSubParams, Quote as MngQuote, QuoteRequest as MngQuoteRequest,
@@ -38,7 +38,7 @@ use sp_runtime::{
 };
 
 pub use pallet_idn_manager::{
-	primitives::{CallIndex, RequestReference},
+	primitives::{OriginKind, RequestReference, SubscriptionCallData},
 	SubscriptionState,
 };
 pub use sp_consensus_randomness_beacon::types::*;
@@ -96,12 +96,14 @@ impl TPulse for RuntimePulse {
 	}
 
 	fn message(&self) -> Self::Sig {
-		let msg = (self.start..self.end)
-			.map(|r| compute_round_on_g1(r).expect("it should be a valid integer"))
+		let msg = (self.start..self.end + 1)
+			.map(|r| compute_round_on_g1(r).unwrap_or(zero_on_g1()))
 			.fold(zero_on_g1(), |amsg, val| (amsg + val).into());
+
 		let mut bytes = Vec::new();
 		msg.serialize_compressed(&mut bytes)
 			.expect("The message should be well formed.");
+
 		bytes.try_into().unwrap_or([0u8; 48])
 	}
 
@@ -127,30 +129,41 @@ impl TPulse for RuntimePulse {
 	}
 }
 
-// TODO: correctly define these types https://github.com/ideal-lab5/idn-sdk/issues/186
+// TODO: unhardcode these values https://github.com/ideal-lab5/idn-sdk/issues/379
 // Primitive types
 parameter_types! {
-	/// The IDN Manager Pallet ID
-	pub const IdnManagerPalletId: PalletId = PalletId(*b"idn_mngr");
-	/// The IDN Treasury Account for fee collection
+	/// The IDN Treasury Account for fee collection. Fees collected for subscriptions, transaction fees and dusted balances are sent to this account.
+	/// This account should be funded with at least the existential deposit of the native currency, to be able to collect fees lower than the existential deposit.
 	pub TreasuryAccount: AccountId =
-		AccountId::from_ss58check("5CQE1RtAnMdcdWgx4EuvnGYfdPa5qwQS2pQMzhjsPn7k3A1C")
+		AccountId::from_ss58check("1LX9m9Ee8u653hU1sxvvRNpV1ZjYExa7K8r9zjDws9GDLvp")
 			.expect("Invalid Treasury Account");
 	/// The Subscription Deposit Multiplier, used for calculating the subscription fee
-	pub const SDMultiplier: u64 = 10;
+	pub const SDMultiplier: u64 = 100;
 	/// Maximum number of subscriptions allowed
 	///
 	/// This and [`MaxTerminatableSubs`] should be set to a number that keeps the estimated
 	/// `dispatch_pulse` Proof size in combinations with the `on_finalize` Proof size under
 	/// the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
+	// Given:
+	// - `MAX_POV_SIZE` = 10,485,760
+	// - `on_finalize`'s POV = 689,013 (for `MaxTerminatableSubs` = 200)
+	// - Estimated `dispatch_pulse`'s POV: `4413 + s * (3423 ±0)` (where 's' is `MaxSubscriptions`)
+	// Then:
+	// s = (10,485,760 - 689,013 - 4,413) / 3,423 = 2,860
+	// Thus, we set `MaxSubscriptions` to 2,000 to leave some margin to other transactions
 	pub const MaxSubscriptions: u32 = 2_000;
 	/// Maximum number of subscriptions that can be terminated in a `on_finalize` execution
 	///
 	/// This and [`MaxSubscriptions`] should be set to a number that keeps the estimated Proof
 	/// Size in the weights under the relay chain's [`MAX_POV_SIZE`](https://github.com/paritytech/polkadot-sdk/blob/da8c374871cc97807935230e7c398876d5adce62/polkadot/primitives/src/v8/mod.rs#L441)
+	// We leave it to a 10% of `MaxSubscriptions`, which is more than reasonable
 	pub const MaxTerminatableSubs: u32 = 200;
 	/// The maximum length of the metadata vector
 	pub const MaxMetadataLen: u32 = 8;
+	/// The maximum length of the call data vector
+	// The current maximum size for the given data types is under 190 bytes, so we set a higher limit
+	// to leave some margin for future changes, until this issue is ready https://github.com/ideal-lab5/idn-sdk/issues/379
+	pub const MaxCallDataLen: u32 = 256;
 }
 
 /// A type that defines the amount of credits in a subscription
@@ -173,11 +186,16 @@ pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::Account
 ///
 /// See [`pallet_idn_manager::primitives::SubscriptionMetadata`] for more details.
 pub type Metadata = SubscriptionMetadata<MaxMetadataLen>;
+/// The call data type used in the pallet, represented as a bounded vector of bytes.
+///
+/// See [`pallet_idn_manager::primitives::SubscriptionCallData`] for more details.
+pub type CallData = SubscriptionCallData<MaxCallDataLen>;
 /// The parameters for creating a new subscription, containing various details about the
 /// subscription.
 ///
 /// See [`pallet_idn_manager::primitives::CreateSubParams`] for more details.
-pub type CreateSubParams = MngCreateSubParams<Credits, BlockNumber, Metadata, SubscriptionId>;
+pub type CreateSubParams =
+	MngCreateSubParams<Credits, BlockNumber, Metadata, SubscriptionId, CallData>;
 /// The parameters for updating an existing subscription, containing various details about the
 /// subscription.
 ///
@@ -186,7 +204,7 @@ pub type UpdateSubParams = MngUpdateSubParams<SubscriptionId, Credits, BlockNumb
 /// The parameters for quoting a subscription.
 ///
 /// See [`pallet_idn_manager::primitives::QuoteSubParams`] for more details.
-pub type QuoteSubParams = MngQuoteSubParams<CreateSubParams, BlockNumber>;
+pub type QuoteSubParams = MngQuoteSubParams<CreateSubParams, BlockNumber, CallData>;
 /// The request for a quote, containing the parameters for the describing the subscription.
 ///
 /// See [`pallet_idn_manager::primitives::QuoteRequest`] for more details.
@@ -198,7 +216,8 @@ pub type Quote = MngQuote<Balance>;
 /// Represents a subscription in the system.
 ///
 /// See [`pallet_idn_manager::Subscription`] for more details.
-pub type Subscription = MngSubscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId>;
+pub type Subscription =
+	MngSubscription<AccountId, BlockNumber, Credits, Metadata, SubscriptionId, CallData>;
 /// The subscription info returned by the IDN Manager to the target parachain.
 ///
 /// See [`pallet_idn_manager::primitives::SubInfoResponse`] for more details.
@@ -206,8 +225,33 @@ pub type SubInfoResponse = MngSubInfoResponse<Subscription>;
 /// Contains the parameters for requesting a subscription info by its Id.
 ///
 /// See [`pallet_idn_manager::primitives::SubInfoRequest`] for more details.
-pub type SubInfoRequest = MngSubInfoRequest<SubscriptionId>;
+pub type SubInfoRequest = MngSubInfoRequest<SubscriptionId, CallData>;
 /// Details specific to a subscription for pulse delivery.
 ///
 /// See [`pallet_idn_manager::SubscriptionDetails`] for more details.
-pub type SubscriptionDetails = MngSubscriptionDetails<AccountId>;
+pub type SubscriptionDetails = MngSubscriptionDetails<AccountId, CallData>;
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use sp_idn_crypto::test_utils::*;
+
+	#[test]
+	fn test_runtime_pulse_can_authenticate_valid_pulse() {
+		let beacon_pk_bytes = get_beacon_pk();
+		let (asig, _amsg, _pulses) = get(vec![PULSE1000, PULSE1001]);
+		let valid_pulse = RuntimePulse::new(asig.try_into().unwrap(), 1000, 1001);
+		let validity = valid_pulse.authenticate(beacon_pk_bytes.try_into().unwrap());
+		assert!(validity);
+	}
+
+	#[test]
+	fn test_runtime_pulse_can_handle_invalid_pulse() {
+		let beacon_pk_bytes = get_beacon_pk();
+		let (asig, _amsg, _pulses) = get(vec![PULSE1000, PULSE1001]);
+		// the pulse expects sigs for rounds 1000-1004, but only has 1000-1002
+		let valid_pulse = RuntimePulse::new(asig.try_into().unwrap(), 1000, 1004);
+		let validity = valid_pulse.authenticate(beacon_pk_bytes.try_into().unwrap());
+		assert!(!validity);
+	}
+}

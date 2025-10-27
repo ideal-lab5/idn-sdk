@@ -23,6 +23,7 @@ use crate::{
 	BlockNumber, Contracts, EventRecord, Hash, OriginCaller, PolkadotXcm, RuntimeEvent,
 	CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS,
 };
+use bp_idn::types::SERIALIZED_SIG_SIZE;
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
 	weights::{Weight, WeightToFee as _},
@@ -57,6 +58,7 @@ use super::{
 };
 
 impl_runtime_apis! {
+
 	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
 		fn slot_duration() -> sp_consensus_aura::SlotDuration {
 			sp_consensus_aura::SlotDuration::from_millis(SLOT_DURATION)
@@ -353,6 +355,43 @@ impl_runtime_apis! {
 		}
 	}
 
+	impl pallet_randomness_beacon::RandomnessBeaconApi<Block> for Runtime {
+		fn build_extrinsic(
+			asig: Vec<u8>,
+			start: u64,
+			end: u64,
+			signature: Vec<u8>,
+		) -> crate::UncheckedExtrinsic {
+			// if a wrong-sized signature is injected, specify a default
+			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] =
+			asig.try_into().unwrap_or([0u8; SERIALIZED_SIG_SIZE]);
+
+			let mut sig_array = [0u8; 64];
+			sig_array.copy_from_slice(&signature);
+			let sig = sp_runtime::MultiSignature::Sr25519(
+				sp_core::sr25519::Signature::from_raw(sig_array)
+			);
+
+			let call = crate::RuntimeCall::RandBeacon(
+				pallet_randomness_beacon::Call::try_submit_asig {
+					asig: formatted,
+					start,
+					end,
+					signature: sig,
+				}
+			);
+			crate::UncheckedExtrinsic::new_bare(call)
+		}
+
+		fn next_round() -> sp_consensus_randomness_beacon::types::RoundNumber {
+			pallet_randomness_beacon::Pallet::<Runtime>::next_round()
+		}
+
+		fn max_rounds() -> u8 {
+			pallet_randomness_beacon::Pallet::<Runtime>::max_rounds()
+		}
+	}
+
 	impl pallet_idn_manager::IdnManagerApi<
 		Block,
 		BalanceOf<Runtime>,
@@ -378,7 +417,7 @@ impl_runtime_apis! {
 		}
 	}
 
-impl pallet_contracts::ContractsApi<Block, AccountId, Balance, BlockNumber, Hash, EventRecord>
+	impl pallet_contracts::ContractsApi<Block, AccountId, Balance, BlockNumber, Hash, EventRecord>
 		for Runtime
 	{
 		fn call(

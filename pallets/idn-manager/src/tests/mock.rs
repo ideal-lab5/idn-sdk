@@ -39,10 +39,11 @@ use sp_runtime::{
 	AccountId32,
 };
 use sp_std::fmt::Debug;
-use xcm::prelude::{Junction::Parachain, Location};
+use xcm::prelude::{Junction::Parachain, Location, NetworkId};
 use xcm_executor::traits::ConvertLocation;
 
 type Block = frame_system::mocking::MockBlock<Test>;
+type Balance = u64;
 
 construct_runtime!(
 	pub enum Test
@@ -64,9 +65,14 @@ impl frame_system::Config for Test {
 	type AccountData = pallet_balances::AccountData<u64>;
 }
 
+parameter_types! {
+	pub const ExistentialDeposit: Balance = 1_000_000;
+}
+
 #[derive_impl(pallet_balances::config_preludes::TestDefaultConfig)]
 impl pallet_balances::Config for Test {
 	type AccountStore = System;
+	type ExistentialDeposit = ExistentialDeposit;
 }
 
 parameter_types! {
@@ -75,6 +81,7 @@ parameter_types! {
 	pub const SDMultiplier: u64 = 10;
 	pub const MaxSubscriptions: u32 = 1_000;
 	pub const MaxMetadataLen: u32 = 8;
+	pub const MaxCallDataLen: u32 = 2048;
 	pub const MaxTerminatableSubs: u32 = 100;
 }
 
@@ -159,7 +166,9 @@ impl ConvertLocation<AccountId32> for MockSiblingConversion {
 }
 
 parameter_types! {
-	pub const BaseFee : u64 = 100;
+	pub const BaseFee : u64 = 2_900_000;
+	pub const AccountNetwork: Option<NetworkId> = Some(NetworkId::Polkadot);
+	pub const MaxXcmFees: u128 = 1_000;
 }
 
 impl pallet_idn_manager::Config for Test {
@@ -168,19 +177,22 @@ impl pallet_idn_manager::Config for Test {
 	type FeesManager =
 		FeesManagerImpl<TreasuryAccount, SubscriptionOf<Test>, Balances, u64, u64, BaseFee>;
 	type DepositCalculator = DepositCalculatorImpl<SDMultiplier, u64>;
-	type PalletId = PalletId;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type Pulse = Pulse;
 	type WeightInfo = ();
 	type Xcm = TestController;
 	type MaxMetadataLen = MaxMetadataLen;
+	type MaxCallDataLen = MaxCallDataLen;
 	type Credits = u64;
 	type MaxSubscriptions = MaxSubscriptions;
 	type MaxTerminatableSubs = MaxTerminatableSubs;
 	type SubscriptionId = [u8; 32];
 	type DiffBalance = DiffBalanceImpl<BalanceOf<Test>>;
-	type SiblingOrigin = MockEnsureXcm<primitives::AllowSiblingsOnly>; // Use the custom EnsureOrigin
+	type XcmOriginFilter = MockEnsureXcm<primitives::AllowSiblingsOnly>; // Use the custom EnsureOrigin
 	type XcmLocationToAccountId = MockSiblingConversion;
+	type LocalOriginToLocation =
+		xcm_builder::SignedToAccountId32<Self::RuntimeOrigin, AccountId32, AccountNetwork>;
+	type MaxXcmFees = MaxXcmFees;
 }
 
 sp_api::impl_runtime_apis! {

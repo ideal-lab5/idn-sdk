@@ -19,50 +19,83 @@
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use frame_support::{traits::Contains, BoundedVec};
 use scale_info::TypeInfo;
-pub use xcm::prelude::{Junction, Junctions, Location};
+pub use xcm::prelude::{Junction, Junctions, Location, OriginKind as XcmOriginKind};
 
 /// The type for the metadata of a subscription
 pub type SubscriptionMetadata<L> = BoundedVec<u8, L>;
 
-/// Two-byte identifier for dispatching XCM calls
+/// Pre-encoded call data for XCM dispatch
 ///
-/// This type represents a compact encoding of pallet and function identifiers:
-/// - The first byte represents the pallet index in the destination runtime
-/// - The second byte represents the call index within that pallet
+/// This contains the SCALE-encoded call data that will be sent to the target chain.
+/// The target chain will decode this according to its runtime configuration.
 ///
-/// # Example
+/// ## Parameter Details:
+///
+/// ### Runtime Calls
+/// Format: `[pallet_index, call_index].encode()`
+/// - **pallet_index**: The index of the target pallet (idn-consumer pallet or equivalent)
+/// - **call_index**: The dispatchable index (typically `consume_pulse` or equivalent)
+///
+/// ### Contract Calls  
+/// Format: `(pallet_index, call_index, dest, value, gas_limit, storage_deposit_limit,
+/// selector).encode()`
+/// - **pallet_index**: The index of the contracts or revive pallet
+/// - **call_index**: The call index for the `call` dispatchable in the contracts pallet
+/// - **dest**: The AccountId of the target contract
+/// - **value**: The balance to send to the contract (usually 0)
+/// - **gas_limit**: The gas limit allocated for the contract execution
+/// - **storage_deposit_limit**: The maximum storage deposit allowed for the call
+/// - **selector**: The function selector for the `consume_pulse` function in the contract
+///
+/// ## Examples:
 /// ```nocompile
-/// let call_index: CallIndex = [42, 3];  // Target the 42nd pallet, 3rd function
-/// ```
+/// // Runtime call example
+/// let runtime_call = [pallet_idn_consumer_index, consume_pulse_call_index].encode();
 ///
-/// This identifier is used in XCM messages to ensure randomness is delivered
-/// to the appropriate function in the destination pallet.
-pub type CallIndex = [u8; 2];
+/// // Contract call example  
+/// let contract_call = (
+///     pallet_contracts_index,
+///     call_index,
+///     contract_account_id,
+///     0u128, // value
+///     Weight::from_parts(1_000_000, 0), // gas_limit
+///     None, // storage_deposit_limit
+///     [0x12, 0x34, 0x56, 0x78] // consume_pulse selector
+/// ).encode();
+/// ```
+pub type SubscriptionCallData<L> = BoundedVec<u8, L>;
 
 /// Parameters for creating a new subscription
 #[derive(
-	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, Default,
+	Encode, Decode, DecodeWithMemTracking, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq,
 )]
-pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId> {
-	// Number of random values to receive
+pub struct CreateSubParams<Credits, Frequency, Metadata, SubscriptionId, CallData> {
+	/// Number of random values to receive
 	pub credits: Credits,
-	// XCM multilocation for pulse delivery
+	/// XCM multilocation for pulse delivery
 	pub target: Location,
-	// Call index for XCM message
-	pub call_index: CallIndex,
-	// Distribution interval for pulses
+	/// Pre-encoded call data for XCM message. This is usually [`SubscriptionCallData`].
+	pub call: CallData,
+	/// Origin kind for the callback XCM message
+	pub origin_kind: OriginKind,
+	/// Distribution interval for pulses
 	pub frequency: Frequency,
-	// Bounded vector for additional data
+	/// Bounded vector for additional data
 	pub metadata: Option<Metadata>,
-	// Optional Subscription Id, if None, a new one will be generated
+	/// Optional Subscription Id, if None, a new one will be generated
 	pub sub_id: Option<SubscriptionId>,
 }
 
-/// XCM filter for allowing only sibling parachains to call certain functions in the IDN Manager
+/// XCM filter for allowing only sibling parachains or accounts to call certain functions in the IDN
+/// Manager
 pub struct AllowSiblingsOnly;
 impl Contains<Location> for AllowSiblingsOnly {
 	fn contains(location: &Location) -> bool {
-		matches!(location.unpack(), (1, [Junction::Parachain(_)]))
+		matches!(
+			location.unpack(),
+			(1, [Junction::Parachain(_)]) |
+				(1, [Junction::Parachain(_), Junction::AccountId32 { .. }])
+		)
 	}
 }
 
@@ -100,27 +133,31 @@ pub struct QuoteRequest<CreateSubParams, PulseIndex> {
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct QuoteSubParams<CreateSubParams, PulseIndex> {
+pub struct QuoteSubParams<CreateSubParams, PulseIndex, CallData> {
 	/// The quote request details.
 	pub quote_request: QuoteRequest<CreateSubParams, PulseIndex>,
-	/// The call index for the dispatchable that handles the generated quote.
+	/// The call to the function that handles the generated quote.
 	/// This is the function in the parachain that originated the request that will be called by
 	/// the IDN parachain and receive the [`Quote`].
-	pub call_index: CallIndex,
+	pub call: CallData,
+	/// Origin kind for the callback XCM message
+	pub origin_kind: OriginKind,
 }
 
 /// Contains the parameters for requesting a subscription info by its Id.
 #[derive(
 	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking,
 )]
-pub struct SubInfoRequest<SubId> {
+pub struct SubInfoRequest<SubId, CallData> {
 	/// An arbitrary reference for this subscription info request.
 	pub req_ref: RequestReference,
 	/// The subscription Id to get the info for.
 	pub sub_id: SubId,
-	/// The call index for the dispatchable that handles the generated subscription info on the
+	/// The call to the function that handles the generated subscription info on the
 	/// target parachain.
-	pub call_index: CallIndex,
+	pub call: CallData,
+	/// Origin kind for the callback XCM message
+	pub origin_kind: OriginKind,
 }
 
 /// The subscription info returned by the IDN Manager to the target parachain.
@@ -131,4 +168,52 @@ pub struct SubInfoResponse<Sub> {
 	/// References the [`SubInfoRequest`]`
 	pub req_ref: RequestReference,
 	pub sub: Sub,
+}
+
+/// Local version of the [`XcmOriginKind`] enum to solve missing implementations on it.
+#[derive(
+	Encode, Decode, Clone, TypeInfo, MaxEncodedLen, Debug, PartialEq, DecodeWithMemTracking, Default,
+)]
+pub enum OriginKind {
+	/// Origin should just be the native dispatch origin representation for the sender in the
+	/// local runtime framework. For Cumulus/Frame chains this is the `Parachain` or `Relay` origin
+	/// if coming from a chain, though there may be others if the `MultiLocation` XCM origin has a
+	/// primary/native dispatch origin form.
+	Native,
+
+	/// Origin should just be the standard account-based origin with the sovereign account of
+	/// the sender. For Cumulus/Frame chains, this is the `Signed` origin.
+	SovereignAccount,
+
+	/// Origin should be the super-user. For Cumulus/Frame chains, this is the `Root` origin.
+	/// This will not usually be an available option.
+	Superuser,
+
+	/// Origin should be interpreted as an XCM native origin and the `MultiLocation` should be
+	/// encoded directly in the dispatch origin unchanged. For Cumulus/Frame chains, this will be
+	/// the `pallet_xcm::Origin::Xcm` type.
+	#[default]
+	Xcm,
+}
+
+impl From<OriginKind> for XcmOriginKind {
+	fn from(kind: OriginKind) -> Self {
+		match kind {
+			OriginKind::Native => XcmOriginKind::Native,
+			OriginKind::SovereignAccount => XcmOriginKind::SovereignAccount,
+			OriginKind::Superuser => XcmOriginKind::Superuser,
+			OriginKind::Xcm => XcmOriginKind::Xcm,
+		}
+	}
+}
+
+impl From<XcmOriginKind> for OriginKind {
+	fn from(kind: XcmOriginKind) -> Self {
+		match kind {
+			XcmOriginKind::Native => OriginKind::Native,
+			XcmOriginKind::SovereignAccount => OriginKind::SovereignAccount,
+			XcmOriginKind::Superuser => OriginKind::Superuser,
+			XcmOriginKind::Xcm => OriginKind::Xcm,
+		}
+	}
 }

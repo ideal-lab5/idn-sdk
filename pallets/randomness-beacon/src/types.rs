@@ -17,7 +17,6 @@
 use bp_idn::types::RuntimePulse;
 use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::pallet_prelude::*;
-use serde::{Deserialize, Serialize};
 use sp_consensus_randomness_beacon::types::{OpaqueSignature, RoundNumber};
 
 /// Represents an aggregated signature and aggregated public key pair
@@ -43,27 +42,6 @@ impl From<Accumulation> for RuntimePulse {
 	fn from(acc: Accumulation) -> Self {
 		RuntimePulse::new(acc.signature, acc.start, acc.end)
 	}
-}
-
-/// A drand chain configuration
-#[derive(
-	Clone,
-	Debug,
-	Decode,
-	DecodeWithMemTracking,
-	Default,
-	PartialEq,
-	Encode,
-	Serialize,
-	Deserialize,
-	MaxEncodedLen,
-	TypeInfo,
-)]
-pub struct BeaconConfiguration<P, R> {
-	/// The beacon public key
-	pub public_key: P,
-	/// The genesis round from which the IDN begins consuming the beacon
-	pub genesis_round: R,
 }
 
 #[cfg(test)]

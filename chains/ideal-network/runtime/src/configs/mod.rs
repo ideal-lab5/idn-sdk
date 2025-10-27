@@ -18,6 +18,7 @@
 pub(crate) mod xcm_config;
 
 mod contracts;
+mod xcm_weights;
 
 // Substrate and Polkadot dependencies
 use bp_idn::{
@@ -30,7 +31,10 @@ use frame_support::{
 	derive_impl,
 	dispatch::DispatchClass,
 	parameter_types,
-	traits::{ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse, VariantCountOf},
+	traits::{
+		tokens::imbalance::ResolveTo, ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse,
+		VariantCountOf,
+	},
 	weights::{ConstantMultiplier, Weight},
 	PalletId,
 };
@@ -94,7 +98,7 @@ parameter_types! {
 		})
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
-	pub const SS58Prefix: u16 = 42;
+	pub const SS58Prefix: u16 = 0;
 }
 
 const fn deposit(items: u32, bytes: u32) -> Balance {
@@ -106,45 +110,45 @@ const fn deposit(items: u32, bytes: u32) -> Balance {
 /// but overridden as needed.
 #[derive_impl(frame_system::config_preludes::ParaChainDefaultConfig)]
 impl frame_system::Config for Runtime {
+	/// The data to be stored in an account.
+	type AccountData = pallet_balances::AccountData<Balance>;
 	/// The identifier used to distinguish between accounts.
 	type AccountId = AccountId;
-	/// The index type for storing how many extrinsics an account has signed.
-	type Nonce = Nonce;
-	/// The type for hashing blocks and tries.
-	type Hash = Hash;
 	/// The block type.
 	type Block = Block;
 	/// Maximum number of block number to block hash mappings to keep (oldest pruned first).
 	type BlockHashCount = BlockHashCount;
-	/// Runtime version.
-	type Version = Version;
-	/// The data to be stored in an account.
-	type AccountData = pallet_balances::AccountData<Balance>;
-	/// The weight of database operations that the runtime can invoke.
-	type DbWeight = RocksDbWeight;
-	/// Block & extrinsics weights: base values and limits.
-	type BlockWeights = RuntimeBlockWeights;
 	/// The maximum length of a block (in bytes).
 	type BlockLength = RuntimeBlockLength;
-	/// This is used as an identifier of the chain. 42 is the generic substrate prefix.
-	type SS58Prefix = SS58Prefix;
+	/// Block & extrinsics weights: base values and limits.
+	type BlockWeights = RuntimeBlockWeights;
+	/// The weight of database operations that the runtime can invoke.
+	type DbWeight = RocksDbWeight;
+	/// The type for hashing blocks and tries.
+	type Hash = Hash;
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	/// The index type for storing how many extrinsics an account has signed.
+	type Nonce = Nonce;
 	/// The action to take on a Runtime Upgrade
 	type OnSetCode = cumulus_pallet_parachain_system::ParachainSetCode<Self>;
-	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	/// This is used as an identifier of the chain. 42 is the generic substrate prefix.
+	type SS58Prefix = SS58Prefix;
 	type SystemWeightInfo = SystemWeightInfo<Runtime>;
+	/// Runtime version.
+	type Version = Version;
 }
 
 impl pallet_timestamp::Config for Runtime {
+	type MinimumPeriod = ConstU64<0>;
 	/// A timestamp: milliseconds since the unix epoch.
 	type Moment = u64;
 	type OnTimestampSet = Aura;
-	type MinimumPeriod = ConstU64<0>;
 	type WeightInfo = TimestampWeightInfo<Runtime>;
 }
 
 impl pallet_authorship::Config for Runtime {
-	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Aura>;
 	type EventHandler = (CollatorSelection,);
+	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Aura>;
 }
 
 parameter_types! {
@@ -152,23 +156,22 @@ parameter_types! {
 }
 
 impl pallet_balances::Config for Runtime {
-	type MaxLocks = ConstU32<50>;
+	type AccountStore = System;
 	/// The type for recording an account's balance.
 	type Balance = Balance;
-	/// The ubiquitous event type.
-	type RuntimeEvent = RuntimeEvent;
-	// TODO: use `ResolveTo<TreasuryAccount, Balances>` https://github.com/ideal-lab5/idn-sdk/issues/275
-	type DustRemoval = ();
+	type DoneSlashHandler = ();
+	type DustRemoval = ResolveTo<types::TreasuryAccount, Balances>;
 	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = System;
-	type WeightInfo = BalancesWeightInfo<Runtime>;
-	type MaxReserves = ConstU32<50>;
-	type ReserveIdentifier = [u8; 8];
-	type RuntimeHoldReason = RuntimeHoldReason;
-	type RuntimeFreezeReason = RuntimeFreezeReason;
 	type FreezeIdentifier = RuntimeFreezeReason;
 	type MaxFreezes = VariantCountOf<RuntimeFreezeReason>;
-	type DoneSlashHandler = ();
+	type MaxLocks = ConstU32<50>;
+	type MaxReserves = ConstU32<50>;
+	type ReserveIdentifier = [u8; 8];
+	/// The ubiquitous event type.
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeFreezeReason = RuntimeFreezeReason;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type WeightInfo = BalancesWeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -177,18 +180,21 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type OnChargeTransaction = pallet_transaction_payment::FungibleAdapter<Balances, ()>;
-	type WeightToFee = WeightToFee;
-	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
+	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
+	type OnChargeTransaction = pallet_transaction_payment::FungibleAdapter<
+		Balances,
+		ResolveTo<types::TreasuryAccount, Balances>,
+	>;
 	type OperationalFeeMultiplier = ConstU8<5>;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = TransactionPaymentWeightInfo<Runtime>;
+	type WeightToFee = WeightToFee;
 }
 
 impl pallet_sudo::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
 	type RuntimeCall = RuntimeCall;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = SudoWeightInfo<Runtime>;
 }
 
@@ -223,25 +229,25 @@ parameter_types! {
 }
 
 impl pallet_session::Config for Runtime {
+	type DisablingStrategy = ();
+	type Keys = SessionKeys;
+	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
 	type RuntimeEvent = RuntimeEvent;
+	// Essentially just Aura, but let's be pedantic.
+	type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
+	type SessionManager = CollatorSelection;
+	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
 	type ValidatorId = <Self as frame_system::Config>::AccountId;
 	// we don't have stash and controller, thus we don't need the convert as well.
 	type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
-	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
-	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
-	type SessionManager = CollatorSelection;
-	// Essentially just Aura, but let's be pedantic.
-	type SessionHandler = <SessionKeys as sp_runtime::traits::OpaqueKeys>::KeyTypeIdProviders;
-	type Keys = SessionKeys;
 	type WeightInfo = SessionWeightInfo<Runtime>;
-	type DisablingStrategy = ();
 }
 
 impl pallet_aura::Config for Runtime {
+	type AllowMultipleBlocksPerSlot = ConstBool<true>;
 	type AuthorityId = AuraId;
 	type DisabledValidators = ();
 	type MaxAuthorities = ConstU32<100_000>;
-	type AllowMultipleBlocksPerSlot = ConstBool<true>;
 	type SlotDuration = ConstU64<SLOT_DURATION>;
 }
 
@@ -259,32 +265,65 @@ pub type CollatorSelectionUpdateOrigin = EitherOfDiverse<
 >;
 
 impl pallet_collator_selection::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type UpdateOrigin = CollatorSelectionUpdateOrigin;
-	type PotId = PotId;
-	type MaxCandidates = ConstU32<100>;
-	type MinEligibleCollators = ConstU32<4>;
-	type MaxInvulnerables = ConstU32<20>;
 	// should be a multiple of session or things will get inconsistent
 	type KickThreshold = Period;
+	type MaxCandidates = ConstU32<100>;
+	type MaxInvulnerables = ConstU32<20>;
+	type MinEligibleCollators = ConstU32<4>;
+	type PotId = PotId;
+	type RuntimeEvent = RuntimeEvent;
+	type UpdateOrigin = CollatorSelectionUpdateOrigin;
 	type ValidatorId = <Self as frame_system::Config>::AccountId;
 	type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
 	type ValidatorRegistration = Session;
 	type WeightInfo = CollatorSelectionWeightInfo<Runtime>;
 }
 
+/// This function helps to keep benchmarks in line with the test mock
+/// environment. When running benchmarks without this mock, when a request is made
+/// that matches the sibling account id, the id is translated to that of the
+/// sibling's account on the IDN.
+#[cfg(feature = "runtime-benchmarks")]
+mod bench_sibling_conversion {
+	use sp_runtime::AccountId32;
+	use xcm::prelude::{Junction::Parachain, Location};
+	use xcm_executor::traits::ConvertLocation;
+	pub struct MockSiblingConversion;
+	pub const SIBLING_PARA_ID: u32 = 88;
+	pub const SIBLING_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+	impl ConvertLocation<AccountId32> for MockSiblingConversion {
+		fn convert_location(location: &Location) -> Option<AccountId32> {
+			match location.unpack() {
+				(1, [Parachain(SIBLING_PARA_ID)]) => Some(SIBLING_PARA_ACCOUNT),
+				_ => None,
+			}
+		}
+	}
+}
+
 #[cfg(feature = "runtime-benchmarks")]
 mod bench_ensure_origin {
 	use crate::RuntimeOrigin;
 	use frame_support::pallet_prelude::EnsureOrigin;
+	use frame_system::ensure_signed;
+	use sp_runtime::AccountId32;
 	use xcm::prelude::{Junction, Location};
+
+	pub const SIBLING_PARA_ACCOUNT: AccountId32 = AccountId32::new([88u8; 32]);
+	pub const SIBLING_PARA_ID: u32 = 88;
 
 	pub struct BenchEnsureOrigin;
 	impl EnsureOrigin<RuntimeOrigin> for BenchEnsureOrigin {
 		type Success = Location;
-		fn try_origin(_origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
-			Ok(Location::new(1, Junction::Parachain(88)))
+
+		fn try_origin(origin: RuntimeOrigin) -> Result<Self::Success, RuntimeOrigin> {
+			let caller: AccountId32 = ensure_signed(origin.clone()).unwrap();
+
+			if caller == SIBLING_PARA_ACCOUNT {
+				return Ok(Location::new(1, Junction::Parachain(SIBLING_PARA_ID)));
+			}
+			Err(origin)
 		}
 		fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
 			Ok(RuntimeOrigin::root())
@@ -294,11 +333,14 @@ mod bench_ensure_origin {
 
 parameter_types! {
 	pub const BaseFee: u64 = 2_900_000u64;
+	pub const MaxXcmFees: u128 = 1_000_000_000_000;
 }
 
 impl pallet_idn_manager::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
+	type Credits = types::Credits;
 	type Currency = Balances;
+	type DepositCalculator = impls::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
+	type DiffBalance = impls::DiffBalanceImpl<BalanceOf<Runtime>>;
 	type FeesManager = impls::FeesManagerImpl<
 		types::TreasuryAccount,
 		SubscriptionOf<Runtime>,
@@ -307,29 +349,33 @@ impl pallet_idn_manager::Config for Runtime {
 		BlockNumber,
 		BaseFee,
 	>;
-	type DepositCalculator = impls::DepositCalculatorImpl<types::SDMultiplier, BalanceOf<Runtime>>;
-	type PalletId = types::IdnManagerPalletId;
-	type RuntimeHoldReason = RuntimeHoldReason;
+	type LocalOriginToLocation = xcm_config::LocalOriginToLocation;
+	type MaxCallDataLen = types::MaxCallDataLen;
+	type MaxMetadataLen = types::MaxMetadataLen;
+	type MaxSubscriptions = types::MaxSubscriptions;
+	type MaxTerminatableSubs = types::MaxTerminatableSubs;
+	type MaxXcmFees = MaxXcmFees;
 	type Pulse = types::RuntimePulse;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type SubscriptionId = types::SubscriptionId;
 	type WeightInfo = IdnManagerWeightInfo<Runtime>;
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	type Xcm = PolkadotXcm;
 	#[cfg(feature = "runtime-benchmarks")]
 	type Xcm = ();
-	type MaxMetadataLen = types::MaxMetadataLen;
-	type Credits = types::Credits;
-	type MaxSubscriptions = types::MaxSubscriptions;
-	type MaxTerminatableSubs = types::MaxTerminatableSubs;
-	type SubscriptionId = types::SubscriptionId;
-	type DiffBalance = impls::DiffBalanceImpl<BalanceOf<Runtime>>;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type SiblingOrigin = EnsureXcm<AllowSiblingsOnly>;
-	#[cfg(feature = "runtime-benchmarks")]
-	type SiblingOrigin = bench_ensure_origin::BenchEnsureOrigin;
 	type XcmLocationToAccountId = xcm_config::LocationToAccountId;
+	#[cfg(feature = "runtime-benchmarks")]
+	type XcmLocationToAccountId = bench_sibling_conversion::MockSiblingConversion;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type XcmOriginFilter = EnsureXcm<AllowSiblingsOnly>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type XcmOriginFilter = bench_ensure_origin::BenchEnsureOrigin;
 }
 
 parameter_types! {
+<<<<<<< HEAD
 	#[cfg(feature = "tlock")]
 	pub const MaxDecryptionsPerBlock: u16 = crate::constants::idn::MAX_DECS_PER_BLOCK as u16;
 	pub const MaxSigsPerBlock: u8 = crate::constants::idn::MAX_QUEUE_SIZE as u8;
@@ -398,6 +444,22 @@ impl pallet_preimage::Config for Runtime {
 		PreimageHoldReason,
 		frame_support::traits::LinearStoragePrice<DepositPerItem, DepositPerByte, Balance>,
 	>;
+=======
+	pub const MaxSigsPerBlock: u8 = 6;
+}
+
+impl pallet_randomness_beacon::Config for Runtime {
+	type Dispatcher = crate::IdnManager;
+	type FallbackRandomness = RandomnessCollectiveFlip;
+	type MaxSigsPerBlock = MaxSigsPerBlock;
+	type Pulse = types::RuntimePulse;
+	type RuntimeEvent = RuntimeEvent;
+	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
+	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
+	type Signature = sp_runtime::MultiSignature;
+	type AccountIdentifier = sp_runtime::MultiSigner;
+	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Aura>;
+>>>>>>> main
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}

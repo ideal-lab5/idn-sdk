@@ -15,7 +15,7 @@
  */
 
 use crate::{
-	configs::RuntimeBlockWeights,
+	configs::{xcm_weights::IdnXcmWeight, RuntimeBlockWeights},
 	constants,
 	weights::{CumulusXcmpQueueWeightInfo, MessageQueueWeightInfo, XcmWeightInfo},
 	AccountId, AllPalletsWithSystem, Balance, Balances, MessageQueue, ParachainInfo,
@@ -24,7 +24,7 @@ use crate::{
 };
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::{
-	pallet_prelude::PhantomData,
+	pallet_prelude::{Get, PhantomData},
 	parameter_types,
 	traits::{ConstU32, Contains, Disabled, Equals, Everything, Nothing, TransformOrigin},
 	weights::Weight,
@@ -42,11 +42,11 @@ use xcm::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, DescribeAllTerminal, DescribeFamily, DescribeTerminus,
-	EnsureXcmOrigin, FixedWeightBounds, FrameTransactionalProcessor, FungibleAdapter,
-	HashedDescription, IsConcrete, ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount,
-	SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId,
-	UsingComponents, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
+	EnsureXcmOrigin, FrameTransactionalProcessor, FungibleAdapter, HashedDescription, IsConcrete,
+	ParentIsPreset, RelayChainAsNative, SendXcmFeeToAccount, SiblingParachainAsNative,
+	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
+	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
 };
 use xcm_executor::{traits::ConvertLocation, XcmExecutor};
 
@@ -96,11 +96,33 @@ impl pallet_message_queue::Config for Runtime {
 	type IdleMaxServiceWeight = MessageQueueIdleServiceWeight;
 }
 
+pub struct SiblingLocationSignedAccountId32<Network>(PhantomData<Network>);
+impl<Network: Get<Option<NetworkId>>> ConvertLocation<AccountId>
+	for SiblingLocationSignedAccountId32<Network>
+{
+	fn convert_location(location: &Location) -> Option<AccountId> {
+		log::trace!(
+			target: "runtime::location_conversion",
+			"location: {:?}, converter: {:?}",
+			location,
+			"SiblingLocationSignedAccountId32",
+		);
+		match location.unpack() {
+			(1, [Parachain(_), AccountId32 { network, id }])
+				if network.is_none() || *network == Network::get() =>
+				Some(AccountId::from(*id)),
+			_ => None,
+		}
+	}
+}
+
 /// Type for specifying how a `Location` can be converted into an `AccountId`.
 ///
 /// This is used when determining ownership of accounts for asset transacting and when attempting to
 /// use XCM `Transact` in order to determine the dispatch Origin.
 pub type LocationToAccountId = (
+	// Sibling parachain AccountId32 (no network) aliases directly to `AccountId`.
+	SiblingLocationSignedAccountId32<RelayNetwork>,
 	// The parent (Relay-chain) origin converts to the parent `AccountId`.
 	ParentIsPreset<AccountId>,
 	// Sibling parachain origins convert to AccountId via the `ParaId::into`.
@@ -131,6 +153,7 @@ pub type FungibleTransactor = FungibleAdapter<
 /// ready for dispatching a transaction with Xcm's `Transact`. There is an `OriginKind` which can
 /// biases the kind of local `Origin` it will become.
 pub type XcmOriginToTransactDispatchOrigin = (
+	// SiblingOriginSignedAccountId32<RelayNetwork, RuntimeOrigin>,
 	// Sovereign account converter; this attempts to derive an `AccountId` from the origin location
 	// using `LocationToAccountId` and then turn that into the usual `Signed` origin. Useful for
 	// foreign chains who want to have a local sovereign account on this chain which they control.
@@ -192,8 +215,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = ();
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	// TODO: use WeightInfoBounds https://github.com/ideal-lab5/idn-sdk/issues/262
-	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<IdnXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	type Trader =
 		UsingComponents<WeightToFee, RelayLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = PolkadotXcm;
@@ -259,8 +281,7 @@ impl pallet_xcm::Config for Runtime {
 	// We don't allow teleporting assets.
 	type XcmTeleportFilter = Nothing;
 	type XcmReserveTransferFilter = FilterByAssets<Equals<RelayLocation>>;
-	// TODO: use WeightInfoBounds https://github.com/ideal-lab5/idn-sdk/issues/262
-	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<IdnXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	type UniversalLocation = UniversalLocation;
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
@@ -312,4 +333,33 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type WeightInfo = CumulusXcmpQueueWeightInfo<Runtime>;
 	// Enqueue XCMP messages from siblings for later processing.
 	type XcmpQueue = TransformOrigin<MessageQueue, AggregateMessageOrigin, ParaId, ParaIdToSibling>;
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	#[test]
+	fn test_extract_account_from_x2_location() {
+		let loc = Location::new(1, [Parachain(2000), AccountId32 { network: None, id: [1u8; 32] }]);
+		let acc = SiblingLocationSignedAccountId32::<RelayNetwork>::convert_location(&loc);
+		assert_eq!(acc, Some(AccountId::from([1u8; 32])));
+	}
+	#[test]
+	fn test_extract_account_from_x2_location_with_network() {
+		let loc = Location::new(
+			1,
+			[Parachain(2000), AccountId32 { network: Some(NetworkId::Polkadot), id: [1u8; 32] }],
+		);
+		let acc = SiblingLocationSignedAccountId32::<RelayNetwork>::convert_location(&loc);
+		assert_eq!(acc, Some(AccountId::from([1u8; 32])));
+	}
+	#[test]
+	fn test_extract_account_from_x2_location_with_wrong_network() {
+		let loc = Location::new(
+			1,
+			[Parachain(2000), AccountId32 { network: Some(NetworkId::Kusama), id: [1u8; 32] }],
+		);
+		let acc = SiblingLocationSignedAccountId32::<RelayNetwork>::convert_location(&loc);
+		assert_eq!(acc, None);
+	}
 }
