@@ -1680,7 +1680,7 @@ dependencies = [
 
 [[package]]
 name = "bp-idn"
-version = "0.0.1-dev"
+version = "0.0.1"
 dependencies = [
  "ark-serialize 0.5.0",
  "frame-support",
@@ -9700,7 +9700,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-idn-consumer"
-version = "0.0.1-dev"
+version = "0.0.1"
 dependencies = [
  "bp-idn",
  "cumulus-primitives-core",
@@ -9726,7 +9726,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-idn-manager"
-version = "0.0.1-dev"
+version = "0.0.1"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -10158,7 +10158,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-randomness-beacon"
-version = "0.0.1-dev"
+version = "0.0.1"
 dependencies = [
  "ark-bls12-381 0.5.0",
  "ark-ec 0.5.0",
@@ -16887,7 +16887,7 @@ dependencies = [
 
 [[package]]
 name = "sp-consensus-randomness-beacon"
-version = "0.0.1-dev"
+version = "0.0.1"
 dependencies = [
  "array-bytes",
  "async-trait",
@@ -17069,7 +17069,7 @@ dependencies = [
 
 [[package]]
 name = "sp-idn-crypto"
-version = "0.0.1-dev"
+version = "0.0.1"
 dependencies = [
  "ark-bls12-381 0.5.0",
  "ark-ec 0.5.0",
