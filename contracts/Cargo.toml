@@ -7,6 +7,7 @@ repository.workspace = true
 homepage.workspace = true
 license.workspace = true
 publish = true
+description = "ink! smart contract utilities for using the IDN"
 
 [dependencies]
 ink = { version = "5.1.1", default-features = false }
