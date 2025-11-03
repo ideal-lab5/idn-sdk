@@ -1,6 +1,6 @@
 [package]
 name = "sc-consensus-randomness-beacon"
-version = "1.0.0"
+version = "0.0.1"
 authors.workspace = true
 edition.workspace = true
 license = "Apache-2.0"
@@ -51,15 +51,17 @@ sp-transaction-pool.workspace = true
 
 # local
 pallet-randomness-beacon = { workspace = true, default-features = true }
+pallet-timelock-transactions = { workspace = true, default-features = true }
 
 # cumulus 
 cumulus-client-consensus-common.workspace = true
 cumulus-client-consensus-aura.workspace = true
 substrate-frame-rpc-system.workspace = true
 
-# arkworks dependencies
+# crypto
 ark-bls12-381.workspace = true
 ark-serialize.workspace = true
+timelock.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true

@@ -4,12 +4,12 @@ description = "FRAME pallet for bridging to drand."
 authors = [
 	"Ideal Labs <hello@idealabs.network>",
 	]
-version = "0.0.1-dev"
+version = "0.0.1"
 license = "Apache-2.0"
 edition = "2021"
 homepage = "https://www.idealabs.network"
 repository.workspace = true
-publish = false
+publish = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -27,6 +27,7 @@ frame-support.workspace = true
 frame-system.workspace = true
 pallet-aura.workspace = true
 pallet-session.workspace = true
+pallet-timelock-transactions.workspace =true
 sp-api.workspace = true
 sp-idn-crypto.workspace = true
 sp-idn-traits.workspace = true
@@ -97,6 +98,6 @@ try-runtime = [
 	"frame-system/try-runtime",
 	"sp-runtime/try-runtime",
 ]
-experimental = [
-	"pallet-timelock-transactions",
-]
+# experimental = [
+# 	"pallet-timelock-transactions",
+# ]

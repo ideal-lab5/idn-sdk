@@ -170,7 +170,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: Cow::Borrowed("idn-runtime"),
 	impl_name: Cow::Borrowed("idn-runtime"),
 	authoring_version: 1,
-	spec_version: 7,
+	spec_version: 11,
 	impl_version: 0,
 	apis: apis::RUNTIME_API_VERSIONS,
 	transaction_version: 1,

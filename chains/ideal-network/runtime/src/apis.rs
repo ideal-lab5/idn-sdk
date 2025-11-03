@@ -361,6 +361,7 @@ impl_runtime_apis! {
 			start: u64,
 			end: u64,
 			signature: Vec<u8>,
+			call_data: BTreeMap<RoundNumber, Vec<(Vec<u8>, Vec<u8>)>>
 		) -> crate::UncheckedExtrinsic {
 			// if a wrong-sized signature is injected, specify a default
 			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] =
@@ -389,6 +390,23 @@ impl_runtime_apis! {
 
 		fn max_rounds() -> u8 {
 			pallet_randomness_beacon::Pallet::<Runtime>::max_rounds()
+		}
+	}
+
+	impl pallet_timelock_transactions::TimelockTxsApi<Block> {
+		fn get_agenda(round: RoundNumber) -> Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+			use pallet_timelock_transactionsd::Agenda;
+
+			Agenda::<Runtime>::get(round)
+				.into_iter()
+				.map(|task| {
+					(
+						task.id.encode(),
+						task.priority.encode(),
+						task.ciphertext.encode(),
+					)
+				})
+				.collect()
 		}
 	}
 

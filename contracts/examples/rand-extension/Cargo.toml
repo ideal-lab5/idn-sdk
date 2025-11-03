@@ -3,7 +3,7 @@ name = "rand-extension-example-contract"
 version = "0.1.0"
 authors = ["Ideal Network <admin@idealnetwork.io>"]
 edition = "2021"
-publish = false
+publish = true
 
 [workspace]
 

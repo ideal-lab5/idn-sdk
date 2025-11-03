@@ -1,6 +1,6 @@
  [package]
 name = "sp-idn-crypto"
-version = "0.0.1-dev"
+version = "0.0.1"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -15,6 +15,7 @@
  */
 
 use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
+use alloc::collections::btree_map::BTreeMap;
 use codec::Encode;
 use pallet_randomness_beacon::RandomnessBeaconApi;
 use parking_lot::Mutex;
@@ -67,11 +68,12 @@ where
 	Client::Api: RandomnessBeaconApi<Block> + AuraApi<Block, AuraId>,
 	Pool: TransactionPool<Block = Block> + 'static,
 {
-	async fn submit_pulse(
+	async fn handle_pulse(
 		&self,
 		asig: Vec<u8>,
 		start: u64,
 		end: u64,
+		recovered_calls: BTreeMap<u64, Vec<(Vec<u8>, Vec<u8>)>>
 	) -> Result<Block::Hash, GadgetError> {
 		let authority_id = self
 			.keystore
@@ -129,11 +131,12 @@ where
 				GadgetError::NoAuthorityKeys
 			})?;
 
+		// let recovered_calls = BTreeMap::new();
 		// Build unsigned extrinsic with signed payload
 		let extrinsic = self
 			.client
 			.runtime_api()
-			.build_extrinsic(best_hash, asig.clone(), start, end, signature)
+			.build_extrinsic(best_hash, asig.clone(), start, end, signature, recovered_calls)
 			.map_err(|e| {
 				log::error!(target: LOG_TARGET, "Failed to build extrinsic: {:?}", e);
 				GadgetError::RuntimeApiError(e.to_string())
@@ -188,7 +191,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_with_signed_payload() {
+	async fn test_handle_pulse_with_signed_payload() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
@@ -199,7 +202,7 @@ mod tests {
 		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
 
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-		let result = worker.submit_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101).await;
 
 		assert!(result.is_ok(), "Pulse submission should succeed");
 
@@ -209,14 +212,14 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_with_signed_payload_fails_with_empty_keystore() {
+	async fn test_handle_pulse_with_signed_payload_fails_with_empty_keystore() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
 		// DO NOT insert key to keystore
 		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-		let result = worker.submit_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101).await;
 
 		assert!(result.is_err(), "Pulse submission should succeed");
 		assert!(matches!(result, Err(GadgetError::NoAuthorityKeys)));
@@ -227,14 +230,14 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_with_signed_payload_fails_with_signing_error() {
+	async fn test_handle_pulse_with_signed_payload_fails_with_signing_error() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
 		// DO NOT insert key to keystore
 		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-		let result = worker.submit_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101).await;
 
 		assert!(result.is_err(), "Pulse submission should succeed");
 		assert!(matches!(result, Err(GadgetError::NoAuthorityKeys)));
@@ -245,7 +248,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_fails_on_signing_error() {
+	async fn test_handle_pulse_fails_on_signing_error() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let failing_keystore = Arc::new(FailingKeystore::new(true));
@@ -258,7 +261,7 @@ mod tests {
 		let worker = PulseWorker::new(client.clone(), pool.clone(), failing_keystore);
 
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-		let result = worker.submit_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101).await;
 
 		assert!(result.is_err(), "Pulse submission should fail");
 		assert!(matches!(result, Err(GadgetError::KeystoreError(_))));
@@ -269,7 +272,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_prevents_duplicate_submission_in_same_block() {
+	async fn test_handle_pulse_prevents_duplicate_submission_in_same_block() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
@@ -281,11 +284,11 @@ mod tests {
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
 		// First submission should succeed
-		let result1 = worker.submit_pulse(asig.clone(), 100, 101).await;
+		let result1 = worker.handle_pulse(asig.clone(), 100, 101).await;
 		assert!(result1.is_ok(), "First pulse submission should succeed");
 
 		// Second submission in same block should be skipped (returns Ok but doesn't submit)
-		let result2 = worker.submit_pulse(asig.clone(), 102, 103).await;
+		let result2 = worker.handle_pulse(asig.clone(), 102, 103).await;
 		assert!(result2.is_ok(), "Second submission should return Ok (but skip)");
 
 		// Verify only ONE transaction was submitted to pool
@@ -294,7 +297,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_allows_submission_in_different_blocks() {
+	async fn test_handle_pulse_allows_submission_in_different_blocks() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
@@ -306,14 +309,14 @@ mod tests {
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
 		// First submission in block 1
-		let result1 = worker.submit_pulse(asig.clone(), 100, 101).await;
+		let result1 = worker.handle_pulse(asig.clone(), 100, 101).await;
 		assert!(result1.is_ok(), "First pulse submission should succeed");
 
 		// Advance to next block
 		client.set_block_number(1);
 
 		// Second submission in block 2 should also succeed
-		let result2 = worker.submit_pulse(asig.clone(), 102, 103).await;
+		let result2 = worker.handle_pulse(asig.clone(), 102, 103).await;
 		assert!(result2.is_ok(), "Second submission should succeed in new block");
 
 		// Verify TWO transactions were submitted
@@ -322,7 +325,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_with_different_round_ranges() {
+	async fn test_handle_pulse_with_different_round_ranges() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
@@ -334,13 +337,13 @@ mod tests {
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
 		// Test single round
-		let result1 = worker.submit_pulse(asig.clone(), 100, 100).await;
+		let result1 = worker.handle_pulse(asig.clone(), 100, 100).await;
 		assert!(result1.is_ok(), "Single round submission should succeed");
 		// Advance to next block
 		client.set_block_number(1);
 
 		// Test multiple rounds
-		let result2 = worker.submit_pulse(asig.clone(), 200, 250).await;
+		let result2 = worker.handle_pulse(asig.clone(), 200, 250).await;
 		assert!(result2.is_ok(), "Multi-round submission should succeed");
 
 		let txs = pool.pool.lock().clone();
@@ -348,7 +351,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_fails_when_transaction_pool_rejects() {
+	async fn test_handle_pulse_fails_when_transaction_pool_rejects() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
@@ -361,7 +364,7 @@ mod tests {
 		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
 
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-		let result = worker.submit_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101).await;
 
 		assert!(result.is_err(), "Pulse submission should fail");
 		assert!(matches!(result, Err(GadgetError::TransactionSubmissionFailed)));
@@ -372,7 +375,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_fails_when_runtime_api_fails() {
+	async fn test_handle_pulse_fails_when_runtime_api_fails() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
@@ -386,7 +389,7 @@ mod tests {
 
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 		// the api MOCK is hardcoded to fail when start == 0 when building the extrinsic\
-		let result = worker.submit_pulse(asig, 0, 101).await;
+		let result = worker.handle_pulse(asig, 0, 101).await;
 
 		assert!(result.is_err(), "Pulse submission should fail");
 		assert!(matches!(result, Err(GadgetError::RuntimeApiError(_))));
@@ -397,7 +400,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_with_empty_signature() {
+	async fn test_handle_pulse_with_empty_signature() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
@@ -408,14 +411,14 @@ mod tests {
 
 		// Empty signature
 		let asig = vec![];
-		let result = worker.submit_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101).await;
 
 		// Should still succeed - validation happens in runtime
 		assert!(result.is_ok(), "Submission with empty sig should succeed");
 	}
 
 	#[tokio::test]
-	async fn test_submit_pulse_with_maximum_round_values() {
+	async fn test_handle_pulse_with_maximum_round_values() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
@@ -427,7 +430,7 @@ mod tests {
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
 		// Test with maximum u64 values
-		let result = worker.submit_pulse(asig, u64::MAX - 1, u64::MAX).await;
+		let result = worker.handle_pulse(asig, u64::MAX - 1, u64::MAX).await;
 		assert!(result.is_ok(), "Submission with max round values should succeed");
 	}
 
@@ -453,7 +456,7 @@ mod tests {
 			let asig_clone = asig.clone();
 
 			let handle = task::spawn(async move {
-				worker_clone.submit_pulse(asig_clone, 100 + i, 101 + i).await
+				worker_clone.handle_pulse(asig_clone, 100 + i, 101 + i).await
 			});
 			handles.push(handle);
 		}

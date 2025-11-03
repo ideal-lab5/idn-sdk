@@ -18,17 +18,24 @@
 //!
 //! Submits signed extrinsics containing verified pulses from a randomness beacon to the chain.
 use crate::{error::Error as GadgetError, gossipsub::DrandReceiver};
+use alloc::collections::btree_map::BTreeMap;
 use ark_bls12_381::G1Affine;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use futures::{stream::Fuse, Future, FutureExt, StreamExt};
 use pallet_randomness_beacon::RandomnessBeaconApi;
+use pallet_timelock_transactions::TimelockTxsApi;
 use parking_lot::Mutex;
 use sc_client_api::HeaderBackend;
 use sc_utils::mpsc::{tracing_unbounded, TracingUnboundedReceiver};
 use sp_api::ProvideRuntimeApi;
-use sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE;
+use sp_consensus_randomness_beacon::types::{CanonicalPulse, RoundNumber, SERIALIZED_SIG_SIZE};
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 use std::{pin::Pin, sync::Arc};
+use timelock::{
+	block_ciphers::AESGCMBlockCipherProvider,
+	engines::drand::TinyBLS381,
+	tlock::{tld, TLECiphertext},
+};
 use tokio::sync::Mutex as TokioMutex;
 
 const LOG_TARGET: &str = "rand-beacon-gadget";
@@ -44,11 +51,12 @@ pub trait PulseSubmitter<Block: BlockT>: Send + Sync {
 	///
 	/// # Returns
 	/// The hash of the submitted extrinsic
-	fn submit_pulse(
+	fn handle_pulse(
 		&self,
 		asig: Vec<u8>,
 		start: u64,
 		end: u64,
+		recovered_calls: BTreeMap<u64, Vec<(Vec<u8>, Vec<u8>)>>,
 	) -> impl std::future::Future<Output = Result<Block::Hash, GadgetError>> + Send;
 }
 
@@ -117,6 +125,7 @@ where
 	Block: BlockT,
 	Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
 	Client::Api: pallet_randomness_beacon::RandomnessBeaconApi<Block>,
+	Client::Api: pallet_timelock_transactions::TimelockTxsApi<Block>,
 	S: PulseSubmitter<Block>,
 {
 	pub fn new(
@@ -190,6 +199,9 @@ where
 			pulses.len(),
 			next_round
 		);
+
+		// TODO: timelock txs intg
+
 		// only take up to as many pulses that we know will be valid in the runtime
 		// this allows the node to hold a 'backlog' or queue of pulses in the case that
 		// block proposal or block finality significantly lags.
@@ -198,17 +210,12 @@ where
 			.clone()
 			.into_iter()
 			.filter(|p| p.round >= next_round)
-			.rev()
-			// just always get the latest pulse for now
-			// see: https://github.com/ideal-lab5/idn-sdk/issues/392
-			.take(1)
+			.take(max_rounds.into())
 			.collect();
 
-		// since we reversed the list
-		if let (Some(first), Some(last)) = (new_pulses.last(), new_pulses.first()) {
-			let start = first.round;
-			let end = last.round;
-
+		if let Some((start, end, asig_bytes, call_data)) =
+			self.process_pulses(new_pulses, at_hash)?
+		{
 			log::info!(
 				target: LOG_TARGET,
 				"Block #{:?} finalized (round {}), submitting pulses for rounds {} - {}",
@@ -218,21 +225,8 @@ where
 				end,
 			);
 
-			// aggregate sigs
-			let asig = new_pulses
-				.into_iter()
-				.filter_map(|pulse| {
-					let bytes = pulse.signature;
-					G1Affine::deserialize_compressed(&mut bytes.as_ref()).ok()
-				})
-				.fold(sp_idn_crypto::bls12_381::zero_on_g1(), |acc, sig| (acc + sig).into());
+			self.pulse_submitter.handle_pulse(asig_bytes, start, end, call_data).await?;
 
-			let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-			// NOTE: The expect here is okay since asig **must** be right-sized.
-			asig.serialize_compressed(&mut asig_bytes)
-				.expect("The signature is well formatted. qed.");
-
-			self.pulse_submitter.submit_pulse(asig_bytes, start, end).await?;
 			*self.next_round.lock() = end + 1;
 		} else {
 			log::info!(
@@ -242,8 +236,66 @@ where
 				next_round,
 			);
 		}
-
 		Ok(())
+	}
+
+	fn process_pulses(
+		&self,
+		new_pulses: Vec<CanonicalPulse>,
+		at_hash: Block::Hash,
+	) -> Result<
+		Option<(RoundNumber, RoundNumber, Vec<u8>, BTreeMap<RoundNumber, Vec<(Vec<u8>, Vec<u8>)>>)>,
+		GadgetError,
+	> {
+		let mut asig = sp_idn_crypto::bls12_381::zero_on_g1();
+		let mut call_data = BTreeMap::new();
+
+		let start = new_pulses.last().map(|p| p.round).expect("Non-empty pulses; qed");
+		let end = new_pulses.first().map(|p| p.round).expect("Non-empty pulses; qed");
+
+		new_pulses.iter().for_each(|pulse| {
+			// deserialize the sig
+			let bytes = pulse.signature;
+			let sig = G1Affine::deserialize_compressed(&mut bytes.as_ref()).unwrap();
+
+			// add to asig
+			asig = (asig + sig).into();
+
+			// handle agenda
+			// get agenda for the round
+			let agenda = self
+				.client
+				.runtime_api()
+				.get_agenda(at_hash, pulse.round)
+				.unwrap();
+				// .map_err(|e| GadgetError::Other(format!("Failed to get agenda: {:?}", e)))?;
+
+			let mut round_calls = Vec::new();
+
+			// TODO: we are using FCFS sequencing right now
+			// later on we should respect the priority ordering defined in the tasks
+			for (id_bytes, _priority_bytes, ciphertext_bytes) in agenda {
+				if let Ok(ciphertext) = TLECiphertext::<TinyBLS381>::deserialize_compressed(
+					&mut ciphertext_bytes.as_slice(),
+				) {
+					if let Ok(plaintext) =
+						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, sig.into())
+					{
+						round_calls.push((id_bytes, plaintext));
+					}
+				}
+			}
+
+			if !round_calls.is_empty() {
+				call_data.insert(pulse.round, round_calls);
+			}
+		});
+
+		let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
+		// NOTE: The expect here is okay since asig **must** be right-sized.
+		asig.serialize_compressed(&mut asig_bytes)
+			.expect("The signature is well formatted. qed.");
+		Ok(Some((start, end, asig_bytes, call_data)))
 	}
 }
 
@@ -289,7 +341,7 @@ mod tests {
 	}
 
 	impl PulseSubmitter<TestBlock> for MockPulseSubmitter {
-		async fn submit_pulse(
+		async fn handle_pulse(
 			&self,
 			asig: Vec<u8>,
 			start: u64,

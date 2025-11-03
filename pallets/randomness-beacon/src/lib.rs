@@ -89,6 +89,8 @@ use frame_support::pallet_prelude::*;
 
 use frame_support::traits::{FindAuthor, Randomness};
 use frame_system::pallet_prelude::BlockNumberFor;
+use frame_support::traits::schedule::v3::TaskName;
+use pallet_timelock_transactions::{Config as TlockConfig, TlockTxProvider};
 use sp_consensus_randomness_beacon::types::{OpaquePublicKey, OpaqueSignature, RoundNumber};
 use sp_core::H256;
 use sp_idn_crypto::{
@@ -102,7 +104,7 @@ use sp_runtime::traits::Verify;
 use sp_std::fmt::Debug;
 
 extern crate alloc;
-use alloc::{vec, vec::Vec};
+use alloc::{collections::btree_map::BTreeMap, vec, vec::Vec};
 
 pub mod types;
 pub mod weights;
@@ -120,6 +122,12 @@ mod tests;
 mod benchmarking;
 
 const LOG_TARGET: &str = "pallet-randomness-beacon";
+
+
+// #[cfg(feature = "experimental")]
+type CallDataOf<T> = (TaskName, <<T as Config>::Tlock as TlockConfig>::RuntimeCall);
+// #[cfg(not(feature = "experimental"))]
+// type CallDataOf<T> = ((), PhantomData<T>);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -173,6 +181,16 @@ pub mod pallet {
 
 		/// Find the author of a block.
 		type FindAuthor: FindAuthor<Self::AccountId>;
+
+		/// The timelock transaction configuration
+		// #[cfg(feature = "experimental")]
+		type Tlock: TlockConfig;
+		/// Something that provides timelock transaction capabilities
+		// #[cfg(feature = "experimental")]
+		type TlockTxProvider: TlockTxProvider<
+			<Self::Tlock as TlockConfig>::RuntimeCall,
+			<Self::Tlock as TlockConfig>::MaxScheduledPerBlock,
+		>;
 	}
 
 	/// The beacon public key
@@ -323,6 +341,7 @@ pub mod pallet {
 			start: RoundNumber,
 			end: RoundNumber,
 			signature: T::Signature,
+			raw_call_data: BTreeMap<RoundNumber, Vec<CallDataOf<T>>>,
 		) -> DispatchResult {
 			ensure_none(origin)?;
 
@@ -365,6 +384,10 @@ pub mod pallet {
 			// handle vraas subs
 			let runtime_pulse = T::Pulse::from(sacc);
 			T::Dispatcher::dispatch(runtime_pulse);
+
+			for (k, v) in raw_call_data {
+				T::TlockTxProvider::service_agenda(k, BoundedVec::truncate_from(v));
+			}
 
 			// events
 			Self::deposit_event(Event::<T>::SignatureVerificationSuccess);
@@ -491,7 +514,7 @@ where
 sp_api::decl_runtime_apis! {
 	pub trait RandomnessBeaconApi {
 		/// Get the latest round finalized on-chain
-		fn next_round() -> sp_consensus_randomness_beacon::types::RoundNumber;
+		fn next_round() -> RoundNumber;
 		/// Get the maximum number of outputs from the beacon we can verify simultaneously onchain
 		fn max_rounds() -> u8;
 		/// Build an unsigned extrinsic with signed payload
@@ -500,6 +523,7 @@ sp_api::decl_runtime_apis! {
 			start: u64,
 			end: u64,
 			signature: Vec<u8>,
+			call_data: BTreeMap<RoundNumber, Vec<(Vec<u8>, Vec<u8>)>>
 		) -> Block::Extrinsic;
 	}
 }

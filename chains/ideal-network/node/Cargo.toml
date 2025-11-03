@@ -1,13 +1,13 @@
 [package]
 name = "idn-node"
-version = "0.3.0"
+version = "0.3.1"
 authors.workspace = true
 description = "Ideal Network node"
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 edition.workspace = true
-publish = false
+publish = true
 
 build = "build.rs"
 
@@ -115,4 +115,4 @@ try-runtime = [
   "sp-runtime/try-runtime",
 ]
 
-tlock = ["idn-runtime/tlock"]
+# tlock = ["idn-runtime/tlock"]

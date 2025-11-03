@@ -289,7 +289,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-
 	#[allow(clippy::result_large_err)]
 	fn place_task(
 		when: RoundNumber,
@@ -336,13 +335,7 @@ impl<T: Config> Pallet<T> {
 		// to enforce FIFO execution, we set the priority here
 		let priority = (Agenda::<T>::get(when).len() + 1) as u8;
 
-		let task = Scheduled {
-			id,
-			priority,
-			ciphertext,
-			origin,
-			who,
-		};
+		let task = Scheduled { id, priority, ciphertext, origin, who };
 
 		let res = Self::place_task(when, task).map_err(|x| x.0)?;
 		Ok(res)
@@ -371,27 +364,23 @@ impl<T: Config> Pallet<T> {
 	pub fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
-		remaining_decrypts: &mut u16,
 	) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
 		let mut recovered_calls: BoundedVec<
 			(TaskName, <T as Config>::RuntimeCall),
 			T::MaxScheduledPerBlock,
 		> = BoundedVec::new();
 		let agenda = Agenda::<T>::get(when);
-		// Collect and decrypt all scheduled callss.
+		// Collect and decrypt all scheduled calls.
 		for task in agenda.into_iter() {
-			if *remaining_decrypts > 0 {
-				let ciphertext_bytes = task.ciphertext;
-				if let Ok(ciphertext) =
-					TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
+			let ciphertext_bytes = task.ciphertext;
+			if let Ok(ciphertext) =
+				TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
+			{
+				if let Ok(bare) =
+					tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
 				{
-					if let Ok(bare) =
-						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
-					{
-						*remaining_decrypts -= 1;
-						if let Ok(call) = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()) {
-							recovered_calls.try_push((task.id, call)).ok();
-						}
+					if let Ok(call) = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()) {
+						recovered_calls.try_push((task.id, call)).ok();
 					}
 				}
 			}
@@ -521,7 +510,6 @@ impl<T: Config> DepositHelper for DepositHelperImpl<T> {
 		Ok(())
 	}
 	fn consume_deposit(who: &T::AccountId) -> DispatchResult {
-		// let treasury_account = T::AccountId::
 		T::Currency::transfer_on_hold(
 			&HoldReason::Fees.into(),
 			who,
@@ -540,7 +528,6 @@ pub trait TlockTxProvider<RuntimeCall, MaxScheduledPerBlock> {
 	fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
-		remaining_decrypts: &mut u16,
 	) -> BoundedVec<(TaskName, RuntimeCall), MaxScheduledPerBlock>;
 
 	fn service_agenda(
@@ -555,9 +542,8 @@ impl<T: Config> TlockTxProvider<<T as pallet::Config>::RuntimeCall, T::MaxSchedu
 	fn decrypt_and_decode(
 		when: RoundNumber,
 		signature: G1Affine,
-		remaining_decrypts: &mut u16,
 	) -> BoundedVec<(TaskName, <T as pallet::Config>::RuntimeCall), T::MaxScheduledPerBlock> {
-		Self::decrypt_and_decode(when, signature, remaining_decrypts)
+		Self::decrypt_and_decode(when, signature)
 	}
 
 	fn service_agenda(
@@ -568,5 +554,12 @@ impl<T: Config> TlockTxProvider<<T as pallet::Config>::RuntimeCall, T::MaxSchedu
 		>,
 	) {
 		Self::service_agenda(when, call_data)
+	}
+}
+
+sp_api::decl_runtime_apis! {
+	pub trait TimelockTxsApi {
+		// (id, priority, ciphertext)
+        fn get_agenda(round: RoundNumber) -> Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>;
 	}
 }
