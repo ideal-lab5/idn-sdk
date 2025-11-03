@@ -21,6 +21,7 @@ use crate::{error::Error as GadgetError, gossipsub::DrandReceiver};
 use alloc::collections::btree_map::BTreeMap;
 use ark_bls12_381::G1Affine;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use codec::Decode;
 use futures::{stream::Fuse, Future, FutureExt, StreamExt};
 use pallet_randomness_beacon::RandomnessBeaconApi;
 use pallet_timelock_transactions::TimelockTxsApi;
@@ -172,6 +173,7 @@ where
 		&self,
 		notification: &UnpinnedFinalityNotification<Block>,
 	) -> Result<(), GadgetError> {
+		log::info!("************************************************ IN HANDLE FINALITY NOTIF.");
 		// acquire a lock to ensure only one submission at a time since finality notifications
 		// can come in rapid succession sometimes
 		let _guard = self.submission_lock.lock().await;
@@ -200,18 +202,10 @@ where
 			next_round
 		);
 
-		// TODO: timelock txs intg
-
-		// only take up to as many pulses that we know will be valid in the runtime
-		// this allows the node to hold a 'backlog' or queue of pulses in the case that
-		// block proposal or block finality significantly lags.
-		// This also filters any expired pulses that are lingering in the drand receiver.
-		let new_pulses: Vec<_> = pulses
-			.clone()
-			.into_iter()
-			.filter(|p| p.round >= next_round)
-			.take(max_rounds.into())
-			.collect();
+		// filter pulses
+		let mut new_pulses: Vec<_> = pulses.into_iter().filter(|p| p.round >= next_round).collect();
+		// sanity: order by round just in case
+		new_pulses.sort_by_key(|p| p.round);
 
 		if let Some((start, end, asig_bytes, call_data)) =
 			self.process_pulses(new_pulses, at_hash)?
@@ -247,54 +241,74 @@ where
 		Option<(RoundNumber, RoundNumber, Vec<u8>, BTreeMap<RoundNumber, Vec<(Vec<u8>, Vec<u8>)>>)>,
 		GadgetError,
 	> {
+		if new_pulses.is_empty() {
+			return Ok(None);
+		}
+
 		let mut asig = sp_idn_crypto::bls12_381::zero_on_g1();
 		let mut call_data = BTreeMap::new();
 
-		let start = new_pulses.last().map(|p| p.round).expect("Non-empty pulses; qed");
-		let end = new_pulses.first().map(|p| p.round).expect("Non-empty pulses; qed");
+		// Since pulses are now sorted, first is lowest round, last is highest
+		let start = new_pulses.first().map(|p| p.round).expect("Non-empty pulses; qed");
+		let end = new_pulses.last().map(|p| p.round).expect("Non-empty pulses; qed");
 
-		new_pulses.iter().for_each(|pulse| {
+		for pulse in new_pulses.iter() {
 			// deserialize the sig
-			let bytes = pulse.signature;
-			let sig = G1Affine::deserialize_compressed(&mut bytes.as_ref()).unwrap();
+			let sig = G1Affine::deserialize_compressed(&mut pulse.signature.as_ref()).unwrap();
+			// .map_err(|e| {
+			// 	log::error!(target: LOG_TARGET, "Failed to deserialize sig for round {}: {:?}", pulse.round, e);
+			// GadgetError::Other(format!("Failed to deserialize signature: {:?}", e))
+			// })?;
 
 			// add to asig
 			asig = (asig + sig).into();
 
 			// handle agenda
-			// get agenda for the round
-			let agenda = self
-				.client
-				.runtime_api()
-				.get_agenda(at_hash, pulse.round)
-				.unwrap();
-				// .map_err(|e| GadgetError::Other(format!("Failed to get agenda: {:?}", e)))?;
+			let agenda = self.client.runtime_api().get_agenda(at_hash, pulse.round).unwrap();
+			// .map_err(|e| GadgetError::Other(format!("Failed to get agenda: {:?}", e)))?;
+
+			log::info!(target: LOG_TARGET, "Processing round {} with {} tasks", pulse.round, agenda.len());
 
 			let mut round_calls = Vec::new();
-
-			// TODO: we are using FCFS sequencing right nowd
+			// TODO: we are using FCFS sequencing right now
 			// later on we should respect the priority ordering defined in the tasks
 			for (id_bytes, _priority_bytes, ciphertext_bytes) in agenda {
+				// SCALE decode to get the raw ciphertext bytes
+				let raw_ciphertext = match Vec::<u8>::decode(&mut ciphertext_bytes.as_slice()) {
+					Ok(bytes) => bytes,
+					Err(e) => {
+						log::error!(target: LOG_TARGET, "Failed to SCALE decode ciphertext: {:?}", e);
+						continue;
+					},
+				};
+
+				// Now deserialize the raw bytes as a TLE ciphertext
 				if let Ok(ciphertext) = TLECiphertext::<TinyBLS381>::deserialize_compressed(
-					&mut ciphertext_bytes.as_slice(),
+					&mut raw_ciphertext.as_slice(),
 				) {
 					if let Ok(plaintext) =
 						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, sig.into())
 					{
 						round_calls.push((id_bytes, plaintext));
+						log::info!(target: LOG_TARGET, "✅ SUCCESSFULLY DECRYPTED!");
+					} else {
+						log::info!(target: LOG_TARGET, "❌ FAILED TO DECRYPT!");
 					}
+				} else {
+					log::info!(target: LOG_TARGET, "❌ FAILED TO DESERIALIZE TLE CIPHERTEXT!");
 				}
 			}
 
 			if !round_calls.is_empty() {
 				call_data.insert(pulse.round, round_calls);
 			}
-		});
+		}
 
 		let mut asig_bytes = Vec::with_capacity(SERIALIZED_SIG_SIZE);
-		// NOTE: The expect here is okay since asig **must** be right-sized.
 		asig.serialize_compressed(&mut asig_bytes)
 			.expect("The signature is well formatted. qed.");
+
+		log::info!(target: LOG_TARGET, "Processed {} pulses from round {} to {}", new_pulses.len(), start, end);
 		Ok(Some((start, end, asig_bytes, call_data)))
 	}
 }

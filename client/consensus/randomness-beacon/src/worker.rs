@@ -73,7 +73,7 @@ where
 		asig: Vec<u8>,
 		start: u64,
 		end: u64,
-		recovered_calls: BTreeMap<u64, Vec<(Vec<u8>, Vec<u8>)>>
+		recovered_calls: BTreeMap<u64, Vec<(Vec<u8>, Vec<u8>)>>,
 	) -> Result<Block::Hash, GadgetError> {
 		let authority_id = self
 			.keystore
@@ -131,7 +131,6 @@ where
 				GadgetError::NoAuthorityKeys
 			})?;
 
-		// let recovered_calls = BTreeMap::new();
 		// Build unsigned extrinsic with signed payload
 		let extrinsic = self
 			.client

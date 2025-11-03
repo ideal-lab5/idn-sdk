@@ -55,10 +55,7 @@
 //!     * Could lead to undefined behavior, such as executing another runtime call with the same
 //!       index.
 
-// Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
-
-use ark_serialize::CanonicalDeserialize;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -94,17 +91,9 @@ use sp_runtime::{
 	BoundedVec, DispatchError, RuntimeDebug,
 };
 use sp_std::prelude::*;
-use timelock::{
-	block_ciphers::AESGCMBlockCipherProvider,
-	engines::drand::TinyBLS381,
-	tlock::{tld, TLECiphertext},
-};
 
 /// The location of a scheduled task that can be used to remove it.
 pub type TaskAddress = (RoundNumber, u32);
-// /// A bounded call representation
-// pub type BoundedCallOf<T> =
-// 	Bounded<<T as Config>::RuntimeCall, <T as frame_system::Config>::Hashing>;
 // TODO: ciphertexts can't exceed 4048 (arbitrarily)
 // This will be addressed in https://github.com/ideal-lab5/idn-sdk/issues/342
 pub type Ciphertext = BoundedVec<u8, ConstU32<4048>>;
@@ -352,45 +341,7 @@ impl<T: Config> Pallet<T> {
 // use ServiceTaskError::*;
 
 impl<T: Config> Pallet<T> {
-	// /// This function runs off-chain.
-	// /// Given a decryption key (signature) and identity (a message derived from `when`),
-	// /// attempt to decrypt ciphertexts locked for the given round number.
-	// /// For now, it acts as a FIFO queue for decryption.
-	// ///
-	// /// * `when`: The round number for when ciphertexts should be fetched
-	// /// * `signature`: The decryption key (BLS sig) output by a randomness beacon
-	// /// * `remaining_decrypts`: A `fail-safe` counter to limit the number of decryption operations
-	// ///   this fucntion performs before stopping.
-	// pub fn decrypt_and_decode(
-	// 	when: RoundNumber,
-	// 	signature: G1Affine,
-	// ) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
-	// 	let mut recovered_calls: BoundedVec<
-	// 		(TaskName, <T as Config>::RuntimeCall),
-	// 		T::MaxScheduledPerBlock,
-	// 	> = BoundedVec::new();
-	// 	let agenda = Agenda::<T>::get(when);
-	// 	// Collect and decrypt all scheduled calls.
-	// 	for task in agenda.into_iter() {
-	// 		let ciphertext_bytes = task.ciphertext;
-	// 		if let Ok(ciphertext) =
-	// 			TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
-	// 		{
-	// 			if let Ok(bare) =
-	// 				tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
-	// 			{
-	// 				if let Ok(call) = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()) {
-	// 					recovered_calls.try_push((task.id, call)).ok();
-	// 				}
-	// 			}
-	// 		}
-	// 	}
 
-	// 	recovered_calls
-	// }
-
-	/// This function is executed on-chain.
-	///
 	/// Note: this requires trust that the collator has properly decrypted a call and also mapped the correct index
 	/// Services the agenda by executing the call_data as a FIFO queue
 	/// by first matching it up with its associated entry in the Agenda,
@@ -404,10 +355,9 @@ impl<T: Config> Pallet<T> {
 		call_data: BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock>,
 	) {
 		let mut meter = WeightMeter::with_limit(<T as Config>::MaximumWeight::get());
-		// iterate over the agenda and fill in call data
+		// iterate over the agenda and fill in call data (origin)
 		// for now we just match on id
 		// but in the future we will implement https://github.com/ideal-lab5/idn-sdk/issues/339
-		// let mut agenda = Agenda::<T>::get(when);
 		for (task_name, call) in call_data.into_iter() {
 			let agenda = Agenda::<T>::get(when);
 			let idx = Lookup::<T>::get(task_name).1;

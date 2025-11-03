@@ -402,7 +402,7 @@ impl_runtime_apis! {
 					start,
 					end,
 					signature: sig,
-					raw_call_data: BTreeMap::new(),
+					raw_call_data: decoded_call_data,
 				}
 			);
 			crate::UncheckedExtrinsic::new_bare(call)

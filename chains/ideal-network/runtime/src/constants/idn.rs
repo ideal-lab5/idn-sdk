@@ -28,6 +28,6 @@ pub const SECONDARY: &str =
 /// The maximum number of ciphertexts that a collator can decrypt within `create_inherent`
 pub const MAX_DECS_PER_BLOCK: usize = 200;
 /// The maximum queue size for the mpsc channel that stores raw pulse data (protobuf)
-pub const MAX_QUEUE_SIZE: usize = 100;
+pub const MAX_QUEUE_SIZE: usize = 6;
 /// The number of seconds the node waits without a new message until it restarts the swarm
 pub const NO_MESSAGE_TIMEOUT: usize = 12;
