@@ -78,8 +78,8 @@ use frame_support::{
 		fungible::{hold::Mutate as HoldMutate, Inspect},
 		schedule,
 		tokens::{Fortitude, Precision, Restriction},
-		Bounded, CallerTrait, EnsureOrigin, Get, IsType, OriginTrait, QueryPreimage,
-		StorageVersion, StorePreimage,
+		CallerTrait, EnsureOrigin, Get, IsType, OriginTrait,
+		StorageVersion,
 	},
 	weights::{Weight, WeightMeter},
 };
@@ -114,11 +114,11 @@ pub type Ciphertext = BoundedVec<u8, ConstU32<4048>>;
 #[derive(Clone, RuntimeDebug, Encode, Decode, MaxEncodedLen, TypeInfo)]
 pub struct Scheduled<Name, Ciphertext, PalletsOrigin, AccountId> {
 	/// The unique identity for this task (hash of ciphertext)
-	id: Name,
+	pub id: Name,
 	/// FIFO priority (order in agenda)
-	priority: schedule::Priority,
+	pub priority: schedule::Priority,
 	/// The timelock encrypted ciphertext containing the call
-	ciphertext: Ciphertext,
+	pub ciphertext: Ciphertext,
 	/// The origin with which to dispatch the decrypted call
 	origin: PalletsOrigin,
 	/// The account that submitted this transaction
@@ -342,52 +342,52 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-/// Errors that may occur while servicing tasks
-enum ServiceTaskError {
-	/// Could not be executed due to missing preimage.
-	Unavailable,
-	/// Could not be executed due to weight limitations.
-	Overweight,
-}
-use ServiceTaskError::*;
+// /// Errors that may occur while servicing tasks
+// enum ServiceTaskError {
+// 	/// Could not be executed due to missing preimage.
+// 	Unavailable,
+// 	/// Could not be executed due to weight limitations.
+// 	Overweight,
+// }
+// use ServiceTaskError::*;
 
 impl<T: Config> Pallet<T> {
-	/// This function runs off-chain.
-	/// Given a decryption key (signature) and identity (a message derived from `when`),
-	/// attempt to decrypt ciphertexts locked for the given round number.
-	/// For now, it acts as a FIFO queue for decryption.
-	///
-	/// * `when`: The round number for when ciphertexts should be fetched
-	/// * `signature`: The decryption key (BLS sig) output by a randomness beacon
-	/// * `remaining_decrypts`: A `fail-safe` counter to limit the number of decryption operations
-	///   this fucntion performs before stopping.
-	pub fn decrypt_and_decode(
-		when: RoundNumber,
-		signature: G1Affine,
-	) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
-		let mut recovered_calls: BoundedVec<
-			(TaskName, <T as Config>::RuntimeCall),
-			T::MaxScheduledPerBlock,
-		> = BoundedVec::new();
-		let agenda = Agenda::<T>::get(when);
-		// Collect and decrypt all scheduled calls.
-		for task in agenda.into_iter() {
-			let ciphertext_bytes = task.ciphertext;
-			if let Ok(ciphertext) =
-				TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
-			{
-				if let Ok(bare) =
-					tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
-				{
-					if let Ok(call) = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()) {
-						recovered_calls.try_push((task.id, call)).ok();
-					}
-				}
-			}
-		}
+	// /// This function runs off-chain.
+	// /// Given a decryption key (signature) and identity (a message derived from `when`),
+	// /// attempt to decrypt ciphertexts locked for the given round number.
+	// /// For now, it acts as a FIFO queue for decryption.
+	// ///
+	// /// * `when`: The round number for when ciphertexts should be fetched
+	// /// * `signature`: The decryption key (BLS sig) output by a randomness beacon
+	// /// * `remaining_decrypts`: A `fail-safe` counter to limit the number of decryption operations
+	// ///   this fucntion performs before stopping.
+	// pub fn decrypt_and_decode(
+	// 	when: RoundNumber,
+	// 	signature: G1Affine,
+	// ) -> BoundedVec<(TaskName, <T as Config>::RuntimeCall), T::MaxScheduledPerBlock> {
+	// 	let mut recovered_calls: BoundedVec<
+	// 		(TaskName, <T as Config>::RuntimeCall),
+	// 		T::MaxScheduledPerBlock,
+	// 	> = BoundedVec::new();
+	// 	let agenda = Agenda::<T>::get(when);
+	// 	// Collect and decrypt all scheduled calls.
+	// 	for task in agenda.into_iter() {
+	// 		let ciphertext_bytes = task.ciphertext;
+	// 		if let Ok(ciphertext) =
+	// 			TLECiphertext::<TinyBLS381>::deserialize_compressed(ciphertext_bytes.as_slice())
+	// 		{
+	// 			if let Ok(bare) =
+	// 				tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, signature.into())
+	// 			{
+	// 				if let Ok(call) = <T as Config>::RuntimeCall::decode(&mut bare.as_slice()) {
+	// 					recovered_calls.try_push((task.id, call)).ok();
+	// 				}
+	// 			}
+	// 		}
+	// 	}
 
-		recovered_calls
-	}
+	// 	recovered_calls
+	// }
 
 	/// This function is executed on-chain.
 	///

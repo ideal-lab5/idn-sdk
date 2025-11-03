@@ -123,11 +123,8 @@ mod benchmarking;
 
 const LOG_TARGET: &str = "pallet-randomness-beacon";
 
-
-// #[cfg(feature = "experimental")]
-type CallDataOf<T> = (TaskName, <<T as Config>::Tlock as TlockConfig>::RuntimeCall);
-// #[cfg(not(feature = "experimental"))]
-// type CallDataOf<T> = ((), PhantomData<T>);
+/// call data for the tlock pallet
+pub type CallDataOf<T> = (TaskName, <<T as Config>::Tlock as TlockConfig>::RuntimeCall);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -183,10 +180,9 @@ pub mod pallet {
 		type FindAuthor: FindAuthor<Self::AccountId>;
 
 		/// The timelock transaction configuration
-		// #[cfg(feature = "experimental")]
 		type Tlock: TlockConfig;
+
 		/// Something that provides timelock transaction capabilities
-		// #[cfg(feature = "experimental")]
 		type TlockTxProvider: TlockTxProvider<
 			<Self::Tlock as TlockConfig>::RuntimeCall,
 			<Self::Tlock as TlockConfig>::MaxScheduledPerBlock,
@@ -327,6 +323,7 @@ pub mod pallet {
 		/// * `asig`: An aggregated signature as bytes
 		/// * `start`: The round number where sig aggregation began
 		/// * `end`: The round number where sig aggregation stopped
+		/// * `raw_call_data`: The decrypted calls to execute
 		#[pallet::call_index(0)]
 		#[pallet::weight((<T as pallet::Config>::WeightInfo::try_submit_asig(
 			T::MaxSigsPerBlock::get().into())
@@ -345,7 +342,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_none(origin)?;
 
-			// verify that that the block author signed this tx
+		// verify that that the block author signed this tx
 			let payload = (asig.to_vec().clone(), start, end).encode();
 			Self::verify_signature(payload, signature)?;
 
@@ -385,6 +382,7 @@ pub mod pallet {
 			let runtime_pulse = T::Pulse::from(sacc);
 			T::Dispatcher::dispatch(runtime_pulse);
 
+			// execute timelocked txs
 			for (k, v) in raw_call_data {
 				T::TlockTxProvider::service_agenda(k, BoundedVec::truncate_from(v));
 			}

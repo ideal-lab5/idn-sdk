@@ -307,12 +307,12 @@ mod runtime {
 	#[runtime::pallet_index(41)]
 	pub type RandBeacon = pallet_randomness_beacon::Pallet<Runtime>;
 	// timelocked transactions
-	#[runtime::pallet_index(42)]
-	#[cfg(feature = "tlock")]
-	pub type Preimage = pallet_preimage::Pallet<Runtime>;
+	// #[runtime::pallet_index(42)]
+	// #[cfg(feature = "tlock")]
+	// pub type Preimage = pallet_preimage::Pallet<Runtime>;
 
-	#[runtime::pallet_index(43)]
-	#[cfg(feature = "tlock")]
+	#[runtime::pallet_index(42)]
+	// #[cfg(feature = "tlock")]
 	pub type Timelock = pallet_timelock_transactions::Pallet<Runtime>;
 
 	// Contracts

@@ -272,7 +272,7 @@ where
 
 			let mut round_calls = Vec::new();
 
-			// TODO: we are using FCFS sequencing right now
+			// TODO: we are using FCFS sequencing right nowd
 			// later on we should respect the priority ordering defined in the tasks
 			for (id_bytes, _priority_bytes, ciphertext_bytes) in agenda {
 				if let Ok(ciphertext) = TLECiphertext::<TinyBLS381>::deserialize_compressed(

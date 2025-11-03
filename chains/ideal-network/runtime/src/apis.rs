@@ -23,13 +23,18 @@ use crate::{
 	BlockNumber, Contracts, EventRecord, Hash, OriginCaller, PolkadotXcm, RuntimeEvent,
 	CONTRACTS_DEBUG_OUTPUT, CONTRACTS_EVENTS,
 };
+use alloc::collections::BTreeMap;
+use bp_idn::types::RoundNumber;
 use bp_idn::types::SERIALIZED_SIG_SIZE;
+use codec::{Decode, Encode};
 use frame_support::{
 	genesis_builder_helper::{build_state, get_preset},
+	traits::schedule::v3::TaskName,
 	weights::{Weight, WeightToFee as _},
 };
 use pallet_aura::Authorities;
 use pallet_idn_manager::{BalanceOf, SubscriptionOf};
+use pallet_randomness_beacon::CallDataOf;
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
@@ -361,7 +366,7 @@ impl_runtime_apis! {
 			start: u64,
 			end: u64,
 			signature: Vec<u8>,
-			call_data: BTreeMap<RoundNumber, Vec<(Vec<u8>, Vec<u8>)>>
+			raw_call_data: BTreeMap<RoundNumber, Vec<(Vec<u8>, Vec<u8>)>>
 		) -> crate::UncheckedExtrinsic {
 			// if a wrong-sized signature is injected, specify a default
 			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] =
@@ -373,12 +378,31 @@ impl_runtime_apis! {
 				sp_core::sr25519::Signature::from_raw(sig_array)
 			);
 
+			// decrypt calls
+			let decoded_call_data: BTreeMap<RoundNumber, Vec<CallDataOf<Runtime>>> = raw_call_data
+				.into_iter()
+				.map(|(round, entries)| {
+					let decoded_entries = entries
+						.into_iter()
+						.map(|(task_name_bytes, runtime_call_bytes)| {
+							let task_name = TaskName::decode(&mut &task_name_bytes[..])
+								.expect("Invalid task name");
+							let runtime_call = RuntimeCall::decode(&mut &runtime_call_bytes[..])
+								.expect("Invalid runtime call");
+							(task_name, runtime_call)
+						})
+						.collect();
+					(round, decoded_entries)
+				})
+				.collect();
+
 			let call = crate::RuntimeCall::RandBeacon(
 				pallet_randomness_beacon::Call::try_submit_asig {
 					asig: formatted,
 					start,
 					end,
 					signature: sig,
+					raw_call_data: BTreeMap::new(),
 				}
 			);
 			crate::UncheckedExtrinsic::new_bare(call)
@@ -393,9 +417,9 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_timelock_transactions::TimelockTxsApi<Block> {
+	impl pallet_timelock_transactions::TimelockTxsApi<Block> for Runtime {
 		fn get_agenda(round: RoundNumber) -> Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> {
-			use pallet_timelock_transactionsd::Agenda;
+			use pallet_timelock_transactions::Agenda;
 
 			Agenda::<Runtime>::get(round)
 				.into_iter()

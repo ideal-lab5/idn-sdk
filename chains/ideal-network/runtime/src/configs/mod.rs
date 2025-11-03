@@ -17,6 +17,7 @@
 #[path = "xcm.rs"]
 pub(crate) mod xcm_config;
 
+use crate::Perbill;
 mod contracts;
 mod xcm_weights;
 
@@ -375,77 +376,10 @@ impl pallet_idn_manager::Config for Runtime {
 }
 
 parameter_types! {
-<<<<<<< HEAD
-	#[cfg(feature = "tlock")]
-	pub const MaxDecryptionsPerBlock: u16 = crate::constants::idn::MAX_DECS_PER_BLOCK as u16;
+	// #[cfg(feature = "tlock")]
+	// pub const MaxDecryptionsPerBlock: u16 = crate::constants::idn::MAX_DECS_PER_BLOCK as u16;
 	pub const MaxSigsPerBlock: u8 = crate::constants::idn::MAX_QUEUE_SIZE as u8;
 
-}
-
-impl pallet_randomness_beacon::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = RandomnessBeaconWeightInfo<Runtime>;
-	type SignatureVerifier = sp_idn_crypto::verifier::QuicknetVerifier;
-	#[cfg(feature = "tlock")]
-	type MaxDecryptionsPerBlock = MaxDecryptionsPerBlock;
-	type MaxSigsPerBlock = MaxSigsPerBlock;
-	type Pulse = types::RuntimePulse;
-	type Dispatcher = crate::IdnManager;
-	type FallbackRandomness = RandomnessCollectiveFlip;
-	#[cfg(feature = "tlock")]
-	type Tlock = Runtime;
-	#[cfg(feature = "tlock")]
-	type TlockTxProvider = pallet_timelock_transactions::Pallet<Runtime>;
-}
-
-#[cfg(feature = "tlock")]
-parameter_types! {
-	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
-		RuntimeBlockWeights::get().max_block;
-}
-
-#[cfg(feature = "tlock")]
-impl pallet_timelock_transactions::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type RuntimeOrigin = RuntimeOrigin;
-	type PalletsOrigin = crate::OriginCaller;
-	type RuntimeCall = RuntimeCall;
-	type MaximumWeight = MaximumSchedulerWeight;
-	type ScheduleOrigin = frame_system::EnsureSigned<AccountId>;
-	#[cfg(feature = "runtime-benchmarks")]
-	type MaxScheduledPerBlock = ConstU32<512>;
-	#[cfg(not(feature = "runtime-benchmarks"))]
-	type MaxScheduledPerBlock = ConstU32<50>;
-	type WeightInfo = pallet_timelock_transactions::weights::SubstrateWeightInfo<Runtime>;
-	type Preimages = crate::Preimage;
-}
-
-#[cfg(feature = "tlock")]
-parameter_types! {
-	pub const PreimageHoldReason: RuntimeHoldReason =
-		RuntimeHoldReason::Preimage(pallet_preimage::HoldReason::Preimage);
-}
-
-#[cfg(feature = "tlock")]
-parameter_types! {
-	pub const DepositPerItem: Balance = deposit(1, 0) as Balance;
-	pub const DepositPerByte: Balance = deposit(0, 1) as Balance;
-}
-
-#[cfg(feature = "tlock")]
-impl pallet_preimage::Config for Runtime {
-	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Runtime>;
-	type RuntimeEvent = RuntimeEvent;
-	type Currency = Balances;
-	type ManagerOrigin = EnsureRoot<AccountId>;
-	type Consideration = frame_support::traits::fungible::HoldConsideration<
-		AccountId,
-		Balances,
-		PreimageHoldReason,
-		frame_support::traits::LinearStoragePrice<DepositPerItem, DepositPerByte, Balance>,
-	>;
-=======
-	pub const MaxSigsPerBlock: u8 = 6;
 }
 
 impl pallet_randomness_beacon::Config for Runtime {
@@ -459,7 +393,63 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type Signature = sp_runtime::MultiSignature;
 	type AccountIdentifier = sp_runtime::MultiSigner;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Aura>;
->>>>>>> main
+	// #[cfg(feature = "tlock")]
+	// type MaxDecryptionsPerBlock = MaxDecryptionsPerBlock;
+	// #[cfg(feature = "tlock")]
+	type Tlock = Runtime;
+	// #[cfg(feature = "tlock")]
+	type TlockTxProvider = pallet_timelock_transactions::Pallet<Runtime>;
 }
+
+// #[cfg(feature = "tlock")]
+parameter_types! {
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+		RuntimeBlockWeights::get().max_block;
+}
+
+// #[cfg(feature = "tlock")]
+impl pallet_timelock_transactions::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
+	type PalletsOrigin = crate::OriginCaller;
+	type RuntimeCall = RuntimeCall;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = frame_system::EnsureSigned<AccountId>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type MaxScheduledPerBlock = ConstU32<512>;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type MaxScheduledPerBlock = ConstU32<50>;
+	type WeightInfo = pallet_timelock_transactions::weights::SubstrateWeightInfo<Runtime>;
+	// type Preimages = crate::Preimage;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type Currency = Balances;
+	type TreasuryAccount = types::TreasuryAccount;
+}
+
+// #[cfg(feature = "tlock")]
+// parameter_types! {
+// 	pub const PreimageHoldReason: RuntimeHoldReason =
+// 		RuntimeHoldReason::Preimage(pallet_preimage::HoldReason::Preimage);
+// }
+
+// #[cfg(feature = "tlock")]
+// parameter_types! {
+// 	pub const DepositPerItem: Balance = deposit(1, 0) as Balance;
+// 	pub const DepositPerByte: Balance = deposit(0, 1) as Balance;
+// }
+
+// #[cfg(feature = "tlock")]
+// impl pallet_preimage::Config for Runtime {
+// 	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Runtime>;
+// 	type RuntimeEvent = RuntimeEvent;
+// 	type Currency = Balances;
+// 	type ManagerOrigin = EnsureRoot<AccountId>;
+// 	type Consideration = frame_support::traits::fungible::HoldConsideration<
+// 		AccountId,
+// 		Balances,
+// 		PreimageHoldReason,
+// 		frame_support::traits::LinearStoragePrice<DepositPerItem, DepositPerByte, Balance>,
+// 	>;
+// }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
