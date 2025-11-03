@@ -13,20 +13,20 @@ chain_spec_path="chainspec/paseo-local-plain.json"
     name = "bob"
     validator = true
 
-[[parachains]]
-id = 4594
-chain = "idnc-dev"
-name = "idn-consumer-chain"
-default_args = ["-lruntime::revive=trace,xcm=trace,parachain=trace,pallet-idn-manager=trace"]
+# [[parachains]]
+# id = 4594
+# chain = "idnc-dev"
+# name = "idn-consumer-chain"
+# default_args = ["-lruntime::revive=trace,xcm=trace,parachain=trace,pallet-idn-manager=trace"]
 
-    [[parachains.collators]]
-    name = "idn-consumer-alice"
-    command = "../target/release/idn-consumer-node"
-    rpc_port = 9944
+#     [[parachains.collators]]
+#     name = "idn-consumer-alice"
+#     command = "../target/release/idn-consumer-node"
+#     rpc_port = 9944
 
-    [[parachains.collators]]
-    name = "idn-consumer-bob"
-    command = "../target/release/idn-consumer-node"
+#     [[parachains.collators]]
+#     name = "idn-consumer-bob"
+#     command = "../target/release/idn-consumer-node"
 
 [[parachains]]
 id = 4502
@@ -39,6 +39,6 @@ default_args = ["-lxcm=trace,parachain=trace,pallet-idn-manager=trace"]
     command = "../target/release/idn-node"
     rpc_port = 9933
 
-    [[parachains.collators]]
-    command = "../target/release/idn-node"
-    name = "idn-bob"
+    # [[parachains.collators]]
+    # command = "../target/release/idn-node"
+    # name = "idn-bob"
