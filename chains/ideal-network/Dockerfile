@@ -1,4 +1,4 @@
-FROM paritytech/ci-linux:production as build
+FROM paritytech/ci-linux:production AS build
 
 WORKDIR /code
 COPY . .
@@ -8,8 +8,9 @@ COPY . .
 RUN rustup toolchain uninstall nightly
 RUN rustup toolchain install nightly
 RUN rustup target add wasm32-unknown-unknown --toolchain nightly-x86_64-unknown-linux-gnu
+RUN rustup target add wasm32v1-none --toolchain nightly-x86_64-unknown-linux-gnu
 RUN rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
-RUN cargo +nightly build --release
+RUN cargo +nightly build -p idn-node --release
 
 FROM ubuntu:22.04
 WORKDIR /node
