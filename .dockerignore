@@ -1,0 +1,41 @@
+cat > .dockerignore << 'EOF'
+# Build artifacts - these are HUGE and not needed
+target/
+**/target/
+
+# Git
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Node modules (if any)
+node_modules/
+**/node_modules/
+
+# Documentation
+*.md
+docs/
+
+# CI/CD
+.github/
+.gitlab/
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+
+# Docker files
+Dockerfile*
+.dockerignore
+
+# Test files
+**/tests/
+EOF
