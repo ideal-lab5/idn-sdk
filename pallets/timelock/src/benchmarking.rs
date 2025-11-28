@@ -127,7 +127,7 @@ mod benchmarks {
 
 	// schedule_sealed with heavy calls being added to agenda
 	#[benchmark]
-	fn schedule_sealed(s: Linear<0, { T::MaxScheduledPerBlock::get() - 1 }>) {
+	fn create_timelock(s: Linear<0, { T::MaxScheduledPerBlock::get() - 1 }>) {
 		let caller: T::AccountId = whitelisted_caller();
 		let origin = frame_system::RawOrigin::Signed(caller.clone());
 		let when = u64::MAX;

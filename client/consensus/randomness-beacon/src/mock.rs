@@ -1,6 +1,7 @@
 use crate::error::Error as GadgetError;
 use async_trait::async_trait;
-use pallet_randomness_beacon::RandomnessBeaconApi;
+use pallet_randomness_beacon::{EncodedCallData, RandomnessBeaconApi};
+use pallet_timelock_transactions::TimelockTxsApi;
 use parking_lot::Mutex;
 use sc_client_api::blockchain::{BlockStatus, Info};
 use sc_transaction_pool_api::{
@@ -10,6 +11,7 @@ use sc_transaction_pool_api::{
 use sp_api::ApiError;
 use sp_blockchain::Result as BlockchainResult;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_consensus_randomness_beacon::types::RoundNumber;
 use sp_runtime::{
 	generic::Header,
 	traits::{BlakeTwo256, Block as BlockT},
@@ -81,6 +83,7 @@ impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
 		start: u64,
 		end: u64,
 		_signature: Vec<u8>,
+		_raw_call_data: EncodedCallData,
 	) -> Result<<TestBlock as BlockT>::Extrinsic, ApiError> {
 		if start == 0 {
 			// just an arbitrary api error
@@ -91,6 +94,29 @@ impl RandomnessBeaconApi<TestBlock> for MockRuntimeApi {
 		let call_data = (asig, start, end).encode();
 		// Note: This is not a functional extrinsic
 		Ok(OpaqueExtrinsic::from_bytes(&call_data).unwrap())
+	}
+
+	fn __runtime_api_internal_call_api_at(
+		&self,
+		_: <sp_runtime::generic::Block<
+			sp_runtime::generic::Header<u64, BlakeTwo256>,
+			OpaqueExtrinsic,
+		> as BlockT>::Hash,
+		_: Vec<u8>,
+		_: &dyn Fn(RuntimeVersion) -> &'static str,
+	) -> Result<Vec<u8>, ApiError> {
+		todo!()
+	}
+}
+
+impl TimelockTxsApi<TestBlock> for MockRuntimeApi {
+
+	fn get_agenda(
+		&self,
+		_hash: <TestBlock as BlockT>::Hash,
+		_round_number: RoundNumber,
+	) -> Result<Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>, ApiError> {
+		Ok(vec![])
 	}
 
 	fn __runtime_api_internal_call_api_at(

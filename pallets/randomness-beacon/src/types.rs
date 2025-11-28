@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+use alloc::collections::btree_map::BTreeMap;
 use bp_idn::types::RuntimePulse;
 use codec::{Decode, DecodeWithMemTracking, Encode};
 use frame_support::pallet_prelude::*;
@@ -43,6 +43,9 @@ impl From<Accumulation> for RuntimePulse {
 		RuntimePulse::new(acc.signature, acc.start, acc.end)
 	}
 }
+
+pub type EncodedCallEntry = (Vec<u8>, Vec<u8>);
+pub type EncodedCallData = BTreeMap<RoundNumber, Vec<EncodedCallEntry>>;
 
 #[cfg(test)]
 pub mod test {

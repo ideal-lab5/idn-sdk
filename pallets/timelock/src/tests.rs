@@ -35,7 +35,7 @@ fn basic_sealed_scheduling_works() {
 	new_test_ext(balances).execute_with(|| {
 		let drand_round_num: u64 = 10;
 		let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::truncate_from(vec![1, 2, 3]);
-		assert_ok!(Timelock::reserve_execution(
+		assert_ok!(Timelock::create_timelock(
 			signed().into(),
 			drand_round_num,
 			ciphertext.clone()
@@ -53,91 +53,91 @@ fn basic_sealed_scheduling_works() {
 
 // test transactions get unique ids (blake2)
 
-// #[test]
-// #[docify::export]
-// fn execution_fails_bad_origin() {
-// 	let balances = vec![(ALICE, 100_000_000_000_000)];
-// 	new_test_ext(balances).execute_with(|| {
-// 		let drand_round_num: u64 = 10;
-// 		let origin: RuntimeOrigin = RuntimeOrigin::none();
-// 		let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
-// 		assert_noop!(
-// 			Timelock::schedule_sealed(origin, drand_round_num, ciphertext),
-// 			DispatchError::BadOrigin
-// 		);
-// 	});
-// }
+#[test]
+#[docify::export]
+fn execution_fails_bad_origin() {
+	let balances = vec![(ALICE, 100_000_000_000_000)];
+	new_test_ext(balances).execute_with(|| {
+		let drand_round_num: u64 = 10;
+		let origin: RuntimeOrigin = RuntimeOrigin::none();
+		let ciphertext: BoundedVec<u8, ConstU32<4048>> = BoundedVec::new();
+		assert_noop!(
+			Timelock::create_timelock(origin, drand_round_num, ciphertext),
+			DispatchError::BadOrigin
+		);
+	});
+}
 
-// #[test]
-// #[docify::export]
-// fn shielded_transactions_are_properly_scheduled() {
-// 	let balances = vec![(ALICE, 100_000_000_000_000)];
-// 	new_test_ext(balances).execute_with(|| {
-// 		let call = RuntimeCall::Logger(LoggerCall::log { i: 1, weight: Weight::from_parts(10, 0) });
-// 		let call_2 =
-// 			RuntimeCall::Logger(LoggerCall::log { i: 2, weight: Weight::from_parts(1, 0) });
+#[test]
+#[docify::export]
+fn timelocked_transactions_are_properly_scheduled() {
+	let balances = vec![(ALICE, 100_000_000_000_000)];
+	new_test_ext(balances).execute_with(|| {
+		let call = RuntimeCall::Logger(LoggerCall::log { i: 1, weight: Weight::from_parts(10, 0) });
+		let call_2 =
+			RuntimeCall::Logger(LoggerCall::log { i: 2, weight: Weight::from_parts(1, 0) });
 
-// 		let mut remaining_decrypts = 10;
+		let mut remaining_decrypts = 10;
 
-// 		let drand_round_num = 10;
-// 		let drand_round_num_2 = 12;
+		let drand_round_num = 10;
+		let drand_round_num_2 = 12;
 
-// 		let sk = Fr::one();
-// 		let pk = G2::generator().mul(sk);
+		let sk = Fr::one();
+		let pk = G2::generator().mul(sk);
 
-// 		let (id, ct_bounded_vec) = build_ciphertext(call.clone(), drand_round_num, pk.into());
+		let (id, ct_bounded_vec) = build_ciphertext(call.clone(), drand_round_num, pk.into());
 
-// 		let signature = id.extract::<TinyBLS381>(sk).0;
+		let signature = id.extract::<TinyBLS381>(sk).0;
 
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec));
+		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num, ct_bounded_vec));
 
-// 		let (id_2, ct_bounded_vec_2) =
-// 			build_ciphertext(call_2.clone(), drand_round_num_2, pk.into());
+		let (id_2, ct_bounded_vec_2) =
+			build_ciphertext(call_2.clone(), drand_round_num_2, pk.into());
 
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num_2, ct_bounded_vec_2));
+		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num_2, ct_bounded_vec_2));
 
-// 		let empty_result_early: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-// 			Timelock::decrypt_and_decode(9, signature.into(), &mut remaining_decrypts);
-// 		assert_eq!(empty_result_early.len(), 0);
-// 		let empty_result_early_call = empty_result_early.first();
-// 		assert_eq!(empty_result_early_call, None);
+		let empty_result_early: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
+			Timelock::decrypt_and_decode(9, signature.into(), &mut remaining_decrypts);
+		assert_eq!(empty_result_early.len(), 0);
+		let empty_result_early_call = empty_result_early.first();
+		assert_eq!(empty_result_early_call, None);
 
-// 		let result: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-// 			Timelock::decrypt_and_decode(
-// 				drand_round_num,
-// 				signature.into(),
-// 				&mut remaining_decrypts,
-// 			);
-// 		assert_eq!(result.len(), 1);
-// 		let runtime_call = result.first().unwrap().1.clone();
-// 		assert_eq!(runtime_call, call);
+		let result: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
+			Timelock::decrypt_and_decode(
+				drand_round_num,
+				signature.into(),
+				&mut remaining_decrypts,
+			);
+		assert_eq!(result.len(), 1);
+		let runtime_call = result.first().unwrap().1.clone();
+		assert_eq!(runtime_call, call);
 
-// 		Timelock::service_agenda(drand_round_num, result);
+		Timelock::service_agenda(drand_round_num, result);
 
-// 		assert_eq!(logger::log(), vec![(signed(), 1u32)]);
+		assert_eq!(logger::log(), vec![(signed(), 1u32)]);
 
-// 		let empty_result_late: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-// 			Timelock::decrypt_and_decode(11, signature.into(), &mut remaining_decrypts);
-// 		assert_eq!(empty_result_late.len(), 0);
-// 		let empty_result_late_call = empty_result_late.first();
-// 		assert_eq!(empty_result_late_call, None);
+		let empty_result_late: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
+			Timelock::decrypt_and_decode(11, signature.into(), &mut remaining_decrypts);
+		assert_eq!(empty_result_late.len(), 0);
+		let empty_result_late_call = empty_result_late.first();
+		assert_eq!(empty_result_late_call, None);
 
-// 		let signature_2 = id_2.extract::<TinyBLS381>(sk).0;
+		let signature_2 = id_2.extract::<TinyBLS381>(sk).0;
 
-// 		let result_2: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
-// 			Timelock::decrypt_and_decode(
-// 				drand_round_num_2,
-// 				signature_2.into(),
-// 				&mut remaining_decrypts,
-// 			);
-// 		assert_eq!(result_2.len(), 1);
-// 		let runtime_call_2 = result_2.first().unwrap().1.clone();
-// 		assert_eq!(runtime_call_2, call_2);
+		let result_2: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> =
+			Timelock::decrypt_and_decode(
+				drand_round_num_2,
+				signature_2.into(),
+				&mut remaining_decrypts,
+			);
+		assert_eq!(result_2.len(), 1);
+		let runtime_call_2 = result_2.first().unwrap().1.clone();
+		assert_eq!(runtime_call_2, call_2);
 
-// 		Timelock::service_agenda(drand_round_num_2, result_2);
-// 		assert_eq!(logger::log(), vec![(signed(), 1u32), (signed(), 2u32)]);
-// 	})
-// }
+		Timelock::service_agenda(drand_round_num_2, result_2);
+		assert_eq!(logger::log(), vec![(signed(), 1u32), (signed(), 2u32)]);
+	})
+}
 
 // #[test]
 // #[docify::export]
@@ -162,11 +162,11 @@ fn basic_sealed_scheduling_works() {
 
 // 		let signature = id.extract::<TinyBLS381>(sk).0;
 
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num, ct_bounded_vec_1));
 
 // 		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_round_num, pk.into());
 
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num, ct_bounded_vec_2));
 
 // 		let calls: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Timelock::decrypt_and_decode(
 // 			drand_round_num,
@@ -208,15 +208,15 @@ fn basic_sealed_scheduling_works() {
 
 // 		// use different priorities for now to ensure that they do not effect
 // 		// execution order
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num, ct_bounded_vec_1));
 
 // 		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_round_num, pk.into());
 
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num, ct_bounded_vec_2));
 
 // 		let (_, ct_bounded_vec_3) = build_ciphertext(call_3.clone(), drand_round_num, pk.into());
 
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_3));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num, ct_bounded_vec_3));
 
 // 		let calls: BoundedVec<([u8; 32], RuntimeCall), ConstU32<10>> = Timelock::decrypt_and_decode(
 // 			drand_round_num,
@@ -254,8 +254,8 @@ fn basic_sealed_scheduling_works() {
 // 		let drand_bad_round = 9;
 
 // 		// schedule calls to be executed on incorrect round
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_bad_round, ct_bounded_vec_1));
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_bad_round, ct_bounded_vec_2));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_bad_round, ct_bounded_vec_1));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_bad_round, ct_bounded_vec_2));
 
 // 		// verify that the agenda is holding both of the CT
 // 		assert_eq!(Agenda::<Test>::get(drand_bad_round).len(), 2);
@@ -314,18 +314,18 @@ fn basic_sealed_scheduling_works() {
 // 			build_ciphertext(call_3.clone(), drand_targeted_round, pk.into());
 
 // 		// schedule calls to be executed on incorrect round
-// 		assert_ok!(Timelock::schedule_sealed(
+// 		assert_ok!(Timelock::create_timelock(
 // 			signed().into(),
 // 			drand_targeted_round,
 // 			ct_bounded_vec_1
 // 		));
-// 		assert_ok!(Timelock::schedule_sealed(
+// 		assert_ok!(Timelock::create_timelock(
 // 			signed().into(),
 // 			drand_targeted_round,
 // 			ct_bounded_vec_2
 // 		));
 
-// 		assert_ok!(Timelock::schedule_sealed(
+// 		assert_ok!(Timelock::create_timelock(
 // 			signed().into(),
 // 			drand_targeted_round,
 // 			ct_bounded_vec_3
@@ -377,8 +377,8 @@ fn basic_sealed_scheduling_works() {
 // 		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_bad_round, pk.into());
 
 // 		// schedule calls to be executed on incorrect round
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num, ct_bounded_vec_1));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num, ct_bounded_vec_2));
 
 // 		let signature = id.extract::<TinyBLS381>(sk).0;
 // 		// Decrypt and Decode for round 9
@@ -415,8 +415,8 @@ fn basic_sealed_scheduling_works() {
 // 		let (_, ct_bounded_vec_2) = build_ciphertext(call_2.clone(), drand_bad_round, pk.into());
 
 // 		// schedule calls to be executed on incorrect round
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_1));
-// 		assert_ok!(Timelock::schedule_sealed(signed().into(), drand_round_num, ct_bounded_vec_2));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num, ct_bounded_vec_1));
+// 		assert_ok!(Timelock::create_timelock(signed().into(), drand_round_num, ct_bounded_vec_2));
 
 // 		let signature = id.extract::<TinyBLS381>(sk).0;
 // 		// Decrypt and Decode for round 9

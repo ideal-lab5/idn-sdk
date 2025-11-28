@@ -34,7 +34,7 @@ use frame_support::{
 };
 use pallet_aura::Authorities;
 use pallet_idn_manager::{BalanceOf, SubscriptionOf};
-use pallet_randomness_beacon::CallDataOf;
+use pallet_randomness_beacon::{CallDataOf, EncodedCallData};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
@@ -366,7 +366,7 @@ impl_runtime_apis! {
 			start: u64,
 			end: u64,
 			signature: Vec<u8>,
-			raw_call_data: BTreeMap<RoundNumber, Vec<(Vec<u8>, Vec<u8>)>>
+			raw_call_data: BTreeMap<RoundNumber, EncodedCallData>
 		) -> crate::UncheckedExtrinsic {
 			// if a wrong-sized signature is injected, specify a default
 			let formatted: [u8; sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE] =

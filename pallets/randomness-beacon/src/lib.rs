@@ -87,9 +87,9 @@ pub use pallet::*;
 use ark_serialize::CanonicalSerialize;
 use frame_support::pallet_prelude::*;
 
+use frame_support::traits::schedule::v3::TaskName;
 use frame_support::traits::{FindAuthor, Randomness};
 use frame_system::pallet_prelude::BlockNumberFor;
-use frame_support::traits::schedule::v3::TaskName;
 use pallet_timelock_transactions::{Config as TlockConfig, TlockTxProvider};
 use sp_consensus_randomness_beacon::types::{OpaquePublicKey, OpaqueSignature, RoundNumber};
 use sp_core::H256;
@@ -342,7 +342,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_none(origin)?;
 
-		// verify that that the block author signed this tx
+			// verify that that the block author signed this tx
 			let payload = (asig.to_vec().clone(), start, end).encode();
 			Self::verify_signature(payload, signature)?;
 
@@ -521,7 +521,7 @@ sp_api::decl_runtime_apis! {
 			start: u64,
 			end: u64,
 			signature: Vec<u8>,
-			call_data: BTreeMap<RoundNumber, Vec<(Vec<u8>, Vec<u8>)>>
+			call_data: EncodedCallData,
 		) -> Block::Extrinsic;
 	}
 }

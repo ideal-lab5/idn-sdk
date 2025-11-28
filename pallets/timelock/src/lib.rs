@@ -60,14 +60,15 @@
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-#[cfg(test)]
+// #[cfg(test)]
 mod mock;
+pub use mock::TestWeightInfo;
+
 #[cfg(test)]
 mod tests;
 pub mod weights;
 pub use weights::WeightInfo;
 
-use ark_bls12_381::G1Affine;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	dispatch::{DispatchResult, GetDispatchInfo, Parameter, PostDispatchInfo},
@@ -260,7 +261,7 @@ pub mod pallet {
 		/// * `ciphertext`: The timelock encrypted ciphertext
 		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::schedule_sealed(T::MaxScheduledPerBlock::get()))]
-		pub fn reserve_execution(
+		pub fn create_timelock(
 			origin: OriginFor<T>,
 			when: RoundNumber,
 			ciphertext: Ciphertext,
@@ -475,11 +476,6 @@ impl<T: Config> DepositHelper for DepositHelperImpl<T> {
 
 /// A trait for providing timelock transaction capabilities to other pallets.
 pub trait TlockTxProvider<RuntimeCall, MaxScheduledPerBlock> {
-	fn decrypt_and_decode(
-		when: RoundNumber,
-		signature: G1Affine,
-	) -> BoundedVec<(TaskName, RuntimeCall), MaxScheduledPerBlock>;
-
 	fn service_agenda(
 		when: RoundNumber,
 		call_data: BoundedVec<(TaskName, RuntimeCall), MaxScheduledPerBlock>,
@@ -489,13 +485,6 @@ pub trait TlockTxProvider<RuntimeCall, MaxScheduledPerBlock> {
 impl<T: Config> TlockTxProvider<<T as pallet::Config>::RuntimeCall, T::MaxScheduledPerBlock>
 	for Pallet<T>
 {
-	fn decrypt_and_decode(
-		when: RoundNumber,
-		signature: G1Affine,
-	) -> BoundedVec<(TaskName, <T as pallet::Config>::RuntimeCall), T::MaxScheduledPerBlock> {
-		Self::decrypt_and_decode(when, signature)
-	}
-
 	fn service_agenda(
 		when: RoundNumber,
 		call_data: BoundedVec<

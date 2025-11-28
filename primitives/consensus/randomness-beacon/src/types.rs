@@ -82,6 +82,7 @@ impl TryInto<CanonicalPulse> for ProtoPulse {
 	}
 }
 
+
 #[cfg(test)]
 mod tests {
 	use super::*;

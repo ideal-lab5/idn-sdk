@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 use crate as pallet_randomness_beacon;
 use crate::*;
 use frame_support::{derive_impl, parameter_types, traits::ConstU8};
+use frame_system::EnsureSigned;
 use pallet_session::{SessionHandler, ShouldEndSession};
 use sp_idn_crypto::verifier::{QuicknetVerifier, SignatureVerifier};
 use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
@@ -43,7 +44,6 @@ frame_support::construct_runtime!(
 		System: frame_system,
 		Balances: pallet_balances,
 		Timelock: pallet_timelock_transactions,
-		Preimage: pallet_preimage,
 		Drand: pallet_randomness_beacon,
 		Session: pallet_session
 	}
@@ -202,8 +202,8 @@ pub struct TestShouldEndSession;
 impl ShouldEndSession<u64> for TestShouldEndSession {
 	fn should_end_session(now: u64) -> bool {
 		let l = SessionLength::get();
-		now % l == 0 ||
-			ForceSessionEnd::mutate(|l| {
+		now % l == 0
+			|| ForceSessionEnd::mutate(|l| {
 				let r = *l;
 				*l = false;
 				r
@@ -230,8 +230,8 @@ impl pallet_randomness_beacon::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type SignatureVerifier = QuicknetVerifier;
-	#[cfg(feature = "experimental")]
-	type MaxDecryptionsPerBlock = ConstU16<2>;
+	// #[cfg(feature = "experimental")]
+	// type MaxDecryptionsPerBlock = ConstU16<2>;
 	type MaxSigsPerBlock = ConstU8<3>;
 	type Pulse = MockPulse;
 	type Dispatcher = MockDispatcher;
@@ -239,6 +239,26 @@ impl pallet_randomness_beacon::Config for Test {
 	type Signature = Signature;
 	type AccountIdentifier = MultiSigner;
 	type FindAuthor = MockFindAuthor;
+	type Tlock = Test;
+	type TlockTxProvider = pallet_timelock_transactions::Pallet<Test>;
+}
+
+parameter_types! {
+	pub MaximumTimelockWeight: Weight = Weight::from_parts(1000, 1000);
+}
+
+impl pallet_timelock_transactions::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
+	type PalletsOrigin = OriginCaller;
+	type RuntimeCall = RuntimeCall;
+	type MaximumWeight = MaximumTimelockWeight;
+	type ScheduleOrigin = EnsureSigned<AccountId32>;
+	type MaxScheduledPerBlock = ConstU32<10>;
+	type WeightInfo = pallet_timelock_transactions::TestWeightInfo;
+	type Currency = Balances;
+	type RuntimeHoldReason = RuntimeHoldReason;
+	type TreasuryAccount = bp_idn::types::TreasuryAccount;
 }
 
 // Build genesis storage according to the mock runtime.

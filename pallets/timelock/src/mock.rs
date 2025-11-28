@@ -116,6 +116,7 @@ impl WeightInfo for TestWeightInfo {
 		Weight::from_parts(50, 0)
 	}
 }
+
 parameter_types! {
 	pub MaximumTimelockWeight: Weight = Weight::from_parts(1000, 1000);
 }
@@ -144,7 +145,6 @@ impl Config for Test {
 	type Currency = Balances;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	type TreasuryAccount = TreasuryAccount;
-	
 }
 
 pub type LoggerCall = logger::Call<Test>;

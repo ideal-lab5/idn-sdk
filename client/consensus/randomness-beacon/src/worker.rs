@@ -15,9 +15,8 @@
  */
 
 use crate::{error::Error as GadgetError, gadget::PulseSubmitter};
-use alloc::collections::btree_map::BTreeMap;
 use codec::Encode;
-use pallet_randomness_beacon::RandomnessBeaconApi;
+use pallet_randomness_beacon::{EncodedCallData, RandomnessBeaconApi};
 use parking_lot::Mutex;
 use sc_client_api::HeaderBackend;
 use sc_transaction_pool_api::{TransactionPool, TransactionSource};
@@ -73,7 +72,7 @@ where
 		asig: Vec<u8>,
 		start: u64,
 		end: u64,
-		recovered_calls: BTreeMap<u64, Vec<(Vec<u8>, Vec<u8>)>>,
+		recovered_calls: EncodedCallData,
 	) -> Result<Block::Hash, GadgetError> {
 		let authority_id = self
 			.keystore
@@ -94,7 +93,7 @@ where
 				if last == current_block {
 					log::debug!(
 						target: LOG_TARGET,
-						"⏭️  Already submitted in block #{}, skipping rounds {}-{}",
+						"⏭ Already submitted in block #{}, skipping rounds {}-{}",
 						current_block, start, end
 					);
 					return Ok(best_hash);
@@ -148,7 +147,7 @@ where
 		{
 			Ok(hash) => hash,
 			Err(e) => {
-				log::error!(target: LOG_TARGET, "❌ Failed to submit to pool: {:?}", e);
+				log::error!(target: LOG_TARGET, "Failed to submit to pool: {:?}", e);
 				// reset tracker if pool submission failed
 				*self.last_submitted_block.lock() = None;
 				return Err(GadgetError::TransactionSubmissionFailed);
@@ -157,7 +156,7 @@ where
 
 		log::info!(
 			target: LOG_TARGET,
-			"✅ Submitted pulse extrinsic for rounds {}-{}, tx_hash: {:?}",
+			"Submitted pulse extrinsic for rounds {}-{}, tx_hash: {:?}",
 			start,
 			end,
 			tx_hash
@@ -171,6 +170,7 @@ where
 mod tests {
 	use super::*;
 	use crate::mock::*;
+	use alloc::collections::btree_map::BTreeMap;
 	use sp_consensus_randomness_beacon::types::SERIALIZED_SIG_SIZE;
 	use sp_keystore::{testing::MemoryKeystore, Keystore};
 	use std::sync::Arc;
@@ -190,7 +190,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_handle_pulse_with_signed_payload() {
+	async fn test_handle_pulse_with_signed_payload_and_no_call_data() {
 		let client = Arc::new(MockClient::new());
 		let pool = Arc::new(MockTransactionPool::new());
 		let keystore = create_test_keystore();
@@ -201,7 +201,7 @@ mod tests {
 		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
 
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-		let result = worker.handle_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101, BTreeMap::new()).await;
 
 		assert!(result.is_ok(), "Pulse submission should succeed");
 
@@ -218,7 +218,7 @@ mod tests {
 		// DO NOT insert key to keystore
 		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-		let result = worker.handle_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101, BTreeMap::new()).await;
 
 		assert!(result.is_err(), "Pulse submission should succeed");
 		assert!(matches!(result, Err(GadgetError::NoAuthorityKeys)));
@@ -236,7 +236,7 @@ mod tests {
 		// DO NOT insert key to keystore
 		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-		let result = worker.handle_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101, BTreeMap::new()).await;
 
 		assert!(result.is_err(), "Pulse submission should succeed");
 		assert!(matches!(result, Err(GadgetError::NoAuthorityKeys)));
@@ -260,7 +260,7 @@ mod tests {
 		let worker = PulseWorker::new(client.clone(), pool.clone(), failing_keystore);
 
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-		let result = worker.handle_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101, BTreeMap::new()).await;
 
 		assert!(result.is_err(), "Pulse submission should fail");
 		assert!(matches!(result, Err(GadgetError::KeystoreError(_))));
@@ -283,11 +283,11 @@ mod tests {
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
 		// First submission should succeed
-		let result1 = worker.handle_pulse(asig.clone(), 100, 101).await;
+		let result1 = worker.handle_pulse(asig.clone(), 100, 101, BTreeMap::new()).await;
 		assert!(result1.is_ok(), "First pulse submission should succeed");
 
 		// Second submission in same block should be skipped (returns Ok but doesn't submit)
-		let result2 = worker.handle_pulse(asig.clone(), 102, 103).await;
+		let result2 = worker.handle_pulse(asig.clone(), 102, 103, BTreeMap::new()).await;
 		assert!(result2.is_ok(), "Second submission should return Ok (but skip)");
 
 		// Verify only ONE transaction was submitted to pool
@@ -308,14 +308,14 @@ mod tests {
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
 		// First submission in block 1
-		let result1 = worker.handle_pulse(asig.clone(), 100, 101).await;
+		let result1 = worker.handle_pulse(asig.clone(), 100, 101, BTreeMap::new()).await;
 		assert!(result1.is_ok(), "First pulse submission should succeed");
 
 		// Advance to next block
 		client.set_block_number(1);
 
 		// Second submission in block 2 should also succeed
-		let result2 = worker.handle_pulse(asig.clone(), 102, 103).await;
+		let result2 = worker.handle_pulse(asig.clone(), 102, 103, BTreeMap::new()).await;
 		assert!(result2.is_ok(), "Second submission should succeed in new block");
 
 		// Verify TWO transactions were submitted
@@ -336,13 +336,13 @@ mod tests {
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
 		// Test single round
-		let result1 = worker.handle_pulse(asig.clone(), 100, 100).await;
+		let result1 = worker.handle_pulse(asig.clone(), 100, 100, BTreeMap::new()).await;
 		assert!(result1.is_ok(), "Single round submission should succeed");
 		// Advance to next block
 		client.set_block_number(1);
 
 		// Test multiple rounds
-		let result2 = worker.handle_pulse(asig.clone(), 200, 250).await;
+		let result2 = worker.handle_pulse(asig.clone(), 200, 250, BTreeMap::new()).await;
 		assert!(result2.is_ok(), "Multi-round submission should succeed");
 
 		let txs = pool.pool.lock().clone();
@@ -363,7 +363,7 @@ mod tests {
 		let worker = PulseWorker::new(client.clone(), pool.clone(), keystore);
 
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
-		let result = worker.handle_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101, BTreeMap::new()).await;
 
 		assert!(result.is_err(), "Pulse submission should fail");
 		assert!(matches!(result, Err(GadgetError::TransactionSubmissionFailed)));
@@ -388,7 +388,7 @@ mod tests {
 
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 		// the api MOCK is hardcoded to fail when start == 0 when building the extrinsic\
-		let result = worker.handle_pulse(asig, 0, 101).await;
+		let result = worker.handle_pulse(asig, 0, 101, BTreeMap::new()).await;
 
 		assert!(result.is_err(), "Pulse submission should fail");
 		assert!(matches!(result, Err(GadgetError::RuntimeApiError(_))));
@@ -410,7 +410,7 @@ mod tests {
 
 		// Empty signature
 		let asig = vec![];
-		let result = worker.handle_pulse(asig, 100, 101).await;
+		let result = worker.handle_pulse(asig, 100, 101, BTreeMap::new()).await;
 
 		// Should still succeed - validation happens in runtime
 		assert!(result.is_ok(), "Submission with empty sig should succeed");
@@ -429,7 +429,7 @@ mod tests {
 		let asig = vec![0u8; SERIALIZED_SIG_SIZE];
 
 		// Test with maximum u64 values
-		let result = worker.handle_pulse(asig, u64::MAX - 1, u64::MAX).await;
+		let result = worker.handle_pulse(asig, u64::MAX - 1, u64::MAX, BTreeMap::new()).await;
 		assert!(result.is_ok(), "Submission with max round values should succeed");
 	}
 
@@ -455,7 +455,7 @@ mod tests {
 			let asig_clone = asig.clone();
 
 			let handle = task::spawn(async move {
-				worker_clone.handle_pulse(asig_clone, 100 + i, 101 + i).await
+				worker_clone.handle_pulse(asig_clone, 100 + i, 101 + i, BTreeMap::new()).await
 			});
 			handles.push(handle);
 		}

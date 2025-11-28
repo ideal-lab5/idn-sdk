@@ -64,6 +64,7 @@ ark-serialize.workspace = true
 timelock.workspace = true
 
 [dev-dependencies]
+ark-std.workspace = true
 async-trait.workspace = true
 async-std.workspace = true
 frame-support.workspace = true

@@ -393,11 +393,7 @@ impl pallet_randomness_beacon::Config for Runtime {
 	type Signature = sp_runtime::MultiSignature;
 	type AccountIdentifier = sp_runtime::MultiSigner;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Aura>;
-	// #[cfg(feature = "tlock")]
-	// type MaxDecryptionsPerBlock = MaxDecryptionsPerBlock;
-	// #[cfg(feature = "tlock")]
 	type Tlock = Runtime;
-	// #[cfg(feature = "tlock")]
 	type TlockTxProvider = pallet_timelock_transactions::Pallet<Runtime>;
 }
 

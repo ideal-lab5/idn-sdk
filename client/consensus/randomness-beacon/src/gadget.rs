@@ -23,7 +23,7 @@ use ark_bls12_381::G1Affine;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use codec::Decode;
 use futures::{stream::Fuse, Future, FutureExt, StreamExt};
-use pallet_randomness_beacon::RandomnessBeaconApi;
+use pallet_randomness_beacon::{EncodedCallData, RandomnessBeaconApi};
 use pallet_timelock_transactions::TimelockTxsApi;
 use parking_lot::Mutex;
 use sc_client_api::HeaderBackend;
@@ -57,7 +57,7 @@ pub trait PulseSubmitter<Block: BlockT>: Send + Sync {
 		asig: Vec<u8>,
 		start: u64,
 		end: u64,
-		recovered_calls: BTreeMap<u64, Vec<(Vec<u8>, Vec<u8>)>>,
+		recovered_calls: EncodedCallData,
 	) -> impl std::future::Future<Output = Result<Block::Hash, GadgetError>> + Send;
 }
 
@@ -173,7 +173,6 @@ where
 		&self,
 		notification: &UnpinnedFinalityNotification<Block>,
 	) -> Result<(), GadgetError> {
-		log::info!("************************************************ IN HANDLE FINALITY NOTIF.");
 		// acquire a lock to ensure only one submission at a time since finality notifications
 		// can come in rapid succession sometimes
 		let _guard = self.submission_lock.lock().await;
@@ -237,10 +236,7 @@ where
 		&self,
 		new_pulses: Vec<CanonicalPulse>,
 		at_hash: Block::Hash,
-	) -> Result<
-		Option<(RoundNumber, RoundNumber, Vec<u8>, BTreeMap<RoundNumber, Vec<(Vec<u8>, Vec<u8>)>>)>,
-		GadgetError,
-	> {
+	) -> Result<Option<(RoundNumber, RoundNumber, Vec<u8>, EncodedCallData)>, GadgetError> {
 		if new_pulses.is_empty() {
 			return Ok(None);
 		}
@@ -253,6 +249,7 @@ where
 		let end = new_pulses.last().map(|p| p.round).expect("Non-empty pulses; qed");
 
 		for pulse in new_pulses.iter() {
+			// TODO: what should we do if it can't be?
 			// deserialize the sig
 			let sig = G1Affine::deserialize_compressed(&mut pulse.signature.as_ref()).unwrap();
 			// .map_err(|e| {
@@ -290,12 +287,14 @@ where
 						tld::<TinyBLS381, AESGCMBlockCipherProvider>(ciphertext, sig.into())
 					{
 						round_calls.push((id_bytes, plaintext));
-						log::info!(target: LOG_TARGET, "✅ SUCCESSFULLY DECRYPTED!");
 					} else {
-						log::info!(target: LOG_TARGET, "❌ FAILED TO DECRYPT!");
+						// TODO: Report failures
+						log::info!(target: LOG_TARGET, "FAILED TO DECRYPT!");
 					}
 				} else {
-					log::info!(target: LOG_TARGET, "❌ FAILED TO DESERIALIZE TLE CIPHERTEXT!");
+					// TODO: Report failures (invalid ciphertext)
+					// can hopefuly be avoided with runtime pre-validation
+					log::info!(target: LOG_TARGET, "FAILED TO DESERIALIZE TLE CIPHERTEXT!");
 				}
 			}
 
@@ -317,6 +316,8 @@ where
 mod tests {
 	use super::*;
 	use crate::mock::MockClient;
+	use ark_bls12_381::Fr;
+	use ark_std::{ops::Mul, One, UniformRand};
 	use sp_consensus_randomness_beacon::types::CanonicalPulse;
 	use sp_runtime::{
 		generic::Header,
@@ -360,6 +361,7 @@ mod tests {
 			asig: Vec<u8>,
 			start: u64,
 			end: u64,
+			call_data: EncodedCallData,
 		) -> Result<<TestBlock as BlockT>::Hash, GadgetError> {
 			if *self.should_fail.lock().unwrap() {
 				return Err(GadgetError::TransactionSubmissionFailed);
@@ -380,7 +382,15 @@ mod tests {
 	}
 
 	fn create_test_pulse(round: u64) -> CanonicalPulse {
-		CanonicalPulse { round, signature: [0u8; SERIALIZED_SIG_SIZE] }
+		// a not very secret key
+		let sk = Fr::one();
+		let msg = sp_idn_crypto::drand::compute_round_on_g1(round).unwrap();
+		let sig = msg.mul(sk);
+		let mut sig_bytes = Vec::new();
+		sig.serialize_compressed(&mut sig_bytes).unwrap();
+		let sig_array: [u8; SERIALIZED_SIG_SIZE] = sig_bytes.try_into().unwrap();
+
+		CanonicalPulse { round, signature: sig_array }
 	}
 
 	fn create_unpinned_notification(number: u64) -> UnpinnedFinalityNotification<TestBlock> {
@@ -410,9 +420,10 @@ mod tests {
 		let submissions = mock_submitter.get_submissions();
 		assert_eq!(submissions.len(), 1, "Expected exactly one submission");
 		// Due to .take(1), only the latest pulse (102) should be submitted
-		assert_eq!(submissions[0].1, 102, "Start round should be 102 (latest pulse)");
+		assert_eq!(submissions[0].1, 100, "Start round should be 102 (latest pulse)");
 		assert_eq!(submissions[0].2, 102, "End round should be 102 (single pulse)");
 	}
+	
 
 	#[tokio::test]
 	async fn test_gadget_skips_old_pulses() {
@@ -466,8 +477,8 @@ mod tests {
 
 		let submissions = mock_submitter.get_submissions();
 		assert_eq!(submissions.len(), 1, "Should submit one pulse");
-		// Should get the latest valid pulse (105)
-		assert_eq!(submissions[0].1, 105);
+		// Should get the latest valid pulses (100 & 105)
+		assert_eq!(submissions[0].1, 100);
 		assert_eq!(submissions[0].2, 105);
 	}
 
