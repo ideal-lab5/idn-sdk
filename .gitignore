@@ -46,6 +46,7 @@ node_files/
 **/proptest-regressions/
 .cursorrules
 CLAUDE.md
+.claude/
 e2e/polkadot
 e2e/polkadot-execute-worker
 e2e/polkadot-parachain

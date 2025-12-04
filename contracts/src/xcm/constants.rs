@@ -25,6 +25,9 @@ use ink::selector_bytes;
 /// Parachain ID for the Ideal Network on the Paseo relay chain
 pub const IDN_PARA_ID_PASEO: ParaId = 4502;
 
+/// Parachain ID for the Ideal Network on the Polkadot relay chain
+pub const IDN_PARA_ID_POLKADOT: ParaId = 3414;
+
 /// Parachain ID for the IDN Consumer chain on the Paseo relay chain
 pub const CONSUMER_PARA_ID_PASEO: ParaId = 4594;
 

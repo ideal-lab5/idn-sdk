@@ -5885,7 +5885,7 @@ dependencies = [
 
 [[package]]
 name = "idn-node"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clap",
  "color-print",
@@ -5961,7 +5961,7 @@ dependencies = [
 
 [[package]]
 name = "idn-runtime"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "bp-idn",
  "cumulus-pallet-aura-ext",

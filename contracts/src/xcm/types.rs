@@ -16,7 +16,7 @@
 
 use super::constants::{
 	CONSUMER_PARA_ID_PASEO, CONTRACTS_CALL_INDEX, CONTRACTS_PALLET_INDEX_PASEO,
-	IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO,
+	IDN_MANAGER_PALLET_INDEX_PASEO, IDN_PARA_ID_PASEO, IDN_PARA_ID_POLKADOT,
 };
 use ink::env::DefaultEnvironment;
 
@@ -38,6 +38,8 @@ pub type Balance = <DefaultEnvironment as ink::env::Environment>::Balance;
 pub enum IdnParaId {
 	/// Parachain ID for the Ideal Network on the Paseo relay chain
 	OnPaseo,
+	/// Parachain ID for the Ideal Network on the Polkadot relay chain
+	OnPolkadot,
 	/// Other parachain ID for different relay chains
 	Other(ParaId),
 }
@@ -46,6 +48,7 @@ impl From<IdnParaId> for ParaId {
 	fn from(para_id: IdnParaId) -> Self {
 		match para_id {
 			IdnParaId::OnPaseo => IDN_PARA_ID_PASEO,
+			IdnParaId::OnPolkadot => IDN_PARA_ID_POLKADOT,
 			IdnParaId::Other(id) => id,
 		}
 	}
@@ -58,6 +61,8 @@ impl From<IdnParaId> for ParaId {
 pub enum IdnManagerPalletIndex {
 	/// IDN Manager pallet index in the Ideal Network runtime on Paseo
 	OnPaseoIdn,
+	/// IDN Manager pallet index in the Ideal Network runtime on Polkadot
+	OnPolkadotIdn,
 	/// Other pallet index for different runtimes
 	Other(PalletIndex),
 }
@@ -66,6 +71,8 @@ impl From<IdnManagerPalletIndex> for PalletIndex {
 	fn from(index: IdnManagerPalletIndex) -> Self {
 		match index {
 			IdnManagerPalletIndex::OnPaseoIdn => IDN_MANAGER_PALLET_INDEX_PASEO,
+			// Same pallet index on Polkadot mainnet (runtime structure is identical)
+			IdnManagerPalletIndex::OnPolkadotIdn => IDN_MANAGER_PALLET_INDEX_PASEO,
 			IdnManagerPalletIndex::Other(i) => i,
 		}
 	}
