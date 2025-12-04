@@ -5885,7 +5885,7 @@ dependencies = [
 
 [[package]]
 name = "idn-node"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "clap",
  "color-print",

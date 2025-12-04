@@ -293,48 +293,6 @@ pub fn mainnet_config() -> ChainSpec {
 			sr25519::Public::from_str("13g55igdFoMSJFfrqBeMCHxnPi3T4MNChcsvTYv7Z2nFhtHu") // collator-20
 				.unwrap()
 				.into(),
-			sr25519::Public::from_str("1sEfKnzhS99tBmtfbN4v8NF3AKMsDFV4e9kHjMeCFEoV6TZ") // collator-21
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("14xPdEqmULV46a9GGAYp161JS1fuvbtfQ4EUSEArXchxgPFg") // collator-22
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("15fCAwr2f9tY9BApxXpMraUxRcLDWK7cJQPrVnGz31j9k52o") // collator-23
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("16Y446gvcbGUaFVZtaRXo4ESTVyh9Zb75QKjM4nLFhCsVshP") // collator-24
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("14x6inj6YfcMMB4Zi8YwpxovSayx85MTbM53kEuSgzQMy3Eb") // collator-25
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("16MHBb5Akqc6aEgvkEv7MLdYaMAumbkMRMxUCKPsuVqtEd1K") // collator-26
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("14kxVHjUSfK59vti2UG8btDry3tcxaQoENkmtJc3ByDrm92p") // collator-27
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("14ECGYivPonFYtbids9Nbhj8bURyERx3nTcUFkXLUgVJ3BnG") // collator-28
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("14NHdzBF5JYv7dudnFV8iRzS2YdxP6exkG1WaMzU8eqMsAup") // collator-29
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("14FzES6ZWbsu6bTX6L5kLSNZ9L9fEYZaPdDbRGTfHHuMvBf5") // collator-30
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("15mWLGMpyA2WE5cmH5EVPPYKvNuaDcL5HG7vpcHb792ND9mE") // collator-31
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("15kitbBHNTYPj87w2Ugof5d13HJF3F3EezTSXzSDbqrv75Mb") // collator-32
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("13zekcmLTdBASo7ngu1Gz9tGzd2LEZ9Ci8TDbcKhNNf1VpSQ") // collator-33
-				.unwrap()
-				.into(),
-			sr25519::Public::from_str("12Ys2iYn51A6cw6CVEyFdKZyaYs9mtprmeMqpMKHqjxTPKrR") // collator-34
-				.unwrap()
-				.into(),
 		],
 		vec![], // empty balances - DOT comes via XCM reserve transfers
 		sr25519::Public::from_str("1LX9m9Ee8u653hU1sxvvRNpV1ZjYExa7K8r9zjDws9GDLvp") // mainnet-root
