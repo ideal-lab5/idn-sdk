@@ -7,32 +7,32 @@ on:
   pull_request:
     branches:
       - main
-
+      
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-rust
+    - name: Setup Environment
+      uses: ./.github/actions/setup-rust
+    
+    - name: Run fmt
+      run: |
+        rustup component add rustfmt --toolchain nightly
+        cargo +nightly fmt -- --check
 
-      - name: Run fmt
-        run: |
-          rustup component add rustfmt --toolchain nightly
-          cargo +nightly fmt -- --check
+    - name: Run cargo clippy
+      run: cargo clippy --all-features --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace -- -D warnings
 
-      - name: Run cargo clippy
-        run: cargo clippy --features=runtime-benchmarks --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace -- -D warnings
+    - name: Run cargo doc
+      run: cargo doc --no-deps --all-features --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace
 
-      - name: Run cargo doc
-        run: cargo doc --no-deps --features=runtime-benchmarks --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace
-
-      - name: Build
-        run: cargo build --features=runtime-benchmarks --verbose --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace
-
+    - name: Build
+      run: cargo build --all-features --verbose --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace
+      
   build_idn_kitchen_sink:
     runs-on: ubuntu-latest
 
@@ -44,13 +44,13 @@ jobs:
         uses: ./.github/actions/setup-rust
 
       - name: Run cargo clippy
-        run: cargo clippy --features=runtime-benchmarks -p idn-sdk-kitchensink-node -- -D warnings
+        run: cargo clippy --all-features -p idn-sdk-kitchensink-node -- -D warnings
 
       - name: Run cargo doc for chains
-        run: cargo doc --no-deps --features=runtime-benchmarks -p idn-sdk-kitchensink-node
-
+        run: cargo doc --no-deps --all-features -p idn-sdk-kitchensink-node
+        
       - name: Build
-        run: cargo build --features=runtime-benchmarks --verbose -p idn-sdk-kitchensink-node
+        run: cargo build --all-features --verbose -p idn-sdk-kitchensink-node
 
   build_idn_consumer:
     runs-on: ubuntu-latest
@@ -63,14 +63,14 @@ jobs:
         uses: ./.github/actions/setup-rust
 
       - name: Run cargo clippy
-        run: cargo clippy --features=runtime-benchmarks -p idn-consumer-node -- -D warnings
+        run: cargo clippy --all-features -p idn-consumer-node -- -D warnings
 
       - name: Run cargo doc for chains
-        run: cargo doc --no-deps --features=runtime-benchmarks -p idn-consumer-node
-
+        run: cargo doc --no-deps --all-features -p idn-consumer-node
+        
       - name: Build
-        run: cargo build --features=runtime-benchmarks -p idn-consumer-node --release
-
+        run: cargo build --all-features -p idn-consumer-node --release
+    
   build_idn:
     runs-on: ubuntu-latest
 
@@ -82,14 +82,14 @@ jobs:
         uses: ./.github/actions/setup-rust
 
       - name: Run cargo clippy
-        run: cargo clippy --features=runtime-benchmarks -p idn-node -- -D warnings
+        run: cargo clippy --all-features -p idn-node -- -D warnings
 
       - name: Run cargo doc for chains
-        run: cargo doc --no-deps --features=runtime-benchmarks -p idn-node
-
+        run: cargo doc --no-deps --all-features -p idn-node
+      
       - name: Build
-        run: cargo build --verbose --features=runtime-benchmarks -p idn-node --release
-
+        run: cargo build --verbose --all-features -p idn-node --release
+  
   consumer_contract:
     runs-on: ubuntu-latest
 
@@ -103,8 +103,8 @@ jobs:
           rust_version: "1.85"
 
       - name: Run cargo clippy
-        run: cargo clippy --features=runtime-benchmarks --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- -D warnings
-
+        run: cargo clippy --all-features --manifest-path ./contracts/examples/consumer-contract/Cargo.toml -- -D warnings
+      
       - name: Run fmt
         run: |
           rustup component add rustfmt --toolchain nightly
@@ -128,16 +128,16 @@ jobs:
           echo "CONTRACTS_NODE is: $CONTRACTS_NODE"
           ls -la $CONTRACTS_NODE
           $CONTRACTS_NODE --version
-
+      
       - name: Run Tests
-        run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --features=runtime-benchmarks
-
+        run: cargo test --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --all-features
+      
       - name: Install cargo-contract
         run: cargo install cargo-contract@5.0.3 --locked
-
+      
       - name: Build
         run: cargo contract build --manifest-path ./contracts/examples/consumer-contract/Cargo.toml --release
-
+  
   randomness_contract:
     runs-on: ubuntu-latest
 
@@ -149,22 +149,22 @@ jobs:
         uses: ./.github/actions/setup-rust
 
       - name: Run cargo clippy
-        run: cargo clippy --features=runtime-benchmarks --manifest-path ./contracts/examples/rand-extension/Cargo.toml -- -D warnings
-
+        run: cargo clippy --all-features --manifest-path ./contracts/examples/rand-extension/Cargo.toml -- -D warnings
+      
       - name: Run fmt
         run: |
           rustup component add rustfmt --toolchain nightly
           cargo +nightly fmt --manifest-path ./contracts/examples/rand-extension/Cargo.toml -- --check
 
       - name: Run cargo doc for the contract
-        run: cargo doc --no-deps --features=runtime-benchmarks --manifest-path ./contracts/examples/rand-extension/Cargo.toml
-
+        run: cargo doc --no-deps --all-features --manifest-path ./contracts/examples/rand-extension/Cargo.toml
+      
       - name: Run Tests
-        run: cargo test --manifest-path ./contracts/examples/rand-extension/Cargo.toml --features=runtime-benchmarks
+        run: cargo test --manifest-path ./contracts/examples/rand-extension/Cargo.toml --all-features
 
       - name: Install cargo-contract
         run: cargo install cargo-contract@5.0.3
-
+      
       - name: Build
         run: cargo contract build --manifest-path ./contracts/examples/rand-extension/Cargo.toml --release
 
@@ -172,30 +172,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-rust
+    - name: Setup Environment
+      uses: ./.github/actions/setup-rust
 
-      - name: Install llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+    - name: Install llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Run Tests
-        run: |
-          cargo +nightly llvm-cov --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace --features=runtime-benchmarks --doctests \
-            --cobertura --output-path cobertura.xml \
-            --ignore-filename-regex "(kitchensink|idn-consumer-(node|runtime)|ideal-network|benchmarking|weights|mock)"
+    - name: Run Tests
+      run: |
+        cargo +nightly llvm-cov --exclude idn-sdk-kitchensink-runtime --exclude idn-sdk-kitchensink-node --exclude idn-consumer-runtime --exclude idn-consumer-node --exclude idn-runtime --exclude idn-node --workspace --all-features --doctests \
+          --cobertura --output-path cobertura.xml --no-cfg-coverage-nightly \
+          --ignore-filename-regex "(kitchensink|idn-consumer-(node|runtime)|ideal-network|benchmarking|weights|mock)"
 
-      - name: Generate Code Coverage Summary
-        uses: irongut/CodeCoverageSummary@v1.3.0
-        with:
-          filename: cobertura.xml
-          badge: true
-          fail_below_min: true
-          thresholds: "85 90"
-          output: both
-          format: markdown
+    - name: Generate Code Coverage Summary
+      uses: irongut/CodeCoverageSummary@v1.3.0
+      with:
+        filename: cobertura.xml
+        badge: true
+        fail_below_min: true
+        thresholds: '85 90'
+        output: both
+        format: markdown
 
-      - name: Export Job Summary
-        run: echo "$(<code-coverage-results.md)" >> $GITHUB_STEP_SUMMARY
+    - name: Export Job Summary
+      run: echo "$(<code-coverage-results.md)" >> $GITHUB_STEP_SUMMARY
