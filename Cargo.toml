@@ -87,6 +87,8 @@ tracing-test = { version = " 0.2.5" }
 mockall = "0.13.1"
 parking_lot = "0.12.4"
 proptest = "1.7.0"
+# Fix for static_init parking_lot dependency issue on Linux with nightly toolchain
+static_init = "1.0.4"
 
 # Serialization
 array-bytes = { version = "6.2.2", default-features = false }

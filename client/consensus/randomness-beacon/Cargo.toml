@@ -61,6 +61,10 @@ substrate-frame-rpc-system.workspace = true
 ark-bls12-381.workspace = true
 ark-serialize.workspace = true
 
+# Force static_init 1.0.4 to fix parking_lot dependency issue on Linux nightly
+# (transitive dep via sc-service -> reed-solomon-novelpoly)
+static_init = { workspace = true }
+
 [dev-dependencies]
 async-trait.workspace = true
 async-std.workspace = true
