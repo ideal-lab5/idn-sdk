@@ -10,6 +10,11 @@ on:
         description: 'Tag to build (e.g., v1.0.0)'
         required: true
         type: string
+      build_consumer:
+        description: 'Also build idn-consumer-node'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   # Build idn-node for amd64 and arm64 in parallel, then create manifest
@@ -115,9 +120,11 @@ jobs:
           docker manifest push ideallabs/idn-node:$MAJOR_MINOR
 
   # Build idn-consumer-node for amd64 and arm64 in parallel, then create manifest
+  # Only runs on workflow_dispatch when build_consumer is true
   build-consumer-amd64:
     name: Build idn-consumer-node (amd64)
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.build_consumer == true
     steps:
       - name: Free disk space
         run: |
@@ -152,6 +159,7 @@ jobs:
   build-consumer-arm64:
     name: Build idn-consumer-node (arm64)
     runs-on: ubuntu-24.04-arm
+    if: github.event_name == 'workflow_dispatch' && inputs.build_consumer == true
     steps:
       - name: Free disk space
         run: |
@@ -187,6 +195,7 @@ jobs:
     name: Create idn-consumer-node manifest
     runs-on: ubuntu-latest
     needs: [build-consumer-amd64, build-consumer-arm64]
+    if: github.event_name == 'workflow_dispatch' && inputs.build_consumer == true
     steps:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
