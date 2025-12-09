@@ -382,3 +382,156 @@ pop call chain --url ws://localhost:57731
 ```
 
 _You need to wait about 2 minutes for the parachain to be onboarded and start finalizing blocks._
+
+## Run a Live Node
+
+This section explains how to run a collator node on the Ideal Network's public testnet or mainnet.
+
+### Network Information
+
+| Network  | Parachain ID | Relay Chain | Parachain Chainspec               | Relay Chainspec             |
+|----------|--------------|-------------|-----------------------------------|-----------------------------|
+| Testnet  | 4502         | Paseo       | `chain-specs/idn-paseo.raw.json`  | `chain-specs/paseo.raw.json`|
+| Mainnet  | 3414         | Polkadot    | TBD                               | `polkadot`                  |
+
+### Prerequisites
+
+- **subkey**: Install via `cargo install subkey` for key generation
+- **Hardware**: Minimum 4 CPU cores, 16GB RAM, 500GB+ NVMe SSD
+- **Ports**: Open 30333 (parachain P2P) and 30334 (relay chain P2P) for incoming connections
+
+### 1. Generate Node Key
+
+Create a directory structure and generate a persistent node identity:
+
+```sh
+mkdir -p ./node_files/idn-collator/chains/idn/network
+subkey generate-node-key --file ./node_files/idn-collator/chains/idn/network/secret_ed25519
+```
+
+Save the public key output - this is your node's peer ID.
+
+### 2. Session Keys
+
+Collators are defined in the chain specification (`chain_spec.rs`). To run a collator, you must have access to the mnemonic/secret URI that corresponds to one of the authorized collator addresses.
+
+See the `mainnet_config()`/`testnet_config()` function in `chain_spec.rs` for the list of authorized collator addresses.
+
+You must have the mnemonic or secret URI for one of these accounts to insert the session key.
+
+### 3. Run the Collator
+
+Choose either Docker or local build:
+
+#### Option A: Docker (Recommended)
+
+```sh
+docker run -d \
+  --name idn-collator \
+  -v /path/to/node_files:/node/data \
+  -v /path/to/chain-specs:/node/chain-specs:ro \
+  -p 30333:30333 \
+  -p 30334:30334 \
+  -p 9944:9944 \
+  -p 9615:9615 \
+  ideallabs/idn-node:latest \
+  --name my-collator \
+  --collator \
+  # For Testnet/Paseo
+  --chain /node/chain-specs/idn-paseo.raw.json \
+  # For Mainnet/Polkadot
+  # --chain /node/chain-specs/idn-polkadot.raw.json \
+  --base-path /node/data \
+  --port 30333 \
+  --rpc-port 9944 \
+  --prometheus-external \
+  -- \
+  # For Testnet/Paseo
+  --chain /node/chain-specs/paseo.raw.json \
+  # For Mainnet/Polkadot
+  # --chain polkadot \
+  --port 30334
+```
+
+#### Option B: Local Build
+
+Build the node first:
+
+```sh
+cargo build -p idn-node --release
+```
+
+**Testnet:**
+
+```sh
+./target/release/idn-node \
+  --name my-collator \
+  --collator \
+  --force-authoring \
+  # For Testnet/Paseo
+  --chain ./chain-specs/idn-paseo.raw.json \
+  # For Mainnet/Polkadot
+  # --chain ./chain-specs/idn-polkadot.raw.json \
+  --base-path ./node_files/idn-collator \
+  --port 30333 \
+  --rpc-port 9944 \
+  --prometheus-external \
+  -- \
+  # For Testnet/Paseo
+  --chain ./chain-specs/paseo.raw.json \
+  # For Mainnet/Polkadot
+  # --chain polkadot \
+  --port 30334
+```
+
+#### Optional: Specify Bootnodes
+
+Add bootnodes if you have specific peers to connect to:
+
+```sh
+--bootnodes /ip4/<IP>/tcp/30333/p2p/<PEER_ID>
+```
+
+#### Optional: Expose RPC Publicly
+
+> **WARNING**: Exposing RPC publicly can be a security risk. Only enable this if you understand the implications and have proper firewall rules in place.
+
+Add these flags to expose RPC externally:
+
+```sh
+--rpc-cors all \
+--unsafe-rpc-external \
+--rpc-methods safe \
+--rpc-max-connections 100
+```
+
+The `--rpc-max-connections` flag limits concurrent connections to prevent resource exhaustion.
+
+### 4. Insert Session Key
+
+Once the node is running and synced, insert your session key:
+
+```sh
+curl -H "Content-Type: application/json" \
+  --data '{
+    "jsonrpc":"2.0",
+    "method":"author_insertKey",
+    "params":[
+      "aura",
+      "<YOUR_MNEMONIC_PHRASE>",
+      "<YOUR_PUBLIC_KEY_HEX>"
+    ],
+    "id":1
+  }' \
+  http://localhost:9944
+```
+
+Replace:
+- `<YOUR_MNEMONIC_PHRASE>`: The mnemonic/secret URI for your authorized collator account (see section 2)
+- `<YOUR_PUBLIC_KEY_HEX>`: The public key (hex format with `0x` prefix) matching your collator address
+
+### 5. Monitoring
+
+- **Logs**: Check container logs with `docker logs -f idn-collator`
+- **Prometheus**: Metrics available at `http://localhost:9615/metrics`
+- **RPC Health**: `curl http://localhost:9944/health`
