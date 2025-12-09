@@ -1,15 +1,16 @@
-name: Docker Build and Publish
+name: Build idn-consumer-node
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g., v1.0.0)'
+        required: true
+        type: string
 
 jobs:
-  # Build idn-node for amd64 and arm64 in parallel, then create manifest
-  build-idn-amd64:
-    name: Build idn-node (amd64)
+  build-consumer-amd64:
+    name: Build idn-consumer-node (amd64)
     runs-on: ubuntu-latest
     steps:
       - name: Free disk space
@@ -19,6 +20,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -35,15 +38,15 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ideallabs/idn-node:${{ github.ref_name }}-amd64
+          tags: ideallabs/idn-consumer-node:${{ inputs.tag }}-amd64
           build-args: |
-            NODE_PACKAGE=idn-node
+            NODE_PACKAGE=idn-consumer-node
             GIT_COMMIT=${{ github.sha }}
-          cache-from: type=gha,scope=idn-amd64
-          cache-to: type=gha,mode=max,scope=idn-amd64
+          cache-from: type=gha,scope=consumer-amd64
+          cache-to: type=gha,mode=max,scope=consumer-amd64
 
-  build-idn-arm64:
-    name: Build idn-node (arm64)
+  build-consumer-arm64:
+    name: Build idn-consumer-node (arm64)
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Free disk space
@@ -53,6 +56,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -69,17 +74,17 @@ jobs:
           context: .
           platforms: linux/arm64
           push: true
-          tags: ideallabs/idn-node:${{ github.ref_name }}-arm64
+          tags: ideallabs/idn-consumer-node:${{ inputs.tag }}-arm64
           build-args: |
-            NODE_PACKAGE=idn-node
+            NODE_PACKAGE=idn-consumer-node
             GIT_COMMIT=${{ github.sha }}
-          cache-from: type=gha,scope=idn-arm64
-          cache-to: type=gha,mode=max,scope=idn-arm64
+          cache-from: type=gha,scope=consumer-arm64
+          cache-to: type=gha,mode=max,scope=consumer-arm64
 
-  manifest-idn:
-    name: Create idn-node manifest
+  manifest-consumer:
+    name: Create idn-consumer-node manifest
     runs-on: ubuntu-latest
-    needs: [build-idn-amd64, build-idn-arm64]
+    needs: [build-consumer-amd64, build-consumer-arm64]
     steps:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -89,23 +94,23 @@ jobs:
 
       - name: Create and push manifest
         run: |
+          TAG=${{ inputs.tag }}
+
           # Create manifest for version tag
-          docker manifest create ideallabs/idn-node:${{ github.ref_name }} \
-            ideallabs/idn-node:${{ github.ref_name }}-amd64 \
-            ideallabs/idn-node:${{ github.ref_name }}-arm64
-          docker manifest push ideallabs/idn-node:${{ github.ref_name }}
+          docker manifest create ideallabs/idn-consumer-node:${TAG} \
+            ideallabs/idn-consumer-node:${TAG}-amd64 \
+            ideallabs/idn-consumer-node:${TAG}-arm64
+          docker manifest push ideallabs/idn-consumer-node:${TAG}
 
           # Create manifest for latest tag
-          docker manifest create ideallabs/idn-node:latest \
-            ideallabs/idn-node:${{ github.ref_name }}-amd64 \
-            ideallabs/idn-node:${{ github.ref_name }}-arm64
-          docker manifest push ideallabs/idn-node:latest
+          docker manifest create ideallabs/idn-consumer-node:latest \
+            ideallabs/idn-consumer-node:${TAG}-amd64 \
+            ideallabs/idn-consumer-node:${TAG}-arm64
+          docker manifest push ideallabs/idn-consumer-node:latest
 
           # Extract major.minor version and create tag
-          VERSION=${{ github.ref_name }}
-          MAJOR_MINOR=$(echo $VERSION | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
-          docker manifest create ideallabs/idn-node:$MAJOR_MINOR \
-            ideallabs/idn-node:${{ github.ref_name }}-amd64 \
-            ideallabs/idn-node:${{ github.ref_name }}-arm64
-          docker manifest push ideallabs/idn-node:$MAJOR_MINOR
-
+          MAJOR_MINOR=$(echo $TAG | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+          docker manifest create ideallabs/idn-consumer-node:${MAJOR_MINOR} \
+            ideallabs/idn-consumer-node:${TAG}-amd64 \
+            ideallabs/idn-consumer-node:${TAG}-arm64
+          docker manifest push ideallabs/idn-consumer-node:${MAJOR_MINOR}
