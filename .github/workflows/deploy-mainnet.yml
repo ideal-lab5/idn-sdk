@@ -1,0 +1,74 @@
+name: Deploy Mainnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm mainnet deployment'
+        required: true
+        type: string
+      image_tag:
+        description: 'Image tag to deploy (default: latest)'
+        required: false
+        default: 'latest'
+        type: string
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+
+jobs:
+  validate:
+    name: Validate deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        if: ${{ github.event.inputs.confirm != 'deploy' }}
+        run: |
+          echo "::error::Deployment not confirmed. Please type 'deploy' to confirm."
+          exit 1
+
+  deploy:
+    name: Deploy to ${{ matrix.region }}
+    needs: validate
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        region: [us-central1, europe-west1, asia-east1]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: idn-mainnet-${{ matrix.region }}
+          location: ${{ matrix.region }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Rolling restart StatefulSet
+        run: |
+          echo "Restarting mainnet collator in ${{ matrix.region }}..."
+          kubectl rollout restart statefulset/mainnet-idn-collator -n idn-mainnet
+          kubectl rollout status statefulset/mainnet-idn-collator -n idn-mainnet --timeout=600s
+          echo "Deployment complete!"
+
+      - name: Verify health
+        run: |
+          echo "Waiting for pod to be ready..."
+          kubectl wait --for=condition=ready pod -l app=idn-collator -n idn-mainnet --timeout=300s
+          echo "Pod is ready!"
+
+      - name: Check block production
+        run: |
+          echo "Checking node health..."
+          POD_NAME=$(kubectl get pods -n idn-mainnet -l app=idn-collator -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n idn-mainnet $POD_NAME -c idn-node -- curl -s http://localhost:9944/health || true

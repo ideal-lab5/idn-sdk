@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: idn-collator
+  labels:
+    app: idn-collator
+spec:
+  serviceName: idn-collator
+  replicas: 1
+  selector:
+    matchLabels:
+      app: idn-collator
+  template:
+    metadata:
+      labels:
+        app: idn-collator
+    spec:
+      terminationGracePeriodSeconds: 300
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
+      containers:
+        - name: idn-node
+          image: ideallabs/idn-node:latest
+          imagePullPolicy: Always
+          args:
+            - "--name"
+            - "$(NODE_NAME)"
+            - "--collator"
+            - "--chain"
+            - "/chain-specs/parachain.json"
+            - "--base-path"
+            - "/node/data"
+            - "--port"
+            - "30333"
+            - "--rpc-port"
+            - "9944"
+            - "--rpc-cors"
+            - "all"
+            - "--prometheus-external"
+            - "--"
+            - "--chain"
+            - "/chain-specs/relay.json"
+            - "--port"
+            - "30334"
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: p2p-para
+              containerPort: 30333
+              protocol: TCP
+            - name: p2p-relay
+              containerPort: 30334
+              protocol: TCP
+            - name: rpc
+              containerPort: 9944
+              protocol: TCP
+            - name: metrics
+              containerPort: 9615
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "4"
+              memory: "16Gi"
+            limits:
+              cpu: "8"
+              memory: "32Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /node/data
+            - name: chain-specs
+              mountPath: /chain-specs
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: rpc
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: rpc
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+        - name: session-key-injector
+          image: curlimages/curl:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for node RPC to be ready..."
+              until curl -sf http://localhost:9944/health; do
+                echo "Node not ready, retrying in 10s..."
+                sleep 10
+              done
+              echo "Node is ready, inserting session key..."
+              RESULT=$(curl -s -X POST -H "Content-Type: application/json" \
+                --data "{\"jsonrpc\":\"2.0\",\"method\":\"author_insertKey\",\"params\":[\"aura\",\"$SESSION_KEY\",\"$PUBLIC_KEY\"],\"id\":1}" \
+                http://localhost:9944)
+              echo "Insert key result: $RESULT"
+              echo "Session key injection complete. Sleeping..."
+              sleep infinity
+          env:
+            - name: SESSION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: collator-keys
+                  key: mnemonic
+            - name: PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: collator-keys
+                  key: public_key
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+
+      volumes:
+        - name: chain-specs
+          configMap:
+            name: chain-specs
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: premium-rwo
+        resources:
+          requests:
+            storage: 500Gi

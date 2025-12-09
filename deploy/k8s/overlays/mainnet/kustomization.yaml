@@ -1,0 +1,46 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: idn-mainnet
+
+resources:
+  - ../../base
+
+namePrefix: mainnet-
+
+commonLabels:
+  network: mainnet
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - "--name"
+          - "$(NODE_NAME)"
+          - "--collator"
+          - "--force-authoring"
+          - "--chain"
+          - "/chain-specs/idn-polkadot.raw.json"
+          - "--base-path"
+          - "/node/data"
+          - "--port"
+          - "30333"
+          - "--rpc-port"
+          - "9944"
+          - "--rpc-cors"
+          - "all"
+          - "--prometheus-external"
+          - "--"
+          - "--chain"
+          - "polkadot"
+          - "--port"
+          - "30334"
+    target:
+      kind: StatefulSet
+      name: idn-collator
+
+configMapGenerator:
+  - name: chain-specs
+    files:
+      - ../../../../chain-specs/idn-polkadot.raw.json

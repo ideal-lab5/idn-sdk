@@ -1,0 +1,49 @@
+name: Deploy Testnet
+
+on:
+  workflow_run:
+    workflows: ["Docker Build and Publish"]
+    types: [completed]
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ matrix.region }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        region: [us-central1, europe-west1]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: idn-testnet-${{ matrix.region }}
+          location: ${{ matrix.region }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Rolling restart StatefulSet
+        run: |
+          echo "Restarting testnet collator in ${{ matrix.region }}..."
+          kubectl rollout restart statefulset/testnet-idn-collator -n idn-testnet
+          kubectl rollout status statefulset/testnet-idn-collator -n idn-testnet --timeout=600s
+          echo "Deployment complete!"
+
+      - name: Verify health
+        run: |
+          echo "Waiting for pod to be ready..."
+          kubectl wait --for=condition=ready pod -l app=idn-collator -n idn-testnet --timeout=300s
+          echo "Pod is ready!"
