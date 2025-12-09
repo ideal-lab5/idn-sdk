@@ -1,3 +1,4 @@
+# Manual trigger only. Go to Actions → "Docker Build and Publish IDNC" → Run workflow
 name: Docker Build and Publish IDNC
 
 on:
