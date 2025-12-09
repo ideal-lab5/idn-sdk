@@ -12,27 +12,93 @@ cargo build -p idn-node --release
 
 ### Docker
 
-#### Build your own image (optional)
+#### Pre-built Images
 
-You can build your image from the root directory, run:
+Official multi-architecture Docker images are available on Docker Hub:
 
 ```sh
-docker build . # for amd64 architecture
+# Pull the latest image (works for both amd64 and arm64)
+docker pull ideallabs/idn-node:latest
+
+# Pull a specific version
+docker pull ideallabs/idn-node:1.0.0
 ```
 
-Or
+#### Running the Node
+
+**Development mode:**
 
 ```sh
-docker build -f Dockerfile.arm64 . # for arm64 architecture
+docker run -it --rm ideallabs/idn-node:latest --dev
 ```
 
-#### Run the image
-
-If you have built your image, replace `[image]` with the image name you have built.
-If you are using the pre-built image, replace `[image]` with `ideallabs/idn:1.0.0-amd64` for amd64 architecture or `ideallabs/idn:1.0.0-arm64` for arm64 architecture.
+**Collator node with persistent storage:**
 
 ```sh
-docker run [image] [options]
+docker run -d \
+  --name idn-collator \
+  -v /path/to/node_files:/node/data \
+  -p 30333:30333 \
+  -p 30343:30343 \
+  -p 9944:9944 \
+  -p 9615:9615 \
+  ideallabs/idn-node:latest \
+  --name my-collator \
+  --collator \
+  --chain idn_testnet \
+  --base-path /node/data \
+  --port 30333 \
+  --rpc-port 9944 \
+  --rpc-cors all \
+  --prometheus-external \
+  -- \
+  --chain paseo \
+  --port 30343
+```
+
+**Using a custom chain spec:**
+
+```sh
+docker run -d \
+  --name idn-collator \
+  -v /path/to/node_files:/node/data \
+  -v /path/to/chainspec.json:/node/chainspec.json:ro \
+  -p 30333:30333 \
+  -p 9944:9944 \
+  ideallabs/idn-node:latest \
+  --chain /node/chainspec.json \
+  --base-path /node/data
+```
+
+#### Port Reference
+
+| Port  | Purpose                    | Required |
+|-------|----------------------------|----------|
+| 30333 | Parachain P2P networking   | Yes      |
+| 30343 | Relay chain P2P networking | Yes      |
+| 9944  | WebSocket RPC              | Yes      |
+| 9933  | HTTP RPC                   | Optional |
+| 9615  | Prometheus metrics         | Optional |
+
+#### Available Chains
+
+| Chain ID       | Description             | Relay Chain |
+|----------------|-------------------------|-------------|
+| `dev`          | Local development chain | paseo-local |
+| `local`        | Local testnet           | paseo-local |
+| `idn_testnet`  | Public testnet          | paseo       |
+| `idn_mainnet`  | Production mainnet      | polkadot    |
+
+#### Building Your Own Image
+
+From the repository root:
+
+```sh
+docker buildx build \
+  --platform linux/amd64 \
+  --build-arg NODE_PACKAGE=idn-node \
+  -t my-idn-node:local \
+  .
 ```
 
 ## Testing
