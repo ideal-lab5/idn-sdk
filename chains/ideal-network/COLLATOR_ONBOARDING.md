@@ -25,21 +25,6 @@ subkey generate-node-key --file "$NODE_DATA/chains/$CHAIN_ID/network/secret_ed25
 This generates the Ed25519 key used for p2p identity (libp2p peer ID). Without it, the node fails with `NetworkKeyNotFound`.
 
 ### 2. Generate session keys on the new node
-### 1. Initialize the node
-
-Before starting the node for the first time, create the network identity key:
-
-```bash
-NODE_DATA="/path/to/node/data"
-CHAIN_ID="your_chain_id"
-
-mkdir -p "$NODE_DATA/chains/$CHAIN_ID/network"
-subkey generate-node-key --file "$NODE_DATA/chains/$CHAIN_ID/network/secret_ed25519"
-```
-
-This generates the Ed25519 key used for p2p identity (libp2p peer ID). Without it, the node fails with `NetworkKeyNotFound`.
-
-### 2. Generate session keys on the new node
 
 Once the node is running and synced, generate session keys:
 
