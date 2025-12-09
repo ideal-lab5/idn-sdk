@@ -51,4 +51,3 @@ e2e/polkadot
 e2e/polkadot-execute-worker
 e2e/polkadot-parachain
 e2e/polkadot-prepare-worker
-chain-specs/
