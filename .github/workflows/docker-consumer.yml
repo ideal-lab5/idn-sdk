@@ -1,4 +1,4 @@
-name: Build idn-consumer-node
+name: Docker Build and Publish IDNC
 
 on:
   workflow_dispatch:
