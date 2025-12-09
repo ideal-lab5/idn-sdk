@@ -389,10 +389,10 @@ This section explains how to run a collator node on the Ideal Network's public t
 
 ### Network Information
 
-| Network  | Parachain ID | Relay Chain | Parachain Chainspec               | Relay Chainspec             |
-|----------|--------------|-------------|-----------------------------------|-----------------------------|
-| Testnet  | 4502         | Paseo       | `chain-specs/idn-paseo.raw.json`  | `chain-specs/paseo.raw.json`|
-| Mainnet  | 3414         | Polkadot    | TBD                               | `polkadot`                  |
+| Network  | Parachain ID | Relay Chain | Parachain Chainspec                  | Relay Chainspec             |
+|----------|--------------|-------------|--------------------------------------|-----------------------------|
+| Testnet  | 4502         | Paseo       | `chain-specs/idn-paseo.raw.json`     | `chain-specs/paseo.raw.json`|
+| Mainnet  | 3414         | Polkadot    | `chain-specs/idn-polkadot.raw.json`  | `polkadot`                  |
 
 ### Prerequisites
 
