@@ -1,13 +1,17 @@
 # =============================================================================
-# IDN-SDK Multi-Platform Dockerfile
+# IDN-SDK Dockerfile
 # =============================================================================
-# Builds idn-node or idn-consumer-node for linux/amd64 and linux/arm64.
+# Builds idn-node or idn-consumer-node.
 #
 # Build args:
 #   NODE_PACKAGE: Cargo package to build (idn-node or idn-consumer-node)
 #
-# Example:
-#   docker buildx build --platform linux/amd64,linux/arm64 \
+# Examples:
+#   # Native build (fastest)
+#   docker build --build-arg NODE_PACKAGE=idn-node -t ideallabs/idn-node:latest .
+#
+#   # Cross-platform build (requires: docker buildx create --use)
+#   docker buildx build --platform linux/arm64 \
 #     --build-arg NODE_PACKAGE=idn-node -t ideallabs/idn-node:latest .
 #
 # Recommended ports:
