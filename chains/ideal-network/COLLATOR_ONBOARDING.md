@@ -38,7 +38,11 @@ Save the returned hex string (e.g., `0xabc123...`) — this is your Aura public 
 
 > **Note:** `author_rotateKeys` generates keys locally in the node's keystore. If you need to restore or migrate the node later, use `author_insertKey` with a known seed phrase instead.
 
+<<<<<<< HEAD
 ### 3. Register session keys on-chain
+=======
+### 2. Register session keys on-chain
+>>>>>>> 3ee52469 (document how to add new collators)
 
 From the **collator account**, submit the following extrinsic:
 
@@ -46,10 +50,17 @@ From the **collator account**, submit the following extrinsic:
 session.setKeys(keys, proof)
 ```
 
+<<<<<<< HEAD
 - `keys`: the hex string from step 2
 - `proof`: `0x`
 
 ### 4. Add as invulnerable (via sudo)
+=======
+- `keys`: the hex string from step 1
+- `proof`: `0x`
+
+### 3. Add as invulnerable (via sudo)
+>>>>>>> 3ee52469 (document how to add new collators)
 
 Once session keys are registered, add the account as a trusted collator:
 
@@ -59,7 +70,11 @@ sudo.sudo(collatorSelection.addInvulnerable(collator_account))
 
 > **Important:** The account must have session keys registered before being added as invulnerable, otherwise you'll get `ValidatorNotRegistered` error.
 
+<<<<<<< HEAD
 ### 5. Wait for session rotation
+=======
+### 4. Wait for session rotation
+>>>>>>> 3ee52469 (document how to add new collators)
 
 The new collator begins producing blocks after the next session boundary.
 
