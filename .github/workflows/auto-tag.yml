@@ -1,0 +1,112 @@
+name: Auto-tag on version changes
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'chains/ideal-network/node/Cargo.toml'
+      - 'chains/ideal-network/runtime/src/lib.rs'
+      - 'chains/idn-consumer-chain/node/Cargo.toml'
+      - 'chains/idn-consumer-chain/runtime/src/lib.rs'
+
+jobs:
+  check-and-tag:
+    name: Check versions and create tags
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout with history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for version changes and create tags
+        id: check
+        run: |
+          # Get current versions
+          NODE_VERSION=$(grep '^version = ' chains/ideal-network/node/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          SPEC_VERSION=$(grep 'spec_version:' chains/ideal-network/runtime/src/lib.rs | sed 's/.*spec_version: \([0-9]*\).*/\1/')
+
+          echo "Current node version: $NODE_VERSION"
+          echo "Current spec version: $SPEC_VERSION"
+
+          # Get previous versions
+          PREV_NODE_VERSION=$(git show HEAD^:chains/ideal-network/node/Cargo.toml 2>/dev/null | grep '^version = ' | head -1 | sed 's/version = "\(.*\)"/\1/' || echo "")
+          PREV_SPEC_VERSION=$(git show HEAD^:chains/ideal-network/runtime/src/lib.rs 2>/dev/null | grep 'spec_version:' | sed 's/.*spec_version: \([0-9]*\).*/\1/' || echo "")
+
+          echo "Previous node version: $PREV_NODE_VERSION"
+          echo "Previous spec version: $PREV_SPEC_VERSION"
+
+          TAGS_TO_PUSH=""
+
+          # Check if node version changed
+          if [ "$NODE_VERSION" != "$PREV_NODE_VERSION" ] && [ -n "$PREV_NODE_VERSION" ]; then
+            echo "Node version changed: $PREV_NODE_VERSION -> $NODE_VERSION"
+
+            if git rev-parse "node/v$NODE_VERSION" >/dev/null 2>&1; then
+              echo "Tag node/v$NODE_VERSION already exists, skipping"
+            else
+              echo "Creating tag: node/v$NODE_VERSION"
+              git tag "node/v$NODE_VERSION"
+              TAGS_TO_PUSH="$TAGS_TO_PUSH node/v$NODE_VERSION"
+            fi
+          fi
+
+          # Check if spec version changed
+          if [ "$SPEC_VERSION" != "$PREV_SPEC_VERSION" ] && [ -n "$PREV_SPEC_VERSION" ]; then
+            echo "Spec version changed: $PREV_SPEC_VERSION -> $SPEC_VERSION"
+
+            if git rev-parse "runtime/v$SPEC_VERSION" >/dev/null 2>&1; then
+              echo "Tag runtime/v$SPEC_VERSION already exists, skipping"
+            else
+              echo "Creating tag: runtime/v$SPEC_VERSION"
+              git tag "runtime/v$SPEC_VERSION"
+              TAGS_TO_PUSH="$TAGS_TO_PUSH runtime/v$SPEC_VERSION"
+            fi
+          fi
+
+          # === IDN Consumer Chain ===
+          CONSUMER_NODE_VERSION=$(grep '^version = ' chains/idn-consumer-chain/node/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          CONSUMER_SPEC_VERSION=$(grep 'spec_version:' chains/idn-consumer-chain/runtime/src/lib.rs | sed 's/.*spec_version: \([0-9]*\).*/\1/')
+
+          echo "Current consumer node version: $CONSUMER_NODE_VERSION"
+          echo "Current consumer spec version: $CONSUMER_SPEC_VERSION"
+
+          PREV_CONSUMER_NODE_VERSION=$(git show HEAD^:chains/idn-consumer-chain/node/Cargo.toml 2>/dev/null | grep '^version = ' | head -1 | sed 's/version = "\(.*\)"/\1/' || echo "")
+          PREV_CONSUMER_SPEC_VERSION=$(git show HEAD^:chains/idn-consumer-chain/runtime/src/lib.rs 2>/dev/null | grep 'spec_version:' | sed 's/.*spec_version: \([0-9]*\).*/\1/' || echo "")
+
+          echo "Previous consumer node version: $PREV_CONSUMER_NODE_VERSION"
+          echo "Previous consumer spec version: $PREV_CONSUMER_SPEC_VERSION"
+
+          # Check if consumer node version changed
+          if [ "$CONSUMER_NODE_VERSION" != "$PREV_CONSUMER_NODE_VERSION" ] && [ -n "$PREV_CONSUMER_NODE_VERSION" ]; then
+            echo "Consumer node version changed: $PREV_CONSUMER_NODE_VERSION -> $CONSUMER_NODE_VERSION"
+
+            if git rev-parse "consumer-node/v$CONSUMER_NODE_VERSION" >/dev/null 2>&1; then
+              echo "Tag consumer-node/v$CONSUMER_NODE_VERSION already exists, skipping"
+            else
+              echo "Creating tag: consumer-node/v$CONSUMER_NODE_VERSION"
+              git tag "consumer-node/v$CONSUMER_NODE_VERSION"
+              TAGS_TO_PUSH="$TAGS_TO_PUSH consumer-node/v$CONSUMER_NODE_VERSION"
+            fi
+          fi
+
+          # Check if consumer spec version changed
+          if [ "$CONSUMER_SPEC_VERSION" != "$PREV_CONSUMER_SPEC_VERSION" ] && [ -n "$PREV_CONSUMER_SPEC_VERSION" ]; then
+            echo "Consumer spec version changed: $PREV_CONSUMER_SPEC_VERSION -> $CONSUMER_SPEC_VERSION"
+
+            if git rev-parse "consumer-runtime/v$CONSUMER_SPEC_VERSION" >/dev/null 2>&1; then
+              echo "Tag consumer-runtime/v$CONSUMER_SPEC_VERSION already exists, skipping"
+            else
+              echo "Creating tag: consumer-runtime/v$CONSUMER_SPEC_VERSION"
+              git tag "consumer-runtime/v$CONSUMER_SPEC_VERSION"
+              TAGS_TO_PUSH="$TAGS_TO_PUSH consumer-runtime/v$CONSUMER_SPEC_VERSION"
+            fi
+          fi
+
+          echo "tags_to_push=$TAGS_TO_PUSH" >> $GITHUB_OUTPUT
+
+      - name: Push tags
+        if: steps.check.outputs.tags_to_push != ''
+        run: |
+          git push origin --tags
