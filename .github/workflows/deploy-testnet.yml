@@ -2,7 +2,7 @@ name: Deploy Testnet
 
 on:
   workflow_run:
-    workflows: ["Docker Build and Publish"]
+    workflows: ["Docker Build and Publish IDN"]
     types: [completed]
 
 env:

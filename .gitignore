@@ -42,6 +42,8 @@ target*/
 *.profraw
 *chain_spec.json
 __pycache__
+.terraform/
+.terraform.lock.hcl
 node_files/
 **/proptest-regressions/
 .cursorrules
