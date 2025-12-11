@@ -12,3 +12,6 @@ Various runtime modules, primitives, pallets, and smart contracts used by the Id
 
 ## Chains benchmarking
 See the [Benchmarking Guide](./BENCHMARKING.md) for instructions on how to run benchmarks for this project's parachains.
+
+## Docker Images
+Docker images are automatically built and published to Docker Hub. See [.github/README.md](.github/README.md) for details.

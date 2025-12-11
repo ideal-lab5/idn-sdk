@@ -1,0 +1,118 @@
+name: Docker Build and Publish IDN
+
+on:
+  push:
+    tags:
+      - 'node/v*'
+  workflow_dispatch:
+
+jobs:
+  # Build idn-node for amd64 and arm64 in parallel, then create manifest
+  build-idn-amd64:
+    name: Build idn-node (amd64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set version from tag
+        run: |
+          # Extract version from tag (node/v0.4.0 -> v0.4.0)
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#node/}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          docker build \
+            --build-arg NODE_PACKAGE=idn-node \
+            --build-arg GIT_COMMIT=${{ github.sha }} \
+            -t ideallabs/idn-node:${{ env.VERSION }}-amd64 \
+            .
+          docker push ideallabs/idn-node:${{ env.VERSION }}-amd64
+
+  build-idn-arm64:
+    name: Build idn-node (arm64)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Set version from tag
+        run: |
+          # Extract version from tag (node/v0.4.0 -> v0.4.0)
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#node/}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          docker build \
+            --build-arg NODE_PACKAGE=idn-node \
+            --build-arg GIT_COMMIT=${{ github.sha }} \
+            -t ideallabs/idn-node:${{ env.VERSION }}-arm64 \
+            .
+          docker push ideallabs/idn-node:${{ env.VERSION }}-arm64
+
+  manifest-idn:
+    name: Create idn-node manifest
+    runs-on: ubuntu-latest
+    needs: [build-idn-amd64, build-idn-arm64]
+    steps:
+      - name: Set version from tag
+        run: |
+          # Extract version from tag (node/v0.4.0 -> v0.4.0)
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#node/}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create and push manifest
+        run: |
+          # Create manifest for version tag
+          docker manifest create ideallabs/idn-node:${{ env.VERSION }} \
+            ideallabs/idn-node:${{ env.VERSION }}-amd64 \
+            ideallabs/idn-node:${{ env.VERSION }}-arm64
+          docker manifest push ideallabs/idn-node:${{ env.VERSION }}
+
+          # Create manifest for latest tag
+          docker manifest create ideallabs/idn-node:latest \
+            ideallabs/idn-node:${{ env.VERSION }}-amd64 \
+            ideallabs/idn-node:${{ env.VERSION }}-arm64
+          docker manifest push ideallabs/idn-node:latest
+
+          # Extract major.minor version and create tag
+          VERSION=${{ env.VERSION }}
+          MAJOR_MINOR=$(echo $VERSION | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')
+          docker manifest create ideallabs/idn-node:$MAJOR_MINOR \
+            ideallabs/idn-node:${{ env.VERSION }}-amd64 \
+            ideallabs/idn-node:${{ env.VERSION }}-arm64
+          docker manifest push ideallabs/idn-node:$MAJOR_MINOR
+
