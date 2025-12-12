@@ -1,17 +1,26 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: idn-testnet
+namespace: idn-mainnet
 
 resources:
   - ../../base
 
-namePrefix: testnet-
+namePrefix: mainnet-asia-
 
-commonLabels:
-  network: testnet
+labels:
+  - pairs:
+      network: mainnet
+      region: asia-east1
 
 patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/0/env/0/value
+        value: "idn"
+    target:
+      kind: StatefulSet
+      name: idn-collator
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/args
@@ -21,7 +30,7 @@ patches:
           - "--collator"
           - "--force-authoring"
           - "--chain"
-          - "/chain-specs/idn-paseo.raw.json"
+          - "/chain-specs/idn-polkadot.raw.json"
           - "--base-path"
           - "/node/data"
           - "--port"
@@ -33,15 +42,9 @@ patches:
           - "--prometheus-external"
           - "--"
           - "--chain"
-          - "/chain-specs/paseo.raw.json"
+          - "polkadot"
           - "--port"
           - "30334"
     target:
       kind: StatefulSet
       name: idn-collator
-
-configMapGenerator:
-  - name: chain-specs
-    files:
-      - ../../../../chain-specs/idn-paseo.raw.json
-      - ../../../../chain-specs/paseo.raw.json

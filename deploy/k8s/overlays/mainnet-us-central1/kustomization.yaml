@@ -6,12 +6,21 @@ namespace: idn-mainnet
 resources:
   - ../../base
 
-namePrefix: mainnet-
+namePrefix: mainnet-us-
 
-commonLabels:
-  network: mainnet
+labels:
+  - pairs:
+      network: mainnet
+      region: us-central1
 
 patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/0/env/0/value
+        value: "idn"
+    target:
+      kind: StatefulSet
+      name: idn-collator
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/args
@@ -39,8 +48,3 @@ patches:
     target:
       kind: StatefulSet
       name: idn-collator
-
-configMapGenerator:
-  - name: chain-specs
-    files:
-      - ../../../../chain-specs/idn-polkadot.raw.json

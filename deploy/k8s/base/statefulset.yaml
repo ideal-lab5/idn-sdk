@@ -14,12 +14,71 @@ spec:
     metadata:
       labels:
         app: idn-collator
+      annotations:
+        cloud.google.com/compute-class: Balanced
     spec:
       terminationGracePeriodSeconds: 300
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+
+      initContainers:
+        - name: init-network-key
+          image: parity/subkey:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              CHAIN_ID="${CHAIN_ID:-idn_testnet}"
+              NETWORK_DIR="/node/data/chains/$CHAIN_ID/network"
+              KEY_FILE="$NETWORK_DIR/secret_ed25519"
+              if [ -f "$KEY_FILE" ]; then
+                echo "Network key already exists, skipping generation"
+              else
+                echo "Generating network identity key..."
+                mkdir -p "$NETWORK_DIR"
+                subkey generate-node-key --file "$KEY_FILE"
+                echo "Network key generated successfully"
+              fi
+              ls -la "$NETWORK_DIR"
+          env:
+            - name: CHAIN_ID
+              value: "idn_testnet"
+          volumeMounts:
+            - name: data
+              mountPath: /node/data
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+
+        - name: download-chain-specs
+          image: curlimages/curl:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Downloading chain specs..."
+              curl -sSL -o /chain-specs/idn-paseo.raw.json \
+                "https://raw.githubusercontent.com/ideal-lab5/idn-sdk/c2492ab93a15c13c182875b478fedcfdb9b778c5/chain-specs/idn-paseo.raw.json"
+              curl -sSL -o /chain-specs/paseo.raw.json \
+                "https://raw.githubusercontent.com/ideal-lab5/idn-sdk/c2492ab93a15c13c182875b478fedcfdb9b778c5/chain-specs/paseo.raw.json"
+              curl -sSL -o /chain-specs/idn-polkadot.raw.json \
+                "https://raw.githubusercontent.com/ideal-lab5/idn-sdk/c2492ab93a15c13c182875b478fedcfdb9b778c5/chain-specs/idn-polkadot.raw.json"
+              echo "Chain specs downloaded successfully"
+              ls -la /chain-specs/
+          volumeMounts:
+            - name: chain-specs
+              mountPath: /chain-specs
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
 
       containers:
         - name: idn-node
@@ -75,20 +134,25 @@ spec:
               mountPath: /node/data
             - name: chain-specs
               mountPath: /chain-specs
-              readOnly: true
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: rpc
-            initialDelaySeconds: 120
-            periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 5
-          readinessProbe:
+          startupProbe:
             httpGet:
               path: /health
               port: rpc
             initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5760  # Allow up to 48 hours for initial sync
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: rpc
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: rpc
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -131,8 +195,7 @@ spec:
 
       volumes:
         - name: chain-specs
-          configMap:
-            name: chain-specs
+          emptyDir: {}
 
   volumeClaimTemplates:
     - metadata:

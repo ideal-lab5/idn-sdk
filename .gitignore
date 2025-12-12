@@ -43,7 +43,8 @@ target*/
 *chain_spec.json
 __pycache__
 .terraform/
-.terraform.lock.hcl
+.terraform.*
+terraform.tfstate*
 node_files/
 **/proptest-regressions/
 .cursorrules
@@ -53,3 +54,4 @@ e2e/polkadot
 e2e/polkadot-execute-worker
 e2e/polkadot-parachain
 e2e/polkadot-prepare-worker
+deploy/terraform/tfplan

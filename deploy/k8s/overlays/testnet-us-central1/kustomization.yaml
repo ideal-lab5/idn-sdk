@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: idn-testnet
+
+resources:
+  - ../../base
+
+namePrefix: testnet-us-
+
+labels:
+  - pairs:
+      network: testnet
+      region: us-central1
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - "--name"
+          - "$(NODE_NAME)"
+          - "--collator"
+          - "--force-authoring"
+          - "--chain"
+          - "/chain-specs/idn-paseo.raw.json"
+          - "--base-path"
+          - "/node/data"
+          - "--port"
+          - "30333"
+          - "--rpc-port"
+          - "9944"
+          - "--rpc-cors"
+          - "all"
+          - "--prometheus-external"
+          - "--"
+          - "--chain"
+          - "/chain-specs/paseo.raw.json"
+          - "--port"
+          - "30334"
+    target:
+      kind: StatefulSet
+      name: idn-collator

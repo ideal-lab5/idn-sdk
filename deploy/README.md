@@ -32,15 +32,18 @@ deploy/
 └── k8s/                # Kubernetes manifests
     ├── base/           # Base StatefulSet and Service
     └── overlays/
-        ├── testnet/    # Testnet-specific config
-        └── mainnet/    # Mainnet-specific config
+        ├── testnet-us-central1/    # Testnet US region
+        ├── testnet-europe-west1/   # Testnet EU region
+        ├── mainnet-us-central1/    # Mainnet US region
+        ├── mainnet-europe-west1/   # Mainnet EU region
+        └── mainnet-asia-east1/     # Mainnet Asia region
 ```
 
 ## Prerequisites
 
 - [Terraform](https://www.terraform.io/downloads) >= 1.0
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
-- [gcloud CLI](https://cloud.google.com/sdk/docs/install)
+- [gcloud CLI](https://cloud.google.com/sdk/docs/install) with GKE auth plugin (`gcloud components install gke-gcloud-auth-plugin`)
 - GCP project with billing enabled
 
 ## Setup
@@ -50,17 +53,27 @@ deploy/
 ```sh
 cd deploy/terraform
 
+# Authenticate with Google Cloud
+gcloud auth application-default login
+
+# Set the GCP project
+gcloud config set project your_project_id
+
+# Enable required GCP APIs
+gcloud services enable container.googleapis.com
+
 # Initialize Terraform
 terraform init
 
 # Review the plan
-terraform plan -var="project_id=your-gcp-project-id"
+terraform plan -var="project_id=your_project_id" -out=tfplan
 
 # Create clusters (this takes ~10 minutes)
-terraform apply -var="project_id=your-gcp-project-id"
+terraform apply tfplan
 ```
 
 This creates 5 GKE Autopilot clusters:
+
 - `idn-testnet-us-central1`
 - `idn-testnet-europe-west1`
 - `idn-mainnet-us-central1`
@@ -106,20 +119,29 @@ kubectl create secret generic collator-keys -n idn-mainnet \
 **Manual deployment:**
 
 ```sh
-# Deploy to testnet
+# Deploy to testnet (both regions)
 gcloud container clusters get-credentials idn-testnet-us-central1 --region us-central1
-kubectl apply -k deploy/k8s/overlays/testnet
+kubectl apply -k deploy/k8s/overlays/testnet-us-central1
 
-# Deploy to mainnet
+gcloud container clusters get-credentials idn-testnet-europe-west1 --region europe-west1
+kubectl apply -k deploy/k8s/overlays/testnet-europe-west1
+
+# Deploy to mainnet (all regions)
 gcloud container clusters get-credentials idn-mainnet-us-central1 --region us-central1
-kubectl apply -k deploy/k8s/overlays/mainnet
+kubectl apply -k deploy/k8s/overlays/mainnet-us-central1
+
+gcloud container clusters get-credentials idn-mainnet-europe-west1 --region europe-west1
+kubectl apply -k deploy/k8s/overlays/mainnet-europe-west1
+
+gcloud container clusters get-credentials idn-mainnet-asia-east1 --region asia-east1
+kubectl apply -k deploy/k8s/overlays/mainnet-asia-east1
 ```
 
 **Verify deployment:**
 
 ```sh
 kubectl get pods -n idn-testnet
-kubectl logs -f -n idn-testnet testnet-idn-collator-0 -c idn-node
+kubectl logs -f -n idn-testnet testnet-us-idn-collator-0 -c idn-node
 ```
 
 ### 4. Configure GitHub Actions
@@ -127,11 +149,13 @@ kubectl logs -f -n idn-testnet testnet-idn-collator-0 -c idn-node
 Add the following secrets/variables to your GitHub repository:
 
 **Secrets:**
+
 - `GCP_SA_KEY`: Service account JSON key with the following roles:
   - `roles/container.developer`
   - `roles/container.clusterViewer`
 
 **Variables:**
+
 - `GCP_PROJECT_ID`: Your GCP project ID
 
 **Create the service account:**
@@ -176,6 +200,8 @@ The deployment runs sequentially across regions (`max-parallel: 1`) to minimize 
 
 ## Monitoring
 
+Replace `REGION` with `us` or `eu` for testnet, or `us`, `eu`, `asia` for mainnet.
+
 **Check pod status:**
 
 ```sh
@@ -185,27 +211,67 @@ kubectl get pods -n idn-testnet -w
 **View logs:**
 
 ```sh
-kubectl logs -f -n idn-testnet testnet-idn-collator-0 -c idn-node
+# Example for US region
+kubectl logs -f -n idn-testnet testnet-us-idn-collator-0 -c idn-node
+
+# Example for EU region
+kubectl logs -f -n idn-testnet testnet-eu-idn-collator-0 -c idn-node
 ```
 
 **Check session key injection:**
 
 ```sh
-kubectl logs -n idn-testnet testnet-idn-collator-0 -c session-key-injector
+kubectl logs -n idn-testnet testnet-us-idn-collator-0 -c session-key-injector
 ```
 
 **Health check:**
 
 ```sh
-kubectl exec -n idn-testnet testnet-idn-collator-0 -c idn-node -- curl -s http://localhost:9944/health
+kubectl exec -n idn-testnet testnet-us-idn-collator-0 -c idn-node -- curl -s http://localhost:9944/health
 ```
 
 **Prometheus metrics:**
 
 ```sh
-kubectl port-forward -n idn-testnet svc/testnet-idn-collator 9615:9615
+kubectl port-forward -n idn-testnet svc/testnet-us-idn-collator 9615:9615
 curl http://localhost:9615/metrics
 ```
+
+## Known Limitations
+
+### Hardware Requirements Warning
+
+Substrate nodes may show a warning at startup:
+
+```
+⚠️ The hardware does not meet the minimal requirements for role 'Authority'
+```
+
+This occurs because GKE Autopilot's disk I/O doesn't fully meet Substrate's benchmarks for Authority nodes. The current configuration uses:
+
+- **Compute class**: Balanced (better CPU/memory performance than General Purpose)
+- **Storage class**: premium-rwo (SSD-backed persistent volumes)
+
+The collator will still function correctly, but with slightly lower performance than optimal.
+
+#### Potential Improvements
+
+If higher performance is needed (e.g., for mainnet):
+
+1. **Performance compute class** - Switch to dedicated nodes with better I/O:
+   ```yaml
+   annotations:
+     cloud.google.com/compute-class: Performance
+   ```
+   Note: Uses node-based billing (pay for entire node, not just pod resources).
+
+2. **Hyperdisk Balanced storage** - Higher IOPS than premium-rwo:
+   ```yaml
+   storageClassName: hyperdisk-balanced
+   ```
+   Requires creating a custom StorageClass. See [GKE Hyperdisk docs](https://cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/hyperdisk).
+
+3. **GKE Standard mode** - For full control over node types, consider switching from Autopilot to Standard mode with compute-optimized (C3) machine types and local SSDs.
 
 ## Troubleshooting
 
@@ -214,7 +280,7 @@ curl http://localhost:9615/metrics
 Check if there are resource constraints:
 
 ```sh
-kubectl describe pod -n idn-testnet testnet-idn-collator-0
+kubectl describe pod -n idn-testnet testnet-us-idn-collator-0
 ```
 
 GKE Autopilot may take a few minutes to provision nodes for the requested resources.
@@ -224,7 +290,7 @@ GKE Autopilot may take a few minutes to provision nodes for the requested resour
 Check the sidecar logs:
 
 ```sh
-kubectl logs -n idn-testnet testnet-idn-collator-0 -c session-key-injector
+kubectl logs -n idn-testnet testnet-us-idn-collator-0 -c session-key-injector
 ```
 
 Verify the secret exists:
@@ -238,13 +304,13 @@ kubectl get secret -n idn-testnet collator-keys
 Check if the chainspec files are mounted correctly:
 
 ```sh
-kubectl exec -n idn-testnet testnet-idn-collator-0 -c idn-node -- ls -la /chain-specs/
+kubectl exec -n idn-testnet testnet-us-idn-collator-0 -c idn-node -- ls -la /chain-specs/
 ```
 
 ### Rolling back
 
 ```sh
-kubectl rollout undo statefulset/testnet-idn-collator -n idn-testnet
+kubectl rollout undo statefulset/testnet-us-idn-collator -n idn-testnet
 ```
 
 ## Cleanup
@@ -252,8 +318,22 @@ kubectl rollout undo statefulset/testnet-idn-collator -n idn-testnet
 **Delete Kubernetes resources:**
 
 ```sh
-kubectl delete -k deploy/k8s/overlays/testnet
-kubectl delete -k deploy/k8s/overlays/mainnet
+# Delete testnet resources
+gcloud container clusters get-credentials idn-testnet-us-central1 --region us-central1
+kubectl delete -k deploy/k8s/overlays/testnet-us-central1
+
+gcloud container clusters get-credentials idn-testnet-europe-west1 --region europe-west1
+kubectl delete -k deploy/k8s/overlays/testnet-europe-west1
+
+# Delete mainnet resources
+gcloud container clusters get-credentials idn-mainnet-us-central1 --region us-central1
+kubectl delete -k deploy/k8s/overlays/mainnet-us-central1
+
+gcloud container clusters get-credentials idn-mainnet-europe-west1 --region europe-west1
+kubectl delete -k deploy/k8s/overlays/mainnet-europe-west1
+
+gcloud container clusters get-credentials idn-mainnet-asia-east1 --region asia-east1
+kubectl delete -k deploy/k8s/overlays/mainnet-asia-east1
 ```
 
 **Delete GKE clusters:**
