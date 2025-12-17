@@ -22,10 +22,10 @@ patches:
     target:
       kind: StatefulSet
       name: idn-collator
-  # Patch relay chain-spec path (args index 19)
+  # Patch relay chain-spec path (args index 20)
   - patch: |-
       - op: replace
-        path: /spec/template/spec/containers/0/args/19
+        path: /spec/template/spec/containers/0/args/20
         value: "/chain-specs/paseo.raw.json"
     target:
       kind: StatefulSet
