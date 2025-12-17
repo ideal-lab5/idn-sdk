@@ -14,6 +14,7 @@ labels:
       region: europe-west1
 
 patches:
+  # Patch CHAIN_ID for mainnet
   - patch: |-
       - op: replace
         path: /spec/template/spec/initContainers/0/env/0/value
@@ -21,30 +22,19 @@ patches:
     target:
       kind: StatefulSet
       name: idn-collator
+  # Patch parachain chain-spec path (args index 4)
   - patch: |-
       - op: replace
-        path: /spec/template/spec/containers/0/args
-        value:
-          - "--name"
-          - "$(NODE_NAME)"
-          - "--collator"
-          - "--force-authoring"
-          - "--chain"
-          - "/chain-specs/idn-polkadot.raw.json"
-          - "--base-path"
-          - "/node/data"
-          - "--port"
-          - "30333"
-          - "--rpc-port"
-          - "9944"
-          - "--rpc-cors"
-          - "all"
-          - "--prometheus-external"
-          - "--"
-          - "--chain"
-          - "polkadot"
-          - "--port"
-          - "30334"
+        path: /spec/template/spec/containers/0/args/4
+        value: "/chain-specs/idn-polkadot.raw.json"
+    target:
+      kind: StatefulSet
+      name: idn-collator
+  # Patch relay chain-spec path (args index 19)
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args/19
+        value: "polkadot"
     target:
       kind: StatefulSet
       name: idn-collator

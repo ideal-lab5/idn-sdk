@@ -14,30 +14,19 @@ labels:
       region: us-central1
 
 patches:
+  # Patch parachain chain-spec path (args index 4)
   - patch: |-
       - op: replace
-        path: /spec/template/spec/containers/0/args
-        value:
-          - "--name"
-          - "$(NODE_NAME)"
-          - "--collator"
-          - "--force-authoring"
-          - "--chain"
-          - "/chain-specs/idn-paseo.raw.json"
-          - "--base-path"
-          - "/node/data"
-          - "--port"
-          - "30333"
-          - "--rpc-port"
-          - "9944"
-          - "--rpc-cors"
-          - "all"
-          - "--prometheus-external"
-          - "--"
-          - "--chain"
-          - "/chain-specs/paseo.raw.json"
-          - "--port"
-          - "30334"
+        path: /spec/template/spec/containers/0/args/4
+        value: "/chain-specs/idn-paseo.raw.json"
+    target:
+      kind: StatefulSet
+      name: idn-collator
+  # Patch relay chain-spec path (args index 19)
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args/19
+        value: "/chain-specs/paseo.raw.json"
     target:
       kind: StatefulSet
       name: idn-collator

@@ -96,14 +96,23 @@ spec:
             - "30333"
             - "--rpc-port"
             - "9944"
+            - "--unsafe-rpc-external"
             - "--rpc-cors"
             - "all"
             - "--prometheus-external"
+            - "--db-cache"
+            - "4096"
+            - "--database=paritydb"
             - "--"
             - "--chain"
             - "/chain-specs/relay.json"
             - "--port"
             - "30334"
+            - "--db-cache"
+            - "8192"
+            - "--database=paritydb"
+            - "--sync=fast"
+            - "--state-pruning=1000"
           env:
             - name: NODE_NAME
               valueFrom:
@@ -125,10 +134,10 @@ spec:
           resources:
             requests:
               cpu: "4"
-              memory: "16Gi"
+              memory: "32Gi"
             limits:
               cpu: "8"
-              memory: "32Gi"
+              memory: "64Gi"
           volumeMounts:
             - name: data
               mountPath: /node/data
@@ -146,9 +155,9 @@ spec:
             httpGet:
               path: /health
               port: rpc
-            periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 10
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 20  # Allow up to 20 minutes of unresponsiveness during sync
           readinessProbe:
             httpGet:
               path: /health
