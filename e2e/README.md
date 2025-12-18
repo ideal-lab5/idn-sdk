@@ -12,10 +12,10 @@ Current version for development: 1.3.133
 #### Add the parachain binaries to your path
 `export PATH=/path/to/your/idn-sdk/e2e:$PATH`
 
-### Build the idn-node by navigating to the ideal-network directory and running
+### Build the idn-node
 `cargo build -p idn-node --release`
 
-### Build the idn-consumer-node by navigating to the kitchensink directory and running
+### Build the idn-consumer-node
 `cargo build -p idn-consumer-node --release`
 
 #### To run the zombienet
