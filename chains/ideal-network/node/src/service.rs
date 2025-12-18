@@ -277,6 +277,7 @@ pub async fn start_parachain_node(
 	let params = new_partial(&parachain_config)?;
 	let (block_import, mut telemetry, telemetry_worker_handle) = params.other;
 	let prometheus_registry = parachain_config.prometheus_registry().cloned();
+	let prometheus_registry_ref = prometheus_registry.as_ref();
 	let net_config = sc_network::config::FullNetworkConfiguration::<
 		_,
 		_,
@@ -287,7 +288,8 @@ pub async fn start_parachain_node(
 	let backend = params.backend.clone();
 	let mut task_manager = params.task_manager;
 
-	let (relay_chain_interface, collator_key) = build_relay_chain_interface(
+	// TODO: Review the two new returned fields network_service and receiver
+	let (relay_chain_interface, collator_key, _network_service, _receiver) = build_relay_chain_interface(
 		polkadot_config,
 		&parachain_config,
 		telemetry_worker_handle,
@@ -302,6 +304,7 @@ pub async fn start_parachain_node(
 	let transaction_pool = params.transaction_pool.clone();
 	let import_queue_service = params.import_queue.service();
 
+	let metrics = sc_network::config::NotificationMetrics::new(prometheus_registry_ref);
 	// NOTE: because we use Aura here explicitly, we can use `CollatorSybilResistance::Resistant`
 	// when starting the network.
 	let (network, system_rpc_tx, tx_handler_controller, sync_service) =
@@ -315,6 +318,7 @@ pub async fn start_parachain_node(
 			relay_chain_interface: relay_chain_interface.clone(),
 			import_queue: params.import_queue,
 			sybil_resistance_level: CollatorSybilResistance::Resistant, // because of Aura
+			metrics
 		})
 		.await?;
 
@@ -419,6 +423,7 @@ pub async fn start_parachain_node(
 		relay_chain_slot_duration,
 		recovery_handle: Box::new(overseer_handle.clone()),
 		sync_service: sync_service.clone(),
+		prometheus_registry: prometheus_registry_ref,
 	})?;
 
 	if validator {
