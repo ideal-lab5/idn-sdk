@@ -103,35 +103,6 @@ If higher performance is needed:
 
 3. **GKE Standard mode** - For full control over node types, consider switching from Autopilot to Standard mode with compute-optimized (C3) machines and local SSDs.
 
-### Cost Optimization
-
-New collator nodes require more memory during initial blockchain sync. Once synced, you can reduce memory:
-
-1. **Monitor sync progress**:
-   ```sh
-   kubectl exec -n idn-testnet testnet-us-idn-collator-0 -c idn-node -- \
-     curl -s http://localhost:9944 -H "Content-Type: application/json" \
-     -d '{"jsonrpc":"2.0","method":"system_health","params":[],"id":1}'
-   ```
-   When `"isSyncing": false`, the node is fully synced.
-
-2. **Reduce memory** in `k8s/base/statefulset.yaml`:
-   ```yaml
-   resources:
-     requests:
-       memory: "16Gi"  # Reduced from 32Gi
-     limits:
-       memory: "32Gi"  # Reduced from 64Gi
-   ```
-
-3. **Redeploy**:
-   ```sh
-   kubectl delete statefulset <name> -n <namespace>
-   kubectl apply -k ../k8s/overlays/<environment>
-   ```
-
-**Estimated savings**: ~$100/month per collator on GKE Autopilot.
-
 ## Cleanup
 
 ```sh
