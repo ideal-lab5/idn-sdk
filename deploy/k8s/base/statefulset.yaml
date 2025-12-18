@@ -80,6 +80,34 @@ spec:
               cpu: "500m"
               memory: "256Mi"
 
+        - name: copy-session-keys
+          image: busybox:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              CHAIN_ID="${CHAIN_ID:-idn_testnet}"
+              KEYSTORE_DIR="/node/data/chains/$CHAIN_ID/keystore"
+              echo "Copying session keys to $KEYSTORE_DIR..."
+              mkdir -p "$KEYSTORE_DIR"
+              cp /session-keys/* "$KEYSTORE_DIR/" 2>/dev/null || echo "No session keys to copy"
+              ls -la "$KEYSTORE_DIR/"
+              echo "Session keys copied successfully"
+          env:
+            - name: CHAIN_ID
+              value: "idn_testnet"
+          volumeMounts:
+            - name: data
+              mountPath: /node/data
+            - name: session-keys
+              mountPath: /session-keys
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+
       containers:
         - name: idn-node
           image: ideallabs/idn-node:latest
@@ -134,10 +162,10 @@ spec:
           resources:
             requests:
               cpu: "4"
-              memory: "32Gi"
+              memory: "16Gi"
             limits:
               cpu: "8"
-              memory: "64Gi"
+              memory: "32Gi"
           volumeMounts:
             - name: data
               mountPath: /node/data
@@ -150,7 +178,7 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 30
             timeoutSeconds: 10
-            failureThreshold: 5760  # Allow up to 48 hours for initial sync
+            failureThreshold: 1440  # Allow up to 12 hours for initial sync
           livenessProbe:
             httpGet:
               path: /health
@@ -166,45 +194,13 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 3
 
-        - name: session-key-injector
-          image: curlimages/curl:latest
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              echo "Waiting for node RPC to be ready..."
-              until curl -sf http://localhost:9944/health; do
-                echo "Node not ready, retrying in 10s..."
-                sleep 10
-              done
-              echo "Node is ready, inserting session key..."
-              RESULT=$(curl -s -X POST -H "Content-Type: application/json" \
-                --data "{\"jsonrpc\":\"2.0\",\"method\":\"author_insertKey\",\"params\":[\"aura\",\"$SESSION_KEY\",\"$PUBLIC_KEY\"],\"id\":1}" \
-                http://localhost:9944)
-              echo "Insert key result: $RESULT"
-              echo "Session key injection complete. Sleeping..."
-              sleep infinity
-          env:
-            - name: SESSION_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: collator-keys
-                  key: mnemonic
-            - name: PUBLIC_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: collator-keys
-                  key: public_key
-          resources:
-            requests:
-              cpu: "10m"
-              memory: "32Mi"
-            limits:
-              cpu: "100m"
-              memory: "64Mi"
-
       volumes:
         - name: chain-specs
           emptyDir: {}
+        - name: session-keys
+          secret:
+            secretName: collator-session-keys
+            optional: true
 
   volumeClaimTemplates:
     - metadata:

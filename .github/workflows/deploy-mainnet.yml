@@ -56,9 +56,16 @@ jobs:
 
       - name: Rolling restart StatefulSet
         run: |
+          if [[ "${{ matrix.region }}" == "us-central1" ]]; then
+            REGION_PREFIX="us"
+          elif [[ "${{ matrix.region }}" == "europe-west1" ]]; then
+            REGION_PREFIX="eu"
+          elif [[ "${{ matrix.region }}" == "asia-east1" ]]; then
+            REGION_PREFIX="asia"
+          fi
           echo "Restarting mainnet collator in ${{ matrix.region }}..."
-          kubectl rollout restart statefulset/mainnet-idn-collator -n idn-mainnet
-          kubectl rollout status statefulset/mainnet-idn-collator -n idn-mainnet --timeout=600s
+          kubectl rollout restart statefulset/mainnet-${REGION_PREFIX}-idn-collator -n idn-mainnet
+          kubectl rollout status statefulset/mainnet-${REGION_PREFIX}-idn-collator -n idn-mainnet --timeout=600s
           echo "Deployment complete!"
 
       - name: Verify health

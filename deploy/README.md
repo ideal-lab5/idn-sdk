@@ -24,6 +24,8 @@ MAINNET
 
 ```
 deploy/
+├── scripts/            # Helper scripts
+│   └── create-session-key-secret.sh
 ├── terraform/          # GKE cluster provisioning (optional)
 │   └── README.md       # GKE-specific setup instructions
 └── k8s/                # Kubernetes manifests (cloud-agnostic)
@@ -39,6 +41,7 @@ deploy/
 ## Prerequisites
 
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
+- [subkey](https://docs.substrate.io/reference/command-line-tools/subkey/) - `cargo install subkey` or use `parity/subkey` docker image
 - A Kubernetes cluster (GKE, EKS, AKS, self-hosted, etc.)
   - Need to provision GKE clusters? See [terraform/README.md](terraform/README.md)
 
@@ -60,42 +63,84 @@ az aks get-credentials --resource-group <rg> --name <cluster-name>
 export KUBECONFIG=/path/to/kubeconfig
 ```
 
-### 2. Create Namespace and Secrets
+### 2. Create Namespace and Session Key Secrets
 
 **Testnet:**
 
 ```sh
+# Create namespace
 kubectl create namespace idn-testnet
-kubectl create secret generic collator-keys -n idn-testnet \
-  --from-literal=mnemonic="your-testnet-mnemonic" \
-  --from-literal=public_key="0xyour-public-key-hex"
+
+# Create session key secrets (one per collator)
+
+# Switch to the target cluster first (see "Connect to Your Cluster" above), then run the command:
+./scripts/create-session-key-secret.sh "your mnemonic words here" idn-testnet testnet-us-collator-session-keys
+
+# Switch to the target cluster first (see "Connect to Your Cluster" above), then run the command:
+./scripts/create-session-key-secret.sh "your mnemonic words here" idn-testnet testnet-eu-collator-session-keys
 ```
 
 **Mainnet:**
 
 ```sh
+# Create namespace
 kubectl create namespace idn-mainnet
-kubectl create secret generic collator-keys -n idn-mainnet \
-  --from-literal=mnemonic="your-mainnet-mnemonic" \
-  --from-literal=public_key="0xyour-public-key-hex"
+
+# Create session key secrets (one per collator)
+
+# Switch to the target cluster first (see "Connect to Your Cluster" above), then run the command:
+./scripts/create-session-key-secret.sh "your mnemonic words here" idn-mainnet mainnet-us-collator-session-keys
+
+# Switch to the target cluster first (see "Connect to Your Cluster" above), then run the command:
+./scripts/create-session-key-secret.sh "your mnemonic words here" idn-mainnet mainnet-eu-collator-session-keys
+
+# Switch to the target cluster first (see "Connect to Your Cluster" above), then run the command:
+./scripts/create-session-key-secret.sh "your mnemonic words here" idn-mainnet mainnet-asia-collator-session-keys
 ```
 
-> **Security note:** Use different mnemonics for testnet and mainnet. Never commit secrets to version control.
+> **Important:** Save the public keys output by the script - you'll need them for on-chain registration.
 
 ### 3. Deploy
 
 ```sh
 # Deploy to a specific environment (choose your region)
+
+# Make sure you are on the right cluster first (see "Connect to Your Cluster" above), then run the command:
 kubectl apply -k k8s/overlays/testnet-us-central1      # or testnet-europe-west1
+
+# Make sure you are on the right cluster first (see "Connect to Your Cluster" above), then run the command:
 kubectl apply -k k8s/overlays/mainnet-us-central1      # or mainnet-europe-west1, mainnet-asia-east1
 ```
 
-### 4. Verify
+### 4. Wait for Sync
+
+Monitor the collator until it's fully synced:
 
 ```sh
+# Make sure you are on the right cluster first (see "Connect to Your Cluster" above), then run the command:
 kubectl get pods -n idn-testnet -w
 kubectl logs -f -n idn-testnet testnet-us-idn-collator-0 -c idn-node
 ```
+
+Check sync status:
+
+```sh
+kubectl exec -n idn-testnet testnet-us-idn-collator-0 -c idn-node -- \
+  curl -s http://localhost:9944/health
+```
+
+> **Important:** Wait until the health check shows `"isSyncing": false` before proceeding to the next step.
+
+### 5. Register Collators On-Chain
+
+Once the collator is fully synced, register it on-chain:
+
+1. Connect to the chain via [polkadot.js apps](https://polkadot.js.org/apps/)
+2. From the **collator account**, call `session.setKeys(keys, 0x)` where `keys` is the hex public key output by the script in step 2
+3. Via sudo, call `collatorSelection.addInvulnerable(collator_account)` to add the collator as trusted
+4. Wait for the next session rotation (up to 6 hours) - the collator will start producing blocks
+
+> **Note:** The account must have session keys registered (step 2) before being added as invulnerable, otherwise you'll get a `ValidatorNotRegistered` error.
 
 ## Monitoring
 
@@ -111,8 +156,8 @@ kubectl get pods -n idn-testnet -w
 # Collator logs
 kubectl logs -f -n idn-testnet testnet-us-idn-collator-0 -c idn-node
 
-# Session key injection logs
-kubectl logs -n idn-testnet testnet-us-idn-collator-0 -c session-key-injector
+# Session key copy logs (init container)
+kubectl logs -n idn-testnet testnet-us-idn-collator-0 -c copy-session-keys
 ```
 
 **Health check:**
@@ -141,14 +186,26 @@ kubectl describe pod -n idn-testnet testnet-us-idn-collator-0
 
 Cloud providers may take a few minutes to provision nodes for the requested resources.
 
-### Session key not inserted
+### Session keys not found
 
-Check the sidecar logs and verify the secret exists:
+Verify the secret exists and has the correct name:
 
 ```sh
-kubectl logs -n idn-testnet testnet-us-idn-collator-0 -c session-key-injector
-kubectl get secret -n idn-testnet collator-keys
+kubectl get secret -n idn-testnet testnet-us-collator-session-keys
+kubectl get secret -n idn-testnet testnet-us-collator-session-keys -o yaml
 ```
+
+Check the init container logs:
+
+```sh
+kubectl logs -n idn-testnet testnet-us-idn-collator-0 -c copy-session-keys
+```
+
+### Collator not producing blocks
+
+1. Verify the node is fully synced (`"isSyncing": false` in health check)
+2. Verify the public key is registered on-chain as an invulnerable
+3. Check collator logs for any errors
 
 ### Node not syncing
 
@@ -179,7 +236,7 @@ See [terraform/README.md](terraform/README.md) for:
 **Delete Kubernetes resources:**
 
 ```sh
-# Switch to the target cluster first (see "Connect to Your Cluster" above)
+# Switch to the target cluster first (see "Connect to Your Cluster" above), then run the command:
 kubectl delete -k k8s/overlays/testnet-us-central1  # or testnet-europe-west1, mainnet-*, etc.
 kubectl delete namespace idn-testnet                 # or idn-mainnet
 ```

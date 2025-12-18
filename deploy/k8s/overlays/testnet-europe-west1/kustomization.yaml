@@ -14,6 +14,14 @@ labels:
       region: europe-west1
 
 patches:
+  # Patch session-keys secret name
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/volumes/1/secret/secretName
+        value: "testnet-eu-collator-session-keys"
+    target:
+      kind: StatefulSet
+      name: idn-collator
   # Patch parachain chain-spec path (args index 4)
   - patch: |-
       - op: replace
@@ -22,7 +30,7 @@ patches:
     target:
       kind: StatefulSet
       name: idn-collator
-  # Patch relay chain-spec path (args index 20)
+  # Patch relay chain-spec path (args index 19)
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/args/20

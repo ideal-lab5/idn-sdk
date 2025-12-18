@@ -37,9 +37,14 @@ jobs:
 
       - name: Rolling restart StatefulSet
         run: |
+          if [[ "${{ matrix.region }}" == "us-central1" ]]; then
+            REGION_PREFIX="us"
+          elif [[ "${{ matrix.region }}" == "europe-west1" ]]; then
+            REGION_PREFIX="eu"
+          fi
           echo "Restarting testnet collator in ${{ matrix.region }}..."
-          kubectl rollout restart statefulset/testnet-idn-collator -n idn-testnet
-          kubectl rollout status statefulset/testnet-idn-collator -n idn-testnet --timeout=600s
+          kubectl rollout restart statefulset/testnet-${REGION_PREFIX}-idn-collator -n idn-testnet
+          kubectl rollout status statefulset/testnet-${REGION_PREFIX}-idn-collator -n idn-testnet --timeout=600s
           echo "Deployment complete!"
 
       - name: Verify health

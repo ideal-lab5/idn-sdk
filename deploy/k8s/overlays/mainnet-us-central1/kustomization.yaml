@@ -14,10 +14,26 @@ labels:
       region: us-central1
 
 patches:
-  # Patch CHAIN_ID for mainnet
+  # Patch session-keys secret name
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/volumes/1/secret/secretName
+        value: "mainnet-us-collator-session-keys"
+    target:
+      kind: StatefulSet
+      name: idn-collator
+  # Patch CHAIN_ID for mainnet (init-network-key)
   - patch: |-
       - op: replace
         path: /spec/template/spec/initContainers/0/env/0/value
+        value: "idn"
+    target:
+      kind: StatefulSet
+      name: idn-collator
+  # Patch CHAIN_ID for mainnet (copy-session-keys)
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/2/env/0/value
         value: "idn"
     target:
       kind: StatefulSet
@@ -30,7 +46,7 @@ patches:
     target:
       kind: StatefulSet
       name: idn-collator
-  # Patch relay chain-spec path (args index 20)
+  # Patch relay chain-spec path (args index 19)
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/args/20
