@@ -33,7 +33,7 @@ use frame_support::{
 	parameter_types,
 	traits::{
 		tokens::imbalance::ResolveTo, ConstBool, ConstU32, ConstU64, ConstU8, EitherOfDiverse,
-		VariantCountOf,
+		VariantCountOf
 	},
 	weights::{ConstantMultiplier, Weight},
 	PalletId,
@@ -42,14 +42,24 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
+use pallet_evm::{
+	Account as EVMAccount, EVMFungibleAdapter, EnsureAddressNever, EnsureAddressRoot,
+	FeeCalculator, FrameSystemAccountProvider, GasWeightMapping, IdentityAddressMapping,
+	OnChargeEVMTransaction, Runner, config_preludes::*
+};
+use pallet_ethereum::config_preludes::*;
+use sp_core::{OpaqueMetadata, H160, H256, U256};
 #[cfg(not(feature = "runtime-benchmarks"))]
 use pallet_idn_manager::primitives::AllowSiblingsOnly;
 use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
+use sp_runtime::{AccountId32, FixedPointNumber};
 use sp_version::RuntimeVersion;
 use xcm::prelude::BodyId;
+
+use crate::Timestamp;
 
 // Local module imports
 #[cfg(not(feature = "runtime-benchmarks"))]
@@ -211,6 +221,8 @@ impl cumulus_pallet_parachain_system::Config for Runtime {
 	type CheckAssociatedRelayNumber = RelayNumberMonotonicallyIncreases;
 	type ConsensusHook = ConsensusHook;
 	type SelectCore = cumulus_pallet_parachain_system::DefaultCoreSelector<Runtime>;
+	//New type
+	type RelayParentOffset = ();
 }
 
 impl parachain_info::Config for Runtime {}
@@ -386,3 +398,126 @@ impl pallet_randomness_beacon::Config for Runtime {
 }
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
+
+// //TODO It feels like this shold be able to work for any T: H160, but I tried for
+// // embarassingly long and couldn't figure that out.
+
+// /// The author inherent provides a AccountId20, but pallet evm needs an H160.
+// /// This simple adapter makes the conversion.
+// pub struct FindAuthorAdapter<Inner>(sp_std::marker::PhantomData<Inner>);
+
+// impl<Inner> FindAuthor<H160> for FindAuthorAdapter<Inner>
+// where
+// 	Inner: FindAuthor<AccountId32>,
+// {
+// 	fn find_author<'a, I>(digests: I) -> Option<H160>
+// 	where
+// 		I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
+// 	{
+// 		Inner::find_author(digests).map(Into::into)
+// 	}
+// }
+
+/// Current approximation of the gas/s consumption considering
+/// EVM execution over compiled WASM (on 4.4Ghz CPU).
+/// Given the 2000ms Weight, from which 75% only are used for transactions,
+/// the total EVM execution gas limit is: GAS_PER_SECOND * 2 * 0.75 ~= 60_000_000.
+pub const GAS_PER_SECOND: u64 = 40_000_000;
+
+/// Approximate ratio of the amount of Weight per Gas.
+/// u64 works for approximations because Weight is a very small unit compared to gas.
+pub const WEIGHT_PER_GAS: u64 = frame_support::weights::constants::WEIGHT_REF_TIME_PER_SECOND / GAS_PER_SECOND;
+
+parameter_types! {
+	pub WeightPerGas: Weight = Weight::from_parts(WEIGHT_PER_GAS, 0);
+}
+
+/// GLMR, the native token, uses 18 decimals of precision.
+pub mod currency {
+	use super::Balance;
+
+	// Provide a common factor between runtimes based on a supply of 10_000_000 tokens.
+	pub const SUPPLY_FACTOR: Balance = 100;
+
+	pub const WEI: Balance = 1;
+	pub const KILOWEI: Balance = 1_000;
+	pub const MEGAWEI: Balance = 1_000_000;
+	pub const GIGAWEI: Balance = 1_000_000_000;
+	pub const MICROGLMR: Balance = 1_000_000_000_000;
+	pub const MILLIGLMR: Balance = 1_000_000_000_000_000;
+	pub const GLMR: Balance = 1_000_000_000_000_000_000;
+	pub const KILOGLMR: Balance = 1_000_000_000_000_000_000_000;
+
+	pub const TRANSACTION_BYTE_FEE: Balance = 1 * GIGAWEI * SUPPLY_FACTOR;
+	pub const STORAGE_BYTE_FEE: Balance = 100 * MICROGLMR * SUPPLY_FACTOR;
+	pub const WEIGHT_FEE: Balance = 50 * KILOWEI * SUPPLY_FACTOR / 4;
+
+	pub const fn deposit(items: u32, bytes: u32) -> Balance {
+		items as Balance * 100 * MILLIGLMR * SUPPLY_FACTOR + (bytes as Balance) * STORAGE_BYTE_FEE
+	}
+}
+
+type TransactionPayment = pallet_transaction_payment::Pallet<Runtime>;
+type EthereumChainId = pallet_evm_chain_id::Pallet<Runtime>;
+
+// Currently, this is a direct copy+paste from Moonbeam (TransactionPayment is slightly different)
+pub struct TransactionPaymentAsGasPrice;
+impl FeeCalculator for TransactionPaymentAsGasPrice {
+	fn min_gas_price() -> (U256, Weight) {
+		// note: transaction-payment differs from EIP-1559 in that its tip and length fees are not
+		//       scaled by the multiplier, which means its multiplier will be overstated when
+		//       applied to an ethereum transaction
+		// note: transaction-payment uses both a congestion modifier (next_fee_multiplier, which is
+		//       updated once per block in on_finalize) and a 'WeightToFee' implementation. Our (Moonbeam)
+		//       runtime implements this as a 'ConstantModifier', so we can get away with a simple
+		//       multiplication here.
+		// It is imperative that `saturating_mul_int` be performed as late as possible in the
+		// expression since it involves fixed point multiplication with a division by a fixed
+		// divisor. This leads to truncation and subsequent precision loss if performed too early.
+		// This can lead to min_gas_price being same across blocks even if the multiplier changes.
+		// There's still some precision loss when the final `gas_price` (used_gas * min_gas_price)
+		// is computed in frontier, but that's currently unavoidable.
+		let min_gas_price = TransactionPayment::next_fee_multiplier()
+			.saturating_mul_int((currency::WEIGHT_FEE).saturating_mul(WEIGHT_PER_GAS as u128));
+		(
+			min_gas_price.into(),
+			<Runtime as frame_system::Config>::DbWeight::get().reads(1),
+		)
+	}
+}
+
+impl pallet_evm::Config for Runtime {
+	type FeeCalculator = TransactionPaymentAsGasPrice;
+	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
+	type WeightPerGas = WeightPerGas;
+	type BlockHashMapping = pallet_ethereum::EthereumBlockHashMapping<Self>;
+	type CallOrigin = EnsureAddressRoot<AccountId>;
+	type WithdrawOrigin = EnsureAddressNever<AccountId>;
+	type AddressMapping = IdentityAddressMapping;
+	type Currency = Balances;
+	type Runner = pallet_evm::runner::stack::Runner<Self>;
+	type PrecompilesType = ();
+	type PrecompilesValue = ();
+	type ChainId = EthereumChainId;
+	type OnChargeTransaction = ();
+	type BlockGasLimit = BlockGasLimit;
+	type FindAuthor = ();
+	type OnCreate = ();
+	type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
+	type GasLimitStorageGrowthRatio = GasLimitStorageGrowthRatio;
+	type Timestamp = Timestamp;
+	type WeightInfo = ();
+	type AccountProvider = FrameSystemAccountProvider<Runtime>;
+	type CreateOriginFilter = ();
+	type CreateInnerOriginFilter = ();
+}
+
+
+impl pallet_ethereum::Config for Runtime {
+	//shot in the dark on StateRoot
+	type StateRoot = pallet_ethereum::IntermediateStateRoot<Runtime>;
+	type PostLogContent = PostBlockAndTxnHashes;
+	type ExtraDataLength = ConstU32<30>;
+}
+
+impl pallet_evm_chain_id::Config for Runtime {}

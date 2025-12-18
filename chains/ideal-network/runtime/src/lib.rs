@@ -78,6 +78,12 @@ pub type BlockId = generic::BlockId<Block>;
 // Export pallet_balances::Call for use in contracts pallet
 pub use pallet_balances::Call as BalancesCall;
 
+// mod evm_precompiles;
+// pub use evm_precompiles::{
+// 	IDNPrecompiles, PrecompileName, FOREIGN_ASSET_PRECOMPILE_ADDRESS_PREFIX,
+// };
+// pub type Precompiles = IDNPrecompiles<Runtime>;
+
 /// The SignedExtension to the basic transaction logic.
 #[docify::export(template_signed_extra)]
 pub type TxExtension = (
@@ -312,6 +318,10 @@ mod runtime {
 	pub type Contracts = pallet_contracts::Pallet<Runtime>;
 	#[runtime::pallet_index(51)]
 	pub type RandomnessCollectiveFlip = pallet_insecure_randomness_collective_flip::Pallet<Runtime>;
+	#[runtime::pallet_index(52)]
+	pub type EVM = pallet_evm::Pallet<Runtime>;
+	#[runtime::pallet_index(53)]
+	pub type Ethereum = pallet_ethereum::Pallet<Runtime>;
 }
 
 type EventRecord = frame_system::EventRecord<

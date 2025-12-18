@@ -91,6 +91,11 @@ pallet-randomness-beacon.workspace = true
 sp-consensus-randomness-beacon.workspace = true
 sp-idn-crypto.workspace = true
 
+# EVM
+pallet-evm.workspace = true
+pallet-ethereum.workspace = true
+pallet-evm-chain-id.workspace = true
+
 [features]
 default = ["std"]
 std = [
@@ -156,6 +161,9 @@ std = [
   "xcm/std",
   "xcm-runtime-apis/std",
   "pallet-xcm-benchmarks?/std",
+  "pallet-evm/std",
+  "pallet-ethereum/std",
+  "pallet-evm-chain-id/std",
 ]
 
 runtime-benchmarks = [
@@ -185,6 +193,8 @@ runtime-benchmarks = [
   "xcm-executor/runtime-benchmarks",
   "xcm-runtime-apis/runtime-benchmarks",
   "pallet-xcm-benchmarks/runtime-benchmarks",
+  "pallet-ethereum/runtime-benchmarks",
+	"pallet-evm/runtime-benchmarks",
 ]
 
 try-runtime = [
@@ -211,6 +221,9 @@ try-runtime = [
   "parachain-info/try-runtime",
   "polkadot-runtime-common/try-runtime",
   "sp-runtime/try-runtime",
+  "pallet-evm/try-runtime",
+	"pallet-ethereum/try-runtime",
+  "pallet-evm-chain-id/try-runtime"
 ]
 
 # Enable the metadata hash generation.

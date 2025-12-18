@@ -1,0 +1,1 @@
+zombienet -p native test ./tests/subscriptions/test-smart-contracts.zndsl
