@@ -27,5 +27,8 @@ Current version for development: 1.3.133
 ``` shell
 yarn global add @polkadot/api-cli
 ```
-Then execute the test:
-`zombienet -p native test ./path/to/tests/<your-test-name>.zndsl`  
+
+2. Execute the test
+```shell
+zombienet -p native test ./path/to/tests/<your-test-name>.zndsl
+```  
