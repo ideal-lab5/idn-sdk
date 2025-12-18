@@ -18,7 +18,7 @@
 use alloc::vec;
 use codec::Encode;
 use frame_support::{
-	dispatch::DispatchInfo,
+	dispatch::{DispatchInfo, GetDispatchInfo},
 	genesis_builder_helper::{build_state, get_preset},
 	weights::Weight,
 };
@@ -212,25 +212,13 @@ impl_runtime_apis! {
 			System::account_nonce(account)
 		}
 
-		fn eth_transact(tx: pallet_revive::evm::GenericTransaction) -> Result<pallet_revive::EthTransactInfo<Balance>, pallet_revive::EthTransactError>
-		{
+		fn eth_transact(tx: pallet_revive::evm::GenericTransaction) 
+			-> Result<pallet_revive::EthTransactInfo<Balance>, pallet_revive::EthTransactError> {
+				
 			let blockweights: BlockWeights = <Runtime as frame_system::Config>::BlockWeights::get();
-			let tx_fee = |pallet_call, mut dispatch_info: DispatchInfo| {
-				let call = RuntimeCall::Revive(pallet_call);
-				let extension = (
-					frame_system::CheckNonZeroSender::<Runtime>::new(),
-					frame_system::CheckSpecVersion::<Runtime>::new(),
-					frame_system::CheckTxVersion::<Runtime>::new(),
-					frame_system::CheckGenesis::<Runtime>::new(),
-					frame_system::CheckEra::<Runtime>::from(crate::generic::Era::Immortal),
-					frame_system::CheckNonce::<Runtime>::from(0), // Using 0 since nonce is not defined in this scope
-					frame_system::CheckWeight::<Runtime>::new(),
-					pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0u32.into()),
-					frame_metadata_hash_extension::CheckMetadataHash::<Runtime>::new(false),
-					frame_system::WeightReclaim::<Runtime>::new(),
-				);
-				dispatch_info.extension_weight = extension.weight(&call);
-				let uxt: UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic::new_bare(call);
+			let tx_fee = |pallet_call: pallet_revive::Call<Runtime>, dispatch_info: DispatchInfo| {
+
+				let uxt: UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic::new_bare(pallet_call.into());
 
 				pallet_transaction_payment::Pallet::<Runtime>::compute_fee(
 					uxt.encoded_size() as u32,
@@ -239,7 +227,7 @@ impl_runtime_apis! {
 				)
 			};
 
-			Revive::bare_eth_transact(tx, blockweights.max_block, tx_fee)
+			Revive::dry_run_eth_transact(tx, blockweights.max_block, tx_fee)
 		}
 
 		fn call(
@@ -299,6 +287,16 @@ impl_runtime_apis! {
 			key: [u8; 32],
 		) -> pallet_revive::GetStorageResult {
 			Revive::get_storage(
+				address,
+				key
+			)
+		}
+
+		fn get_storage_var_key(
+			address: H160,
+			key: Vec<u8>,
+		) -> pallet_revive::GetStorageResult {
+			Revive::get_storage_var_key(
 				address,
 				key
 			)
