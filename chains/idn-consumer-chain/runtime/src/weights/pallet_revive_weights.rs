@@ -103,6 +103,20 @@ impl<T: frame_system::Config> pallet_revive::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(2))
 			.saturating_add(Weight::from_parts(0, 1).saturating_mul(c.into()))
 	}
+
+	fn seal_call_precompile(coleman_dummy: u32, coleman_dummy2: u32) -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `678 + c * (1 ±0)`
+		//  Estimated: `6615 + c * (1 ±0)`
+		// Minimum execution time: 119_030_000 picoseconds.
+		Weight::from_parts(154_513_117, 0)
+			.saturating_add(Weight::from_parts(0, 6615))
+			// Standard Error: 20
+			.saturating_add(Weight::from_parts(2_713, 0).saturating_mul(coleman_dummy.into()))
+			.saturating_add(T::DbWeight::get().reads(7))
+			.saturating_add(T::DbWeight::get().writes(2))
+			.saturating_add(Weight::from_parts(0, 1).saturating_mul(coleman_dummy.into()))
+	}
 	/// Storage: `Revive::OriginalAccount` (r:2 w:0)
 	/// Proof: `Revive::OriginalAccount` (`max_values`: None, `max_size`: Some(52), added: 2527, mode: `Measured`)
 	/// Storage: `Revive::ContractInfoOf` (r:1 w:1)
