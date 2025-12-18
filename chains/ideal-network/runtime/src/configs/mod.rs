@@ -43,19 +43,19 @@ use frame_system::{
 	EnsureRoot,
 };
 use pallet_evm::{
-	Account as EVMAccount, EVMFungibleAdapter, EnsureAddressNever, EnsureAddressRoot,
-	FeeCalculator, FrameSystemAccountProvider, GasWeightMapping, IdentityAddressMapping,
-	OnChargeEVMTransaction, Runner, config_preludes::*
+	EnsureAddressNever, EnsureAddressRoot,
+	FeeCalculator, FrameSystemAccountProvider,
+	config_preludes::*, HashedAddressMapping
 };
 use pallet_ethereum::config_preludes::*;
-use sp_core::{OpaqueMetadata, H160, H256, U256};
+use sp_core::U256;
 #[cfg(not(feature = "runtime-benchmarks"))]
 use pallet_idn_manager::primitives::AllowSiblingsOnly;
 use pallet_idn_manager::{BalanceOf, SubscriptionOf};
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-use sp_runtime::{AccountId32, FixedPointNumber};
+use sp_runtime::{FixedPointNumber, traits::BlakeTwo256};
 use sp_version::RuntimeVersion;
 use xcm::prelude::BodyId;
 
@@ -493,7 +493,7 @@ impl pallet_evm::Config for Runtime {
 	type BlockHashMapping = pallet_ethereum::EthereumBlockHashMapping<Self>;
 	type CallOrigin = EnsureAddressRoot<AccountId>;
 	type WithdrawOrigin = EnsureAddressNever<AccountId>;
-	type AddressMapping = IdentityAddressMapping;
+	type AddressMapping = HashedAddressMapping<BlakeTwo256>;
 	type Currency = Balances;
 	type Runner = pallet_evm::runner::stack::Runner<Self>;
 	type PrecompilesType = ();
@@ -514,8 +514,7 @@ impl pallet_evm::Config for Runtime {
 
 
 impl pallet_ethereum::Config for Runtime {
-	//shot in the dark on StateRoot
-	type StateRoot = pallet_ethereum::IntermediateStateRoot<Runtime>;
+	type StateRoot = ();
 	type PostLogContent = PostBlockAndTxnHashes;
 	type ExtraDataLength = ConstU32<30>;
 }
