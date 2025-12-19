@@ -77,6 +77,7 @@ use super::{
 	System, WeightToFee, XcmpQueue, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS,
 	MAXIMUM_BLOCK_WEIGHT, MICROUNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
 };
+use crate::constants::relay::currency;
 use xcm_config::RelayLocation;
 
 parameter_types! {
@@ -430,31 +431,6 @@ pub const WEIGHT_PER_GAS: u64 = frame_support::weights::constants::WEIGHT_REF_TI
 
 parameter_types! {
 	pub WeightPerGas: Weight = Weight::from_parts(WEIGHT_PER_GAS, 0);
-}
-
-/// GLMR, the native token, uses 18 decimals of precision.
-pub mod currency {
-	use super::Balance;
-
-	// Provide a common factor between runtimes based on a supply of 10_000_000 tokens.
-	pub const SUPPLY_FACTOR: Balance = 100;
-
-	pub const WEI: Balance = 1;
-	pub const KILOWEI: Balance = 1_000;
-	pub const MEGAWEI: Balance = 1_000_000;
-	pub const GIGAWEI: Balance = 1_000_000_000;
-	pub const MICROGLMR: Balance = 1_000_000_000_000;
-	pub const MILLIGLMR: Balance = 1_000_000_000_000_000;
-	pub const GLMR: Balance = 1_000_000_000_000_000_000;
-	pub const KILOGLMR: Balance = 1_000_000_000_000_000_000_000;
-
-	pub const TRANSACTION_BYTE_FEE: Balance = 1 * GIGAWEI * SUPPLY_FACTOR;
-	pub const STORAGE_BYTE_FEE: Balance = 100 * MICROGLMR * SUPPLY_FACTOR;
-	pub const WEIGHT_FEE: Balance = 50 * KILOWEI * SUPPLY_FACTOR / 4;
-
-	pub const fn deposit(items: u32, bytes: u32) -> Balance {
-		items as Balance * 100 * MILLIGLMR * SUPPLY_FACTOR + (bytes as Balance) * STORAGE_BYTE_FEE
-	}
 }
 
 type TransactionPayment = pallet_transaction_payment::Pallet<Runtime>;

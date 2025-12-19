@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-/// Constants relating to DOT.
+/// Constants relating to DOT and Ethereum
 pub mod currency {
 	use polkadot_core_primitives::Balance;
 
@@ -23,7 +23,25 @@ pub mod currency {
 	pub const DOLLARS: Balance = UNITS; // 10_000_000_000
 	pub const CENTS: Balance = DOLLARS / 100; // 100_000_000
 	pub const MILLICENTS: Balance = CENTS / 1_000; // 100_000
+	pub const MICROCENTS: Balance = CENTS/1_000_000;
+
+	pub const WEI: Balance = 1;
+	pub const KILOWEI: Balance = 1_000;
+	pub const MEGAWEI: Balance = 1_000_000;
+	pub const GIGAWEI: Balance = 1_000_000_000;
+
+		// Provide a common factor between runtimes based on a supply of 10_000_000 tokens.
+	pub const SUPPLY_FACTOR: Balance = 100;
+
+	pub const TRANSACTION_BYTE_FEE: Balance = 1 * GIGAWEI * SUPPLY_FACTOR;
+	pub const STORAGE_BYTE_FEE: Balance = 100 * MICROCENTS * SUPPLY_FACTOR;
+	pub const WEIGHT_FEE: Balance = 50 * KILOWEI * SUPPLY_FACTOR / 4;
+
+	pub const fn deposit(items: u32, bytes: u32) -> Balance {
+		items as Balance * 100 * MILLICENTS * SUPPLY_FACTOR + (bytes as Balance) * STORAGE_BYTE_FEE
+	}
 }
+
 
 /// Constants related to Polkadot fee payment.
 pub mod fee {
