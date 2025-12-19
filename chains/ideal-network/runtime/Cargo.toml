@@ -95,6 +95,15 @@ sp-idn-crypto.workspace = true
 pallet-evm.workspace = true
 pallet-ethereum.workspace = true
 pallet-evm-chain-id.workspace = true
+pallet-evm-precompile-blake2.workspace = true
+pallet-evm-precompile-bn128.workspace = true
+pallet-evm-precompile-modexp.workspace = true
+pallet-evm-precompile-sha3fips.workspace = true
+pallet-evm-precompile-simple.workspace = true
+pallet-evm-precompile-bls12381.workspace = true
+precompile-utils.workspace = true
+num_enum.workspace = true
+# precompile-utils-macro.workspace = true
 
 [features]
 default = ["std"]
@@ -164,6 +173,13 @@ std = [
   "pallet-evm/std",
   "pallet-ethereum/std",
   "pallet-evm-chain-id/std",
+  "precompile-utils/std",
+  "pallet-evm-precompile-blake2/std",
+  "pallet-evm-precompile-bn128/std",
+  "pallet-evm-precompile-modexp/std",
+  "pallet-evm-precompile-sha3fips/std",
+  "pallet-evm-precompile-simple/std",
+  "pallet-evm-precompile-bls12381/std",
 ]
 
 runtime-benchmarks = [

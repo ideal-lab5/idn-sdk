@@ -27,6 +27,7 @@ pub mod apis;
 mod benchmarks;
 pub mod configs;
 pub mod constants;
+pub mod evm_precompiles;
 mod genesis_config_presets;
 mod weights;
 
