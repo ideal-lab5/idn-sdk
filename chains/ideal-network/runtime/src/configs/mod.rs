@@ -59,7 +59,7 @@ use sp_runtime::{FixedPointNumber, traits::BlakeTwo256};
 use sp_version::RuntimeVersion;
 use xcm::prelude::BodyId;
 
-use crate::Timestamp;
+use crate::{Timestamp, evm_precompiles::IDNPrecompiles};
 
 // Local module imports
 #[cfg(not(feature = "runtime-benchmarks"))]
@@ -461,6 +461,10 @@ where
 	}
 }
 
+parameter_types! {
+	pub PrecompilesValue: IDNPrecompiles<Runtime> = IDNPrecompiles::<_>::new();
+}
+
 impl pallet_evm::Config for Runtime {
 	type AccountProvider = FrameSystemAccountProvider<Runtime>;
 	type AddressMapping = HashedAddressMapping<BlakeTwo256>;
@@ -480,8 +484,8 @@ impl pallet_evm::Config for Runtime {
 	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
 	type OnChargeTransaction = pallet_evm::EVMFungibleAdapter<Balances, ()>;
 	type OnCreate = ();
-	type PrecompilesType = ();
-	type PrecompilesValue = ();
+	type PrecompilesType = IDNPrecompiles<Self>;
+	type PrecompilesValue = PrecompilesValue;
 	type Runner = pallet_evm::runner::stack::Runner<Self>;
 	type Timestamp = Timestamp;
 	type WeightInfo = ();

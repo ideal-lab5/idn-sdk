@@ -2,15 +2,17 @@
 use crate::{
 	AccountId, Balances,Runtime,
 };
-use frame_support::parameter_types;
+use frame_support::{parameter_types, pallet_prelude::PhantomData};
+use pallet_evm::IsPrecompileResult;
 use pallet_evm_precompile_blake2::Blake2F;
 use pallet_evm_precompile_bn128::{Bn128Add, Bn128Mul, Bn128Pairing};
 use pallet_evm_precompile_modexp::Modexp;
 use pallet_evm_precompile_sha3fips::Sha3FIPS256;
 use pallet_evm_precompile_simple::{ECRecover, ECRecoverPublicKey, Identity, Ripemd160, Sha256};
 use pallet_evm_precompile_bls12381::{Bls12381G1Add, Bls12381G1MultiExp, Bls12381G2Add, Bls12381G2MultiExp, Bls12381MapG1, Bls12381MapG2, Bls12381Pairing};
-use precompile_utils::precompile_set::{AcceptDelegateCall, AddressU64, CallableByContract, CallableByPrecompile, PrecompileAt, PrecompileSetBuilder, PrecompilesInRangeInclusive, RemovedPrecompileAt};
-
+use precompile_utils::precompile_set::{AcceptDelegateCall, AddressU64, CallableByContract, CallableByPrecompile, PrecompileAt, PrecompileSetBuilder, PrecompileSetFragment, PrecompilesInRangeInclusive, RemovedPrecompileAt};
+use sp_core::H160;
+use sp_runtime::Vec;
 
 // parameter_types! {
 // 	pub P256VerifyWeight: frame_support::weights::Weight =
@@ -44,6 +46,34 @@ use precompile_utils::precompile_set::{AcceptDelegateCall, AddressU64, CallableB
 // 	}
 // }
 
+pub struct PlaceholderPrecompile<R>(PhantomData<R>);
+
+impl<R> PrecompileSetFragment for PlaceholderPrecompile<R> {
+    fn new() -> Self {
+        Self(PhantomData)
+    }
+
+	fn execute<S: pallet_evm::Config>(
+			&self,
+			_handle: &mut impl pallet_evm::PrecompileHandle,
+		) -> Option<pallet_evm::PrecompileResult> {
+		
+		None
+	}
+
+    fn is_precompile(&self, _address: H160, _remaining_gas: u64) -> IsPrecompileResult {
+        IsPrecompileResult::Answer { is_precompile: false, extra_cost: 0 }
+    }
+
+	fn summarize_checks(&self) -> Vec<precompile_utils::precompile_set::PrecompileCheckSummary> {
+		Vec::new()
+	}
+
+	fn used_addresses(&self) -> Vec<sp_core::H160> {
+		Vec::new()
+	}
+}
+
 /// The asset precompile address prefix. Addresses that match against this prefix will be routed
 /// to Erc20AssetsPrecompileSet being marked as foreign
 pub const FOREIGN_ASSET_PRECOMPILE_ADDRESS_PREFIX: &[u8] = &[255u8; 4];
@@ -76,7 +106,6 @@ type EthereumPrecompilesChecks = (AcceptDelegateCall, CallableByContract, Callab
 
 #[precompile_utils::precompile_name_from_address]
 type IDNPrecompilesAt<R> = (
-	core::marker::PhantomData<R>,
 	// Ethereum precompiles:
 	// We allow DELEGATECALL to stay compliant with Ethereum behavior.
 	PrecompileAt<AddressU64<1>, ECRecover, EthereumPrecompilesChecks>,
@@ -106,6 +135,7 @@ type IDNPrecompilesAt<R> = (
 	>,
 	RemovedPrecompileAt<AddressU64<1025>>, // Dispatch<R>
 	PrecompileAt<AddressU64<1026>, ECRecoverPublicKey, (CallableByContract, CallableByPrecompile)>,
+	PlaceholderPrecompile<R>,
 );
 
 /// The PrecompileSet installed in the Moonbeam runtime.
