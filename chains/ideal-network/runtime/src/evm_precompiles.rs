@@ -136,16 +136,17 @@ type IDNPrecompilesAt<R> = (
 	RemovedPrecompileAt<AddressU64<1025>>, // Dispatch<R>
 	PrecompileAt<AddressU64<1026>, ECRecoverPublicKey, (CallableByContract, CallableByPrecompile)>,
 	PlaceholderPrecompile<R>,
+	// IDN specific precompiles will go here starting at AddressU64<2048>:
 );
 
-/// The PrecompileSet installed in the Moonbeam runtime.
-/// We include the nine Istanbul precompiles
+/// The PrecompileSet installed in the IDN runtime.
+/// Moonbeam includes the nine Istanbul precompiles
 /// (https://github.com/ethereum/go-ethereum/blob/3c46f557/core/vm/contracts.go#L69)
-/// as well as a special precompile for dispatching Substrate extrinsics
-/// The following distribution has been decided for the precompiles
+/// as well as a special precompiles for dispatching Substrate extrinsics
+/// The following distribution was decided by Moonbeam for the precompiles
 /// 0-1023: Ethereum Mainnet Precompiles
-/// 1024-2047 Precompiles that are not in Ethereum Mainnet but are neither Moonbeam specific
-/// 2048-4095 Moonbeam specific precompiles
+/// 1024-2047 Precompiles that are not in Ethereum Mainnet but are neither IDN specific
+/// 2048-4095 IDN specific precompiles
 pub type IDNPrecompiles<R> = PrecompileSetBuilder<
 	R,
 	(

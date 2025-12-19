@@ -278,6 +278,5 @@ pallet-evm-precompile-sha3fips = { git = "https://github.com/polkadot-evm/fronti
 pallet-evm-precompile-simple = { git = "https://github.com/polkadot-evm/frontier", branch = "stable2506", default-features = false}
 pallet-evm-precompile-bls12381 = { git = "https://github.com/polkadot-evm/frontier", branch = "stable2506", default-features = false}
 precompile-utils = { git = "https://github.com/polkadot-evm/frontier", branch = "stable2506", default-features = false }
-# precompile-utils-macro = { git = "https://github.com/polkadot-evm/frontier", branch = "stable2506", default-features = false }
 
 num_enum = { version = "0.7.3", default-features = false }
