@@ -47,8 +47,8 @@ use pallet_evm::{
 	FeeCalculator, FrameSystemAccountProvider,
 	config_preludes::*, HashedAddressMapping
 };
-use pallet_ethereum::config_preludes::*;
-use sp_core::U256;
+use pallet_ethereum::{IntermediateStateRoot, config_preludes::*};
+use sp_core::{H160, H256, U256};
 #[cfg(not(feature = "runtime-benchmarks"))]
 use pallet_idn_manager::primitives::AllowSiblingsOnly;
 use pallet_idn_manager::{BalanceOf, SubscriptionOf};
@@ -400,24 +400,6 @@ impl pallet_randomness_beacon::Config for Runtime {
 
 impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
 
-// //TODO It feels like this shold be able to work for any T: H160, but I tried for
-// // embarassingly long and couldn't figure that out.
-
-// /// The author inherent provides a AccountId20, but pallet evm needs an H160.
-// /// This simple adapter makes the conversion.
-// pub struct FindAuthorAdapter<Inner>(sp_std::marker::PhantomData<Inner>);
-
-// impl<Inner> FindAuthor<H160> for FindAuthorAdapter<Inner>
-// where
-// 	Inner: FindAuthor<AccountId32>,
-// {
-// 	fn find_author<'a, I>(digests: I) -> Option<H160>
-// 	where
-// 		I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-// 	{
-// 		Inner::find_author(digests).map(Into::into)
-// 	}
-// }
 
 /// Current approximation of the gas/s consumption considering
 /// EVM execution over compiled WASM (on 4.4Ghz CPU).
@@ -462,35 +444,54 @@ impl FeeCalculator for TransactionPaymentAsGasPrice {
 	}
 }
 
+pub struct FindAuthorEth<Inner>(core::marker::PhantomData<Inner>);
+impl<Inner> frame_support::traits::FindAuthor<H160> for FindAuthorEth<Inner>
+where
+	Inner: frame_support::traits::FindAuthor<AccountId>,
+{
+	fn find_author<'a, I>(digests: I) -> Option<H160>
+	where
+		I: 'a + IntoIterator<Item = (frame_support::ConsensusEngineId, &'a [u8])>,
+	{
+		Inner::find_author(digests).map(|account_id| {
+			let bytes: [u8;32] = account_id.into();
+			let h256 = H256::from(bytes);
+			H160::from(h256)
+		})
+	}
+}
+
 impl pallet_evm::Config for Runtime {
-	type FeeCalculator = TransactionPaymentAsGasPrice;
-	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
-	type WeightPerGas = WeightPerGas;
+	type AccountProvider = FrameSystemAccountProvider<Runtime>;
+	type AddressMapping = HashedAddressMapping<BlakeTwo256>;
+	type BlockGasLimit = BlockGasLimit;
 	type BlockHashMapping = pallet_ethereum::EthereumBlockHashMapping<Self>;
 	type CallOrigin = EnsureAddressRoot<AccountId>;
-	type WithdrawOrigin = EnsureAddressNever<AccountId>;
-	type AddressMapping = HashedAddressMapping<BlakeTwo256>;
-	type Currency = Balances;
-	type Runner = pallet_evm::runner::stack::Runner<Self>;
-	type PrecompilesType = ();
-	type PrecompilesValue = ();
 	type ChainId = EthereumChainId;
-	type OnChargeTransaction = ();
-	type BlockGasLimit = BlockGasLimit;
-	type FindAuthor = ();
-	type OnCreate = ();
-	type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
-	type GasLimitStorageGrowthRatio = GasLimitStorageGrowthRatio;
-	type Timestamp = Timestamp;
-	type WeightInfo = ();
-	type AccountProvider = FrameSystemAccountProvider<Runtime>;
 	type CreateOriginFilter = ();
 	type CreateInnerOriginFilter = ();
+	type Currency = Balances;
+	// TODO Review if this is the correct impl
+	type FeeCalculator = TransactionPaymentAsGasPrice;
+	// TODO Review if this is the correct impl
+	type FindAuthor = FindAuthorEth<pallet_session::FindAccountFromAuthorIndex<Self, Aura>>;
+	type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
+	type GasLimitStorageGrowthRatio = GasLimitStorageGrowthRatio;
+	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
+	type OnChargeTransaction = pallet_evm::EVMFungibleAdapter<Balances, ()>;
+	type OnCreate = ();
+	type PrecompilesType = ();
+	type PrecompilesValue = ();
+	type Runner = pallet_evm::runner::stack::Runner<Self>;
+	type Timestamp = Timestamp;
+	type WeightInfo = ();
+	type WeightPerGas = WeightPerGas;
+	type WithdrawOrigin = EnsureAddressNever<AccountId>;
 }
 
 
 impl pallet_ethereum::Config for Runtime {
-	type StateRoot = ();
+	type StateRoot = IntermediateStateRoot<Version>;
 	type PostLogContent = PostBlockAndTxnHashes;
 	type ExtraDataLength = ConstU32<30>;
 }
