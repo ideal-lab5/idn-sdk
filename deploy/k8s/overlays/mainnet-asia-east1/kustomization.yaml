@@ -49,7 +49,7 @@ patches:
   # Patch relay chain-spec path (args index 19)
   - patch: |-
       - op: replace
-        path: /spec/template/spec/containers/0/args/20
+        path: /spec/template/spec/containers/0/args/21
         value: "polkadot"
     target:
       kind: StatefulSet

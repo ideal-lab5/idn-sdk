@@ -16,7 +16,9 @@ spec:
         app: idn-collator
       annotations:
         cloud.google.com/compute-class: Balanced
+        cloud.google.com/gke-spot: "false"
     spec:
+      priorityClassName: idn-collator-critical
       terminationGracePeriodSeconds: 300
       securityContext:
         runAsUser: 1000
@@ -131,6 +133,7 @@ spec:
             - "--db-cache"
             - "4096"
             - "--database=paritydb"
+            - "--state-pruning=archive"
             - "--"
             - "--chain"
             - "/chain-specs/relay.json"
