@@ -22,6 +22,14 @@ spec:
       port: 9944
       targetPort: 9944
       protocol: TCP
+    - name: https
+      port: 443
+      targetPort: 443
+      protocol: TCP
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
     - name: metrics
       port: 9615
       targetPort: 9615

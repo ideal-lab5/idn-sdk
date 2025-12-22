@@ -5,6 +5,7 @@ namespace: idn-testnet
 
 resources:
   - ../../base
+  - certificate.yaml
 
 namePrefix: testnet-us-
 

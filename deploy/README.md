@@ -47,6 +47,8 @@ deploy/
 
 ## Quick Start
 
+> **Want TLS/WSS with a domain name?** See the [TLS/WSS Setup](#tlswss-setup-optional) section first - cert-manager must be installed before deploying.
+
 ### 1. Connect to Your Cluster
 
 ```sh
@@ -173,6 +175,58 @@ kubectl exec -n idn-testnet testnet-us-idn-collator-0 -c idn-node -- \
 kubectl port-forward -n idn-testnet svc/testnet-us-idn-collator 9615:9615
 curl http://localhost:9615/metrics
 ```
+
+## TLS/WSS Setup (Optional)
+
+Enable secure WebSocket (WSS) connections on port 443 using nginx sidecar and cert-manager.
+
+> **Note:** If you want TLS, complete steps 1-2 below **before** deploying the overlay in the Quick Start section.
+
+### 1. Install cert-manager (once per cluster)
+
+```sh
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.0/cert-manager.yaml
+kubectl wait --for=condition=available --timeout=300s deployment/cert-manager -n cert-manager
+```
+
+### 2. Apply ClusterIssuer for Let's Encrypt
+
+```sh
+kubectl apply -k k8s/cert-manager/
+```
+
+### 3. Set up DNS
+
+Create A records pointing your domain to the LoadBalancer IP:
+
+```sh
+# Get the LoadBalancer IP after deploying
+kubectl get svc -n idn-testnet
+```
+
+| Environment | Region | Domain |
+|-------------|--------|--------|
+| Testnet | US | `idn-us-01.testnet.idealabs.network` |
+| Testnet | EU | `idn-eu-01.testnet.idealabs.network` |
+| Mainnet | US | `idn-us-01.idealabs.network` |
+| Mainnet | EU | `idn-eu-01.idealabs.network` |
+| Mainnet | Asia | `idn-asia-01.idealabs.network` |
+
+### 4. Verify Certificate
+
+```sh
+# Check certificate status
+kubectl get certificate -n idn-testnet
+
+# Test WSS connection (after DNS propagation)
+curl https://idn-us-01.testnet.idealabs.network/health
+```
+
+### Endpoints
+
+After TLS setup:
+- **WSS**: `wss://idn-us-01.testnet.idealabs.network` (port 443)
+- **WS**: `ws://<IP>:9944` (still available)
 
 ## Troubleshooting
 

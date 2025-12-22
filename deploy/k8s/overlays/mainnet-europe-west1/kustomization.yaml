@@ -5,6 +5,7 @@ namespace: idn-mainnet
 
 resources:
   - ../../base
+  - certificate.yaml
 
 namePrefix: mainnet-eu-
 
