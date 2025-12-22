@@ -6,7 +6,7 @@ variable "project_id" {
 variable "testnet_regions" {
   description = "Regions for testnet clusters"
   type        = list(string)
-  default     = ["us-central1", "europe-west1"]
+  default     = ["us-central1", "europe-west1", "asia-east1"]
 }
 
 variable "mainnet_regions" {

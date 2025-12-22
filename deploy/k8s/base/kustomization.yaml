@@ -4,6 +4,5 @@ kind: Kustomization
 resources:
   - priority-class.yaml
   - pdb.yaml
-  - nginx-config.yaml
   - statefulset.yaml
   - service.yaml
