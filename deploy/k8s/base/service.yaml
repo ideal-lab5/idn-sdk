@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: idn-collator
+  labels:
+    app: idn-collator
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: idn-collator
+  ports:
+    - name: p2p-para
+      port: 30333
+      targetPort: 30333
+      protocol: TCP
+    - name: p2p-relay
+      port: 30334
+      targetPort: 30334
+      protocol: TCP
+    - name: rpc
+      port: 9944
+      targetPort: 9944
+      protocol: TCP
+    - name: metrics
+      port: 9615
+      targetPort: 9615
+      protocol: TCP

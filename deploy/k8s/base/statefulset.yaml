@@ -1,0 +1,216 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: idn-collator
+  labels:
+    app: idn-collator
+spec:
+  serviceName: idn-collator
+  replicas: 1
+  selector:
+    matchLabels:
+      app: idn-collator
+  template:
+    metadata:
+      labels:
+        app: idn-collator
+      annotations:
+        cloud.google.com/compute-class: Balanced
+        cloud.google.com/gke-spot: "false"
+    spec:
+      priorityClassName: idn-collator-critical
+      terminationGracePeriodSeconds: 300
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
+      initContainers:
+        - name: init-network-key
+          image: parity/subkey:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              CHAIN_ID="${CHAIN_ID:-idn_testnet}"
+              NETWORK_DIR="/node/data/chains/$CHAIN_ID/network"
+              KEY_FILE="$NETWORK_DIR/secret_ed25519"
+              if [ -f "$KEY_FILE" ]; then
+                echo "Network key already exists, skipping generation"
+              else
+                echo "Generating network identity key..."
+                mkdir -p "$NETWORK_DIR"
+                subkey generate-node-key --file "$KEY_FILE"
+                echo "Network key generated successfully"
+              fi
+              ls -la "$NETWORK_DIR"
+          env:
+            - name: CHAIN_ID
+              value: "idn_testnet"
+          volumeMounts:
+            - name: data
+              mountPath: /node/data
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+
+        - name: download-chain-specs
+          image: curlimages/curl:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Downloading chain specs..."
+              curl -sSL -o /chain-specs/idn-paseo.raw.json \
+                "https://raw.githubusercontent.com/ideal-lab5/idn-sdk/c2492ab93a15c13c182875b478fedcfdb9b778c5/chain-specs/idn-paseo.raw.json"
+              curl -sSL -o /chain-specs/paseo.raw.json \
+                "https://raw.githubusercontent.com/ideal-lab5/idn-sdk/c2492ab93a15c13c182875b478fedcfdb9b778c5/chain-specs/paseo.raw.json"
+              curl -sSL -o /chain-specs/idn-polkadot.raw.json \
+                "https://raw.githubusercontent.com/ideal-lab5/idn-sdk/c2492ab93a15c13c182875b478fedcfdb9b778c5/chain-specs/idn-polkadot.raw.json"
+              echo "Chain specs downloaded successfully"
+              ls -la /chain-specs/
+          volumeMounts:
+            - name: chain-specs
+              mountPath: /chain-specs
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+        - name: copy-session-keys
+          image: busybox:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              CHAIN_ID="${CHAIN_ID:-idn_testnet}"
+              KEYSTORE_DIR="/node/data/chains/$CHAIN_ID/keystore"
+              echo "Copying session keys to $KEYSTORE_DIR..."
+              mkdir -p "$KEYSTORE_DIR"
+              cp /session-keys/* "$KEYSTORE_DIR/" 2>/dev/null || echo "No session keys to copy"
+              ls -la "$KEYSTORE_DIR/"
+              echo "Session keys copied successfully"
+          env:
+            - name: CHAIN_ID
+              value: "idn_testnet"
+          volumeMounts:
+            - name: data
+              mountPath: /node/data
+            - name: session-keys
+              mountPath: /session-keys
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+
+      containers:
+        - name: idn-node
+          image: ideallabs/idn-node:latest
+          imagePullPolicy: Always
+          args:
+            - "--name"
+            - "$(NODE_NAME)"
+            - "--collator"
+            - "--chain"
+            - "/chain-specs/parachain.json"
+            - "--base-path"
+            - "/node/data"
+            - "--port"
+            - "30333"
+            - "--rpc-port"
+            - "9944"
+            - "--unsafe-rpc-external"
+            - "--rpc-cors"
+            - "all"
+            - "--prometheus-external"
+            - "--db-cache"
+            - "4096"
+            - "--database=paritydb"
+            - "--state-pruning=archive"
+            - "--"
+            - "--chain"
+            - "/chain-specs/relay.json"
+            - "--port"
+            - "30334"
+            - "--db-cache"
+            - "8192"
+            - "--database=paritydb"
+            - "--sync=fast"
+            - "--state-pruning=1000"
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: p2p-para
+              containerPort: 30333
+              protocol: TCP
+            - name: p2p-relay
+              containerPort: 30334
+              protocol: TCP
+            - name: rpc
+              containerPort: 9944
+              protocol: TCP
+            - name: metrics
+              containerPort: 9615
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "4"
+              memory: "16Gi"
+            limits:
+              cpu: "8"
+              memory: "32Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /node/data
+            - name: chain-specs
+              mountPath: /chain-specs
+          startupProbe:
+            httpGet:
+              path: /health
+              port: rpc
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 1440  # Allow up to 12 hours for initial sync
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: rpc
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 20  # Allow up to 20 minutes of unresponsiveness during sync
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: rpc
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+      volumes:
+        - name: chain-specs
+          emptyDir: {}
+        - name: session-keys
+          secret:
+            secretName: collator-session-keys
+            optional: true
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: premium-rwo
+        resources:
+          requests:
+            storage: 500Gi

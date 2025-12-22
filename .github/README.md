@@ -42,9 +42,63 @@ Builds run natively on each platform (no QEMU emulation):
 
 After both architectures complete, a manifest is created combining them into a multi-arch image.
 
+## Collator Deployments
+
+### deploy-testnet.yml
+
+Automatically deploys IDN collators to testnet GKE clusters when new Docker images are published.
+
+- **Triggers**: Automatically after `docker.yml` completes successfully, or manually via workflow dispatch
+- **Clusters**: us-central1, europe-west1
+- **Strategy**: Parallel deployment to all regions
+
+### deploy-mainnet.yml
+
+Manually deploys IDN collators to mainnet GKE clusters.
+
+- **Triggers**: Manual workflow dispatch only (requires typing `deploy` for confirmation)
+- **Clusters**: us-central1, europe-west1, asia-east1
+- **Strategy**: Sequential deployment (`max-parallel: 1`) to minimize disruption
+
+### Required Secrets/Variables
+
+For deployment workflows to function:
+
+**Secrets:**
+- `GCP_SA_KEY`: Service account JSON key with roles:
+  - `roles/container.developer`
+  - `roles/container.clusterViewer`
+
+**Variables:**
+- `GCP_PROJECT_ID`: Your GCP project ID
+
+**Create the service account:**
+
+```sh
+# Create service account
+gcloud iam service-accounts create github-deploy \
+  --display-name="GitHub Actions Deploy"
+
+# Grant permissions
+gcloud projects add-iam-policy-binding your-project-id \
+  --member="serviceAccount:github-deploy@your-project-id.iam.gserviceaccount.com" \
+  --role="roles/container.developer"
+
+gcloud projects add-iam-policy-binding your-project-id \
+  --member="serviceAccount:github-deploy@your-project-id.iam.gserviceaccount.com" \
+  --role="roles/container.clusterViewer"
+
+# Create and download key
+gcloud iam service-accounts keys create github-sa-key.json \
+  --iam-account=github-deploy@your-project-id.iam.gserviceaccount.com
+
+# Add the contents of github-sa-key.json as the GCP_SA_KEY secret in GitHub
+```
+
 ## Workflow
 
 1. Bump the `version` in `Cargo.toml` (for node) or `spec_version` in `lib.rs` (for runtime)
 2. Merge to `main`
 3. `auto-tag.yml` detects the version change and creates the appropriate tag
 4. For node version changes, the corresponding Docker workflow triggers automatically
+5. For testnet, `deploy-testnet.yml` triggers after successful Docker build

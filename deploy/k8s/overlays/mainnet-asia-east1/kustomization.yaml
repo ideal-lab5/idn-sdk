@@ -1,0 +1,56 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: idn-mainnet
+
+resources:
+  - ../../base
+
+namePrefix: mainnet-asia-
+
+labels:
+  - pairs:
+      network: mainnet
+      region: asia-east1
+
+patches:
+  # Patch session-keys secret name
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/volumes/1/secret/secretName
+        value: "mainnet-asia-collator-session-keys"
+    target:
+      kind: StatefulSet
+      name: idn-collator
+  # Patch CHAIN_ID for mainnet (init-network-key)
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/0/env/0/value
+        value: "idn"
+    target:
+      kind: StatefulSet
+      name: idn-collator
+  # Patch CHAIN_ID for mainnet (copy-session-keys)
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/initContainers/2/env/0/value
+        value: "idn"
+    target:
+      kind: StatefulSet
+      name: idn-collator
+  # Patch parachain chain-spec path (args index 4)
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args/4
+        value: "/chain-specs/idn-polkadot.raw.json"
+    target:
+      kind: StatefulSet
+      name: idn-collator
+  # Patch relay chain-spec path (args index 19)
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args/21
+        value: "polkadot"
+    target:
+      kind: StatefulSet
+      name: idn-collator
