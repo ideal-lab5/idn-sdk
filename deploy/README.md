@@ -115,7 +115,21 @@ kubectl create namespace <namespace>
 kubectl apply -k k8s/overlays/<overlay>
 ```
 
-### 7. Wait for Sync
+### 7. Verify TLS Certificate
+
+```sh
+kubectl get certificate -n <namespace>
+curl https://<domain>/health
+```
+
+### 8. Register Collator On-Chain
+
+1. Connect to the chain via [polkadot.js apps](https://polkadot.js.org/apps/)
+2. From the **collator account**, call `session.setKeys(keys, 0x)` where `keys` is the hex public key from step 5
+3. Via sudo, call `collatorSelection.addInvulnerable(collator_account)`
+4. Wait for session rotation (up to 12 hours / 2 sessions) until the collator can start producing blocks
+
+### 9. Wait for Sync
 
 ```sh
 kubectl get pods -n <namespace> -w
@@ -129,21 +143,6 @@ kubectl exec -n <namespace> <overlay>-idn-collator-0 -c idn-node -- curl -s http
 ```
 
 Wait until `"isSyncing": false` before proceeding. This can take several hours.
-
-### 8. Verify TLS Certificate
-
-```sh
-kubectl get certificate -n <namespace>
-curl https://<domain>/health
-websocat wss://<domain>
-```
-
-### 9. Register Collator On-Chain
-
-1. Connect to the chain via [polkadot.js apps](https://polkadot.js.org/apps/)
-2. From the **collator account**, call `session.setKeys(keys, 0x)` where `keys` is the hex public key from step 5
-3. Via sudo, call `collatorSelection.addInvulnerable(collator_account)`
-4. Wait for session rotation (up to 6 hours) - the collator will start producing blocks
 
 ## Endpoints
 
