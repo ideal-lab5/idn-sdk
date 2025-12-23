@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        region: [us-central1, europe-west1]
+        region: [us-central1, europe-west1, asia-east1]
 
     steps:
       - name: Checkout
@@ -41,6 +41,8 @@ jobs:
             REGION_PREFIX="us"
           elif [[ "${{ matrix.region }}" == "europe-west1" ]]; then
             REGION_PREFIX="eu"
+          elif [[ "${{ matrix.region }}" == "asia-east1" ]]; then
+            REGION_PREFIX="asia"
           fi
           echo "Restarting testnet collator in ${{ matrix.region }}..."
           kubectl rollout restart statefulset/testnet-${REGION_PREFIX}-idn-collator -n idn-testnet
