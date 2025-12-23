@@ -168,23 +168,3 @@ After deployment:
 kubectl delete -k k8s/overlays/<overlay>
 kubectl delete namespace <namespace>
 ```
-
-## Directory Structure
-
-```
-deploy/
-├── scripts/
-│   └── create-session-key-secret.sh
-├── terraform/          # GKE cluster provisioning (optional)
-│   └── README.md
-└── k8s/
-    ├── base/           # Base StatefulSet and Service
-    ├── cert-manager/   # ClusterIssuers and GKE RBAC
-    └── overlays/
-        ├── testnet-us-central1/
-        ├── testnet-europe-west1/
-        ├── testnet-asia-east1/
-        ├── mainnet-us-central1/
-        ├── mainnet-europe-west1/
-        └── mainnet-asia-east1/
-```
