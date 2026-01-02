@@ -4,7 +4,10 @@
   "chainType": "Live",
   "bootNodes": [
     "/dns/idn0-testnet.idealabs.network/tcp/40333/p2p/12D3KooWFi4ZK5iKJ3esJbpNPi9GzJeriT1W8dFSYR5EzuFRsuUc",
-    "/dns/idn1-testnet.idealabs.network/tcp/40333/p2p/12D3KooWA9Wa43MvhQ7yhBkmnvGpNbRzFQDRZVFZdeTz2Sv5kcUP"
+    "/ip4/34.61.59.157/tcp/40333/p2p/12D3KooWA9Wa43MvhQ7yhBkmnvGpNbRzFQDRZVFZdeTz2Sv5kcUP",
+    "/ip4/34.9.238.57/tcp/30333/p2p/12D3KooWJBEFB38opKiboxg6ZeKHRsPo9dDY7n6xp6wsTBtDLYC8",
+    "/ip4/35.205.149.187/tcp/30333/p2p/12D3KooWNewVTq8EREVWRUgTJuDMD6nGrDVrBfeTpYogirsh2Mvk",
+    "/ip4/35.189.184.80/tcp/30333/p2p/12D3KooWAkkLCgPs2oc1Aw2H2yrRHigUNuYdYS3X6uoPT3T4oXMf"
   ],
   "telemetryEndpoints": null,
   "protocolId": "idn-testnet-protocol-id",

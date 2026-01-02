@@ -4,11 +4,12 @@ Terraform configuration for provisioning GKE Autopilot clusters for IDN collator
 
 ## Overview
 
-This creates 5 GKE Autopilot clusters across multiple regions:
+This creates 6 GKE Autopilot clusters across multiple regions:
 
 **Testnet:**
 - `idn-testnet-us-central1`
 - `idn-testnet-europe-west1`
+- `idn-testnet-asia-east1`
 
 **Mainnet:**
 - `idn-mainnet-us-central1`
@@ -57,6 +58,7 @@ terraform apply tfplan
 # Testnet
 gcloud container clusters get-credentials idn-testnet-us-central1 --region us-central1
 gcloud container clusters get-credentials idn-testnet-europe-west1 --region europe-west1
+gcloud container clusters get-credentials idn-testnet-asia-east1 --region asia-east1
 
 # Mainnet
 gcloud container clusters get-credentials idn-mainnet-us-central1 --region us-central1

@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: idn-collator
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$binary_remote_addr"
+    nginx.ingress.kubernetes.io/websocket-services: "testnet-eu-idn-collator"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - idn-eu-01.testnet.idealabs.network
+      secretName: idn-collator-tls
+  rules:
+    - host: idn-eu-01.testnet.idealabs.network
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: testnet-eu-idn-collator
+                port:
+                  number: 9944

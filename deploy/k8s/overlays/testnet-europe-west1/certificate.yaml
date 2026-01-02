@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: idn-collator-tls
+spec:
+  secretName: idn-collator-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - idn-eu-01.testnet.idealabs.network
+  duration: 2160h
+  renewBefore: 360h

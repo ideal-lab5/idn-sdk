@@ -5,6 +5,8 @@ namespace: idn-testnet
 
 resources:
   - ../../base
+  - certificate.yaml
+  - ingress.yaml
 
 namePrefix: testnet-eu-
 

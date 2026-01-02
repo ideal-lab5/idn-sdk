@@ -1,0 +1,25 @@
+# GKE Autopilot requires cert-manager to use its own namespace for leader election
+# instead of kube-system (which is restricted)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cert-manager-leaderelection
+  namespace: cert-manager
+rules:
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cert-manager-leaderelection
+  namespace: cert-manager
+subjects:
+- kind: ServiceAccount
+  name: cert-manager
+  namespace: cert-manager
+roleRef:
+  kind: Role
+  name: cert-manager-leaderelection
+  apiGroup: rbac.authorization.k8s.io
